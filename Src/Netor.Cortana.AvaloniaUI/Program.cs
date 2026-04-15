@@ -1,5 +1,3 @@
-using Avalonia;
-
 namespace Netor.Cortana.AvaloniaUI;
 
 internal static class Program
