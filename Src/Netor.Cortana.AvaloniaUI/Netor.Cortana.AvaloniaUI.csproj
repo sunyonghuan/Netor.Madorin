@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>Cortana</AssemblyName>
-    <AssemblyTitle>Cortana AvaloniaUI</AssemblyTitle>
+    <AssemblyTitle>Cortana</AssemblyTitle>
     <Version>1.1.0</Version>
     <ApplicationIcon>..\Netor.Cortana\logo.200.ico</ApplicationIcon>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
@@ -53,10 +53,10 @@
 
   <!-- Avalonia -->
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.0.0" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.0.0" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.0" />
-    <PackageReference Include="FluentAvaloniaUI" Version="2.5.1" />
+    <PackageReference Include="Avalonia" Version="12.0.1" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.0.1" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.1" />
+    <PackageReference Include="FluentAvaloniaUI" Version="3.0.0-preview1" />
     <!-- Avalonia 12 诊断功能已内置，无需独立包 -->
   </ItemGroup>
 
@@ -72,14 +72,14 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.5" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.5" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
-    <PackageReference Include="Serilog" Version="4.3.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-preview.3.26207.106" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="11.0.0-preview.3.26207.106" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="11.0.0-preview.3.26207.106" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="11.0.0-preview.3.26207.106" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0-preview.3.26207.106" />
+    <PackageReference Include="Serilog" Version="4.3.2-dev-02419" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
-    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="8.0.0-nblumhardt-02322" />
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.92.0" />
   </ItemGroup>
 

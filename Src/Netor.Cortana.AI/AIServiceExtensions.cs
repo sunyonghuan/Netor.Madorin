@@ -24,9 +24,9 @@ public static class AIServiceExtensions
 
         // 核心服务
         services.AddSingleton<AIAgentFactory>();
-        services.AddSingleton<AiChatService>();
-        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<AiChatService>());
-        services.AddSingleton<IAiChatEngine>(sp => sp.GetRequiredService<AiChatService>());
+        services.AddSingleton<AiChatHostedService>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<AiChatHostedService>());
+        services.AddSingleton<IAiChatEngine>(sp => sp.GetRequiredService<AiChatHostedService>());
         services.AddTransient<AiModelFetcherService>();
 
         return services;

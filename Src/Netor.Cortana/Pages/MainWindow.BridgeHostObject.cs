@@ -111,7 +111,7 @@ public partial class MainBridgeHostObject
     /// </summary>
     public void OnAgentChanged(string agentId)
     {
-        App.Services.GetRequiredService<AiChatService>().ChangeAgent(agentId);
+        App.Services.GetRequiredService<AiChatHostedService>().ChangeAgent(agentId);
     }
 
     /// <summary>
@@ -119,7 +119,7 @@ public partial class MainBridgeHostObject
     /// </summary>
     public void OnProviderChanged(string providerId)
     {
-        App.Services.GetRequiredService<AiChatService>().ChangeProvider(providerId);
+        App.Services.GetRequiredService<AiChatHostedService>().ChangeProvider(providerId);
     }
 
     /// <summary>
@@ -127,7 +127,7 @@ public partial class MainBridgeHostObject
     /// </summary>
     public void OnModelChanged(string modelId)
     {
-        App.Services.GetRequiredService<AiChatService>().ChangeModel(modelId);
+        App.Services.GetRequiredService<AiChatHostedService>().ChangeModel(modelId);
     }
 
     /// <summary>
@@ -135,7 +135,7 @@ public partial class MainBridgeHostObject
     /// </summary>
     public void OnSessionChanged(string sessionId)
     {
-        _ = App.Services.GetRequiredService<AiChatService>().ResumeSessionAsync(sessionId);
+        _ = App.Services.GetRequiredService<AiChatHostedService>().ResumeSessionAsync(sessionId);
     }
 
     // ──────── 窗口操作 ────────
@@ -153,7 +153,7 @@ public partial class MainBridgeHostObject
         });
     }
 
-    private AiChatService ChatService => App.Services.GetRequiredService<AiChatService>();
+    private AiChatHostedService ChatService => App.Services.GetRequiredService<AiChatHostedService>();
 
     /// <summary>
     /// 获取 WebSocket 服务器端口，供前端建立 WS 连接。

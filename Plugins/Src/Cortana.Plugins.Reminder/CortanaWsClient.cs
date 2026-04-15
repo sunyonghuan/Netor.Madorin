@@ -48,22 +48,43 @@ public sealed class CortanaWsClient(int wsPort, ILogger<CortanaWsClient> logger)
             await ws.SendAsync(bytes, WebSocketMessageType.Text, true, ct);
             logger.LogInformation("已通过宿主 WebSocket 发送提醒消息，长度：{Length}", text.Length);
 
-            // 等待 done
-            var completed = await ReadUntilTypeAsync(ws, "done", ct);
-            if (!completed)
+            // 消息已成功发送，后续清理失败不影响返回值
+            try
             {
-                logger.LogWarning("宿主 WebSocket 未返回 done 消息：{Uri}", _uri);
+                // 等待 done
+                var completed = await ReadUntilTypeAsync(ws, "done", ct);
+                if (!completed)
+                {
+                    logger.LogWarning("宿主 WebSocket 未返回 done 消息：{Uri}", _uri);
+                }
+
+                // 发送 stop 关闭会话
+                var stop = new WsClientMessage { Type = "stop" };
+                var stopJson = JsonSerializer.Serialize(stop, PluginJsonContext.Default.WsClientMessage);
+                await ws.SendAsync(Encoding.UTF8.GetBytes(stopJson), WebSocketMessageType.Text, true, ct);
+
+                if (ws.State == WebSocketState.Open)
+                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, ct);
+
+                logger.LogInformation("宿主 WebSocket 会话已关闭：{Uri}", _uri);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw; // 主取消令牌触发，向上传播
+            }
+            catch (Exception ex)
+            {
+                // 消息已送达，仅清理阶段失败，不影响结果
+                logger.LogWarning(ex, "宿主 WebSocket 清理阶段出错（消息已送达）：{Uri}", _uri);
+
+                try
+                {
+                    if (ws.State == WebSocketState.Open)
+                        await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
+                }
+                catch { /* 忽略关闭错误 */ }
             }
 
-            // 发送 stop 关闭会话
-            var stop = new WsClientMessage { Type = "stop" };
-            var stopJson = JsonSerializer.Serialize(stop, PluginJsonContext.Default.WsClientMessage);
-            await ws.SendAsync(Encoding.UTF8.GetBytes(stopJson), WebSocketMessageType.Text, true, ct);
-
-            if (ws.State == WebSocketState.Open)
-                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, ct);
-
-            logger.LogInformation("宿主 WebSocket 会话已关闭：{Uri}", _uri);
             return true;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)

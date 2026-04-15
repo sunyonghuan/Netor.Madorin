@@ -65,6 +65,6 @@ namespace Netor.Cortana.Entitys
         /// <summary>
         /// 该会话累计消耗的总令牌数，用于统计和展示 API 用量。
         /// </summary>
-        public int TotalTokenCount { get; set; }
+        public long TotalTokenCount { get; set; }
     }
 }

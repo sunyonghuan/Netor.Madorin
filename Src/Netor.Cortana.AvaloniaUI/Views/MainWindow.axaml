@@ -120,286 +120,298 @@
 			<!-- Col 2: 主内容区 -->
 			<DockPanel Grid.Column="2">
 
-			<!-- ── 顶部标题栏 (36px) ── -->
-			<Border DockPanel.Dock="Top" Height="36" Background="#1e1e1e">
-				<Grid ColumnDefinitions="Auto,*,Auto" Margin="10,0">
-					<!-- 左：工作台抽屉开关 -->
-					<Button Grid.Column="0" Classes="titlebar-btn"
-					        ToolTip.Tip="工作台" Click="OnWorkspaceToggleClick">
-						<Image Source="avares://Cortana/Assets/list.png" Width="14" Height="14" />
-					</Button>
-					<!-- 中：智能体/模型 -->
-					<StackPanel Grid.Column="1" Orientation="Horizontal"
-                                HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6">
-						<Button x:Name="HistoryButton" Grid.Column="0"
-                            Classes="titlebar-btn" Padding="6,4"
-                            Click="OnHistoryClick">
-						<StackPanel Orientation="Horizontal" Spacing="4">
-							<TextBlock x:Name="HistoryLabel" Text="新对话"
-                                       Foreground="#cccccc" FontSize="12"
-                                       MaxWidth="160" TextTrimming="CharacterEllipsis" />
-							<TextBlock Text="▼" Foreground="#6a6a6a" FontSize="9"
-                                       VerticalAlignment="Center" />
+				<!-- ── 顶部标题栏 (36px) ── -->
+				<Border DockPanel.Dock="Top" Height="36" Background="#1e1e1e">
+					<Grid ColumnDefinitions="Auto,*,Auto" Margin="10,0">
+						<!-- 左：工作台抽屉开关 -->
+						<Button Grid.Column="0" Classes="titlebar-btn"
+								ToolTip.Tip="工作台" Click="OnWorkspaceToggleClick">
+							<Image Source="avares://Cortana/Assets/list.png" Width="14" Height="14" />
+						</Button>
+						<!-- 中：智能体/模型 -->
+						<StackPanel Grid.Column="1" Orientation="Horizontal"
+									HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6">
+							<Button x:Name="HistoryButton" Grid.Column="0"
+								Classes="titlebar-btn" Padding="6,4"
+								Click="OnHistoryClick">
+								<StackPanel Orientation="Horizontal" Spacing="4">
+									<TextBlock x:Name="HistoryLabel" Text="新对话"
+											   Foreground="#cccccc" FontSize="12"
+											   MaxWidth="160" TextTrimming="CharacterEllipsis" />
+									<TextBlock Text="▼" Foreground="#6a6a6a" FontSize="9"
+											   VerticalAlignment="Center" />
+								</StackPanel>
+							</Button>
 						</StackPanel>
-					</Button>
-					</StackPanel>
-					<!-- 右：操作按钮组 -->
-					<StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2"
-								VerticalAlignment="Center">
-						<Button Classes="titlebar-btn" ToolTip.Tip="新建会话" Click="OnNewSessionClick">
-							<Image Source="avares://Cortana/Assets/add.png" Width="14" Height="14" />
-						</Button>
-						<Button Classes="titlebar-btn" ToolTip.Tip="清空页面消息" Click="OnClearMessagesClick">
-							<Image Source="avares://Cortana/Assets/clear.png" Width="14" Height="14" />
-						</Button>
-						<Button Classes="titlebar-btn" ToolTip.Tip="设置" Click="OnSettingsClick">
-							<Image Source="avares://Cortana/Assets/setting.png" Width="14" Height="14" />
-						</Button>
-						<Button Classes="titlebar-btn" ToolTip.Tip="历史记录" Click="OnHistoryPanelToggleClick">
-							<Image Source="avares://Cortana/Assets/historys.png" Width="14" Height="14" />
-						</Button>
-					</StackPanel>
-				</Grid>
-			</Border>
+						<!-- 右：操作按钮组 -->
+						<StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2"
+									VerticalAlignment="Center">
+							<Button Classes="titlebar-btn" ToolTip.Tip="新建会话" Click="OnNewSessionClick">
+								<Image Source="avares://Cortana/Assets/add.png" Width="14" Height="14" />
+							</Button>
+							<Button Classes="titlebar-btn" ToolTip.Tip="清空页面消息" Click="OnClearMessagesClick">
+								<Image Source="avares://Cortana/Assets/clear.png" Width="14" Height="14" />
+							</Button>
+							<Button Classes="titlebar-btn" ToolTip.Tip="设置" Click="OnSettingsClick">
+								<Image Source="avares://Cortana/Assets/setting.png" Width="14" Height="14" />
+							</Button>
+							<Button Classes="titlebar-btn" ToolTip.Tip="历史记录" Click="OnHistoryPanelToggleClick">
+								<Image Source="avares://Cortana/Assets/historys.png" Width="14" Height="14" />
+							</Button>
+						</StackPanel>
+					</Grid>
+				</Border>
 
-			<!-- 会话历史弹出面板 -->
-			<Popup x:Name="HistoryPopup" Placement="BottomEdgeAlignedLeft"
-                   PlacementTarget="{Binding #HistoryButton}"
-                   IsLightDismissEnabled="True">
-				<Border Background="#181818" CornerRadius="6"
-                        BorderBrush="#3c3c3c" BorderThickness="1"
-                        Padding="4" MinWidth="260" MaxHeight="400">
-					<ScrollViewer VerticalScrollBarVisibility="Auto">
-						<ItemsControl x:Name="HistoryList">
+				<!-- 会话历史弹出面板 -->
+				<Popup x:Name="HistoryPopup" Placement="BottomEdgeAlignedLeft"
+					   PlacementTarget="{Binding #HistoryButton}"
+					   IsLightDismissEnabled="True">
+					<Border Background="#181818" CornerRadius="6"
+							BorderBrush="#3c3c3c" BorderThickness="1"
+							Padding="4" MinWidth="260" MaxHeight="400">
+						<ScrollViewer VerticalScrollBarVisibility="Auto">
+							<ItemsControl x:Name="HistoryList">
+								<ItemsControl.ItemsPanel>
+									<ItemsPanelTemplate>
+										<StackPanel Spacing="2" />
+									</ItemsPanelTemplate>
+								</ItemsControl.ItemsPanel>
+							</ItemsControl>
+						</ScrollViewer>
+					</Border>
+				</Popup>
+
+				<!-- ── 底部输入区 ── -->
+				<Border DockPanel.Dock="Bottom" Background="#181818"
+						BorderBrush="#252526" BorderThickness="0,1,0,0"
+						Padding="6,6,6,0">
+					<StackPanel Spacing="0,0,0,2">
+						<!-- 附件预览区 -->
+						<ItemsControl x:Name="AttachmentList" Margin="4,0">
 							<ItemsControl.ItemsPanel>
 								<ItemsPanelTemplate>
-									<StackPanel Spacing="2" />
+									<WrapPanel Orientation="Horizontal" />
+								</ItemsPanelTemplate>
+							</ItemsControl.ItemsPanel>
+						</ItemsControl>
+
+						<!-- 输入框容器 -->
+						<Border x:Name="InputBorder" Background="#252526" CornerRadius="3"
+								BorderBrush="#3c3c3c" BorderThickness="1"
+								Padding="12"
+								DragDrop.AllowDrop="True">
+							<Grid ColumnDefinitions="*,Auto">
+								<TextBox x:Name="InputBox" Grid.Column="0"
+										 Classes="chat-input"
+										 Watermark="输入消息 (# 输入命令 Enter 快捷发送 Shift+Enter 换行) ..."
+										 TextWrapping="Wrap"
+										 AcceptsReturn="True"
+										 MinHeight="80" MaxHeight="400" />
+								<!-- 发送/停止 图标按钮 -->
+								<Panel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
+									<!-- 发送按钮（空闲时显示） -->
+									<Button x:Name="SendButton" Classes="titlebar-btn"
+											ToolTip.Tip="发送" IsVisible="True" Click="OnSendClick">
+										<Image Source="avares://Cortana/Assets/send.png" Width="14" Height="14" />
+									</Button>
+									<!-- 旋转加载按钮（发送中显示，点击可取消） -->
+									<Button x:Name="StopButton" Classes="titlebar-btn"
+											ToolTip.Tip="取消" IsVisible="False" Click="OnStopClick">
+										<Image x:Name="SpinnerIcon"
+											   Source="avares://Cortana/Assets/refresh.png"
+											   Width="14" Height="14"
+											   RenderTransformOrigin="50%,50%">
+											<Image.RenderTransform>
+												<RotateTransform Angle="0" />
+											</Image.RenderTransform>
+										</Image>
+									</Button>
+								</Panel>
+							</Grid>
+						</Border>
+
+						<!-- # 文件补全弹出列表 -->
+						<Popup x:Name="FilePopup" Placement="TopEdgeAlignedLeft"
+							   PlacementTarget="{Binding #InputBorder}"
+							   IsLightDismissEnabled="True">
+							<Border Background="#181818" CornerRadius="6"
+									BorderBrush="#3c3c3c" BorderThickness="1"
+									Padding="4" MinWidth="300" MaxHeight="260">
+								<ScrollViewer VerticalScrollBarVisibility="Auto">
+									<ItemsControl x:Name="FileList">
+										<ItemsControl.ItemsPanel>
+											<ItemsPanelTemplate>
+												<StackPanel Spacing="1" />
+											</ItemsPanelTemplate>
+										</ItemsControl.ItemsPanel>
+									</ItemsControl>
+								</ScrollViewer>
+							</Border>
+						</Popup>
+
+						<!-- 底部工具栏：附件 + 智能体/厂商/模型选择器 -->
+						<StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0">
+							<!-- 附件按钮 -->
+							<Button x:Name="AttachButton" Classes="titlebar-btn" Padding="6,3"
+									ToolTip.Tip="添加附件" Click="OnAttachClick">
+								<StackPanel Orientation="Horizontal" Spacing="4">
+									<TextBlock Text="📎" FontSize="12" />
+									<TextBlock Text="附件" Foreground="#a0a0a0" FontSize="12" />
+								</StackPanel>
+							</Button>
+							<!-- 智能体选择器 -->
+							<Button x:Name="AgentSelectorBtn" Classes="titlebar-btn" Padding="6,3"
+									Click="OnAgentSelectorClick">
+								<StackPanel Orientation="Horizontal" Spacing="4">
+									<TextBlock Text="🧠" FontSize="12" />
+									<TextBlock x:Name="ToolbarAgentLabel" Text="智能体"
+											   Foreground="#a0a0a0" FontSize="12" />
+									<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9"
+											   VerticalAlignment="Center" />
+								</StackPanel>
+							</Button>
+							<!-- 厂商选择器 -->
+							<Button x:Name="ProviderSelectorBtn" Classes="titlebar-btn" Padding="6,3"
+									Click="OnProviderSelectorClick">
+								<StackPanel Orientation="Horizontal" Spacing="4">
+									<TextBlock Text="🏢" FontSize="12" />
+									<TextBlock x:Name="ToolbarProviderLabel" Text="厂商"
+											   Foreground="#a0a0a0" FontSize="12" />
+									<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9"
+											   VerticalAlignment="Center" />
+								</StackPanel>
+							</Button>
+							<!-- 模型选择器 -->
+							<Button x:Name="ModelSelectorBtn" Classes="titlebar-btn" Padding="6,3"
+									Click="OnModelSelectorClick">
+								<StackPanel Orientation="Horizontal" Spacing="4">
+									<TextBlock Text="🔮" FontSize="12" />
+									<TextBlock x:Name="ToolbarModelLabel" Text="模型"
+											   Foreground="#a0a0a0" FontSize="12" />
+									<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9"
+											   VerticalAlignment="Center" />
+								</StackPanel>
+							</Button>
+						</StackPanel>
+						<StackPanel>
+							<ProgressBar x:Name="AiProgressBar"
+										 Minimum="0"
+										 Maximum="100"
+										 Value="0"
+										 Height="1"
+										 Margin="0,1,0,0"
+										 Tag="0%  0k/ 0k"
+										 ToolTip.Tip="{Binding Tag, RelativeSource={RelativeSource Self}}"
+										 ToolTip.Placement="Top"
+										 Foreground="{DynamicResource BlueBrush}"
+										 Background="{DynamicResource Surface1Brush}" />
+						</StackPanel>
+						<!-- 选择器弹出面板：智能体 -->
+						<Popup x:Name="AgentPopup" Placement="TopEdgeAlignedLeft"
+							   PlacementTarget="{Binding #AgentSelectorBtn}"
+							   IsLightDismissEnabled="True">
+							<Border Background="#181818" CornerRadius="6"
+									BorderBrush="#3c3c3c" BorderThickness="1"
+									Padding="4" MinWidth="200" MaxHeight="300">
+								<ScrollViewer VerticalScrollBarVisibility="Auto">
+									<ItemsControl x:Name="AgentList">
+										<ItemsControl.ItemsPanel>
+											<ItemsPanelTemplate>
+												<StackPanel Spacing="2" />
+											</ItemsPanelTemplate>
+										</ItemsControl.ItemsPanel>
+									</ItemsControl>
+								</ScrollViewer>
+							</Border>
+						</Popup>
+
+						<!-- 选择器弹出面板：厂商 -->
+						<Popup x:Name="ProviderPopup" Placement="TopEdgeAlignedLeft"
+							   PlacementTarget="{Binding #ProviderSelectorBtn}"
+							   IsLightDismissEnabled="True">
+							<Border Background="#181818" CornerRadius="6"
+									BorderBrush="#3c3c3c" BorderThickness="1"
+									Padding="4" MinWidth="200" MaxHeight="300">
+								<ScrollViewer VerticalScrollBarVisibility="Auto">
+									<ItemsControl x:Name="ProviderList">
+										<ItemsControl.ItemsPanel>
+											<ItemsPanelTemplate>
+												<StackPanel Spacing="2" />
+											</ItemsPanelTemplate>
+										</ItemsControl.ItemsPanel>
+									</ItemsControl>
+								</ScrollViewer>
+							</Border>
+						</Popup>
+
+						<!-- 选择器弹出面板：模型 -->
+						<Popup x:Name="ModelPopup" Placement="TopEdgeAlignedLeft"
+							   PlacementTarget="{Binding #ModelSelectorBtn}"
+							   IsLightDismissEnabled="True">
+							<Border Background="#181818" CornerRadius="6"
+									BorderBrush="#3c3c3c" BorderThickness="1"
+									Padding="4" MinWidth="220" MaxHeight="300">
+								<ScrollViewer VerticalScrollBarVisibility="Auto">
+									<ItemsControl x:Name="ModelList">
+										<ItemsControl.ItemsPanel>
+											<ItemsPanelTemplate>
+												<StackPanel Spacing="2" />
+											</ItemsPanelTemplate>
+										</ItemsControl.ItemsPanel>
+									</ItemsControl>
+								</ScrollViewer>
+							</Border>
+						</Popup>
+					</StackPanel>
+				</Border>
+
+				<!-- ── 消息列表 ── -->
+				<Grid>
+					<!-- 欢迎消息面板 -->
+					<StackPanel x:Name="WelcomePanel"
+								VerticalAlignment="Center" HorizontalAlignment="Center"
+								Spacing="8">
+						<TextBlock Text="🤖" FontSize="48"
+								   HorizontalAlignment="Center" />
+						<TextBlock Text="你好，有什么可以帮你的？"
+								   FontSize="18" FontWeight="SemiBold"
+								   Foreground="#cccccc" HorizontalAlignment="Center" />
+						<TextBlock Text="输入消息开始对话"
+								   FontSize="13" Foreground="#6a6a6a"
+								   HorizontalAlignment="Center" />
+					</StackPanel>
+
+					<!-- 消息滚动区域 -->
+					<ScrollViewer x:Name="MessageScroller"
+								  VerticalScrollBarVisibility="Auto"
+								  HorizontalScrollBarVisibility="Disabled"
+								  Background="Transparent">
+						<ItemsControl x:Name="MessageList" Padding="16">
+							<ItemsControl.ItemsPanel>
+								<ItemsPanelTemplate>
+									<StackPanel Spacing="20" />
 								</ItemsPanelTemplate>
 							</ItemsControl.ItemsPanel>
 						</ItemsControl>
 					</ScrollViewer>
-				</Border>
-			</Popup>
 
-			<!-- ── 底部输入区 ── -->
-			<Border DockPanel.Dock="Bottom" Background="#181818"
-                    BorderBrush="#252526" BorderThickness="0,1,0,0"
-                    Padding="6,6,6,0">
-				<StackPanel Spacing="0,0,0,2">
-					<!-- 附件预览区 -->
-					<ItemsControl x:Name="AttachmentList" Margin="4,0">
-						<ItemsControl.ItemsPanel>
-							<ItemsPanelTemplate>
-								<WrapPanel Orientation="Horizontal" />
-							</ItemsPanelTemplate>
-						</ItemsControl.ItemsPanel>
-					</ItemsControl>
-
-					<!-- 输入框容器 -->
-					<Border x:Name="InputBorder" Background="#252526" CornerRadius="3"
-                            BorderBrush="#3c3c3c" BorderThickness="1"
-                            Padding="12"
-                            DragDrop.AllowDrop="True">
-						<Grid ColumnDefinitions="*,Auto">
-							<TextBox x:Name="InputBox" Grid.Column="0"
-									 Classes="chat-input"
-									 Watermark="输入消息 (# 输入命令 Enter 快捷发送 Shift+Enter 换行) ..."
-									 TextWrapping="Wrap"
-									 AcceptsReturn="True"
-									 MinHeight="80" MaxHeight="400" />
-							<!-- 发送/停止 图标按钮 -->
-							<Panel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
-								<!-- 发送按钮（空闲时显示） -->
-								<Button x:Name="SendButton" Classes="titlebar-btn"
-								        ToolTip.Tip="发送" IsVisible="True" Click="OnSendClick">
-									<Image Source="avares://Cortana/Assets/send.png" Width="14" Height="14" />
-								</Button>
-								<!-- 旋转加载按钮（发送中显示，点击可取消） -->
-								<Button x:Name="StopButton" Classes="titlebar-btn"
-								        ToolTip.Tip="取消" IsVisible="False" Click="OnStopClick">
-									<Image x:Name="SpinnerIcon"
-									       Source="avares://Cortana/Assets/refresh.png"
-									       Width="14" Height="14"
-									       RenderTransformOrigin="50%,50%">
-										<Image.RenderTransform>
-											<RotateTransform Angle="0" />
-										</Image.RenderTransform>
-									</Image>
-								</Button>
-							</Panel>
-						</Grid>
-					</Border>
-
-					<!-- # 文件补全弹出列表 -->
-					<Popup x:Name="FilePopup" Placement="TopEdgeAlignedLeft"
-					       PlacementTarget="{Binding #InputBorder}"
-					       IsLightDismissEnabled="True">
-						<Border Background="#181818" CornerRadius="6"
-						        BorderBrush="#3c3c3c" BorderThickness="1"
-						        Padding="4" MinWidth="300" MaxHeight="260">
-							<ScrollViewer VerticalScrollBarVisibility="Auto">
-								<ItemsControl x:Name="FileList">
-									<ItemsControl.ItemsPanel>
-										<ItemsPanelTemplate>
-											<StackPanel Spacing="1" />
-										</ItemsPanelTemplate>
-									</ItemsControl.ItemsPanel>
-								</ItemsControl>
-							</ScrollViewer>
-						</Border>
-					</Popup>
-
-					<!-- 底部工具栏：附件 + 智能体/厂商/模型选择器 -->
-					<StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0">
-						<!-- 附件按钮 -->
-						<Button x:Name="AttachButton" Classes="titlebar-btn" Padding="6,3"
-                                ToolTip.Tip="添加附件" Click="OnAttachClick">
-							<StackPanel Orientation="Horizontal" Spacing="4">
-								<TextBlock Text="📎" FontSize="12" />
-								<TextBlock Text="附件" Foreground="#a0a0a0" FontSize="12" />
-							</StackPanel>
-						</Button>
-						<!-- 智能体选择器 -->
-						<Button x:Name="AgentSelectorBtn" Classes="titlebar-btn" Padding="6,3"
-                                Click="OnAgentSelectorClick">
-							<StackPanel Orientation="Horizontal" Spacing="4">
-								<TextBlock Text="🧠" FontSize="12" />
-								<TextBlock x:Name="ToolbarAgentLabel" Text="智能体"
-                                           Foreground="#a0a0a0" FontSize="12" />
-								<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9"
-                                           VerticalAlignment="Center" />
-							</StackPanel>
-						</Button>
-						<!-- 厂商选择器 -->
-						<Button x:Name="ProviderSelectorBtn" Classes="titlebar-btn" Padding="6,3"
-                                Click="OnProviderSelectorClick">
-							<StackPanel Orientation="Horizontal" Spacing="4">
-								<TextBlock Text="🏢" FontSize="12" />
-								<TextBlock x:Name="ToolbarProviderLabel" Text="厂商"
-                                           Foreground="#a0a0a0" FontSize="12" />
-								<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9"
-                                           VerticalAlignment="Center" />
-							</StackPanel>
-						</Button>
-						<!-- 模型选择器 -->
-						<Button x:Name="ModelSelectorBtn" Classes="titlebar-btn" Padding="6,3"
-                                Click="OnModelSelectorClick">
-							<StackPanel Orientation="Horizontal" Spacing="4">
-								<TextBlock Text="🔮" FontSize="12" />
-								<TextBlock x:Name="ToolbarModelLabel" Text="模型"
-                                           Foreground="#a0a0a0" FontSize="12" />
-								<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9"
-                                           VerticalAlignment="Center" />
-							</StackPanel>
-						</Button>
-					</StackPanel>
-
-					<!-- 选择器弹出面板：智能体 -->
-					<Popup x:Name="AgentPopup" Placement="TopEdgeAlignedLeft"
-                           PlacementTarget="{Binding #AgentSelectorBtn}"
-                           IsLightDismissEnabled="True">
-						<Border Background="#181818" CornerRadius="6"
-                                BorderBrush="#3c3c3c" BorderThickness="1"
-                                Padding="4" MinWidth="200" MaxHeight="300">
-							<ScrollViewer VerticalScrollBarVisibility="Auto">
-								<ItemsControl x:Name="AgentList">
-									<ItemsControl.ItemsPanel>
-										<ItemsPanelTemplate>
-											<StackPanel Spacing="2" />
-										</ItemsPanelTemplate>
-									</ItemsControl.ItemsPanel>
-								</ItemsControl>
-							</ScrollViewer>
-						</Border>
-					</Popup>
-
-					<!-- 选择器弹出面板：厂商 -->
-					<Popup x:Name="ProviderPopup" Placement="TopEdgeAlignedLeft"
-                           PlacementTarget="{Binding #ProviderSelectorBtn}"
-                           IsLightDismissEnabled="True">
-						<Border Background="#181818" CornerRadius="6"
-                                BorderBrush="#3c3c3c" BorderThickness="1"
-                                Padding="4" MinWidth="200" MaxHeight="300">
-							<ScrollViewer VerticalScrollBarVisibility="Auto">
-								<ItemsControl x:Name="ProviderList">
-									<ItemsControl.ItemsPanel>
-										<ItemsPanelTemplate>
-											<StackPanel Spacing="2" />
-										</ItemsPanelTemplate>
-									</ItemsControl.ItemsPanel>
-								</ItemsControl>
-							</ScrollViewer>
-						</Border>
-					</Popup>
-
-					<!-- 选择器弹出面板：模型 -->
-					<Popup x:Name="ModelPopup" Placement="TopEdgeAlignedLeft"
-                           PlacementTarget="{Binding #ModelSelectorBtn}"
-                           IsLightDismissEnabled="True">
-						<Border Background="#181818" CornerRadius="6"
-                                BorderBrush="#3c3c3c" BorderThickness="1"
-                                Padding="4" MinWidth="220" MaxHeight="300">
-							<ScrollViewer VerticalScrollBarVisibility="Auto">
-								<ItemsControl x:Name="ModelList">
-									<ItemsControl.ItemsPanel>
-										<ItemsPanelTemplate>
-											<StackPanel Spacing="2" />
-										</ItemsPanelTemplate>
-									</ItemsControl.ItemsPanel>
-								</ItemsControl>
-							</ScrollViewer>
-						</Border>
-					</Popup>
-				</StackPanel>
-			</Border>
-
-			<!-- ── 消息列表 ── -->
-			<Grid>
-				<!-- 欢迎消息面板 -->
-				<StackPanel x:Name="WelcomePanel"
-				            VerticalAlignment="Center" HorizontalAlignment="Center"
-				            Spacing="8">
-					<TextBlock Text="🤖" FontSize="48"
-					           HorizontalAlignment="Center" />
-					<TextBlock Text="你好，有什么可以帮你的？"
-					           FontSize="18" FontWeight="SemiBold"
-					           Foreground="#cccccc" HorizontalAlignment="Center" />
-					<TextBlock Text="输入消息开始对话"
-					           FontSize="13" Foreground="#6a6a6a"
-					           HorizontalAlignment="Center" />
-				</StackPanel>
-
-				<!-- 消息滚动区域 -->
-				<ScrollViewer x:Name="MessageScroller"
-				              VerticalScrollBarVisibility="Auto"
-				              HorizontalScrollBarVisibility="Disabled"
-				              Background="Transparent">
-					<ItemsControl x:Name="MessageList" Padding="16">
-						<ItemsControl.ItemsPanel>
-							<ItemsPanelTemplate>
-								<StackPanel Spacing="20" />
-							</ItemsPanelTemplate>
-						</ItemsControl.ItemsPanel>
-					</ItemsControl>
-				</ScrollViewer>
-
-				<!-- 滚动到底部按钮 -->
-				<Button x:Name="ScrollToBottomBtn"
-				        IsVisible="False"
-				        HorizontalAlignment="Right" VerticalAlignment="Bottom"
-				        Margin="0,0,16,8"
-				        Background="#252526" Foreground="#cccccc"
-				        BorderBrush="#3c3c3c" BorderThickness="1"
-				        CornerRadius="4" Padding="10,6"
-				        Cursor="Hand" FontSize="12"
-				        Click="OnScrollToBottomClick">
-					<StackPanel Orientation="Horizontal" Spacing="4">
-						<TextBlock Text="↓" FontSize="13" VerticalAlignment="Center" />
-						<TextBlock Text="滚动到底" FontSize="12" VerticalAlignment="Center" />
-					</StackPanel>
-				</Button>
-			</Grid>
-		</DockPanel>
+					<!-- 滚动到底部按钮 -->
+					<Button x:Name="ScrollToBottomBtn"
+							IsVisible="False"
+							HorizontalAlignment="Right" VerticalAlignment="Bottom"
+							Margin="0,0,16,8"
+							Background="#252526" Foreground="#cccccc"
+							BorderBrush="#3c3c3c" BorderThickness="1"
+							CornerRadius="4" Padding="10,6"
+							Cursor="Hand" FontSize="12"
+							Click="OnScrollToBottomClick">
+						<StackPanel Orientation="Horizontal" Spacing="4">
+							<TextBlock Text="↓" FontSize="13" VerticalAlignment="Center" />
+							<TextBlock Text="滚动到底" FontSize="12" VerticalAlignment="Center" />
+						</StackPanel>
+					</Button>
+				</Grid>
+			</DockPanel>
 
 			<!-- Col 3: 历史面板拖拽分隔条 -->
 			<GridSplitter x:Name="HistorySplitter" Grid.Column="3"

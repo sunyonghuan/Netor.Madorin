@@ -1,6 +1,4 @@
 using Microsoft.Agents.AI;
-using Microsoft.Agents.AI.Workflows;
-using Microsoft.Agents.AI.Workflows.Execution;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,7 +7,6 @@ using Netor.Cortana.AI.Providers;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.EventHub;
-using Netor.EventHub.Interfances;
 
 using System.Text;
 
@@ -23,9 +20,9 @@ namespace Netor.Cortana.AI;
 /// 通过 <see cref="IAiChatEngine"/> 接口接收输入，
 /// 将 AI 流式回复广播到所有活跃的 <see cref="IAiOutputChannel"/> 输出通道。
 /// </summary>
-public sealed class AiChatService(
+public sealed class AiChatHostedService(
     AIAgentFactory factory,
-    ChatHistoryDataProvider chatHistoryProvider,
+     ChatHistoryDataProvider chatHistoryProvider,
     CortanaDbContext dbContext,
     AiProviderService providerService,
     AgentService agentService,
@@ -33,7 +30,7 @@ public sealed class AiChatService(
     IEnumerable<IAiOutputChannel> outputChannels,
     IPublisher publisher,
     ISubscriber subscriber,
-    ILogger<AiChatService> logger) : IAiChatEngine, IHostedService, IDisposable
+    ILogger<AiChatHostedService> logger) : IAiChatEngine, IHostedService, IDisposable
 {
     private AIAgent? _agent;
     private AgentSession? _session;
@@ -46,7 +43,7 @@ public sealed class AiChatService(
     private AiProviderEntity? _currentProvider;
 
     private AgentEntity? _currentAgent;
-    private string _currentModelName = string.Empty;
+    private AiModelEntity? _currentModel;
 
     private bool _eventsSubscribed;
     private CancellationTokenSource? _serviceCts;
@@ -67,11 +64,11 @@ public sealed class AiChatService(
 
         LoadDefaults();
 
-        if (_currentProvider is not null && _currentAgent is not null && !string.IsNullOrEmpty(_currentModelName))
+        if (_currentProvider is not null && _currentAgent is not null && _currentModel is not null)
         {
-            _agent = factory.Build(_currentAgent, _currentProvider, _currentModelName);
+            _agent = factory.Build(_currentAgent, _currentProvider, _currentModel);
             logger.LogInformation("AI 对话服务已初始化：Provider={Provider}, Agent={Agent}, Model={Model}",
-                _currentProvider.Name, _currentAgent.Name, _currentModelName);
+                _currentProvider.Name, _currentAgent.Name, _currentModel);
         }
         else
         {
@@ -112,7 +109,7 @@ public sealed class AiChatService(
 
         if (model is not null)
         {
-            _currentModelName = model.Name;
+            _currentModel = model;
             RebuildAgent();
         }
     }
@@ -138,14 +135,14 @@ public sealed class AiChatService(
         _sessionId = Guid.NewGuid().ToString("N");
         _session.StateBag.SetValue("sessionid", _sessionId);
 
-        if (!string.IsNullOrEmpty(_currentModelName))
+        if (_currentModel is not null)
         {
-            _session.StateBag.SetValue("modelid", _currentModelName);
+            _session.StateBag.SetValue("modelid", _currentModel.Name);
+            _session.StateBag.SetValue("modeldbid", _currentModel.Id);
         }
 
         _sessionId = await chatHistoryProvider.CreateNewSessionAsync(_session, _agent);
         publisher.Publish(Events.OnSessionCreated, new SessionCreatedArgs(_sessionId));
-
     }
 
     /// <summary>
@@ -159,9 +156,10 @@ public sealed class AiChatService(
         _sessionId = sessionId;
         _session.StateBag.SetValue("sessionid", sessionId);
 
-        if (!string.IsNullOrEmpty(_currentModelName))
+        if (_currentModel is not null)
         {
-            _session.StateBag.SetValue("modelid", _currentModelName);
+            _session.StateBag.SetValue("modelid", _currentModel.Name);
+            _session.StateBag.SetValue("modeldbid", _currentModel.Id);
         }
     }
 
@@ -207,14 +205,14 @@ public sealed class AiChatService(
             }
         }
 
-        if (_currentProvider is null || _currentAgent is null || string.IsNullOrEmpty(_currentModelName))
+        if (_currentProvider is null || _currentAgent is null || _currentModel is null)
         {
             logger.LogWarning("AI 服务未初始化（缺少默认提供商/智能体/模型），跳过回复");
             return;
         }
 
         // 确保 Agent 和 Session 已初始化
-        _agent ??= factory.Build(_currentAgent, _currentProvider, _currentModelName);
+        _agent ??= factory.Build(_currentAgent, _currentProvider, _currentModel);
 
         if (_session is null)
         {
@@ -308,6 +306,11 @@ public sealed class AiChatService(
                         logger.LogWarning(ex, "输出通道 {Channel} 处理 token 失败", channel.Name);
                     }
                 }
+                //var usage = chunk.Contents.FirstOrDefault(t => t is UsageContent);
+                //if (chunk.RawRepresentation is ChatResponseUpdate chatResponse)
+                //{
+                //    var usege = chatResponse.RawRepresentation;
+                //}
             }
 
             var sessionId = _session?.StateBag.GetValue<string>("sessionid") ?? "";
@@ -383,7 +386,7 @@ public sealed class AiChatService(
                 Id = Guid.NewGuid().ToString("N"),
                 SessionId = sessionId,
                 UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                ModelName = _currentModelName
+                ModelName = _currentModel?.Name ?? string.Empty
             };
 
             dbContext.Execute(
@@ -418,7 +421,7 @@ public sealed class AiChatService(
         {
             var models = modelService.GetByProviderId(_currentProvider.Id);
             var defaultModel = models.FirstOrDefault(m => m.IsDefault) ?? models.FirstOrDefault();
-            _currentModelName = defaultModel?.Name ?? string.Empty;
+            _currentModel = defaultModel;
         }
     }
 
@@ -448,9 +451,10 @@ public sealed class AiChatService(
 
         _session.StateBag.SetValue("sessionid", _sessionId);
 
-        if (!string.IsNullOrEmpty(_currentModelName))
+        if (_currentModel is not null)
         {
-            _session.StateBag.SetValue("modelid", _currentModelName);
+            _session.StateBag.SetValue("modelid", _currentModel?.Name ?? string.Empty);
+            _session.StateBag.SetValue("modeldbid", _currentModel?.Id);
         }
     }
 
@@ -523,12 +527,12 @@ public sealed class AiChatService(
     /// </summary>
     private void RebuildAgent()
     {
-        if (_currentProvider is null || _currentAgent is null || string.IsNullOrEmpty(_currentModelName))
+        if (_currentProvider is null || _currentAgent is null || _currentModel is null)
         {
             return;
         }
 
-        _agent = factory.Build(_currentAgent, _currentProvider, _currentModelName);
+        _agent = factory.Build(_currentAgent, _currentProvider, _currentModel);
         _session = null;
     }
 

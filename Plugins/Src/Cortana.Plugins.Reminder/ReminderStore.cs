@@ -11,6 +11,11 @@ public sealed class ReminderStore
     private readonly SemaphoreSlim _lock = new(1, 1);
     private List<ReminderItem> _items = [];
 
+    /// <summary>
+    /// 提醒列表发生变更时触发，通知调度器重新计算下次唤醒时间。
+    /// </summary>
+    public event Action? Changed;
+
     public ReminderStore(string dataDirectory)
     {
         Directory.CreateDirectory(dataDirectory);
@@ -41,32 +46,39 @@ public sealed class ReminderStore
             Save();
         }
         finally { _lock.Release(); }
+        Changed?.Invoke();
     }
 
     public bool Update(ReminderItem item)
     {
         _lock.Wait();
+        bool updated;
         try
         {
             var idx = _items.FindIndex(r => r.Id == item.Id);
             if (idx < 0) return false;
             _items[idx] = item;
             Save();
-            return true;
+            updated = true;
         }
         finally { _lock.Release(); }
+        if (updated) Changed?.Invoke();
+        return updated;
     }
 
     public bool Delete(string id)
     {
+        bool removed;
         _lock.Wait();
         try
         {
-            var removed = _items.RemoveAll(r => r.Id == id);
-            if (removed > 0) Save();
-            return removed > 0;
+            var count = _items.RemoveAll(r => r.Id == id);
+            if (count > 0) Save();
+            removed = count > 0;
         }
         finally { _lock.Release(); }
+        if (removed) Changed?.Invoke();
+        return removed;
     }
 
     /// <summary>
@@ -76,6 +88,24 @@ public sealed class ReminderStore
     {
         _lock.Wait();
         try { return _items.Where(r => r.IsEnabled && r.TriggerTime <= now).ToList(); }
+        finally { _lock.Release(); }
+    }
+
+    /// <summary>
+    /// 获取最近一条启用提醒的触发时间，用于调度器计算下次唤醒延迟。
+    /// </summary>
+    public DateTimeOffset? GetNextTriggerTime()
+    {
+        _lock.Wait();
+        try
+        {
+            return _items
+                .Where(r => r.IsEnabled)
+                .Select(r => r.TriggerTime)
+                .Order()
+                .Cast<DateTimeOffset?>()
+                .FirstOrDefault();
+        }
         finally { _lock.Release(); }
     }
 
@@ -111,14 +141,16 @@ public sealed class ReminderStore
     /// </summary>
     public int DeleteByTag(string tag)
     {
+        int removed;
         _lock.Wait();
         try
         {
-            var removed = _items.RemoveAll(r => r.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase));
+            removed = _items.RemoveAll(r => r.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase));
             if (removed > 0) Save();
-            return removed;
         }
         finally { _lock.Release(); }
+        if (removed > 0) Changed?.Invoke();
+        return removed;
     }
 
     /// <summary>
@@ -160,6 +192,7 @@ public sealed class ReminderStore
             Save();
         }
         finally { _lock.Release(); }
+        Changed?.Invoke();
     }
 
     private void Load()

@@ -32,12 +32,14 @@ public partial class MainWindow : Window
 
     private List<AiProviderEntity> _providers = [];
     private List<AiModelEntity> _models = [];
-    IAiChatEngine chatEngine = App.Services.GetRequiredService<IAiChatEngine>();
+    private IAiChatEngine chatEngine = App.Services.GetRequiredService<IAiChatEngine>();
+
     // 待发送的附件列表
     private readonly List<AttachmentInfo> _attachments = [];
 
     // AI 对话进行中标志 & 取消令牌
     private bool _isSending;
+
     private CancellationTokenSource? _sendCts;
     private Animation? _spinnerAnimation;
 
@@ -352,7 +354,7 @@ public partial class MainWindow : Window
             }
 
             // 通知 AiChatService 恢复该会话上下文
-            var chatService = App.Services.GetRequiredService<AiChatService>();
+            var chatService = App.Services.GetRequiredService<AiChatHostedService>();
             _ = Task.Run(() => chatService.ResumeSessionAsync(sessionId));
         }
         catch (Exception ex)
@@ -565,7 +567,7 @@ public partial class MainWindow : Window
             // 通知 AiChatService 当前模型
             if (defaultModel is not null)
             {
-                var chatService = App.Services.GetRequiredService<AiChatService>();
+                var chatService = App.Services.GetRequiredService<AiChatHostedService>();
                 chatService.ChangeModel(defaultModel.Id);
             }
         }
@@ -1046,7 +1048,7 @@ public partial class MainWindow : Window
     private void CancelSending()
     {
         _sendCts?.Cancel();
-        var chatService = App.Services.GetRequiredService<AiChatService>();
+        var chatService = App.Services.GetRequiredService<AiChatHostedService>();
         chatService.CancelCurrentTask();
     }
 
@@ -1072,7 +1074,18 @@ public partial class MainWindow : Window
                 }
             };
             _spinnerAnimation.RunAsync(SpinnerIcon);
+            return;
         }
+        var factory = App.Services.GetRequiredService<AIAgentFactory>();
+        if (factory.ChatClient is not null && factory.ChatClient?.MaxContextTokens > 0)
+            this.Dispatcher.Invoke(() =>
+            {
+                var total = (factory.ChatClient?.MaxContextTokens ?? 1) / 1000d;
+                var used = (factory.ChatClient?.LastInputTokens ?? 128) / 1000d;
+                var left = used / total;
+                AiProgressBar.Value = left;
+                AiProgressBar.Tag = $"{left:f2}%  {used:f2}k / {total:f0}k";
+            });
     }
 
     /// <summary>
@@ -1109,7 +1122,7 @@ public partial class MainWindow : Window
         ClearAttachments();
 
         // 通过 AiChatService 发送，AI 回复将通过 UiChatOutputChannel 渲染到界面
-        var chatService = App.Services.GetRequiredService<AiChatService>();
+        var chatService = App.Services.GetRequiredService<AiChatHostedService>();
         var logger = App.Services.GetRequiredService<ILogger<MainWindow>>();
 
         _sendCts?.Dispose();
@@ -1120,7 +1133,6 @@ public partial class MainWindow : Window
         {
             try
             {
-
                 await chatService.SendMessageAsync(resolvedText, token, attachments);
             }
             catch (OperationCanceledException)
@@ -1135,7 +1147,7 @@ public partial class MainWindow : Window
             }
             finally
             {
-                // 按钮状态由 OnAiCompleted 事件自动恢复
+
             }
         });
     }
@@ -1290,7 +1302,6 @@ public partial class MainWindow : Window
     /// </summary>
     private async void OnNewSessionClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-
         await chatEngine.NewSessionAsync();
     }
 
@@ -1326,7 +1337,7 @@ public partial class MainWindow : Window
             RefreshAgentDisplay(agent);
             FillAgentSelector(agentId);
 
-            var chatService = App.Services.GetRequiredService<AiChatService>();
+            var chatService = App.Services.GetRequiredService<AiChatHostedService>();
             chatService.ChangeAgent(agentId);
         }
     }
@@ -1359,7 +1370,7 @@ public partial class MainWindow : Window
             var providerService = App.Services.GetRequiredService<AiProviderService>();
             providerService.SetDefault(providerId);
 
-            var chatService = App.Services.GetRequiredService<AiChatService>();
+            var chatService = App.Services.GetRequiredService<AiChatHostedService>();
             chatService.ChangeProvider(providerId);
             LoadModels(providerId);
         }
@@ -1392,7 +1403,7 @@ public partial class MainWindow : Window
             var modelService = App.Services.GetRequiredService<AiModelService>();
             modelService.SetDefault(modelId);
 
-            var chatService = App.Services.GetRequiredService<AiChatService>();
+            var chatService = App.Services.GetRequiredService<AiChatHostedService>();
             chatService.ChangeModel(modelId);
         }
     }

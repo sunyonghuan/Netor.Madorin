@@ -3,80 +3,80 @@
              x:Class="Netor.Cortana.AvaloniaUI.Views.Settings.ProviderSettingsPage"
              x:CompileBindings="True">
 
-    <DockPanel>
-        <!-- 顶部标题栏 -->
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
-            <TextBlock Text="AI 厂商管理" FontSize="18" FontWeight="SemiBold"
+	<DockPanel>
+		<!-- 顶部标题栏 -->
+		<Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
+			<TextBlock Text="AI 厂商管理" FontSize="18" FontWeight="SemiBold"
                        Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
-            <Button Grid.Column="1" Classes="btn-primary" Content="+ 添加厂商" Click="OnAddClick" />
-        </Grid>
+			<Button Grid.Column="1" Classes="btn-primary" Content="+ 添加厂商" Click="OnAddClick" />
+		</Grid>
 
-        <!-- 列表/表单切换区 -->
-        <Panel>
-            <ScrollViewer x:Name="ListView" VerticalScrollBarVisibility="Auto"
+		<!-- 列表/表单切换区 -->
+		<Panel>
+			<ScrollViewer x:Name="ListView" VerticalScrollBarVisibility="Auto"
                          HorizontalScrollBarVisibility="Disabled">
-                <StackPanel x:Name="ProviderListPanel" Spacing="1" Margin="8,0" />
-            </ScrollViewer>
+				<StackPanel x:Name="ProviderListPanel" Spacing="1" Margin="8,0" />
+			</ScrollViewer>
 
-            <!-- 编辑表单 (默认隐藏) -->
-            <ScrollViewer x:Name="FormView" IsVisible="False" VerticalScrollBarVisibility="Auto">
-                <StackPanel Spacing="12" MaxWidth="500" Margin="16,0">
-                <TextBlock x:Name="FormTitle" Text="添加厂商" FontSize="16" FontWeight="SemiBold"
-                           Foreground="{StaticResource TextBrush}" />
+			<!-- 编辑表单 (默认隐藏) -->
+			<ScrollViewer x:Name="FormView" IsVisible="False" VerticalScrollBarVisibility="Auto">
+				<StackPanel Spacing="12" MaxWidth="500" Margin="16,0">
+					<TextBlock x:Name="FormTitle" Text="添加厂商" FontSize="16" FontWeight="SemiBold"
+							   Foreground="{StaticResource TextBrush}" />
 
-                <!-- 名称 -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="名称 *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
-                    <TextBox x:Name="TxtName" Classes="form-input" PlaceholderText="如：DeepSeek、OpenAI" MaxLength="64" />
-                </StackPanel>
+					<!-- 名称 -->
+					<StackPanel Spacing="4">
+						<TextBlock Text="名称 *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+						<TextBox x:Name="TxtName" Classes="form-input" PlaceholderText="如：DeepSeek、OpenAI" MaxLength="64" />
+					</StackPanel>
 
-                <!-- API 地址 -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="API 地址 *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
-                    <TextBox x:Name="TxtUrl" Classes="form-input" PlaceholderText="https://api.deepseek.com/v1" MaxLength="512" />
-                </StackPanel>
+					<!-- API 地址 -->
+					<StackPanel Spacing="4">
+						<TextBlock Text="API 地址 *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+						<TextBox x:Name="TxtUrl" Classes="form-input" PlaceholderText="https://api.deepseek.com/v1" MaxLength="512" />
+					</StackPanel>
 
-                <!-- API 密钥 (明文) -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="API 密钥 *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
-                    <TextBox x:Name="TxtKey" Classes="form-input" PlaceholderText="sk-..." MaxLength="256" />
-                </StackPanel>
+					<!-- API 密钥 (明文) -->
+					<StackPanel Spacing="4">
+						<TextBlock Text="API 密钥 *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+						<TextBox x:Name="TxtKey" Classes="form-input" PlaceholderText="sk-..." MaxLength="256" />
+					</StackPanel>
 
-                <!-- 协议类型 -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="协议类型" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
-                    <ComboBox x:Name="CboType" Classes="form-combo" SelectedIndex="0">
-                        <ComboBoxItem Content="OpenAI 兼容" Tag="OpenAI" />
-                        <ComboBoxItem Content="Azure OpenAI" Tag="Azure" />
-                        <ComboBoxItem Content="Ollama" Tag="Ollama" />
-                        <ComboBoxItem Content="自定义" Tag="Custom" />
-                    </ComboBox>
-                </StackPanel>
+					<!-- 协议类型 -->
+					<StackPanel Spacing="4">
+						<TextBlock Text="协议类型" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+						<ComboBox x:Name="CboType" Classes="form-combo" SelectedIndex="0">
+							<ComboBoxItem Content="OpenAI 兼容" Tag="OpenAI" />
+							<ComboBoxItem Content="Azure OpenAI" Tag="Azure" />
+							<ComboBoxItem Content="Ollama" Tag="Ollama" />
+							<ComboBoxItem Content="Anthropic" Tag="Anthropic" />
+							<ComboBoxItem Content="自定义" Tag="Custom" />
+						</ComboBox>
+					</StackPanel>
 
-                <!-- 描述 -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="描述" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
-                    <TextBox x:Name="TxtDesc" Classes="form-input" PlaceholderText="服务描述（可选）"
-                             AcceptsReturn="True" TextWrapping="Wrap" Height="60" MaxLength="1024" />
-                </StackPanel>
+					<!-- 描述 -->
+					<StackPanel Spacing="4">
+						<TextBlock Text="描述" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+						<TextBox x:Name="TxtDesc" Classes="form-input" PlaceholderText="服务描述（可选）"
+								 AcceptsReturn="True" TextWrapping="Wrap" Height="60" MaxLength="1024" />
+					</StackPanel>
 
-                <!-- 开关选项 -->
-                <StackPanel Orientation="Horizontal" Spacing="24">
-                    <CheckBox x:Name="ChkEnabled" Content="启用" IsChecked="True"
-                              Foreground="{StaticResource TextBrush}" />
-                    <CheckBox x:Name="ChkDefault" Content="设为默认"
-                              Foreground="{StaticResource TextBrush}" />
-                </StackPanel>
+					<!-- 开关选项 -->
+					<StackPanel Orientation="Horizontal" Spacing="24">
+						<CheckBox x:Name="ChkEnabled" Content="启用" IsChecked="True"
+								  Foreground="{StaticResource TextBrush}" />
+						<CheckBox x:Name="ChkDefault" Content="设为默认"
+								  Foreground="{StaticResource TextBrush}" />
+					</StackPanel>
 
-                <!-- 操作按钮 -->
-                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-                    <Button Classes="btn-secondary" Content="取消" Click="OnCancelClick" />
-                    <Button Classes="btn-primary" Content="保存" Click="OnSaveClick" />
-                    <Button x:Name="BtnDelete" Classes="btn-danger" Content="删除" Click="OnDeleteClick" IsVisible="False" />
-                </StackPanel>
-            </StackPanel>
-        </ScrollViewer>
-        </Panel>
-    </DockPanel>
-
+					<!-- 操作按钮 -->
+					<StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+						<Button Classes="btn-secondary" Content="取消" Click="OnCancelClick" />
+						<Button Classes="btn-primary" Content="保存" Click="OnSaveClick" />
+						<Button x:Name="BtnDelete" Classes="btn-danger" Content="删除" Click="OnDeleteClick" IsVisible="False" />
+					</StackPanel>
+				</StackPanel>
+			</ScrollViewer>
+		</Panel>
+	</DockPanel>
 </UserControl>

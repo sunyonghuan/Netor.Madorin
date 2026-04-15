@@ -35,6 +35,12 @@ namespace Netor.Cortana.Entitys
         public string Key { get; set; } = string.Empty;
 
         /// <summary>
+        /// 用于访问 AI 服务的 Token
+        /// </summary>
+        [MaxLength(256)]
+        public string AuthToken { get; set; } = string.Empty;
+
+        /// <summary>
         /// AI 服务提供商的简介或描述信息，
         /// 用于向用户说明该服务的特点、能力范围和使用注意事项。
         /// </summary>
@@ -64,6 +70,5 @@ namespace Netor.Cortana.Entitys
         /// 排序权重，数值越小越靠前，用于在 UI 列表中控制提供商的显示顺序。
         /// </summary>
         public int SortOrder { get; set; }
-
-        }
+    }
 }

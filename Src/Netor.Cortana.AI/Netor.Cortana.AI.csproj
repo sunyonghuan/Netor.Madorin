@@ -7,15 +7,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-	<PackageReference Include="Microsoft.Agents.AI" Version="1.0.0" />
-	<PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0" />
-	<PackageReference Include="Microsoft.Agents.AI.Workflows" Version="1.0.0" />
-	<PackageReference Include="Microsoft.Extensions.AI" Version="10.4.1" />
-	<PackageReference Include="OllamaSharp" Version="5.4.25" />
-	<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.5" />
-	<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
-	<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.5" />
+	<PackageReference Include="Microsoft.Agents.AI" Version="1.1.0" />
+	<PackageReference Include="Microsoft.Agents.AI.Anthropic" Version="1.1.0-rc1" />
+	<PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.1.0" />
+	<PackageReference Include="Microsoft.Agents.AI.Workflows" Version="1.1.0" />
+	<PackageReference Include="Microsoft.Extensions.AI" Version="10.5.0" />
+	<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="11.0.0-preview.3.26207.106" />
+	<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0-preview.3.26207.106" />
+	<PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0-preview.3.26207.106" />
 	<PackageReference Include="Netor.EventHub" Version="1.2.5" />
+	<PackageReference Include="OllamaSharp" Version="5.4.25" />
   </ItemGroup>
 
   <ItemGroup>

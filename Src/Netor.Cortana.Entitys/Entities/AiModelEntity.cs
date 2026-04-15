@@ -37,7 +37,7 @@ namespace Netor.Cortana.Entitys
         /// 模型支持的最大上下文窗口长度（以 token 为单位）。
         /// 用于在会话中控制历史消息的截断策略。0 表示未知或不限制。
         /// </summary>
-        public int ContextLength { get; set; }
+        public int ContextLength { get; set; } = 128000;
 
         /// <summary>
         /// 模型类型标识，用于在代码和 UI 中区分模型的能力范围。

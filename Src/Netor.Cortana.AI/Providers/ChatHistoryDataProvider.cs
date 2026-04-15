@@ -1,11 +1,15 @@
 using Microsoft.Agents.AI;
+using Microsoft.Agents.AI.Compaction;
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.Agents.AI.Workflows.Execution;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
+
+using OpenAI.Chat;
 
 using System.Text.Json;
 
@@ -21,36 +25,19 @@ namespace Netor.Cortana.AI.Providers;
 public sealed class ChatHistoryDataProvider(
     CortanaDbContext dbContext,
     SystemSettingsService systemSettings,
-    AiProviderService providerService,
-    AgentService agentService,
     AiModelService modelService,
     IAppPaths appPaths,
-    ILogger<ChatHistoryDataProvider> logger) : ChatHistoryProvider
+    ILogger<ChatHistoryDataProvider> logger,
+    IServiceProvider services) : ChatHistoryProvider
+
 {
     internal const string NewSessionTitle = "新会话";
     private const string IsNewSessionStateKey = "isnewsession";
 
     /// <summary>
-    /// 最大上下文长度（字符数），从数据库读取，回退默认值 9500。
-    /// </summary>
-    private int MaxContentLength => systemSettings.GetValue("ChatHistory.MaxContentLength", 9500);
-
-    /// <summary>
     /// 最大保留的历史消息条数，从数据库读取，回退默认值 15。
     /// </summary>
     private int MaxContentCount => systemSettings.GetValue("ChatHistory.MaxContentCount", 15);
-
-    private const string SummaryInstructionPrompt = """
-        你是一个对话历史压缩器。请将以上所有会话内容总结为一段简洁的上下文摘要。
-
-        要求：
-        1. 保留所有关键信息：用户的目标、已做出的决策、已完成的操作、待办事项、涉及的文件路径和技术细节
-        2. 保留最近 2-6 轮对话的核心内容，确保对话可以自然延续
-        3. 如果会话中产生了代码变更，记录变更的文件和修改要点
-        4. 如果存在未解决的问题或正在进行的任务，明确标注当前状态
-        5. 删除寒暄、重复内容、中间试错过程，只保留最终结论
-        6. 总结以第三人称描述，格式为："[会话摘要] ..."
-        """;
 
     /// <summary>
     /// 创建新的聊天会话记录，初始标题固定为“新会话”。
@@ -113,6 +100,9 @@ public sealed class ChatHistoryDataProvider(
         {
             logger.LogError(ex, "保存聊天历史到数据库时失败。");
         }
+        // ---- 新增：压缩后回写 ----
+        if (context.Session is null) return;
+        await CompactAndReplaceAsync(context.Agent, context.Session, sessionId, cancellationToken);
     }
 
     /// <summary>
@@ -130,12 +120,11 @@ public sealed class ChatHistoryDataProvider(
         try
         {
             var messages = dbContext.Query(
-                "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp DESC LIMIT @Limit",
+                "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp DESC",
                 ChatMessageService.ReadEntity,
                 cmd =>
                 {
                     cmd.Parameters.AddWithValue("@SessionId", sessionId);
-                    cmd.Parameters.AddWithValue("@Limit", MaxContentCount);
                 })
                 .Select(t => new AIChatMessage
                 {
@@ -147,137 +136,12 @@ public sealed class ChatHistoryDataProvider(
                 })
                 .OrderBy(t => t.CreatedAt)
                 .AsEnumerable();
-
-            if (messages.Sum(t => t.Text?.Length ?? 0) > MaxContentLength)
-            {
-                messages = await CreateSummaryAsync(sessionId, messages, cancellationToken);
-            }
-
             return messages;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "从数据库加载聊天历史时失败。");
             return [];
-        }
-    }
-
-    /// <summary>
-    /// 汇总对话历史记录，返回一条简短的摘要消息以减少 token 消耗。
-    /// </summary>
-    private async Task<IEnumerable<AIChatMessage>> CreateSummaryAsync(
-        string sessionId,
-        IEnumerable<AIChatMessage> messages,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var defaultProvider = providerService.GetAll().FirstOrDefault(t => t.IsDefault);
-            if (defaultProvider is null) return messages;
-
-            var defaultModel = modelService.GetByProviderId(defaultProvider.Id).FirstOrDefault(t => t.IsDefault);
-            if (defaultModel is null) return messages;
-
-#pragma warning disable MAAI001
-            var client = AIAgentFactory
-                .CreateChatClient(defaultProvider, defaultModel.Name)
-                .AsAIAgent(SummaryInstructionPrompt);
-#pragma warning restore MAAI001
-
-            var result = await client.RunAsync(messages, cancellationToken: cancellationToken);
-            var summary = result?.Text ?? "";
-
-            AIChatMessage[] summaryMessages =
-            [
-                new()
-                {
-                    Role = ChatRole.Assistant,
-                    AuthorName = "AI",
-                    Contents = [new TextContent(summary)],
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    MessageId = Guid.NewGuid().ToString("N")
-                }
-            ];
-
-            var defaultAgent = agentService.GetAll().FirstOrDefault(t => t.IsDefault);
-
-            UpdateSessionHistory(
-                sessionId,
-                messages.Select(t => t.MessageId).ToArray(),
-                summaryMessages,
-                defaultAgent?.Name ?? defaultProvider.Name,
-                defaultModel.Name);
-
-            return summaryMessages;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "创建对话历史摘要时失败。");
-            return messages;
-        }
-    }
-
-    /// <summary>
-    /// 删除旧的历史消息并写入压缩后的摘要消息。
-    /// </summary>
-    private void UpdateSessionHistory(
-        string sessionId,
-        string?[] oldIds,
-        IEnumerable<AIChatMessage> chats,
-        string agentName,
-        string modelName)
-    {
-        try
-        {
-            var validIds = oldIds.Where(id => id is not null).ToArray();
-
-            dbContext.ExecuteInTransaction(conn =>
-            {
-                // 删除旧消息
-                if (validIds.Length > 0)
-                {
-                    using var delCmd = conn.CreateCommand();
-                    var paramNames = new string[validIds.Length];
-                    for (int i = 0; i < validIds.Length; i++)
-                    {
-                        paramNames[i] = $"@id{i}";
-                        delCmd.Parameters.AddWithValue(paramNames[i], validIds[i]!);
-                    }
-                    delCmd.CommandText = $"DELETE FROM ChatMessages WHERE Id IN ({string.Join(',', paramNames)})";
-                    delCmd.ExecuteNonQuery();
-                }
-
-                // 插入摘要消息
-                foreach (var t in chats)
-                {
-                    var entity = new ChatMessageEntity
-                    {
-                        Role = t.Role.ToString(),
-                        Content = t.Text,
-                        AuthorName = GetChatRoleText(t.Role, agentName),
-                        CreatedAt = t.CreatedAt ?? DateTimeOffset.UtcNow,
-                        CreatedTimestamp = t.CreatedAt?.ToLocalTime().ToUnixTimeMilliseconds() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                        Id = Guid.NewGuid().ToString("N"),
-                        SessionId = sessionId,
-                        UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                        ModelName = modelName
-                    };
-
-                    using var insCmd = conn.CreateCommand();
-                    insCmd.CommandText = """
-                        INSERT INTO ChatMessages
-                            (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, TokenCount, ModelName, CreatedAt)
-                        VALUES
-                            (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @TokenCount, @ModelName, @CreatedAt)
-                        """;
-                    ChatMessageService.BindEntity(insCmd, entity);
-                    insCmd.ExecuteNonQuery();
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "更新会话历史记录时失败。");
         }
     }
 
@@ -327,7 +191,7 @@ public sealed class ChatHistoryDataProvider(
 
             sessionEntity.UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
             sessionEntity.LastActiveTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-            sessionEntity.TotalTokenCount += 0;
+            sessionEntity.TotalTokenCount += services.GetRequiredService<AIAgentFactory>().ChatClient?.LastInputTokens ?? 0;
 
             dbContext.Execute(
                 """
@@ -394,4 +258,108 @@ public sealed class ChatHistoryDataProvider(
             TotalTokenCount = r.GetInt32(r.GetOrdinal("TotalTokenCount"))
         };
     }
+
+    private async Task CompactAndReplaceAsync(AIAgent agent, AgentSession session, string sessionId, CancellationToken cancellationToken)
+    {
+        var modelName = session.StateBag.GetValue<string>("modelid") ?? "Unknown";
+        var modelId = session.StateBag.GetValue<string>("modeldbid");
+        if (string.IsNullOrEmpty(modelId)) return;
+        var client = agent.GetService<IChatClient>();
+        if (client is null) return;
+        try
+        {
+            // 1. 加载该会话全部消息（按时间正序）
+            var allEntities = dbContext.Query(
+                "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC",
+                ChatMessageService.ReadEntity,
+                cmd => cmd.Parameters.AddWithValue("@SessionId", sessionId))
+                .ToList();
+
+            if (allEntities.Count < 10) return; // 消息太少不压缩
+
+            // 2. 转为 ChatMessage
+            var chatMessages = allEntities
+                .Select(t => new AIChatMessage
+                {
+                    Role = t.ToChatRole(),
+                    AuthorName = t.AuthorName,
+                    MessageId = t.Id,
+                    CreatedAt = t.CreatedAt?.ToLocalTime(),
+                    Contents = [new TextContent(t.Content)]
+                })
+                .ToList();
+            // 3. 执行压缩
+#pragma warning disable MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
+            var compactionStrategy = CreateCompactionStrategy(client, modelId);
+            var compacted = (await CompactionProvider.CompactAsync(
+                compactionStrategy!, chatMessages, cancellationToken: cancellationToken))
+                .ToList();
+#pragma warning restore MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
+
+            // 4. 如果没有压缩，跳过
+            if (compacted.Count >= allEntities.Count) return;
+
+            // 5. 删除旧记录，写入压缩后的记录
+            dbContext.ExecuteInTransaction(conn =>
+            {
+                using var deleteCmd = conn.CreateCommand();
+                deleteCmd.CommandText = "DELETE FROM ChatMessages WHERE SessionId = @SessionId";
+                deleteCmd.Parameters.AddWithValue("@SessionId", sessionId);
+                deleteCmd.ExecuteNonQuery();
+
+                foreach (var msg in compacted)
+                {
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = """
+                    INSERT INTO ChatMessages
+                        (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, TokenCount, ModelName, CreatedAt)
+                    VALUES
+                        (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @TokenCount, @ModelName, @CreatedAt)
+                    """;
+                    var entity = new ChatMessageEntity
+                    {
+                        Id = msg.MessageId ?? Guid.NewGuid().ToString("N"),
+                        Role = msg.Role.ToString(),
+                        Content = msg.Text,
+                        AuthorName = msg.AuthorName ?? "",
+                        CreatedAt = msg.CreatedAt ?? DateTimeOffset.UtcNow,
+                        CreatedTimestamp = msg.CreatedAt?.ToLocalTime().ToUnixTimeMilliseconds()
+                            ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                        SessionId = sessionId,
+                        UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                        ModelName = modelName
+                    };
+                    ChatMessageService.BindEntity(cmd, entity);
+                    cmd.ExecuteNonQuery();
+                }
+            });
+
+            logger.LogInformation("会话 {SessionId} 压缩完成：{Before} → {After} 条消息",
+                sessionId, allEntities.Count, compacted.Count);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "压缩会话 {SessionId} 历史记录时失败。", sessionId);
+        }
+    }
+
+#pragma warning disable MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
+
+    private PipelineCompactionStrategy CreateCompactionStrategy(IChatClient client, string modelid)
+
+    {
+        var model = modelService.GetById(modelid);
+        return new PipelineCompactionStrategy(
+    // 1. 最温和：压缩旧工具调用结果
+    new ToolResultCompactionStrategy(CompactionTriggers.MessagesExceed(20)),
+            // 2. 中等：LLM 摘要旧对话
+            new SummarizationCompactionStrategy(client, CompactionTriggers.TokensExceed((int)((model?.ContextLength ?? 128000) * 0.8))),
+            // 3. 较激进：只保留最近 N 轮
+            new SlidingWindowCompactionStrategy(CompactionTriggers.TurnsExceed(systemSettings.GetValue("ChatHistory.MaxContentCount", 15))),
+            // 4. 兜底：强制截断
+            new TruncationCompactionStrategy(CompactionTriggers.TokensExceed((int)((model?.ContextLength ?? 128000) * 0.9)))
+        );
+    }
+
+#pragma warning restore MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续
 }

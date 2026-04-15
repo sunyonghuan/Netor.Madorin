@@ -1,7 +1,9 @@
+using Anthropic;
+
 using Microsoft.Agents.AI;
-using Microsoft.Agents.AI.Workflows;
-using Microsoft.Agents.AI.Workflows.Execution;
+using Microsoft.Agents.AI.Compaction;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using Netor.Cortana.AI.Providers;
@@ -15,7 +17,6 @@ using OpenAI;
 
 using System.ClientModel;
 using System.Net;
-using System.Text.Json;
 
 namespace Netor.Cortana.AI;
 
@@ -27,9 +28,12 @@ public sealed class AIAgentFactory(
     IAppPaths appPaths,
     IEnumerable<AIContextProvider> builtInProviders,
     PluginLoader pluginLoader,
-    ChatHistoryDataProvider chatHistoryProvider,
+    IServiceProvider services,
+    SystemSettingsService systemSettings,
     ILogger<AIAgentFactory> logger)
 {
+    public TokenTrackingChatClient? ChatClient { get; private set; }
+
     /// <summary>
     /// 根据提供商配置创建 <see cref="IChatClient"/>。
     /// 本地网络使用 OllamaApiClient，其余使用 OpenAI 兼容协议。
@@ -43,12 +47,22 @@ public sealed class AIAgentFactory(
         {
             return new OllamaApiClient(provider.Url, modelName);
         }
-
+        if (string.Equals(provider.ProviderType, "Anthropic", StringComparison.OrdinalIgnoreCase))
+        {
+            return new AnthropicClient(new Anthropic.Core.ClientOptions()
+            {
+                ApiKey = provider.Key,
+                BaseUrl = provider.Url,
+                AuthToken = provider.AuthToken,
+                Timeout = TimeSpan.FromMinutes(10)
+            })
+                .AsIChatClient(modelName);
+        }
         var credential = new ApiKeyCredential(provider.Key);
         var options = new OpenAIClientOptions
         {
             Endpoint = new Uri(provider.Url.TrimEnd('/')),
-            NetworkTimeout = TimeSpan.FromHours(24)
+            NetworkTimeout = TimeSpan.FromMinutes(10)
         };
 
         return new OpenAIClient(credential, options)
@@ -72,7 +86,12 @@ public sealed class AIAgentFactory(
             PresencePenalty = (float)agent.PresencePenalty,
             Instructions = agent.Instructions,
             AllowBackgroundResponses = false,
-            Tools = []
+            Tools = [],
+            AdditionalProperties = new AdditionalPropertiesDictionary(new Dictionary<string, object?>()
+            {
+                // 尝试启用流式 usage
+                ["stream_options"] = new { include_usage = true }
+            })
         };
 #pragma warning restore MEAI001
 
@@ -88,13 +107,11 @@ public sealed class AIAgentFactory(
     /// 构建 <see cref="AIAgent"/>，组装内置提供器、插件提供器和历史记录提供器。
     /// 技能目录：应用启动目录/skills + 工作区/.cortana/skills。
     /// </summary>
-    public AIAgent Build(AgentEntity agent, AiProviderEntity provider, string modelName)
+    public AIAgent Build(AgentEntity agent, AiProviderEntity provider, AiModelEntity? model)
     {
         ArgumentNullException.ThrowIfNull(agent);
         ArgumentNullException.ThrowIfNull(provider);
-        ArgumentException.ThrowIfNullOrWhiteSpace(modelName);
-
-        var client = CreateChatClient(provider, modelName);
+        ArgumentNullException.ThrowIfNull(model);
 
         var skillDirs = new List<string>
         {
@@ -194,16 +211,31 @@ public sealed class AIAgentFactory(
                 ? new McpContextProvider(mcpHost, excluded)
                 : new McpContextProvider(mcpHost));
         }
-
-#pragma warning disable MAAI001
-        return client.AsAIAgent(new ChatClientAgentOptions
-        {
-            Name = agent.Name,
-            AIContextProviders = providers,
-            ChatOptions = BuildOptions(agent),
-            ChatHistoryProvider = chatHistoryProvider,
-        });
-#pragma warning restore MAAI001
+        ChatClient = new TokenTrackingChatClient(CreateChatClient(provider, model?.Name ?? string.Empty), model?.ContextLength ?? 128000);
+#pragma warning disable MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
+        var compactionPipeline = new PipelineCompactionStrategy(
+    // 1. 最温和：压缩旧工具调用结果
+    new ToolResultCompactionStrategy(CompactionTriggers.MessagesExceed(20)),
+            // 2. 中等：LLM 摘要旧对话
+            new SummarizationCompactionStrategy(ChatClient, CompactionTriggers.TokensExceed((int)((model?.ContextLength ?? 128000) * 0.8))),
+            // 3. 较激进：只保留最近 N 轮
+            new SlidingWindowCompactionStrategy(CompactionTriggers.TurnsExceed(systemSettings.GetValue("ChatHistory.MaxContentCount", 15))),
+            // 4. 兜底：强制截断
+            new TruncationCompactionStrategy(CompactionTriggers.TokensExceed((int)((model?.ContextLength ?? 128000) * 0.9)))
+        );
+        //providers.Add(new CompactionProvider(compactionPipeline));
+        return ChatClient
+            .AsBuilder()
+            .BuildAIAgent(new ChatClientAgentOptions
+            {
+                Name = agent.Name,
+                AIContextProviders = providers,
+                ChatOptions = BuildOptions(agent),
+                ChatHistoryProvider = services.GetRequiredService<ChatHistoryDataProvider>(),
+            })
+            .AsBuilder()
+            .Build();
+#pragma warning restore MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
     }
 
     /// <summary>

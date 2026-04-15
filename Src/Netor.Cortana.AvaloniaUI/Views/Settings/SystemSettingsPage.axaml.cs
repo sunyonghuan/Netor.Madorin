@@ -1,6 +1,3 @@
-using System.Net;
-using System.Net.Sockets;
-
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
@@ -10,6 +7,9 @@ using Avalonia.Media;
 using FluentAvalonia.UI.Controls;
 
 using Netor.Cortana.Networks;
+
+using System.Net;
+using System.Net.Sockets;
 
 namespace Netor.Cortana.AvaloniaUI.Views.Settings;
 
@@ -159,7 +159,7 @@ public partial class SystemSettingsPage : UserControl
             var oldPort = SettingsService.GetValue<int>("WebSocket.Port", 52841);
             if (int.TryParse(portEntry.Value, out var newPort) && newPort != oldPort)
             {
-                if (newPort < 1 || newPort > 65535)
+                if (newPort is < 1 or > 65535)
                 {
                     await ShowDialogAsync("端口无效", "端口号必须在 1 ~ 65535 范围内。");
                     return;
@@ -214,11 +214,11 @@ public partial class SystemSettingsPage : UserControl
     /// </summary>
     private async Task ShowDialogAsync(string title, string message)
     {
-        var td = new TaskDialog
+        var td = new FATaskDialog
         {
             Title = title,
             Content = message,
-            Buttons = { TaskDialogButton.OKButton },
+            Buttons = { FATaskDialogButton.OKButton },
         };
 
         if (TopLevel.GetTopLevel(this) is Avalonia.Visual root)

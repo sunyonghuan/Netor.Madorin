@@ -90,6 +90,7 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+
         ConfigureServices();
         EnsureDirectories();
         InitializeWorkspace();
@@ -149,7 +150,8 @@ public partial class App : Application
             .AddSingleton(appSettings)
             .AddLogging(static options =>
             {
-                options.AddConsole().AddDebug();
+                options.AddConsole()
+                .AddDebug();
                 options.AddSerilog(new LoggerConfiguration()
                     .WriteTo.File(
                         Path.Combine(UserDataDirectory, "logs", ".log"),
