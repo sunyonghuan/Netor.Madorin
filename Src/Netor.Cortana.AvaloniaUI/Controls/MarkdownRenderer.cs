@@ -366,22 +366,11 @@ public sealed class MarkdownRenderer : UserControl
             if (item is not ListItemBlock listItem) continue;
 
             var prefix = list.IsOrdered ? $"{index++}. " : "• ";
-            var rowPanel = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4 };
-
-            rowPanel.Children.Add(new TextBlock
-            {
-                Text = prefix,
-                Foreground = new SolidColorBrush(Color.Parse("#007acc")),
-                FontSize = 13,
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
-            });
 
             // 列表项内容容器：设置宽度为可用宽度，启用自动换行
             var contentPanel = new StackPanel 
             { 
                 Spacing = 2,
-                // 注：实际可用宽度由父容器 DockPanel 的 LastChildFill 决定
-                // 这里使用 TextWrapping.Wrap 确保内部文本块会换行
             };
             foreach (var subBlock in listItem)
             {
@@ -396,8 +385,7 @@ public sealed class MarkdownRenderer : UserControl
                     RenderBlocks(nested, contentPanel);
             }
 
-            rowPanel.Children.Add(contentPanel);
-            // 关键：使用 DockPanel 让 contentPanel 占用剩余空间
+            // 使用 DockPanel 让 contentPanel 占用剩余空间
             var itemRow = new DockPanel
             {
                 LastChildFill = true,  // contentPanel 占用剩余宽度
