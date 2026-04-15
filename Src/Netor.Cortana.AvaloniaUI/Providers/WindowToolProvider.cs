@@ -35,82 +35,81 @@ internal sealed class WindowToolProvider(
     {
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_show_main_window",
-            description: "显示并激活主窗口（对话界面）。",
+            description: "Shows and activates the main window (conversation interface).",
             method: ShowMainWindow));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_hide_main_window",
-            description: "隐藏主窗口（最小化到托盘）。",
+            description: "Hides the main window (minimizes to system tray).",
             method: HideMainWindow));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_show_settings_window",
-            description: "打开设置窗口。",
+            description: "Opens the settings window.",
             method: ShowSettingsWindow));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_show_float_window",
-            description: "显示桌面浮动球窗口。",
+            description: "Shows the desktop floating ball window.",
             method: ShowFloatWindow));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_move_float_window",
-            description: "移动浮动球到屏幕指定位置。参数 x、y 为屏幕像素坐标。",
+            description: "Moves the floating ball to a specified screen position. Parameters: x, y (screen pixel coordinates).",
             method: (int x, int y) => MoveFloatWindow(x, y)));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_get_main_window_status",
-            description: "获取主窗口当前状态，包括是否可见、窗口位置和大小。",
+            description: "Gets the current status of the main window, including visibility, position, and size.",
             method: GetMainWindowStatus));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_get_settings_window_status",
-            description: "获取设置窗口当前状态，包括是否已打开。",
+            description: "Gets the current status of the settings window, including whether it is open.",
             method: GetSettingsWindowStatus));
 
-        // 路径查询
+        // Path Queries
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_get_workspace_directory",
-            description: "获取当前工作目录路径。工作目录用于存放用户的工作文件。",
+            description: "Gets the current working directory (Dashboard,Workstation) path. The working directory is used to store user work files.",
             method: GetWorkspaceDirectory));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_get_user_data_directory",
-            description: "获取用户数据存储目录路径。数据目录用于存放应用数据、数据库、配置等。",
+            description: "Gets the user data storage directory path. The data directory is used to store application data, databases, configurations, etc.",
             method: GetUserDataDirectory));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_get_workspace_skills_directory",
-            description: "获取当前工作环境的技能目录路径。",
+            description: "Gets the skills directory path for the current working environment.",
             method: GetWorkspaceSkillsDirectory));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_get_workspace_plugins_directory",
-            description: "获取当前工作环境的插件目录路径。",
+            description: "Gets the plugins directory path for the current working environment.",
             method: GetWorkspacePluginsDirectory));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_get_user_skills_directory",
-            description: "获取全局技能目录路径。安装到这里后所有工作环境都可用。",
+            description: "Gets the global skills directory path. Skills installed here are available in all working environments.",
             method: GetUserSkillsDirectory));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_get_user_plugins_directory",
-            description: "获取全局插件目录路径。安装到这里后所有工作环境都可用。",
+            description: "Gets the global plugins directory path. Plugins installed here are available in all working environments.",
             method: GetUserPluginsDirectory));
 
-        // 工作目录管理
+        // Working Directory Management
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_change_workspace_directory",
-            description: "修改当前工作目录。传入新的工作目录完整路径，该目录必须已存在。修改后会自动同步到所有相关模块。",
+            description: "Changes the current working directory. Pass the full path of the new working directory, which must already exist. Changes are automatically synchronized to all related modules.",
             method: (string path) => ChangeWorkspaceDirectory(path)));
 
-        // 会话管理
+        // Session Management
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_new_session",
-            description: "创建一个新的对话会话。当用户要求开始新对话、换个话题、重新开始时调用。创建后界面会自动切换到新会话。",
+            description: "Creates a new conversation session. Call when the user requests to start a new conversation, change topics, or restart. The interface automatically switches to the new session upon creation.",
             method: NewSession));
-
     }
 
     // ──────── 窗口管理 ────────

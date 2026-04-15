@@ -1,6 +1,6 @@
-using System.Text;
-
 using Netor.Cortana.Plugin;
+
+using System.Text;
 
 namespace Netor.Cortana.AvaloniaUI.Providers;
 
@@ -31,25 +31,25 @@ internal sealed class PluginManagementProvider(
     {
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_list_loaded_plugins",
-            description: "列出当前已加载的所有插件（含原生插件和 MCP 服务），返回带序号的列表。包含插件目录名（用于卸载/重载）。",
+            description: "Lists all currently loaded plugins (including native plugins and MCP services), returning a numbered list. Includes plugin directory names (for unloading/reloading).",
             method: ListLoadedPlugins));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_unload_plugin",
-            description: "卸载指定插件，释放其对文件的占用。参数：dirName（插件目录名，通过 sys_list_loaded_plugins 获取）。卸载后可替换插件文件再重载。",
+            description: "Unloads a specified plugin, releasing its file locks. Parameter: dirName (plugin directory name, obtained via sys_list_loaded_plugins). Allows replacing plugin files before reloading.",
             method: (string dirName) => UnloadPlugin(dirName)));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_reload_plugin",
-            description: "重新加载指定插件（先卸载再加载）。参数：dirName（插件目录名，通过 sys_list_loaded_plugins 获取）。用于插件文件替换后重新加载。",
+            description: "Reloads a specified plugin (unloads then loads). Parameter: dirName (plugin directory name, obtained via sys_list_loaded_plugins). Used to reload after replacing plugin files.",
             method: (string dirName) => ReloadPluginAsync(dirName)));
     }
 
     private static string BuildInstructions() =>
         """
-        你可以管理已加载的插件：查看列表、卸载、重载。
-        更新插件的流程：先调用 sys_unload_plugin 卸载目标插件 → 替换插件文件 → 再调用 sys_reload_plugin 重新加载。
-        卸载插件会终止其子进程并释放文件占用，之后才能替换文件。
+        You can manage loaded plugins: view list, unload, and reload.
+        Plugin update workflow: Call sys_unload_plugin to unload the target plugin → Replace plugin files → Call sys_reload_plugin to reload.
+        Unloading a plugin terminates its child processes and releases file locks, allowing file replacement afterwards.
         """;
 
     private string ListLoadedPlugins()

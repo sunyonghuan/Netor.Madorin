@@ -34,63 +34,63 @@ internal sealed class AiConfigToolProvider(
 
     private void RegisterTools()
     {
-        // 查询
+        // Query
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_list_providers",
-            description: "列出所有已启用的 AI 服务厂商，返回带序号的列表。用户可通过序号选择。",
+            description: "List all enabled AI service providers, returning a numbered list. Users can select by index.",
             method: ListProviders));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_list_agents",
-            description: "列出所有已启用的智能体（助理/代理/Agent），返回带序号的列表。用户可通过序号选择。",
+            description: "List all enabled agents (assistants/proxies/Agents), returning a numbered list. Users can select by index.",
             method: ListAgents));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_list_models",
-            description: "列出当前默认厂商下所有已启用的模型，返回带序号的列表。用户可通过序号选择。",
+            description: "List all enabled models under the current default provider, returning a numbered list. Users can select by index.",
             method: ListModels));
 
-        // 切换默认
+        // Set Default
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_set_default_provider",
-            description: "将指定序号的厂商设为默认。需要先调用 sys_list_providers 获取列表，再根据用户说的序号设置。参数：index（从1开始的序号）。",
+            description: "Set the provider at the specified index as default. Call sys_list_providers first to get the list, then set based on the user's specified index. Parameter: index (1-based index).",
             method: (int index) => SetDefaultProvider(index)));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_set_default_agent",
-            description: "将指定序号的智能体设为默认。需要先调用 sys_list_agents 获取列表，再根据用户说的序号设置。参数：index（从1开始的序号）。",
+            description: "Set the agent at the specified index as default. Call sys_list_agents first to get the list, then set based on the user's specified index. Parameter: index (1-based index).",
             method: (int index) => SetDefaultAgent(index)));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_set_default_model",
-            description: "将指定序号的模型设为默认。需要先调用 sys_list_models 获取列表，再根据用户说的序号设置。参数：index（从1开始的序号）。",
+            description: "Set the model at the specified index as default. Call sys_list_models first to get the list, then set based on the user's specified index. Parameter: index (1-based index).",
             method: (int index) => SetDefaultModel(index)));
 
-        // 新增
+        // Add New
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_add_provider",
-            description: "新增一个 AI 服务厂商。参数：name（厂商名称）、url（API地址）、key（API密钥）、providerType（厂商类型，默认 OpenAI）。",
+            description: "Add a new AI service provider. Parameters: name (provider name), url (API endpoint), key (API key), providerType (provider type, default OpenAI).",
             method: (string name, string url, string key, string providerType) => AddProvider(name, url, key, providerType)));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_add_model",
-            description: "在指定厂商下新增一个模型。参数：providerIndex（厂商序号，从1开始，需先调用 sys_list_providers 获取）、name（模型名称/ID）、displayName（显示名称，可为空）。",
+            description: "Add a new model under the specified provider. Parameters: providerIndex (provider index, 1-based, call sys_list_providers first to get), name (model name/ID), displayName (display name, can be empty).",
             method: (int providerIndex, string name, string displayName) => AddModel(providerIndex, name, displayName)));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_add_agent",
-            description: "新增一个智能体（助理/代理/Agent）。参数：name（名称）、instructions（系统提示词）。",
+            description: "Add a new agent (assistant/proxy/Agent). Parameters: name (name), instructions (system prompt).",
             method: (string name, string instructions) => AddAgent(name, instructions)));
 
-        // 智能体提示词
+        // Agent Instructions
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_get_agent_instructions",
-            description: "获取智能体的系统提示词。参数：agentIndex（从1开始的序号，0 表示获取当前默认智能体的提示词）。用户说\"看看你的提示词\"时传 0。",
+            description: "Get the system prompt for an agent. Parameters: agentIndex (1-based index, 0 means get the current default agent's prompt). Pass 0 when user says \"show me your prompt\".",
             method: (int agentIndex) => GetAgentInstructions(agentIndex)));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_update_agent_instructions",
-            description: "修改指定智能体的系统提示词。参数：agentIndex（从1开始的序号，需先调用 sys_list_agents 获取）、instructions（新的提示词内容）。",
+            description: "Update the system prompt for a specified agent. Parameters: agentIndex (1-based index, call sys_list_agents first to get), instructions (new prompt content).",
             method: (int agentIndex, string instructions) => UpdateAgentInstructions(agentIndex, instructions)));
     }
 

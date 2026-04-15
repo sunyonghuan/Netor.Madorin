@@ -33,10 +33,10 @@ public sealed class FileMemoryProvider(IAppPaths appPaths, ILogger<FileMemoryPro
         $"{new DirectoryInfo(appPaths.WorkspaceDirectory).Name.ToLowerInvariant()}-memory.md");
 
     private const string SystemInstructionPrefix =
-        "### 处理内容时请严格遵守以下规则\n\n";
+        "### Please strictly follow the following rules when processing content\n\n";
 
     private const string SystemInstructionSuffix =
-        "\n\n> 每次处理工作必须携带上述记忆内容，确保输出结果符合规范要求";
+        "\n\n> Every processing task must carry the above memory content to ensure the output results comply with specification requirements";
 
     /// <inheritdoc />
     protected override async ValueTask<AIContext> ProvideAIContextAsync(
@@ -83,22 +83,22 @@ public sealed class FileMemoryProvider(IAppPaths appPaths, ILogger<FileMemoryPro
     {
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_read_memory",
-            description: "读取当前项目的记忆规则（带行号）。在任何开发工作前调用此工具。返回内容每行前会标注行号，用于 sys_edit_memory 和 sys_delete_memory 定位。",
+            description: "Read the current project's memory rules (with line numbers). Call this tool before any development work. Each line in the returned content is prefixed with its line number, used for positioning by sys_edit_memory and sys_delete_memory.",
             method: async (CancellationToken ct) => await LoadMemoryWithLineNumbersAsync(ct)));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_write_memory",
-            description: "追加写入当前项目的记忆规则。参数：content (Markdown格式的规则内容)",
+            description: "Append and write to the current project's memory rules. Parameters: content (Markdown-formatted rule content)",
             method: async (string content, CancellationToken ct) => await WriteMemoryAsync(content, ct)));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_edit_memory",
-            description: "按行号修改记忆中的指定行。参数：lineNumber（从1开始的行号，需先调用 sys_read_memory 获取行号）、newContent（该行的新内容）。",
+            description: "Modify a specified line in memory by line number. Parameters: lineNumber (1-based line number, obtain by calling sys_read_memory first), newContent (the new content for that line).",
             method: async (int lineNumber, string newContent, CancellationToken ct) => await EditMemoryLineAsync(lineNumber, newContent, ct)));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_delete_memory",
-            description: "按行号删除记忆中的指定行。参数：lineNumber（从1开始的行号，需先调用 sys_read_memory 获取行号）。",
+            description: "Delete a specified line in memory by line number. Parameters: lineNumber (1-based line number, obtain by calling sys_read_memory first).",
             method: async (int lineNumber, CancellationToken ct) => await DeleteMemoryLineAsync(lineNumber, ct)));
     }
 
