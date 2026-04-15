@@ -223,6 +223,9 @@ public sealed class AiChatHostedService(
         _streamCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         publisher.Publish(Events.OnAiStarted, new VoiceSignalArgs());
 
+        // 声明 fullResponse 在 try-catch 外，以便在 catch 块中访问
+        var fullResponse = new StringBuilder();
+
         try
         {
             // 构建多模态消息内容
@@ -284,7 +287,7 @@ public sealed class AiChatHostedService(
 
             SaveUserMessage(msg.Text);
 
-            var fullResponse = new StringBuilder();
+            // 在 try-catch 外已声明 fullResponse
 
             await foreach (var chunk in _agent!.RunStreamingAsync(msg, _session!, cancellationToken: _streamCts.Token))
             {
@@ -340,6 +343,17 @@ public sealed class AiChatHostedService(
         {
             logger.LogInformation("AI 流式响应被取消");
             NotifyChannelsCancelled();
+
+            // 保存已输出的部分内容到数据库
+            if (!string.IsNullOrWhiteSpace(fullResponse.ToString()) && _session is not null && _agent is not null)
+            {
+                var modelName = _session.StateBag.GetValue<string>("modelid") ?? "Unknown";
+                await chatHistoryProvider.SavePartialResponseAsync(
+                    fullResponse.ToString(),
+                    _session,
+                    _agent,
+                    modelName);
+            }
         }
         catch (Exception ex)
         {

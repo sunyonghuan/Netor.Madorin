@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Cortana</AssemblyName>
     <AssemblyTitle>Cortana</AssemblyTitle>
-    <Version>1.1.0</Version>
+    <Version>1.1.3</Version>
     <ApplicationIcon>..\Netor.Cortana\logo.200.ico</ApplicationIcon>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>

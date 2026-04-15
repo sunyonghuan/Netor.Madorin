@@ -107,6 +107,66 @@ public sealed class ChatHistoryDataProvider(
     }
 
     /// <summary>
+    /// 保存部分响应到数据库。用于处理用户取消时已输出但未完成的部分。
+    /// </summary>
+    public async Task SavePartialResponseAsync(
+        string partialResponse,
+        AgentSession? session,
+        AIAgent? agent,
+        string modelName = "Unknown",
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(partialResponse) || session is null || agent is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var sessionId = session.StateBag.GetValue<string>("sessionid") ?? "";
+            if (string.IsNullOrEmpty(sessionId))
+            {
+                // 如果会话ID不存在，先创建会话记录
+                sessionId = await AddOrUpdateSessionAsync(session, "取消的对话", agent);
+            }
+
+            // 创建部分响应消息
+            var message = new ChatMessageEntity
+            {
+                Role = ChatRole.Assistant.ToString(),
+                Content = partialResponse,
+                AuthorName = GetChatRoleText(ChatRole.Assistant, agent.Name ?? "未知"),
+                CreatedAt = DateTimeOffset.UtcNow,
+                CreatedTimestamp = DateTimeOffset.UtcNow.ToLocalTime().ToUnixTimeMilliseconds(),
+                Id = Guid.NewGuid().ToString("N"),
+                SessionId = sessionId,
+                UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+                ModelName = modelName
+            };
+
+            // 保存到数据库
+            dbContext.ExecuteInTransaction(conn =>
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = """
+                    INSERT OR REPLACE INTO ChatMessages
+                        (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, TokenCount, ModelName, CreatedAt)
+                    VALUES
+                        (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @TokenCount, @ModelName, @CreatedAt)
+                    """;
+                ChatMessageService.BindEntity(cmd, message);
+                cmd.ExecuteNonQuery();
+            });
+
+            logger.LogInformation("已保存取消的部分响应，长度：{Length}", partialResponse.Length);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "保存部分响应时失败。");
+        }
+    }
+
+    /// <summary>
     /// 返回指定会话的聊天历史记录，供 Agent 上下文使用。
     /// 优先从压缩缓存读取，再补充缓存之后的新消息，避免重复 LLM 调用。
     /// </summary>
