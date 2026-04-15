@@ -48,6 +48,7 @@ namespace Netor.Cortana.Entitys
             Execute("PRAGMA journal_mode=WAL;");
 
             EnsureTables();
+            EnsureMigrations();
             EnsureIndexes();
         }
 
@@ -154,6 +155,7 @@ namespace Netor.Cortana.Entitys
                     Name TEXT NOT NULL DEFAULT '',
                     Url TEXT NOT NULL DEFAULT '',
                     Key TEXT NOT NULL DEFAULT '',
+                    AuthToken TEXT NOT NULL DEFAULT '',
                     Description TEXT NOT NULL DEFAULT '',
                     ProviderType TEXT NOT NULL DEFAULT 'OpenAI',
                     IsDefault INTEGER NOT NULL DEFAULT 0,
@@ -214,7 +216,9 @@ namespace Netor.Cortana.Entitys
                     IsArchived INTEGER NOT NULL DEFAULT 0,
                     IsPinned INTEGER NOT NULL DEFAULT 0,
                     LastActiveTimestamp INTEGER NOT NULL DEFAULT 0,
-                    TotalTokenCount INTEGER NOT NULL DEFAULT 0
+                    TotalTokenCount INTEGER NOT NULL DEFAULT 0,
+                    CompactedContext TEXT NOT NULL DEFAULT '',
+                    CompactedAtCount INTEGER NOT NULL DEFAULT 0
                 );
                 """);
 
@@ -268,6 +272,23 @@ namespace Netor.Cortana.Entitys
 
         /// <summary>
         /// 创建常用查询索引，提升查询性能。
+        /// 对已有数据库执行增量列迁移。
+        /// SQLite 不支持 IF NOT EXISTS 语法添加列，因此使用 try-catch 跳过已存在的列。
+        /// </summary>
+        private void EnsureMigrations()
+        {
+            TryAddColumn("ALTER TABLE AiProviders ADD COLUMN AuthToken TEXT NOT NULL DEFAULT ''");
+            TryAddColumn("ALTER TABLE ChatSessions ADD COLUMN CompactedContext TEXT NOT NULL DEFAULT ''");
+            TryAddColumn("ALTER TABLE ChatSessions ADD COLUMN CompactedAtCount INTEGER NOT NULL DEFAULT 0");
+        }
+
+        private void TryAddColumn(string alterSql)
+        {
+            try { Execute(alterSql); }
+            catch (SqliteException) { /* 列已存在，忽略 */ }
+        }
+
+        /// <summary>
         /// CREATE INDEX IF NOT EXISTS 是幂等操作。
         /// </summary>
         private void EnsureIndexes()

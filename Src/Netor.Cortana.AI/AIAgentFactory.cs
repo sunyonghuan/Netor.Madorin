@@ -1,7 +1,6 @@
 using Anthropic;
 
 using Microsoft.Agents.AI;
-using Microsoft.Agents.AI.Compaction;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -213,17 +212,6 @@ public sealed class AIAgentFactory(
         }
         ChatClient = new TokenTrackingChatClient(CreateChatClient(provider, model?.Name ?? string.Empty), model?.ContextLength ?? 128000);
 #pragma warning disable MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
-        var compactionPipeline = new PipelineCompactionStrategy(
-    // 1. 最温和：压缩旧工具调用结果
-    new ToolResultCompactionStrategy(CompactionTriggers.MessagesExceed(20)),
-            // 2. 中等：LLM 摘要旧对话
-            new SummarizationCompactionStrategy(ChatClient, CompactionTriggers.TokensExceed((int)((model?.ContextLength ?? 128000) * 0.8))),
-            // 3. 较激进：只保留最近 N 轮
-            new SlidingWindowCompactionStrategy(CompactionTriggers.TurnsExceed(systemSettings.GetValue("ChatHistory.MaxContentCount", 15))),
-            // 4. 兜底：强制截断
-            new TruncationCompactionStrategy(CompactionTriggers.TokensExceed((int)((model?.ContextLength ?? 128000) * 0.9)))
-        );
-        //providers.Add(new CompactionProvider(compactionPipeline));
         return ChatClient
             .AsBuilder()
             .BuildAIAgent(new ChatClientAgentOptions

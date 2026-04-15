@@ -12,6 +12,7 @@ using Netor.Cortana.Entitys.Services;
 using OpenAI.Chat;
 
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using AIChatMessage = Microsoft.Extensions.AI.ChatMessage;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
@@ -107,6 +108,7 @@ public sealed class ChatHistoryDataProvider(
 
     /// <summary>
     /// 返回指定会话的聊天历史记录，供 Agent 上下文使用。
+    /// 优先从压缩缓存读取，再补充缓存之后的新消息，避免重复 LLM 调用。
     /// </summary>
     protected override async ValueTask<IEnumerable<AIChatMessage>> ProvideChatHistoryAsync(InvokingContext context, CancellationToken cancellationToken = default)
     {
@@ -119,8 +121,53 @@ public sealed class ChatHistoryDataProvider(
 
         try
         {
+            // 1. 读取会话元数据（含压缩缓存）
+            var session = dbContext.QueryFirstOrDefault(
+                "SELECT * FROM ChatSessions WHERE Id = @Id",
+                ReadSessionEntity,
+                cmd => cmd.Parameters.AddWithValue("@Id", sessionId));
+
+            var result = new List<AIChatMessage>();
+
+            // 2. 如果存在压缩缓存，反序列化为消息列表
+            if (session is not null && !string.IsNullOrEmpty(session.CompactedContext))
+            {
+                var cached = JsonSerializer.Deserialize(session.CompactedContext, ChatHistoryJsonContext.Default.ListCompactedMessage);
+                if (cached is not null)
+                {
+                    result.AddRange(cached.Select(m => new AIChatMessage
+                    {
+                        Role = new ChatRole(m.Role),
+                        AuthorName = m.AuthorName,
+                        Contents = [new TextContent(m.Content)]
+                    }));
+                }
+
+                // 3. 补充缓存检查点之后的新消息（OFFSET = CompactedAtCount）
+                var newer = dbContext.Query(
+                    "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC LIMIT -1 OFFSET @Offset",
+                    ChatMessageService.ReadEntity,
+                    cmd =>
+                    {
+                        cmd.Parameters.AddWithValue("@SessionId", sessionId);
+                        cmd.Parameters.AddWithValue("@Offset", session.CompactedAtCount);
+                    });
+
+                result.AddRange(newer.Select(t => new AIChatMessage
+                {
+                    Role = t.ToChatRole(),
+                    AuthorName = t.AuthorName,
+                    MessageId = t.Id,
+                    CreatedAt = t.CreatedAt?.ToLocalTime(),
+                    Contents = [new TextContent(t.Content)]
+                }));
+
+                return result;
+            }
+
+            // 4. 无缓存时回退到读取全部消息
             var messages = dbContext.Query(
-                "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp DESC",
+                "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC",
                 ChatMessageService.ReadEntity,
                 cmd =>
                 {
@@ -133,9 +180,7 @@ public sealed class ChatHistoryDataProvider(
                     MessageId = t.Id,
                     CreatedAt = t.CreatedAt?.ToLocalTime(),
                     Contents = [new TextContent(t.Content)]
-                })
-                .OrderBy(t => t.CreatedAt)
-                .AsEnumerable();
+                });
             return messages;
         }
         catch (Exception ex)
@@ -196,9 +241,9 @@ public sealed class ChatHistoryDataProvider(
             dbContext.Execute(
                 """
                 INSERT OR REPLACE INTO ChatSessions
-                    (Id, CreatedTimestamp, UpdatedTimestamp, Categorize, Title, Summary, RawDiscription, AgentId, IsArchived, IsPinned, LastActiveTimestamp, TotalTokenCount)
+                    (Id, CreatedTimestamp, UpdatedTimestamp, Categorize, Title, Summary, RawDiscription, AgentId, IsArchived, IsPinned, LastActiveTimestamp, TotalTokenCount, CompactedContext, CompactedAtCount)
                 VALUES
-                    (@Id, @CreatedTimestamp, @UpdatedTimestamp, @Categorize, @Title, @Summary, @RawDiscription, @AgentId, @IsArchived, @IsPinned, @LastActiveTimestamp, @TotalTokenCount)
+                    (@Id, @CreatedTimestamp, @UpdatedTimestamp, @Categorize, @Title, @Summary, @RawDiscription, @AgentId, @IsArchived, @IsPinned, @LastActiveTimestamp, @TotalTokenCount, @CompactedContext, @CompactedAtCount)
                 """,
                 cmd =>
                 {
@@ -214,6 +259,8 @@ public sealed class ChatHistoryDataProvider(
                     cmd.Parameters.AddWithValue("@IsPinned", sessionEntity.IsPinned ? 1 : 0);
                     cmd.Parameters.AddWithValue("@LastActiveTimestamp", sessionEntity.LastActiveTimestamp);
                     cmd.Parameters.AddWithValue("@TotalTokenCount", sessionEntity.TotalTokenCount);
+                    cmd.Parameters.AddWithValue("@CompactedContext", sessionEntity.CompactedContext);
+                    cmd.Parameters.AddWithValue("@CompactedAtCount", sessionEntity.CompactedAtCount);
                 });
         }
         catch (Exception ex)
@@ -255,7 +302,9 @@ public sealed class ChatHistoryDataProvider(
             IsArchived = r.GetInt64(r.GetOrdinal("IsArchived")) != 0,
             IsPinned = r.GetInt64(r.GetOrdinal("IsPinned")) != 0,
             LastActiveTimestamp = r.GetInt64(r.GetOrdinal("LastActiveTimestamp")),
-            TotalTokenCount = r.GetInt32(r.GetOrdinal("TotalTokenCount"))
+            TotalTokenCount = r.GetInt32(r.GetOrdinal("TotalTokenCount")),
+            CompactedContext = r.GetString(r.GetOrdinal("CompactedContext")),
+            CompactedAtCount = r.GetInt32(r.GetOrdinal("CompactedAtCount"))
         };
     }
 
@@ -268,16 +317,32 @@ public sealed class ChatHistoryDataProvider(
         if (client is null) return;
         try
         {
-            // 1. 加载该会话全部消息（按时间正序）
+            // 1. 读取会话元数据（含压缩检查点）
+            var sessionEntity = dbContext.QueryFirstOrDefault(
+                "SELECT * FROM ChatSessions WHERE Id = @Id",
+                ReadSessionEntity,
+                cmd => cmd.Parameters.AddWithValue("@Id", sessionId));
+            if (sessionEntity is null) return;
+
+            // 2. 加载该会话全部消息总数
+            var totalCount = dbContext.ExecuteScalar<long>(
+                "SELECT COUNT(*) FROM ChatMessages WHERE SessionId = @SessionId",
+                cmd => cmd.Parameters.AddWithValue("@SessionId", sessionId));
+
+            // 3. 仅当新消息数量超过检查点一定阈值时才重新压缩
+            var newMessageCount = (int)totalCount - sessionEntity.CompactedAtCount;
+            if (newMessageCount < 10) return;
+
+            // 4. 加载全部消息（按时间正序）
             var allEntities = dbContext.Query(
                 "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC",
                 ChatMessageService.ReadEntity,
                 cmd => cmd.Parameters.AddWithValue("@SessionId", sessionId))
                 .ToList();
 
-            if (allEntities.Count < 10) return; // 消息太少不压缩
+            if (allEntities.Count < 10) return;
 
-            // 2. 转为 ChatMessage
+            // 5. 转为 ChatMessage
             var chatMessages = allEntities
                 .Select(t => new AIChatMessage
                 {
@@ -288,7 +353,8 @@ public sealed class ChatHistoryDataProvider(
                     Contents = [new TextContent(t.Content)]
                 })
                 .ToList();
-            // 3. 执行压缩
+
+            // 6. 执行压缩
 #pragma warning disable MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
             var compactionStrategy = CreateCompactionStrategy(client, modelId);
             var compacted = (await CompactionProvider.CompactAsync(
@@ -296,45 +362,29 @@ public sealed class ChatHistoryDataProvider(
                 .ToList();
 #pragma warning restore MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
 
-            // 4. 如果没有压缩，跳过
+            // 7. 如果没有压缩效果，跳过
             if (compacted.Count >= allEntities.Count) return;
 
-            // 5. 删除旧记录，写入压缩后的记录
-            dbContext.ExecuteInTransaction(conn =>
+            // 8. 将压缩结果序列化写入 CompactedContext，原始消息保持不动
+            var compactedMessages = compacted.Select(m => new CompactedMessage
             {
-                using var deleteCmd = conn.CreateCommand();
-                deleteCmd.CommandText = "DELETE FROM ChatMessages WHERE SessionId = @SessionId";
-                deleteCmd.Parameters.AddWithValue("@SessionId", sessionId);
-                deleteCmd.ExecuteNonQuery();
+                Role = m.Role.Value,
+                AuthorName = m.AuthorName ?? "",
+                Content = m.Text ?? ""
+            }).ToList();
 
-                foreach (var msg in compacted)
+            var json = JsonSerializer.Serialize(compactedMessages, ChatHistoryJsonContext.Default.ListCompactedMessage);
+
+            dbContext.Execute(
+                "UPDATE ChatSessions SET CompactedContext = @CompactedContext, CompactedAtCount = @CompactedAtCount WHERE Id = @Id",
+                cmd =>
                 {
-                    using var cmd = conn.CreateCommand();
-                    cmd.CommandText = """
-                    INSERT INTO ChatMessages
-                        (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, TokenCount, ModelName, CreatedAt)
-                    VALUES
-                        (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @TokenCount, @ModelName, @CreatedAt)
-                    """;
-                    var entity = new ChatMessageEntity
-                    {
-                        Id = msg.MessageId ?? Guid.NewGuid().ToString("N"),
-                        Role = msg.Role.ToString(),
-                        Content = msg.Text,
-                        AuthorName = msg.AuthorName ?? "",
-                        CreatedAt = msg.CreatedAt ?? DateTimeOffset.UtcNow,
-                        CreatedTimestamp = msg.CreatedAt?.ToLocalTime().ToUnixTimeMilliseconds()
-                            ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                        SessionId = sessionId,
-                        UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                        ModelName = modelName
-                    };
-                    ChatMessageService.BindEntity(cmd, entity);
-                    cmd.ExecuteNonQuery();
-                }
-            });
+                    cmd.Parameters.AddWithValue("@CompactedContext", json);
+                    cmd.Parameters.AddWithValue("@CompactedAtCount", allEntities.Count);
+                    cmd.Parameters.AddWithValue("@Id", sessionId);
+                });
 
-            logger.LogInformation("会话 {SessionId} 压缩完成：{Before} → {After} 条消息",
+            logger.LogInformation("会话 {SessionId} 压缩缓存已更新：{Total} 条消息 → {Compacted} 条压缩上下文",
                 sessionId, allEntities.Count, compacted.Count);
         }
         catch (Exception ex)
@@ -350,16 +400,34 @@ public sealed class ChatHistoryDataProvider(
     {
         var model = modelService.GetById(modelid);
         return new PipelineCompactionStrategy(
-    // 1. 最温和：压缩旧工具调用结果
-    new ToolResultCompactionStrategy(CompactionTriggers.MessagesExceed(20)),
+            // 1. 最温和：压缩旧工具调用结果
+            new ToolResultCompactionStrategy(CompactionTriggers.MessagesExceed(20)),
             // 2. 中等：LLM 摘要旧对话
             new SummarizationCompactionStrategy(client, CompactionTriggers.TokensExceed((int)((model?.ContextLength ?? 128000) * 0.8))),
             // 3. 较激进：只保留最近 N 轮
-            new SlidingWindowCompactionStrategy(CompactionTriggers.TurnsExceed(systemSettings.GetValue("ChatHistory.MaxContentCount", 15))),
+            new SlidingWindowCompactionStrategy(CompactionTriggers.TurnsExceed(systemSettings.GetValue("ChatHistory.MaxContentCount", 150))),
             // 4. 兜底：强制截断
             new TruncationCompactionStrategy(CompactionTriggers.TokensExceed((int)((model?.ContextLength ?? 128000) * 0.9)))
         );
     }
 
 #pragma warning restore MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续
+}
+
+/// <summary>
+/// 压缩消息的轻量 DTO，用于 JSON 序列化存储到 CompactedContext。
+/// </summary>
+internal sealed class CompactedMessage
+{
+    public string Role { get; set; } = string.Empty;
+    public string AuthorName { get; set; } = string.Empty;
+    public string Content { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// AOT 安全的 JSON 序列化上下文，用于压缩消息的序列化/反序列化。
+/// </summary>
+[JsonSerializable(typeof(List<CompactedMessage>))]
+internal sealed partial class ChatHistoryJsonContext : JsonSerializerContext
+{
 }

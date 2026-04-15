@@ -42,6 +42,12 @@
 						<TextBox x:Name="TxtKey" Classes="form-input" PlaceholderText="sk-..." MaxLength="256" />
 					</StackPanel>
 
+					<!-- Auth Token -->
+					<StackPanel Spacing="4">
+						<TextBlock Text="Auth Token" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+						<TextBox x:Name="TxtAuthToken" Classes="form-input" PlaceholderText="用于 Anthropic 等需要 Token 认证的服务（可选）" MaxLength="256" />
+					</StackPanel>
+
 					<!-- 协议类型 -->
 					<StackPanel Spacing="4">
 						<TextBlock Text="协议类型" Foreground="{StaticResource SubtextBrush}" FontSize="12" />

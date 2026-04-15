@@ -3,9 +3,11 @@
     <Project Path="../Src/Plugins/Netor.Cortana.Plugin.Native.Debuger/Netor.Cortana.Plugin.Native.Debugger.csproj" />
     <Project Path="Src/Cortana.Plugins.Reminder/Cortana.Plugins.Reminder.csproj" />
     <Project Path="Src/Cortana.Plugins.Bt/Cortana.Plugins.Bt.csproj" />
+    <Project Path="Src/Cortana.Plugins.WsBridge/Cortana.Plugins.WsBridge.csproj" />
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="Tests/Reminder/Reminder.Test.csproj" Id="bcc081df-88cc-4619-a4b3-6a004b818a2c" />
     <Project Path="Tests/Bt/Bt.Test.csproj" />
+    <Project Path="Tests/WsBridge/WsBridge.Test.csproj" />
   </Folder>
 </Solution>

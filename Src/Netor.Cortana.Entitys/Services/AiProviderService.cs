@@ -48,8 +48,8 @@ namespace Netor.Cortana.Entitys.Services
             entity.UpdatedTimestamp = entity.CreatedTimestamp;
 
             _db.Execute("""
-                INSERT INTO AiProviders (Id, CreatedTimestamp, UpdatedTimestamp, Name, Url, Key, Description, ProviderType, IsDefault, IsEnabled, SortOrder)
-                VALUES (@Id, @CreatedTimestamp, @UpdatedTimestamp, @Name, @Url, @Key, @Description, @ProviderType, @IsDefault, @IsEnabled, @SortOrder)
+                INSERT INTO AiProviders (Id, CreatedTimestamp, UpdatedTimestamp, Name, Url, Key, AuthToken, Description, ProviderType, IsDefault, IsEnabled, SortOrder)
+                VALUES (@Id, @CreatedTimestamp, @UpdatedTimestamp, @Name, @Url, @Key, @AuthToken, @Description, @ProviderType, @IsDefault, @IsEnabled, @SortOrder)
                 """,
                 cmd => BindEntity(cmd, entity));
         }
@@ -66,7 +66,7 @@ namespace Netor.Cortana.Entitys.Services
 
             _db.Execute("""
                 UPDATE AiProviders SET
-                    UpdatedTimestamp = @UpdatedTimestamp, Name = @Name, Url = @Url, Key = @Key,
+                    UpdatedTimestamp = @UpdatedTimestamp, Name = @Name, Url = @Url, Key = @Key, AuthToken = @AuthToken,
                     Description = @Description, ProviderType = @ProviderType,
                     IsDefault = @IsDefault, IsEnabled = @IsEnabled, SortOrder = @SortOrder
                 WHERE Id = @Id
@@ -116,6 +116,7 @@ namespace Netor.Cortana.Entitys.Services
             Name = r.GetString(r.GetOrdinal("Name")),
             Url = r.GetString(r.GetOrdinal("Url")),
             Key = r.GetString(r.GetOrdinal("Key")),
+            AuthToken = r.GetString(r.GetOrdinal("AuthToken")),
             Description = r.GetString(r.GetOrdinal("Description")),
             ProviderType = r.GetString(r.GetOrdinal("ProviderType")),
             IsDefault = r.GetBoolean(r.GetOrdinal("IsDefault")),
@@ -131,6 +132,7 @@ namespace Netor.Cortana.Entitys.Services
             cmd.Parameters.AddWithValue("@Name", e.Name);
             cmd.Parameters.AddWithValue("@Url", e.Url);
             cmd.Parameters.AddWithValue("@Key", e.Key);
+            cmd.Parameters.AddWithValue("@AuthToken", e.AuthToken);
             cmd.Parameters.AddWithValue("@Description", e.Description);
             cmd.Parameters.AddWithValue("@ProviderType", e.ProviderType);
             cmd.Parameters.AddWithValue("@IsDefault", e.IsDefault);

@@ -66,5 +66,20 @@ namespace Netor.Cortana.Entitys
         /// 该会话累计消耗的总令牌数，用于统计和展示 API 用量。
         /// </summary>
         public long TotalTokenCount { get; set; }
+
+        /// <summary>
+        /// 压缩后的上下文缓存（JSON 格式的压缩消息列表）。
+        /// 由 ChatHistoryDataProvider 在压缩时写入，恢复会话时直接读取，避免重复调用 LLM。
+        /// UI 不需要此字段，序列化时忽略。
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string CompactedContext { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 压缩时的消息总数检查点。
+        /// 恢复会话时只需加载 CompactedContext + 此计数之后的新消息。
+        /// </summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public int CompactedAtCount { get; set; }
     }
 }

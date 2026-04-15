@@ -146,6 +146,7 @@ public partial class ProviderSettingsPage : UserControl
         TxtName.Text = string.Empty;
         TxtUrl.Text = string.Empty;
         TxtKey.Text = string.Empty;
+        TxtAuthToken.Text = string.Empty;
         TxtDesc.Text = string.Empty;
         CboType.SelectedIndex = 0;
         ChkEnabled.IsChecked = true;
@@ -170,6 +171,7 @@ public partial class ProviderSettingsPage : UserControl
         TxtName.Text = entity.Name;
         TxtUrl.Text = entity.Url;
         TxtKey.Text = entity.Key;
+        TxtAuthToken.Text = entity.AuthToken;
         TxtDesc.Text = entity.Description;
         ChkEnabled.IsChecked = entity.IsEnabled;
         ChkDefault.IsChecked = entity.IsDefault;
@@ -206,6 +208,7 @@ public partial class ProviderSettingsPage : UserControl
             entity.Name = name;
             entity.Url = url;
             entity.Key = key;
+            entity.AuthToken = TxtAuthToken.Text?.Trim() ?? string.Empty;
             entity.ProviderType = providerType;
             entity.Description = TxtDesc.Text?.Trim() ?? string.Empty;
             entity.IsEnabled = ChkEnabled.IsChecked ?? true;
@@ -222,6 +225,7 @@ public partial class ProviderSettingsPage : UserControl
                 Name = name,
                 Url = url,
                 Key = key,
+                AuthToken = TxtAuthToken.Text?.Trim() ?? string.Empty,
                 ProviderType = providerType,
                 Description = TxtDesc.Text?.Trim() ?? string.Empty,
                 IsEnabled = ChkEnabled.IsChecked ?? true,
