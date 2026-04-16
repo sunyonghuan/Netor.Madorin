@@ -475,6 +475,11 @@ public sealed class MarkdownRenderer : UserControl
                     });
                     break;
 
+                case HtmlInline htmlInline:
+                    if (htmlInline.Tag.StartsWith("<br", StringComparison.OrdinalIgnoreCase))
+                        target.Add(new LineBreak());
+                    break;
+
                 default:
                     target.Add(new AvaloniaRun(inline.ToString() ?? ""));
                     break;
