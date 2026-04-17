@@ -1,0 +1,22 @@
+﻿[
+  {
+    "id": "srv-01",
+    "name": "Main Web Node",
+    "ip": "10.10.10.1",
+    "ssh_user": "root",
+    "ssh_key_path": "Servers/Keys/10.10.10.1_id_rsa",
+    "baota_panel_url": "http://10.10.10.1:8888",
+    "baota_api_sk": "your_api_sk_here",
+    "tags": ["web", "prod"]
+  },
+  {
+    "id": "srv-02",
+    "name": "DB Node",
+    "ip": "10.10.10.2",
+    "ssh_user": "root",
+    "ssh_key_path": "Servers/Keys/10.10.10.2_id_rsa",
+    "baota_panel_url": "",
+    "baota_api_sk": "",
+    "tags": ["db"]
+  }
+]

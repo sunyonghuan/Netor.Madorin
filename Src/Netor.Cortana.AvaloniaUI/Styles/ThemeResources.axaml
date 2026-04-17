@@ -24,4 +24,13 @@
 	<SolidColorBrush x:Key="GreenBrush"    Color="#4ec9b0" />
 	<SolidColorBrush x:Key="RedBrush"      Color="#f14c4c" />
 
+	<!-- 聊天气泡：用户侧石墨蓝方案 -->
+	<SolidColorBrush x:Key="UserAvatarBrush"       Color="#2B313A" />
+	<SolidColorBrush x:Key="UserAvatarBorderBrush" Color="#3E6F99" />
+	<SolidColorBrush x:Key="UserAvatarGlyphBrush"  Color="#D7E2F0" />
+	<SolidColorBrush x:Key="UserBubbleBrush"       Color="#30343B" />
+	<SolidColorBrush x:Key="UserBubbleBorderBrush" Color="#3A4452" />
+	<SolidColorBrush x:Key="AiBubbleBrush"         Color="#252526" />
+	<SolidColorBrush x:Key="AiBubbleBorderBrush"   Color="#3c3c3c" />
+
 </ResourceDictionary>

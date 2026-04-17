@@ -1,0 +1,100 @@
+namespace Netor.Cortana.AvaloniaUI;
+
+internal static class FileContentTypeResolver
+{
+    private static readonly IReadOnlyDictionary<string, string> ContentTypes =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [".png"] = "image/png",
+            [".jpg"] = "image/jpeg",
+            [".jpeg"] = "image/jpeg",
+            [".gif"] = "image/gif",
+            [".bmp"] = "image/bmp",
+            [".webp"] = "image/webp",
+            [".svg"] = "image/svg+xml",
+            [".ico"] = "image/x-icon",
+            [".pdf"] = "application/pdf",
+            [".doc"] = "application/msword",
+            [".docx"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            [".xls"] = "application/vnd.ms-excel",
+            [".xlsx"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            [".ppt"] = "application/vnd.ms-powerpoint",
+            [".pptx"] = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            [".txt"] = "text/plain",
+            [".md"] = "text/markdown",
+            [".markdown"] = "text/markdown",
+            [".csv"] = "text/csv",
+            [".log"] = "text/plain",
+            [".rtf"] = "application/rtf",
+            [".json"] = "application/json",
+            [".jsonc"] = "application/json",
+            [".xml"] = "application/xml",
+            [".yaml"] = "application/yaml",
+            [".yml"] = "application/yaml",
+            [".toml"] = "application/toml",
+            [".ini"] = "text/plain",
+            [".conf"] = "text/plain",
+            [".config"] = "application/xml",
+            [".editorconfig"] = "text/plain",
+            [".props"] = "application/xml",
+            [".targets"] = "application/xml",
+            [".sln"] = "text/plain",
+            [".slnx"] = "text/plain",
+            [".csproj"] = "application/xml",
+            [".fsproj"] = "application/xml",
+            [".vbproj"] = "application/xml",
+            [".zip"] = "application/zip",
+            [".7z"] = "application/x-7z-compressed",
+            [".rar"] = "application/vnd.rar",
+            [".tar"] = "application/x-tar",
+            [".gz"] = "application/gzip",
+            [".tgz"] = "application/gzip",
+            [".bz2"] = "application/x-bzip2",
+            [".xz"] = "application/x-xz",
+            [".cs"] = "text/x-csharp",
+            [".csx"] = "text/x-csharp",
+            [".fs"] = "text/plain",
+            [".vb"] = "text/plain",
+            [".py"] = "text/x-python",
+            [".pyw"] = "text/x-python",
+            [".ps1"] = "text/plain",
+            [".psm1"] = "text/plain",
+            [".psd1"] = "text/plain",
+            [".bat"] = "text/plain",
+            [".cmd"] = "text/plain",
+            [".sh"] = "text/x-shellscript",
+            [".bash"] = "text/x-shellscript",
+            [".zsh"] = "text/x-shellscript",
+            [".fish"] = "text/plain",
+            [".js"] = "text/javascript",
+            [".mjs"] = "text/javascript",
+            [".cjs"] = "text/javascript",
+            [".ts"] = "text/plain",
+            [".tsx"] = "text/plain",
+            [".jsx"] = "text/plain",
+            [".css"] = "text/css",
+            [".scss"] = "text/plain",
+            [".html"] = "text/html",
+            [".htm"] = "text/html",
+            [".sql"] = "application/sql",
+            [".java"] = "text/x-java-source",
+            [".kt"] = "text/plain",
+            [".go"] = "text/plain",
+            [".rs"] = "text/plain",
+            [".c"] = "text/x-c",
+            [".h"] = "text/x-c",
+            [".cpp"] = "text/x-c++",
+            [".cxx"] = "text/x-c++",
+            [".hpp"] = "text/x-c++",
+        };
+
+    public static string GetMimeType(string filePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+
+        var extension = Path.GetExtension(filePath);
+        return !string.IsNullOrEmpty(extension) && ContentTypes.TryGetValue(extension, out var mimeType)
+            ? mimeType
+            : "application/octet-stream";
+    }
+}

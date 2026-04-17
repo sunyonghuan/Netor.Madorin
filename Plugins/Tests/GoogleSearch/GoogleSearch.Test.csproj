@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Src\Plugins\Netor.Cortana.Plugin.Native.Debuger\Netor.Cortana.Plugin.Native.Debugger.csproj" />
+    <ProjectReference Include="..\..\Src\Cortana.Plugins.GoogleSearch\Cortana.Plugins.GoogleSearch.csproj" />
+  </ItemGroup>
+
+</Project>

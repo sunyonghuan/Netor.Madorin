@@ -3,6 +3,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
 
@@ -19,6 +21,8 @@ namespace Netor.Cortana.AvaloniaUI.Views;
 /// </summary>
 public partial class MainWindow : Window
 {
+    private static readonly Bitmap AiAvatarBitmap = LoadAiAvatarBitmap();
+
     private ISubscriber? _subscriber;
     private bool _forceClose;
     private bool _workspaceOpen;
@@ -649,7 +653,8 @@ public partial class MainWindow : Window
                     [
                         new Avalonia.Platform.Storage.FilePickerFileType("所有文件") { Patterns = ["*.*"] },
                         new Avalonia.Platform.Storage.FilePickerFileType("图片文件") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp"] },
-                        new Avalonia.Platform.Storage.FilePickerFileType("文档文件") { Patterns = ["*.pdf", "*.doc", "*.docx", "*.txt", "*.csv", "*.xlsx"] },
+                        new Avalonia.Platform.Storage.FilePickerFileType("文档文件") { Patterns = ["*.pdf", "*.doc", "*.docx", "*.txt", "*.md", "*.csv", "*.xlsx", "*.pptx"] },
+                        new Avalonia.Platform.Storage.FilePickerFileType("脚本与源码") { Patterns = ["*.cs", "*.csx", "*.ps1", "*.psm1", "*.psd1", "*.py", "*.pyw", "*.cmd", "*.bat", "*.sh", "*.js", "*.ts", "*.json", "*.yml", "*.yaml", "*.xml"] },
                     ]
                 });
 
@@ -657,7 +662,7 @@ public partial class MainWindow : Window
             {
                 var path = file.Path.LocalPath;
                 var name = file.Name;
-                var mimeType = GetMimeType(path);
+                var mimeType = FileContentTypeResolver.GetMimeType(path);
                 _attachments.Add(new AttachmentInfo(path, name, mimeType));
             }
 
@@ -760,43 +765,10 @@ public partial class MainWindow : Window
             // 避免重复添加
             if (_attachments.Any(a => string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase)))
                 continue;
-            _attachments.Add(new AttachmentInfo(path, Path.GetFileName(path), GetMimeType(path)));
+            _attachments.Add(new AttachmentInfo(path, Path.GetFileName(path), FileContentTypeResolver.GetMimeType(path)));
             added = true;
         }
         if (added) RenderAttachments();
-    }
-
-    /// <summary>
-    /// 根据文件扩展名推断 MIME 类型。
-    /// </summary>
-    private static string GetMimeType(string filePath)
-    {
-        string ext = Path.GetExtension(filePath).ToLowerInvariant();
-
-        return ext switch
-        {
-            ".png" => "image/png",
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".gif" => "image/gif",
-            ".bmp" => "image/bmp",
-            ".webp" => "image/webp",
-            ".svg" => "image/svg+xml",
-            ".pdf" => "application/pdf",
-            ".doc" => "application/msword",
-            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ".xls" => "application/vnd.ms-excel",
-            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            ".ppt" => "application/vnd.ms-powerpoint",
-            ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            ".txt" => "text/plain",
-            ".csv" => "text/csv",
-            ".json" => "application/json",
-            ".xml" => "application/xml",
-            ".zip" => "application/zip",
-            ".7z" => "application/x-7z-compressed",
-            ".rar" => "application/vnd.rar",
-            _ => "application/octet-stream"
-        };
     }
 
     // ──────── 拖放文件 ────────
@@ -852,7 +824,7 @@ public partial class MainWindow : Window
             if (string.IsNullOrEmpty(path) || !File.Exists(path)) continue;
 
             var name = Path.GetFileName(path);
-            var mimeType = GetMimeType(path);
+            var mimeType = FileContentTypeResolver.GetMimeType(path);
             _attachments.Add(new AttachmentInfo(path, name, mimeType));
             added = true;
         }
@@ -1084,9 +1056,9 @@ public partial class MainWindow : Window
             {
                 var total = (factory.ChatClient?.MaxContextTokens ?? 1) / 1000d;
                 var used = (factory.ChatClient?.LastInputTokens ?? 128) / 1000d;
-                var left = used / total;
-                AiProgressBar.Value = left;
-                AiProgressBar.Tag = $"{left:f2}%  {used:f2}k / {total:f0}k";
+                var percent = used / total * 100;
+                AiProgressBar.Value = percent;
+                AiProgressBar.Tag = $"{percent:f1}%  {used:f1}k / {total:f0}k";
             });
     }
 
@@ -1168,6 +1140,42 @@ public partial class MainWindow : Window
         return text;
     }
 
+    private static Bitmap LoadAiAvatarBitmap()
+    {
+        using var stream = AssetLoader.Open(new Uri("avares://Cortana/Assets/logo.200.png"));
+        return new Bitmap(stream);
+    }
+
+    private static Control BuildUserAvatarGlyph(IBrush glyphBrush)
+    {
+        return new Grid
+        {
+            Children =
+            {
+                new Border
+                {
+                    Width = 10,
+                    Height = 10,
+                    CornerRadius = new CornerRadius(5),
+                    Background = glyphBrush,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+                    Margin = new Thickness(0, 6, 0, 0),
+                },
+                new Border
+                {
+                    Width = 18,
+                    Height = 10,
+                    CornerRadius = new CornerRadius(9, 9, 6, 6),
+                    Background = glyphBrush,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
+                    Margin = new Thickness(0, 0, 0, 5),
+                }
+            }
+        };
+    }
+
     /// <summary>
     /// 添加消息气泡到消息列表。
     /// </summary>
@@ -1175,7 +1183,14 @@ public partial class MainWindow : Window
     {
         Dispatcher.UIThread.Post(() =>
         {
-            // ── 头像 (32px 圆形渐变) ──
+            var userAvatarBrush = (IBrush)this.FindResource("UserAvatarBrush")!;
+            var userAvatarBorderBrush = (IBrush)this.FindResource("UserAvatarBorderBrush")!;
+            var userAvatarGlyphBrush = (IBrush)this.FindResource("UserAvatarGlyphBrush")!;
+            var userBubbleBrush = (IBrush)this.FindResource("UserBubbleBrush")!;
+            var userBubbleBorderBrush = (IBrush)this.FindResource("UserBubbleBorderBrush")!;
+            var aiBubbleBrush = (IBrush)this.FindResource("AiBubbleBrush")!;
+            var aiBubbleBorderBrush = (IBrush)this.FindResource("AiBubbleBorderBrush")!;
+
             var avatar = new Border
             {
                 Width = 32,
@@ -1184,34 +1199,27 @@ public partial class MainWindow : Window
                 ClipToBounds = true,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
                 Margin = isUser ? new Thickness(10, 0, 0, 0) : new Thickness(0, 0, 10, 0),
-                Background = isUser
-                    ? new LinearGradientBrush
+                Padding = isUser ? new Thickness(0) : new Thickness(1),
+                Background = isUser ? userAvatarBrush : Brushes.Transparent,
+                BorderBrush = isUser ? userAvatarBorderBrush : aiBubbleBorderBrush,
+                BorderThickness = new Thickness(1),
+                Child = isUser
+                    ? BuildUserAvatarGlyph(userAvatarGlyphBrush)
+                    : new Image
                     {
-                        StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
-                        EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
-                        GradientStops = { new GradientStop(Color.Parse("#4ec9b0"), 0), new GradientStop(Color.Parse("#3dc9b0"), 1) }
+                        Source = AiAvatarBitmap,
+                        Width = 30,
+                        Height = 30,
+                        Stretch = Stretch.UniformToFill,
                     }
-                    : new LinearGradientBrush
-                    {
-                        StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
-                        EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
-                        GradientStops = { new GradientStop(Color.Parse("#007acc"), 0), new GradientStop(Color.Parse("#3794ff"), 1) }
-                    },
-                Child = new TextBlock
-                {
-                    Text = isUser ? "你" : "AI",
-                    FontSize = 13,
-                    FontWeight = FontWeight.SemiBold,
-                    Foreground = Brushes.White,
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                }
             };
 
             // ── 消息气泡 ──
             var bubble = new Border
             {
-                Background = new SolidColorBrush(isUser ? Color.Parse("#3c3c3c") : Color.Parse("#252526")),
+                Background = isUser ? userBubbleBrush : aiBubbleBrush,
+                BorderBrush = isUser ? userBubbleBorderBrush : aiBubbleBorderBrush,
+                BorderThickness = new Thickness(1),
                 CornerRadius = isUser
                     ? new CornerRadius(3, 4, 3, 3)
                     : new CornerRadius(4, 3, 3, 3),

@@ -169,6 +169,7 @@ public partial class App : Application
             // 数据库
             .AddSingleton<CortanaDbContext>()
             .AddTransient<SystemSettingsService>()
+            .AddTransient<AgentSeedService>()
             .AddTransient<AgentService>()
             .AddTransient<AiProviderService>()
             .AddTransient<AiModelService>()
@@ -243,6 +244,9 @@ public partial class App : Application
             },
             ttsSpeed: appSettings.Tts.Speed,
             workspaceDirectory: UserDataDirectory);
+
+        var agentSeedService = Services.GetRequiredService<AgentSeedService>();
+        agentSeedService.EnsureSeedData();
 
         // 版本迁移：为已有数据库补充新增设置项
         sysSettings.EnsureSetting("WebSocket.Port",

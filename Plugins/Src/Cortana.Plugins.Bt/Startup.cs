@@ -10,7 +10,7 @@ namespace Cortana.Plugins.Bt;
 [Plugin(
     Id = "bt",
     Name = "宝塔面板插件",
-    Version = "1.0.1",
+    Version = "1.0.2",
     Description = "提供宝塔面板系统查询、网站管理与配置读写能力。",
     Tags = ["宝塔", "运维", "网站", "部署"],
     Instructions = "使用宝塔相关工具前，必须提供 panelUrl 与 apiSk。执行删除、关闭、覆盖配置等高风险操作前，必须确认用户明确要求。")]

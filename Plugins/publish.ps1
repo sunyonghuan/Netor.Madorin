@@ -1,11 +1,15 @@
-# publish.ps1 - 插件批量发布脚本
-# 自动递增版本号 → 修改 csproj + Startup.cs → dotnet publish → 打包 zip
+﻿# publish.ps1 - 插件批量发布脚本
+# 自动递增版本号 -> 修改 csproj + Startup.cs -> dotnet publish -> 打包 zip
 param(
     [switch]$DryRun,
     [ValidateSet("patch", "minor", "major")]
     [string]$Bump = "patch",
     [string]$Runtime = "win-x64"
 )
+
+[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [Console]::OutputEncoding
 
 $ErrorActionPreference = "Stop"
 $Root = $PSScriptRoot
@@ -22,7 +26,7 @@ if (-not (Test-Path $ReleasesDir)) {
     New-Item -ItemType Directory -Path $ReleasesDir | Out-Null
 }
 
-# ── 版本号递增函数 ──
+# -- 版本号递增函数 --
 function Step-Version([string]$ver, [string]$part) {
     $parts = $ver.Split('.')
     if ($parts.Length -lt 3) { $parts = @("1", "0", "0") }
@@ -35,7 +39,7 @@ function Step-Version([string]$ver, [string]$part) {
     return "$major.$minor.$patch"
 }
 
-# ── 从 csproj 提取当前版本 ──
+# -- 从 csproj 提取当前版本 --
 function Get-CsprojVersion([string]$csprojPath) {
     $xml = [xml]([System.IO.File]::ReadAllText($csprojPath))
     $node = $xml.SelectSingleNode("//PropertyGroup/Version")
@@ -43,14 +47,14 @@ function Get-CsprojVersion([string]$csprojPath) {
     return "0.0.0"
 }
 
-# ── 更新 csproj 版本 ──
+# -- 更新 csproj 版本 --
 function Set-CsprojVersion([string]$csprojPath, [string]$newVer) {
     $content = [System.IO.File]::ReadAllText($csprojPath)
     $content = $content -replace '<Version>[^<]+</Version>', "<Version>$newVer</Version>"
     [System.IO.File]::WriteAllText($csprojPath, $content, [System.Text.Encoding]::UTF8)
 }
 
-# ── 更新 Startup.cs 中 [Plugin(Version = "x.y.z")] ──
+# -- 更新 Startup.cs 中 [Plugin(Version = "x.y.z")] --
 function Set-StartupVersion([string]$projectDir, [string]$newVer) {
     $startupFiles = Get-ChildItem -Path $projectDir -Filter "Startup.cs" -Recurse
     foreach ($f in $startupFiles) {
@@ -63,9 +67,9 @@ function Set-StartupVersion([string]$projectDir, [string]$newVer) {
     }
 }
 
-# ══════════════════════════════════════════
+# ================================
 # 主流程：遍历 Src 下的每个插件项目
-# ══════════════════════════════════════════
+# ================================
 Write-Host ""
 Write-Host "  Cortana Plugin Publisher" -ForegroundColor Cyan
 Write-Host "  Bump: $Bump | Runtime: $Runtime | DryRun: $DryRun" -ForegroundColor DarkGray
@@ -81,7 +85,7 @@ foreach ($proj in $projects) {
         continue
     }
 
-    Write-Host "  ── $($proj.Name) ──" -ForegroundColor Yellow
+    Write-Host "  -- $($proj.Name) --" -ForegroundColor Yellow
 
     # 1. 读取并递增版本
     $oldVer = Get-CsprojVersion $csproj.FullName
@@ -97,12 +101,7 @@ foreach ($proj in $projects) {
     Set-CsprojVersion $csproj.FullName $newVer
     Set-StartupVersion $proj.FullName $newVer
 
-    # 3. 从 csproj 中读取 AssemblyName（用于确定 DLL 名和文件夹名）
-    $xml = [xml]([System.IO.File]::ReadAllText($csproj.FullName))
-    $asmNode = $xml.SelectSingleNode("//PropertyGroup/AssemblyName")
-    $assemblyName = if ($asmNode) { $asmNode.InnerText } else { [System.IO.Path]::GetFileNameWithoutExtension($csproj.Name) }
-
-    # 提取友好名称（去掉 Cortana.Plugins. 前缀）
+    # 3. 提取友好名称（去掉 Cortana.Plugins. 前缀）
     $friendlyName = $proj.Name -replace '^Cortana\.Plugins\.', ''
 
     # 4. dotnet publish
@@ -145,7 +144,7 @@ foreach ($proj in $projects) {
     Remove-Item $publishDir -Recurse -Force -ErrorAction SilentlyContinue
 
     $zipSize = [math]::Round((Get-Item $zipPath).Length / 1KB, 1)
-    Write-Host "    ✓ $zipName ($($zipSize) KB)" -ForegroundColor Green
+    Write-Host "    OK $zipName ($($zipSize) KB)" -ForegroundColor Green
     $successCount++
 }
 

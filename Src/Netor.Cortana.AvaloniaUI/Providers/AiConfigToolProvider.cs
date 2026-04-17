@@ -1,5 +1,7 @@
 using System.Text;
 
+using Netor.Cortana.Plugin;
+
 namespace Netor.Cortana.AvaloniaUI.Providers;
 
 /// <summary>
@@ -15,6 +17,9 @@ internal sealed class AiConfigToolProvider(
     private AiProviderService ProviderService => serviceProvider.GetRequiredService<AiProviderService>();
     private AiModelService ModelService => serviceProvider.GetRequiredService<AiModelService>();
     private AgentService AgentService => serviceProvider.GetRequiredService<AgentService>();
+    private McpServerService McpServerService => serviceProvider.GetRequiredService<McpServerService>();
+    private PluginLoader PluginLoader => serviceProvider.GetRequiredService<PluginLoader>();
+    private ILoggerFactory LoggerFactory => serviceProvider.GetRequiredService<ILoggerFactory>();
 
     protected override ValueTask<AIContext> ProvideAIContextAsync(
         InvokingContext context,
@@ -50,6 +55,11 @@ internal sealed class AiConfigToolProvider(
             description: "List all enabled models under the current default provider, returning a numbered list. Users can select by index.",
             method: ListModels));
 
+        _tools.Add(AIFunctionFactory.Create(
+            name: "sys_list_mcp_servers",
+            description: "List all MCP server configurations, including enabled/disabled state, current connection state, and discovered tool count.",
+            method: ListMcpServers));
+
         // Set Default
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_set_default_provider",
@@ -81,6 +91,23 @@ internal sealed class AiConfigToolProvider(
             name: "sys_add_agent",
             description: "Add a new agent (assistant/proxy/Agent). Parameters: name (name), instructions (system prompt).",
             method: (string name, string instructions) => AddAgent(name, instructions)));
+
+        _tools.Add(AIFunctionFactory.Create(
+            name: "sys_test_mcp_server",
+            description: "Test an MCP server configuration without saving it. Parameters: name, transportType (stdio/sse/streamable-http), command, arguments (comma or newline separated), url, apiKey, environmentVariables (newline separated KEY=VALUE), description.",
+            method: (string name, string transportType, string command, string arguments, string url, string apiKey, string environmentVariables, string description, CancellationToken ct)
+                => TestMcpServerAsync(name, transportType, command, arguments, url, apiKey, environmentVariables, description, ct)));
+
+        _tools.Add(AIFunctionFactory.Create(
+            name: "sys_add_mcp_server",
+            description: "Add a new MCP server. This tool tests the connection first, then saves to the database and connects it to the running system only if the test succeeds. Parameters: name, transportType (stdio/sse/streamable-http), command, arguments (comma or newline separated), url, apiKey, environmentVariables (newline separated KEY=VALUE), description.",
+            method: (string name, string transportType, string command, string arguments, string url, string apiKey, string environmentVariables, string description, CancellationToken ct)
+                => AddMcpServerAsync(name, transportType, command, arguments, url, apiKey, environmentVariables, description, ct)));
+
+        _tools.Add(AIFunctionFactory.Create(
+            name: "sys_enable_mcp_for_agent",
+            description: "Enable a saved MCP server for an agent. Parameters: mcpIndex (1-based index, call sys_list_mcp_servers first), agentIndex (1-based index, 0 means current default agent).",
+            method: (int mcpIndex, int agentIndex) => EnableMcpForAgent(mcpIndex, agentIndex)));
 
         // Agent Instructions
         _tools.Add(AIFunctionFactory.Create(
@@ -151,6 +178,40 @@ internal sealed class AiConfigToolProvider(
             var displayName = string.IsNullOrWhiteSpace(m.DisplayName) ? m.Name : m.DisplayName;
             var marker = m.IsDefault ? " ★默认" : "";
             sb.AppendLine($"  {i + 1}. {displayName}{marker} [id={m.Id}]");
+        }
+
+        return sb.ToString();
+    }
+
+    private string ListMcpServers()
+    {
+        var list = McpServerService.GetAll();
+        if (list.Count == 0)
+            return "当前没有 MCP 服务配置。";
+
+        var activeHosts = PluginLoader.GetActiveMcpServers()
+            .ToDictionary(host => host.Id, host => host, StringComparer.OrdinalIgnoreCase);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("MCP 服务列表：");
+
+        for (int i = 0; i < list.Count; i++)
+        {
+            var server = list[i];
+            var isConnected = activeHosts.TryGetValue(server.Id, out var host);
+            var enabledText = server.IsEnabled ? "已启用" : "已禁用";
+            var connectedText = isConnected ? "已连接" : "未连接";
+            var toolCountText = isConnected ? $"{host!.Tools.Count} 个工具" : "0 个工具";
+            var address = server.TransportType == "stdio"
+                ? server.Command
+                : server.Url;
+
+            sb.AppendLine($"  {i + 1}. {server.Name} [{server.TransportType}] · {enabledText} · {connectedText} · {toolCountText} [id={server.Id}]");
+
+            if (!string.IsNullOrWhiteSpace(address))
+            {
+                sb.AppendLine($"     {address}");
+            }
         }
 
         return sb.ToString();
@@ -351,12 +412,269 @@ internal sealed class AiConfigToolProvider(
         }
     }
 
+    // ──────── MCP 服务 ────────
+
+    private async Task<string> TestMcpServerAsync(
+        string name,
+        string transportType,
+        string command,
+        string arguments,
+        string url,
+        string apiKey,
+        string environmentVariables,
+        string description,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var entity = BuildMcpEntity(name, transportType, command, arguments, url, apiKey, environmentVariables, description);
+            var result = await TestMcpConnectionAsync(entity, cancellationToken);
+            return result.Message;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "测试 MCP 服务失败");
+            return $"✗ 测试 MCP 服务失败：{ex.Message}";
+        }
+    }
+
+    private async Task<string> AddMcpServerAsync(
+        string name,
+        string transportType,
+        string command,
+        string arguments,
+        string url,
+        string apiKey,
+        string environmentVariables,
+        string description,
+        CancellationToken cancellationToken)
+    {
+        McpServerEntity entity;
+
+        try
+        {
+            entity = BuildMcpEntity(name, transportType, command, arguments, url, apiKey, environmentVariables, description);
+        }
+        catch (Exception ex)
+        {
+            return $"✗ MCP 参数无效：{ex.Message}";
+        }
+
+        var testResult = await TestMcpConnectionAsync(entity, cancellationToken);
+        if (!testResult.Success)
+        {
+            return testResult.Message + "\n未保存到数据库。";
+        }
+
+        try
+        {
+            McpServerService.Add(entity);
+            await PluginLoader.AddMcpServerAsync(entity, cancellationToken);
+
+            var activeHost = PluginLoader.GetActiveMcpServers()
+                .FirstOrDefault(host => string.Equals(host.Id, entity.Id, StringComparison.OrdinalIgnoreCase));
+
+            if (activeHost is null)
+            {
+                McpServerService.Delete(entity.Id);
+                return $"✗ MCP 服务「{entity.Name}」测试成功，但接入运行时失败，已回滚保存。";
+            }
+
+            logger.LogInformation("已新增 MCP 服务：{Name}", entity.Name);
+            return $"✓ 已新增 MCP 服务「{entity.Name}」，连接成功，发现 {activeHost.Tools.Count} 个工具。若需要给智能体使用，请继续调用 sys_enable_mcp_for_agent。";
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "新增 MCP 服务失败");
+
+            try
+            {
+                await PluginLoader.RemoveMcpServerAsync(entity.Id);
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                McpServerService.Delete(entity.Id);
+            }
+            catch
+            {
+            }
+
+            return $"✗ 新增 MCP 服务失败：{ex.Message}";
+        }
+    }
+
+    private string EnableMcpForAgent(int mcpIndex, int agentIndex)
+    {
+        try
+        {
+            var mcpList = McpServerService.GetAll();
+            if (mcpIndex < 1 || mcpIndex > mcpList.Count)
+                return $"✗ 无效的 MCP 序号 {mcpIndex}，有效范围 1~{mcpList.Count}。请先调用 sys_list_mcp_servers 查看列表。";
+
+            var targetMcp = mcpList[mcpIndex - 1];
+            var activeHost = PluginLoader.GetActiveMcpServers()
+                .FirstOrDefault(host => string.Equals(host.Id, targetMcp.Id, StringComparison.OrdinalIgnoreCase));
+
+            if (activeHost is null)
+                return $"✗ MCP 服务「{targetMcp.Name}」当前未连接，无法为智能体启用。请先测试或重新连接。";
+
+            var agents = AgentService.GetAll();
+            if (agents.Count == 0)
+                return "✗ 当前没有可用的智能体。";
+
+            AgentEntity targetAgent;
+            if (agentIndex <= 0)
+            {
+                targetAgent = agents.FirstOrDefault(agent => agent.IsDefault) ?? agents[0];
+            }
+            else
+            {
+                if (agentIndex > agents.Count)
+                    return $"✗ 无效的智能体序号 {agentIndex}，有效范围 1~{agents.Count}。请先调用 sys_list_agents 查看列表。";
+
+                targetAgent = agents[agentIndex - 1];
+            }
+
+            if (targetAgent.EnabledMcpServerIds.Contains(targetMcp.Id, StringComparer.OrdinalIgnoreCase))
+                return $"✓ 智能体「{targetAgent.Name}」已启用 MCP 服务「{targetMcp.Name}」，无需重复设置。";
+
+            targetAgent.EnabledMcpServerIds =
+            [
+                .. targetAgent.EnabledMcpServerIds,
+                targetMcp.Id
+            ];
+
+            AgentService.Update(targetAgent);
+            publisher.Publish(Events.OnAgentChange, new DataChangeArgs(targetAgent.Id, ChangeType.Update));
+
+            logger.LogInformation("已为智能体 {AgentName} 启用 MCP 服务 {McpName}", targetAgent.Name, targetMcp.Name);
+            return $"✓ 已为智能体「{targetAgent.Name}」启用 MCP 服务「{targetMcp.Name}」。";
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "为智能体启用 MCP 服务失败");
+            return $"✗ 为智能体启用 MCP 服务失败：{ex.Message}";
+        }
+    }
+
+    private async Task<(bool Success, string Message)> TestMcpConnectionAsync(McpServerEntity entity, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var host = new McpServerHost(entity, LoggerFactory);
+            await host.ConnectAsync(cancellationToken);
+            return (true, $"✓ MCP 服务「{entity.Name}」连接成功，发现 {host.Tools.Count} 个工具。");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "MCP 服务 {Name} 连接测试失败", entity.Name);
+            return (false, $"✗ MCP 服务「{entity.Name}」无法连通：{ex.Message}");
+        }
+    }
+
+    private static McpServerEntity BuildMcpEntity(
+        string name,
+        string transportType,
+        string command,
+        string arguments,
+        string url,
+        string apiKey,
+        string environmentVariables,
+        string description)
+    {
+        var normalizedName = name?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedName))
+            throw new InvalidOperationException("名称不能为空。");
+
+        var transport = NormalizeTransportType(transportType);
+
+        var entity = new McpServerEntity
+        {
+            Name = normalizedName,
+            TransportType = transport,
+            Description = description?.Trim() ?? string.Empty,
+            IsEnabled = true,
+        };
+
+        if (transport == "stdio")
+        {
+            entity.Command = command?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(entity.Command))
+                throw new InvalidOperationException("stdio 模式必须提供启动命令。");
+
+            entity.Arguments = ParseList(arguments);
+            entity.EnvironmentVariables = ParseEnvironmentVariables(environmentVariables);
+            entity.Url = string.Empty;
+            entity.ApiKey = string.Empty;
+        }
+        else
+        {
+            entity.Url = url?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(entity.Url))
+                throw new InvalidOperationException("HTTP 模式必须提供 URL。");
+
+            entity.ApiKey = apiKey?.Trim() ?? string.Empty;
+            entity.Command = string.Empty;
+            entity.Arguments = [];
+            entity.EnvironmentVariables = [];
+        }
+
+        return entity;
+    }
+
+    private static string NormalizeTransportType(string transportType)
+    {
+        var transport = transportType?.Trim().ToLowerInvariant();
+        return transport switch
+        {
+            null or "" or "stdio" => "stdio",
+            "sse" => "sse",
+            "http" or "streamable-http" or "streamablehttp" => "streamable-http",
+            _ => throw new InvalidOperationException($"不支持的传输类型：{transportType}。支持 stdio、sse、streamable-http。")
+        };
+    }
+
+    private static List<string> ParseList(string text)
+    {
+        return (text ?? string.Empty)
+            .Split([',', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+    }
+
+    private static Dictionary<string, string?> ParseEnvironmentVariables(string text)
+    {
+        var dict = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var line in (text ?? string.Empty)
+                     .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var index = line.IndexOf('=');
+            if (index <= 0)
+                continue;
+
+            var key = line[..index].Trim();
+            var value = line[(index + 1)..].Trim();
+
+            if (!string.IsNullOrWhiteSpace(key))
+                dict[key] = value;
+        }
+
+        return dict;
+    }
+
     // ──────── 指令 ────────
 
     private static string BuildInstructions() => """
         ### AI 配置管理工具使用规范
 
+        这些工具用于已具备可用 AI 厂商和模型后的软件配置与操作管理。
+
         **术语说明：** 用户提到「智能体」「助理」「代理」「Agent」时，均指同一概念。
+        **术语说明：** 用户提到「MCP」「MCP 服务」「MCP 服务器」「MCP 工具服务」时，均指同一概念。
 
         #### 序号交互模式
         当用户想要查看或切换厂商/智能体/模型时：
@@ -373,6 +691,25 @@ internal sealed class AiConfigToolProvider(
         - 新增厂商：逐步引导用户提供 name → url → key → providerType（默认 OpenAI）
         - 新增模型：先 sys_list_providers，用户选厂商序号，再引导提供 name、displayName
         - 新增智能体：引导用户提供 name → instructions（系统提示词）
+        - 默认智能体用于软件配置与操作辅助；当用户忘记创建智能体时，可以引导其查看、切换或新增智能体
+
+        #### 软件配置范围
+        - 这些工具主要处理软件内部的配置、切换、查看和接入工作
+        - 可以帮助用户管理厂商、模型、智能体、MCP 服务以及与智能体绑定的工具能力
+        - 不要把外部服务本身的开通、授权、采购或部署问题伪装成软件内部操作
+
+        #### MCP 配置
+        - 用户说「配置 MCP」「添加 MCP 服务」「接入 MCP」「连接 MCP」时，进入 MCP 配置流程
+        - 先根据 transportType 区分参数
+        - stdio：name → command → arguments → environmentVariables → description
+        - sse / streamable-http：name → url → apiKey → description
+        - 优先调用 sys_test_mcp_server 测试临时配置是否可连通
+        - 测试成功后，再调用 sys_add_mcp_server 写入数据库并接入当前运行环境
+        - 如果测试失败，要明确告诉用户当前无法连通，并说明未保存
+        - 用户说「测试 MCP」「检查 MCP 能不能连」时，只调用 sys_test_mcp_server，不要写入数据库
+        - 用户说「列出 MCP」「看看有哪些 MCP」时，调用 sys_list_mcp_servers
+        - 用户说「给当前智能体启用这个 MCP」「让小月用这个 MCP」时，先 sys_list_mcp_servers 确认序号，再调用 sys_enable_mcp_for_agent
+        - MCP 配置属于软件增强能力，不替代 AI 厂商和模型本身的服务接入
 
         #### 智能体提示词
         - 用户说"看看你的提示词""你的 prompt 是什么"等，调用 sys_get_agent_instructions(0) 获取默认智能体的提示词

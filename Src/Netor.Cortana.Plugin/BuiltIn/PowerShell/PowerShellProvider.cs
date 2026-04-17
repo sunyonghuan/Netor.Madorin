@@ -52,12 +52,26 @@ public sealed class PowerShellProvider : AIContextProvider
     #### 会话模式
     - sys_start_local_session 启动本地会话
     - sys_start_remote_session 启动远程会话（支持密钥或密码认证）
+    - sys_get_session_status 查询单个会话当前状态
     - sys_send_command 发送命令
     - sys_close_session 关闭会话
 
+    #### 长时间等待/慢命令处理
+    - SSH 建连、认证、网络波动、远程脚本执行都可能需要等待
+    - sys_send_command 默认超时为 30000ms，长命令必须显式增大 timeoutMs
+    - 如果启动远程会话后返回“等待用户输入”或“尚未完成认证”，不要立即继续发命令
+    - 这时应先等待用户完成一次输入，再调用 sys_get_session_status 或 sys_list_sessions 查询状态
+    - 只有状态变为 Ready/已就绪后，才继续发送下一条命令
+    - 如果状态为 Busy/输出流被占用，说明上一条命令还没真正结束，不要继续发下一条命令
+
+    #### 严格限制
+    - 不要在 sys_start_local_session 创建的本地持久会话里再执行 ssh/ssh.exe 进入交互式远程 shell
+    - 这种嵌套交互会占住本地会话输出流，导致后续 sessionId 复用失败
+    - 远程登录必须使用 sys_start_remote_session，而不是本地会话 + ssh
+
     #### 远程 SSH 认证方式
     - **密钥认证（推荐）**：提供 privateKeyPath 参数，如 `~/.ssh/id_rsa` 或 `C:\Users\xxx\.ssh\id_rsa`
-    - **密码认证**：提供 password 参数（无密钥时回落使用）
+    - **密码认证**：仅在不提供 privateKeyPath 时使用 password 参数
     - 两者必须提供其一
 
     #### ⚠️ Windows PowerShell 执行策略处理（关键）
@@ -101,9 +115,10 @@ public sealed class PowerShellProvider : AIContextProvider
     1. sys_execute_powershell - 快速执行脚本
     2. sys_start_local_session - 启动本地会话
     3. sys_start_remote_session - 启动远程会话（支持密钥/密码认证）
-    4. sys_send_command - 发送命令
-    5. sys_close_session - 关闭会话
-    6. sys_list_sessions - 列出活跃会话
+    4. sys_get_session_status - 查询单个会话状态
+    5. sys_send_command - 发送命令
+    6. sys_close_session - 关闭会话
+    7. sys_list_sessions - 列出活跃会话
     """ });
     }
 
@@ -144,7 +159,7 @@ public sealed class PowerShellProvider : AIContextProvider
 
 认证方式（优先级）：
 1. 密钥认证：提供 privateKeyPath 参数（推荐，更安全）
-2. 密码认证：提供 password 参数（无密钥时回落）
+2. 密码认证：仅在不提供 privateKeyPath 时使用 password 参数
 
 参数：
 - host: 远程服务器地址
@@ -158,10 +173,17 @@ public sealed class PowerShellProvider : AIContextProvider
 
         // 工具4：向会话发送命令
         tools.Add(AIFunctionFactory.Create(
+            name: "sys_get_session_status",
+            description: "查询单个会话当前状态。适用于 SSH 认证等待、网络慢、用户已输入密码后确认是否已就绪。参数：sessionId",
+            method: GetSessionStatusAsync));
+
+        // 工具5：向会话发送命令
+        tools.Add(AIFunctionFactory.Create(
             name: "sys_send_command",
             description: """
 向已启动的会话发送命令，实时返回输出。
 支持依赖前一命令结果的多步骤操作。
+长时间命令请显式增大 timeoutMs。
 
 参数：
 - sessionId: 会话ID
@@ -170,13 +192,13 @@ public sealed class PowerShellProvider : AIContextProvider
 """,
             method: SendCommandAsync));
 
-        // 工具5：关闭会话
+        // 工具6：关闭会话
         tools.Add(AIFunctionFactory.Create(
             name: "sys_close_session",
             description: "关闭已启动的会话，释放资源。参数：sessionId",
             method: CloseSessionAsync));
 
-        // 工具6：列出所有活跃会话
+        // 工具7：列出所有活跃会话
         tools.Add(AIFunctionFactory.Create(
             name: "sys_list_sessions",
             description: "列出所有活跃的执行会话",
@@ -267,7 +289,7 @@ public sealed class PowerShellProvider : AIContextProvider
     /// <summary>
     /// 启动远程 SSH 交互式会话
     /// </summary>
-    private Task<string> StartRemoteSessionAsync(
+    private async Task<string> StartRemoteSessionAsync(
         string host,
         string username,
         string? password = null,
@@ -275,38 +297,104 @@ public sealed class PowerShellProvider : AIContextProvider
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(username))
-            return Task.FromResult("✗ 错误：host 和 username 不能为空");
+            return "✗ 错误：host 和 username 不能为空";
 
         if (string.IsNullOrWhiteSpace(privateKeyPath) && string.IsNullOrWhiteSpace(password))
-            return Task.FromResult("✗ 错误：必须提供 privateKeyPath 或 password 之一");
+            return "✗ 错误：必须提供 privateKeyPath 或 password 之一";
 
         try
         {
             var session = _sessionRegistry.CreateSession("remote", host, username, password, privateKeyPath);
+            await session.WaitForStartupAsync(1500, ct);
 
-            if (!session.IsActive)
-                return Task.FromResult($"✗ 启动失败：SSH 连接失败，请检查主机地址、用户名和密钥文件是否正确");
+            if (!session.IsActive || session.State == ExecutionSessionState.Failed)
+            {
+                await _sessionRegistry.RemoveSessionAsync(session.Id);
+                return $"✗ 启动失败：{session.LastError ?? "SSH 连接失败，请检查主机地址、用户名和认证信息。"}";
+            }
 
             var authType = string.IsNullOrWhiteSpace(privateKeyPath) ? "密码" : "密钥";
             _logger.LogInformation("远程会话已启动: {SessionId} - {Host} (认证: {AuthType})", session.Id, host, authType);
 
-            return Task.FromResult($@"✓ 远程 SSH 会话已启动
+            if (session.State == ExecutionSessionState.AwaitingUserInput)
+            {
+                return $@"⚠ 远程 SSH 会话已创建，尚未完成认证
+会话ID: {session.Id}
+主机: {host}
+用户: {username}
+认证方式: {authType}
+当前状态: {session.StatusMessage}
+
+处理说明：
+1. 请让用户只在 SSH 窗口中输入一次，不要重复要求输入
+2. 用户输入后先等待连接完成，再调用 sys_send_command
+3. 若认证失败，工具会返回明确错误；密钥模式不会回退到密码认证";
+            }
+
+            return $@"✓ 远程 SSH 会话已启动
 会话ID: {session.Id}
 主机: {host}
 用户: {username}
 认证方式: {authType}
 类型: 远程交互式
+当前状态: {session.StatusMessage}
 
 使用说明：
 1. 调用 send_command 发送命令并获取输出
 2. 任务完成后调用 close_session 关闭会话
-3. 支持 Windows/Linux 远程操作");
+        3. 支持 Windows/Linux 远程操作";
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "启动远程会话失败: {Host}", host);
-            return Task.FromResult($"✗ 启动失败：{ex.Message}");
+            return $"✗ 启动失败：{ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// 查询单个会话状态
+    /// </summary>
+    private Task<string> GetSessionStatusAsync(string sessionId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+            return Task.FromResult("✗ 错误：sessionId 不能为空");
+
+        var session = _sessionRegistry.GetSession(sessionId);
+        if (session == null)
+            return Task.FromResult($"✗ 错误：找不到会话 {sessionId}");
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"会话ID: {session.Id}");
+        sb.AppendLine($"类型: {session.Type}");
+        sb.AppendLine($"认证: {session.AuthenticationMode}");
+        if (!string.IsNullOrWhiteSpace(session.Host))
+            sb.AppendLine($"主机: {session.Host}");
+        if (!string.IsNullOrWhiteSpace(session.Username))
+            sb.AppendLine($"用户: {session.Username}");
+        sb.AppendLine($"活跃: {(session.IsActive ? "是" : "否")}");
+        sb.AppendLine($"状态: {session.State}");
+        sb.AppendLine($"说明: {session.StatusMessage}");
+        if (!string.IsNullOrWhiteSpace(session.LastError))
+            sb.AppendLine($"错误: {session.LastError}");
+        sb.AppendLine($"创建时间: {session.CreatedAt:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"最后活动: {session.LastActivityAt:yyyy-MM-dd HH:mm:ss}");
+
+        if (session.State == ExecutionSessionState.AwaitingUserInput)
+        {
+            sb.AppendLine();
+            sb.AppendLine("提示:");
+            sb.AppendLine("1. 当前正在等待用户一次性输入，不要重复要求用户输入");
+            sb.AppendLine("2. 用户输入完成后，先再次查询状态，确认已就绪后再发送命令");
+        }
+        else if (session.State == ExecutionSessionState.Ready)
+        {
+            sb.AppendLine();
+            sb.AppendLine("提示:");
+            sb.AppendLine("1. 会话已就绪，可以继续调用 sys_send_command");
+            sb.AppendLine("2. 长时间命令请显式传更大的 timeoutMs");
+        }
+
+        return Task.FromResult(sb.ToString().TrimEnd());
     }
 
     /// <summary>
@@ -328,6 +416,16 @@ public sealed class PowerShellProvider : AIContextProvider
         if (!session.IsActive)
             return $"✗ 错误：会话 {sessionId} 已关闭";
 
+        if (session.Type == "local" && LooksLikeInteractiveSshCommand(command))
+        {
+            return "✗ 错误：不要在本地持久会话中再次执行 ssh/ssh.exe 进入交互式远程 shell。这会占住当前会话输出流，导致后续 sessionId 复用失败。请直接使用 sys_start_remote_session 创建远程 SSH 会话。";
+        }
+
+        if (session.State == ExecutionSessionState.Busy)
+        {
+            return $"⚠ 当前会话仍被上一条命令占用。{session.StatusMessage}";
+        }
+
         try
         {
             _logger.LogInformation("向会话 {SessionId} 发送命令", sessionId);
@@ -346,14 +444,24 @@ public sealed class PowerShellProvider : AIContextProvider
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "会话 {SessionId} 已关闭", sessionId);
-            return $"✗ 会话已关闭：{ex.Message}";
+            _logger.LogWarning(ex, "会话 {SessionId} 当前不可执行命令", sessionId);
+            return session.IsActive ? $"⚠ {ex.Message}" : $"✗ 会话已关闭：{ex.Message}";
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "向会话 {SessionId} 发送命令失败", sessionId);
             return $"✗ 执行失败：{ex.Message}";
         }
+    }
+
+    private static bool LooksLikeInteractiveSshCommand(string command)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+            return false;
+
+        var trimmed = command.TrimStart();
+        return trimmed.StartsWith("ssh ", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("ssh.exe ", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -388,12 +496,15 @@ public sealed class PowerShellProvider : AIContextProvider
             return Task.FromResult("当前没有活跃的会话");
 
         var sb = new System.Text.StringBuilder("活跃的会话列表：\n");
-        foreach (var (id, type, host, createdAt) in sessions)
+        foreach (var (id, type, authType, host, createdAt, state, statusMessage) in sessions)
         {
             sb.AppendLine($"- ID: {id}");
             sb.AppendLine($"  类型: {type}");
+            sb.AppendLine($"  认证: {authType}");
             if (!string.IsNullOrEmpty(host))
                 sb.AppendLine($"  主机: {host}");
+            sb.AppendLine($"  状态: {state}");
+            sb.AppendLine($"  说明: {statusMessage}");
             sb.AppendLine($"  创建时间: {createdAt:yyyy-MM-dd HH:mm:ss}");
         }
 

@@ -3,6 +3,8 @@ using System.Text;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Avalonia.Threading;
 
 using Netor.Cortana.AvaloniaUI.Controls;
@@ -18,8 +20,16 @@ internal sealed class UiChatOutputChannel(
     IServiceProvider serviceProvider,
     ILogger<UiChatOutputChannel> logger) : IAiOutputChannel
 {
+    private static readonly Bitmap AiAvatarBitmap = LoadAiAvatarBitmap();
+
     private readonly StringBuilder _buffer = new();
     private MarkdownRenderer? _currentPresenter;
+
+    private static Bitmap LoadAiAvatarBitmap()
+    {
+        using var stream = AssetLoader.Open(new Uri("avares://Cortana/Assets/logo.200.png"));
+        return new Bitmap(stream);
+    }
 
     /// <inheritdoc />
     public string Name => "AvaloniaUI";
@@ -116,24 +126,16 @@ internal sealed class UiChatOutputChannel(
             ClipToBounds = true,
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, 0, 10, 0),
-            Background = new LinearGradientBrush
+            Padding = new Thickness(1),
+            Background = Brushes.Transparent,
+            BorderBrush = Brushes.White,
+            BorderThickness = new Thickness(1),
+            Child = new Image
             {
-                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
-                EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
-                GradientStops =
-                {
-                    new GradientStop(Color.Parse("#007acc"), 0),
-                    new GradientStop(Color.Parse("#3794ff"), 1)
-                }
-            },
-            Child = new TextBlock
-            {
-                Text = "AI",
-                FontSize = 13,
-                FontWeight = FontWeight.SemiBold,
-                Foreground = Brushes.White,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
+                Source = AiAvatarBitmap,
+                Width = 30,
+                Height = 30,
+                Stretch = Stretch.UniformToFill,
             }
         };
 

@@ -11,6 +11,7 @@ namespace Netor.Cortana.AvaloniaUI.Views.Settings;
 public partial class McpServerSettingsPage : UserControl
 {
     private McpServerService McpService => App.Services.GetRequiredService<McpServerService>();
+    private PluginLoader PluginLoader => App.Services.GetRequiredService<PluginLoader>();
 
     private string? _editingId;
 
@@ -197,25 +198,47 @@ public partial class McpServerSettingsPage : UserControl
 
     // ──────── 保存/取消/删除/测试 ────────
 
-    private void OnSaveClick(object? sender, RoutedEventArgs e)
+    private async void OnSaveClick(object? sender, RoutedEventArgs e)
     {
         var name = TxtName.Text?.Trim();
         if (string.IsNullOrEmpty(name)) return;
 
         var transport = CboTransport.SelectedItem is ComboBoxItem cbi && cbi.Tag is string t ? t : "stdio";
+        McpServerEntity? entity;
 
         if (_editingId is not null)
         {
-            var entity = McpService.GetById(_editingId);
+            entity = McpService.GetById(_editingId);
             if (entity is null) return;
             FillEntity(entity, name, transport);
             McpService.Update(entity);
         }
         else
         {
-            var entity = new McpServerEntity();
+            entity = new McpServerEntity();
             FillEntity(entity, name, transport);
             McpService.Add(entity);
+        }
+
+        if (entity is null)
+            return;
+
+        try
+        {
+            if (entity.IsEnabled)
+            {
+                await PluginLoader.AddMcpServerAsync(entity);
+            }
+            else
+            {
+                await PluginLoader.RemoveMcpServerAsync(entity.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            LblTestResult.Text = $"保存成功，但接入运行时失败: {ex.Message}";
+            LblTestResult.Foreground = (IBrush)this.FindResource("RedBrush")!;
+            return;
         }
 
         ShowList();
@@ -264,9 +287,11 @@ public partial class McpServerSettingsPage : UserControl
 
     private void OnCancelClick(object? sender, RoutedEventArgs e) => ShowList();
 
-    private void OnDeleteClick(object? sender, RoutedEventArgs e)
+    private async void OnDeleteClick(object? sender, RoutedEventArgs e)
     {
         if (_editingId is null) return;
+
+        await PluginLoader.RemoveMcpServerAsync(_editingId);
         McpService.Delete(_editingId);
         ShowList();
     }

@@ -170,24 +170,8 @@
                 </DockPanel>
             </Border>
 
-            <!-- 右侧：标题栏 + 内容区 -->
+            <!-- 右侧：内容区 -->
             <DockPanel Grid.Column="1">
-                <!-- 顶部标题栏 (36px) -->
-                <Border DockPanel.Dock="Top" Height="36" Background="{StaticResource BaseBrush}">
-                    <Grid ColumnDefinitions="*,Auto" Margin="12,0">
-                        <!-- 左：页面标题 -->
-                        <TextBlock x:Name="PageTitle" Grid.Column="0"
-                                   Text="系统设置" Foreground="{StaticResource SubtextBrush}"
-                                   FontSize="12" VerticalAlignment="Center" />
-                        <!-- 右：关闭按钮 -->
-                        <Button Grid.Column="1" Classes="titlebar-btn"
-                                ToolTip.Tip="关闭" Click="OnCloseClick">
-                            <TextBlock Text="✕" FontSize="13"
-                                       Foreground="{StaticResource SubtextBrush}" />
-                        </Button>
-                    </Grid>
-                </Border>
-
                 <!-- 内容区 -->
                 <ContentControl x:Name="PageHost"
                                 HorizontalContentAlignment="Stretch"

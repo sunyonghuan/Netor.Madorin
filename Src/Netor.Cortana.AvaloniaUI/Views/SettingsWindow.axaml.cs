@@ -13,10 +13,6 @@ public partial class SettingsWindow : Window
     // 按导航顺序缓存页面实例，避免重复创建
     private readonly Control[] _pages;
 
-    // 导航项对应的标题名称
-    private static readonly string[] PageTitles =
-        ["系统设置", "AI 厂商", "模型管理", "智能体", "MCP 服务", "工具管理"];
-
     public SettingsWindow()
     {
         InitializeComponent();
@@ -47,19 +43,12 @@ public partial class SettingsWindow : Window
         Hide();
     }
 
-    private void OnCloseClick(object? sender, RoutedEventArgs e)
-    {
-        Hide();
-    }
-
     private void OnNavSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_pages is null || NavList is null) return;
         if (NavList.SelectedIndex is >= 0 and var idx && idx < _pages.Length)
         {
             PageHost.Content = _pages[idx];
-            if (idx < PageTitles.Length)
-                PageTitle.Text = PageTitles[idx];
         }
     }
 }

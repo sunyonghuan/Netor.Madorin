@@ -36,6 +36,9 @@ internal static class Program
             ttsSpeed: appSettings.Tts.Speed,
             workspaceDirectory: App.UserDataDirectory);
 
+        var agentSeedService = App.Services.GetRequiredService<AgentSeedService>();
+        agentSeedService.EnsureSeedData();
+
         // 1. 创建构建器
         var builder = WinFormedgeApp.CreateAppBuilder();
 
@@ -80,6 +83,7 @@ internal static class Program
             // 数据库交互
             .AddSingleton<CortanaDbContext>()
             .AddTransient<SystemSettingsService>()
+            .AddTransient<AgentSeedService>()
             .AddTransient<AgentService>()
             .AddTransient<AiProviderService>()
             .AddTransient<AiModelService>()

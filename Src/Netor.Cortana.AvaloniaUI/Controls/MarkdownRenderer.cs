@@ -217,7 +217,6 @@ public sealed class MarkdownRenderer : UserControl
             TextWrapping = Avalonia.Media.TextWrapping.Wrap,
             Foreground = new SolidColorBrush(Color.Parse("#ffffff")),
             FontSize = 13,
-            LineHeight = 20.8,
         };
 
         bool first = true;
@@ -276,7 +275,6 @@ public sealed class MarkdownRenderer : UserControl
             TextWrapping = Avalonia.Media.TextWrapping.Wrap,
             Foreground = new SolidColorBrush(Color.Parse("#ffffff")),
             FontSize = 13,
-            LineHeight = 20.8,
         };
         BuildInlines(paragraph.Inline, tb.Inlines!);
         return tb;

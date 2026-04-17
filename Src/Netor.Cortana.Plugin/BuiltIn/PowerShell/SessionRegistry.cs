@@ -68,13 +68,13 @@ public sealed class SessionRegistry : IAsyncDisposable
     /// <summary>
     /// 列出所有活跃会话
     /// </summary>
-    public List<(string Id, string Type, string? Host, DateTime CreatedAt)> GetActiveSessions()
+    public List<(string Id, string Type, string AuthType, string? Host, DateTime CreatedAt, ExecutionSessionState State, string StatusMessage)> GetActiveSessions()
     {
         lock (_lock)
         {
             return _sessions
                 .Where(x => x.Value.IsActive)
-                .Select(x => (x.Key, x.Value.Type, x.Value.Host, x.Value.CreatedAt))
+                .Select(x => (x.Key, x.Value.Type, x.Value.AuthenticationMode, x.Value.Host, x.Value.CreatedAt, x.Value.State, x.Value.StatusMessage))
                 .ToList();
         }
     }
