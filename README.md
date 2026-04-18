@@ -213,6 +213,12 @@ dotnet run --project .\Src\Netor.Cortana\Netor.Cortana.csproj
 # 发布当前主项目 AvaloniaUI
 .\avaloniaui.publish.ps1
 
+# 仅从 Realases/AvaloniaUI 打包 zip 和 sha256
+.\avaloniaui.package.ps1
+
+# 仅创建 GitHub Release，消费现有 zip / sha256 / RELEASE.md
+.\github.release.ps1 -Tag v1.1.6-r2
+
 # 发布旧 WinForms 项目链路
 .\cortana.publish.ps1
 
@@ -228,6 +234,10 @@ dotnet run --project .\Src\Netor.Cortana\Netor.Cortana.csproj
 - Realases/Cortana
 - Realases/AvaloniaUI
 - Realases/Nupkgs
+
+推荐拆分流程：先运行 avaloniaui.publish.ps1 生成目录产物，再运行 avaloniaui.package.ps1 生成 zip 和 sha256，最后按需运行 github.release.ps1 发布到 GitHub。
+
+完整说明见 [Docs/AvaloniaUI-编译打包发布流程.md](Docs/AvaloniaUI-编译打包发布流程.md)。
 
 ## 项目目录结构
 

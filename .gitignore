@@ -246,6 +246,7 @@ ClientBin/
 orleans.codegen.cs
 
 # Local runtime artifacts and private credentials
+cortana.db
 cortana.db-wal
 cortana.db-shm
 Plugins/docs/google-search-crack-linker-492914-s4.json
