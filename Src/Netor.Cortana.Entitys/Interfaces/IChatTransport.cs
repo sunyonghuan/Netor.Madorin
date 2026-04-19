@@ -9,6 +9,14 @@ namespace Netor.Cortana.Entitys;
 public sealed record AttachmentInfo(string Path, string Name, string MimeType);
 
 /// <summary>
+/// 用户消息中 @智能体 的提及信息。
+/// </summary>
+/// <param name="Agent">被提及的智能体实体。</param>
+/// <param name="StartIndex">@ 符号在原始文本中的起始位置。</param>
+/// <param name="EndIndex">智能体名称在原始文本中的结束位置（不含）。</param>
+public sealed record AgentMention(AgentEntity Agent, int StartIndex, int EndIndex);
+
+/// <summary>
 /// 聊天消息传输契约，解耦 AI 对话层对具体传输实现的依赖。
 /// 由 Networks 层（WebSocketServer）或其他传输实现，AI 层通过构造函数注入。
 /// </summary>

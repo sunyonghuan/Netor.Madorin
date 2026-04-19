@@ -34,6 +34,7 @@
 
 | 🎯 | 说到做到 |
 |:--:|:--|
+| 🤝 | **多智能体协作** — 输入 @ 调用子智能体，各自携带独立工具，主 Agent 自主编排 |
 | 🔒 | **隐私至上** — 数据全部本地存储，不联网、不上传、不追踪，连自动更新都没有 |
 | ⚡ | **快速高效** — Native AOT 编译，启动即用，没有运行时加载的等待 |
 | 🪶 | **简单轻便** — 单文件部署，无需安装，拷贝即跑 |
@@ -55,6 +56,17 @@
 <br/>
 <sub>↑ 多会话管理：每个对话独立存储，随时切换和回溯</sub>
 </div>
+
+### 🤝 多智能体协作 <sup>v1.2.0 NEW</sup>
+
+输入 `@` 即可调用子智能体——每个子智能体携带自己独立的插件和 MCP 工具，由主智能体自主编排调度。
+
+- **`@服务器管理`** — 自动 SSH 连接服务器集群执行巡检
+- **`@谷歌搜索`** — 联网搜索并汇总信息
+- **`@文档助手`** — 基于搜索结果生成技术周报
+- 一条消息中可同时 `@` 多个智能体，主 Agent 按需协调
+
+每个子智能体可配置独立的 AI 厂商和模型——贵的模型做决策，便宜的模型跑批量，成本和效果两手抓。
 
 ### 🎤 语音能力
 
@@ -106,7 +118,7 @@
 |:-----|:-----|
 | 运行时 | .NET 10 + Native AOT |
 | 主 UI | Avalonia 12 |
-| AI 编排 | Microsoft.Extensions.AI · Microsoft.Agents |
+| AI 编排 | Microsoft.Extensions.AI · Microsoft.Agents（多智能体协作） |
 | MCP | ModelContextProtocol 1.2.0 |
 | 语音 | Sherpa-ONNX（全链路离线） |
 | 数据存储 | SQLite（纯 ADO.NET，AOT 安全） |
@@ -332,6 +344,7 @@ Cortana 当前推荐两条主扩展路线：Native 和 MCP。Dotnet 通道仍存
 
 | 文档 | 说明 |
 |------|------|
+| [Docs/release-notes/v1.2.0/RELEASE.md](Docs/release-notes/v1.2.0/RELEASE.md) | **v1.2.0 发布说明 — @智能体 多智能体协作** |
 | [Docs/plugin-native.md](Docs/plugin-native.md) | Native 原生插件开发指南 |
 | [Docs/plugin-mcp.md](Docs/plugin-mcp.md) | MCP 服务器集成指南 |
 | [Docs/plugin-dotnet.md](Docs/plugin-dotnet.md) | Dotnet 托管插件开发指南（历史兼容） |

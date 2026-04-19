@@ -6,6 +6,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using Netor.Cortana.AI.Drivers;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 
@@ -61,6 +62,7 @@ public sealed class ChatHistoryDataProvider(
         ArgumentNullException.ThrowIfNull(context);
 
         var modelName = context.Session?.StateBag.GetValue<string>("modelid") ?? "Unknown";
+        var assistantMessageId = context.Session?.StateBag.GetValue<string>("assistantmessageid");
         var firstText = context.RequestMessages?.FirstOrDefault()?.Text ?? "";
         var sessionId = await AddOrUpdateSessionAsync(context.Session, firstText.Truncate(32), context.Agent);
 
@@ -73,7 +75,7 @@ public sealed class ChatHistoryDataProvider(
                 AuthorName = GetChatRoleText(t.Role, context.Agent.Name ?? "未知"),
                 CreatedAt = t.CreatedAt ?? DateTimeOffset.UtcNow,
                 CreatedTimestamp = t.CreatedAt?.ToLocalTime().ToUnixTimeMilliseconds() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                Id = t.MessageId ?? Guid.NewGuid().ToString("N"),
+                Id = (t.Role == ChatRole.Assistant ? assistantMessageId : null) ?? t.MessageId ?? Guid.NewGuid().ToString("N"),
                 SessionId = sessionId,
                 UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
                 ModelName = modelName
@@ -114,6 +116,7 @@ public sealed class ChatHistoryDataProvider(
         AgentSession? session,
         AIAgent? agent,
         string modelName = "Unknown",
+        string? messageId = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(partialResponse) || session is null || agent is null)
@@ -138,7 +141,7 @@ public sealed class ChatHistoryDataProvider(
                 AuthorName = GetChatRoleText(ChatRole.Assistant, agent.Name ?? "未知"),
                 CreatedAt = DateTimeOffset.UtcNow,
                 CreatedTimestamp = DateTimeOffset.UtcNow.ToLocalTime().ToUnixTimeMilliseconds(),
-                Id = Guid.NewGuid().ToString("N"),
+                Id = messageId ?? Guid.NewGuid().ToString("N"),
                 SessionId = sessionId,
                 UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
                 ModelName = modelName
@@ -258,7 +261,6 @@ public sealed class ChatHistoryDataProvider(
         var sessionId = session?.StateBag.GetValue<string>("sessionid") ?? Guid.NewGuid().ToString("N");
         JsonElement? sessionJson = null;
         var shouldUpdateNewSessionTitle = session is not null
-            && string.Equals(session.StateBag.GetValue<string>(IsNewSessionStateKey), bool.TrueString, StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(title)
             && !string.Equals(title, NewSessionTitle, StringComparison.Ordinal);
 
@@ -286,7 +288,6 @@ public sealed class ChatHistoryDataProvider(
             if (shouldUpdateNewSessionTitle && (string.IsNullOrWhiteSpace(sessionEntity.Title) || sessionEntity.Title == NewSessionTitle))
             {
                 sessionEntity.Title = title;
-                session!.StateBag.SetValue(IsNewSessionStateKey, bool.FalseString);
             }
 
             if (sessionJson is not null)
@@ -373,7 +374,7 @@ public sealed class ChatHistoryDataProvider(
         var modelName = session.StateBag.GetValue<string>("modelid") ?? "Unknown";
         var modelId = session.StateBag.GetValue<string>("modeldbid");
         if (string.IsNullOrEmpty(modelId)) return;
-        var client = agent.GetService<IChatClient>();
+        var client = ResolveCompactionClient(agent);
         if (client is null) return;
         try
         {
@@ -472,6 +473,31 @@ public sealed class ChatHistoryDataProvider(
     }
 
 #pragma warning restore MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续
+
+    /// <summary>
+    /// 解析缩略专用模型。若 Compaction.ModelId 已配置且有效，则创建独立 IChatClient；否则回退到当前 Agent 的 ChatClient。
+    /// </summary>
+    private IChatClient? ResolveCompactionClient(AIAgent agent)
+    {
+        var compactionModelId = systemSettings.GetValue("Compaction.ModelId");
+        if (!string.IsNullOrEmpty(compactionModelId))
+        {
+            var model = modelService.GetById(compactionModelId);
+            if (model is not null)
+            {
+                var providerService = services.GetRequiredService<AiProviderService>();
+                var provider = providerService.GetById(model.ProviderId);
+                if (provider is not null)
+                {
+                    var registry = services.GetRequiredService<AiProviderDriverRegistry>();
+                    var driver = registry.Resolve(provider);
+                    return driver.CreateChatClient(provider, model);
+                }
+            }
+        }
+
+        return agent.GetService<IChatClient>();
+    }
 }
 
 /// <summary>

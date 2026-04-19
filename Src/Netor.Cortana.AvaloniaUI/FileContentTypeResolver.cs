@@ -86,6 +86,23 @@ internal static class FileContentTypeResolver
             [".cpp"] = "text/x-c++",
             [".cxx"] = "text/x-c++",
             [".hpp"] = "text/x-c++",
+            // Audio
+            [".wav"] = "audio/wav",
+            [".mp3"] = "audio/mpeg",
+            [".ogg"] = "audio/ogg",
+            [".flac"] = "audio/flac",
+            [".aac"] = "audio/aac",
+            [".m4a"] = "audio/mp4",
+            [".wma"] = "audio/x-ms-wma",
+            [".opus"] = "audio/opus",
+            // Video
+            [".mp4"] = "video/mp4",
+            [".webm"] = "video/webm",
+            [".mkv"] = "video/x-matroska",
+            [".avi"] = "video/x-msvideo",
+            [".mov"] = "video/quicktime",
+            [".wmv"] = "video/x-ms-wmv",
+            [".flv"] = "video/x-flv",
         };
 
     public static string GetMimeType(string filePath)

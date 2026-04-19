@@ -39,6 +39,27 @@ public class AgentEntity : BaseEntity
     [MaxLength(512)]
     public string Image { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 智能体的头像文件路径（相对于资源目录），用于在聊天气泡中展示。
+    /// 为空时使用默认头像。
+    /// </summary>
+    [MaxLength(512)]
+    public string Avatar { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 子智能体的默认 AI 提供商 ID。
+    /// 为空时跟随当前会话的提供商。
+    /// </summary>
+    [MaxLength(64)]
+    public string DefaultProviderId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 子智能体的默认 AI 模型 ID。
+    /// 为空时跟随当前会话的模型。
+    /// </summary>
+    [MaxLength(64)]
+    public string DefaultModelId { get; set; } = string.Empty;
+
     // ─────────────────────────────────────────────────
     //  模型调用参数设置
     // ─────────────────────────────────────────────────

@@ -9,6 +9,7 @@ const bridge = chrome.webview.hostObjects.sync.settingsBridge;
 
 const cache = {
     providers: [],
+    providerTypes: [],
     models: [],
     agents: [],
     plugins: [],
@@ -104,6 +105,42 @@ dom.tabBtns.forEach(function (btn) {
 // ============================================================
 // AI 厂商 CRUD
 // ============================================================
+function loadProviderTypes() {
+    try {
+        var json = bridge.GetProviderDriverDefinitions();
+        cache.providerTypes = JSON.parse(json);
+    } catch (e) {
+        cache.providerTypes = [];
+    }
+    renderProviderTypeOptions();
+}
+
+function renderProviderTypeOptions() {
+    var select = document.getElementById('pf-type');
+    var current = select.value;
+
+    select.innerHTML = '';
+
+    cache.providerTypes.forEach(function (item) {
+        var option = document.createElement('option');
+        option.value = item.Id;
+        option.textContent = item.DisplayName;
+        select.appendChild(option);
+    });
+
+    if (!cache.providerTypes.length) {
+        return;
+    }
+
+    var matched = cache.providerTypes.some(function (item) { return item.Id === current; });
+    select.value = matched ? current : cache.providerTypes[0].Id;
+}
+
+function getProviderTypeDisplayName(providerType) {
+    var matched = cache.providerTypes.find(function (item) { return item.Id === providerType; });
+    return matched ? matched.DisplayName : providerType;
+}
+
 function loadProviders() {
     try {
         var json = bridge.GetProviders();
@@ -127,13 +164,14 @@ function renderProviders() {
         var badges = '';
         if (p.IsDefault) badges += '<span class="badge badge-default">默认</span>';
         if (!p.IsEnabled) badges += '<span class="badge badge-disabled">已禁用</span>';
+        var providerTypeName = getProviderTypeDisplayName(p.ProviderType);
 
         var div = document.createElement('div');
         div.className = 'list-item';
         div.innerHTML =
             '<div class="list-item-info">' +
                 '<div class="list-item-name">' + escHtml(p.Name) + badges + '</div>' +
-                '<div class="list-item-meta">' + escHtml(p.ProviderType) + ' · ' + escHtml(p.Url) + '</div>' +
+                '<div class="list-item-meta">' + escHtml(providerTypeName) + ' · ' + escHtml(p.Url) + '</div>' +
             '</div>' +
             '<div class="list-item-actions">' +
                 '<button class="btn-edit" data-id="' + p.Id + '">编辑</button>' +
@@ -156,7 +194,10 @@ function showProviderForm(entity) {
     document.getElementById('pf-name').value = entity ? entity.Name : '';
     document.getElementById('pf-url').value = entity ? entity.Url : '';
     document.getElementById('pf-key').value = entity ? entity.Key : '';
-    document.getElementById('pf-type').value = entity ? entity.ProviderType : 'OpenAI';
+    renderProviderTypeOptions();
+    document.getElementById('pf-type').value = entity
+        ? entity.ProviderType
+        : (cache.providerTypes[0] ? cache.providerTypes[0].Id : '');
     document.getElementById('pf-desc').value = entity ? entity.Description : '';
     document.getElementById('pf-enabled').checked = entity ? entity.IsEnabled : true;
     document.getElementById('pf-default').checked = entity ? entity.IsDefault : false;
@@ -1004,6 +1045,7 @@ function escHtml(str) {
 // ============================================================
 // 初始化
 // ============================================================
+loadProviderTypes();
 loadProviders();
 
 // ============================================================

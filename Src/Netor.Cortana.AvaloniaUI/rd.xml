@@ -1,0 +1,5 @@
+<Directives>
+  <Application>
+    <Assembly Name="System.Text.Json" Dynamic="Required All" />
+  </Application>
+</Directives>

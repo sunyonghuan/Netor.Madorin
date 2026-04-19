@@ -288,6 +288,11 @@ namespace Netor.Cortana.Entitys.Services
                     description: "发送给 AI 的历史消息最大条数，超出后移除最早消息。",
                     value: "15", valueType: "int", sortOrder: 1),
 
+                Seed("Compaction.ModelId",
+                    group: "对话历史", displayName: "缩略专用模型",
+                    description: "用于会话压缩摘要的模型，留空则跟随当前对话模型。",
+                    value: "", valueType: "model", sortOrder: 2),
+
                 // ── 网络 ──────────────────────────────
                 Seed("WebSocket.Port",
                     group: "网络", displayName: "WebSocket 端口",

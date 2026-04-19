@@ -2,6 +2,8 @@ using System.Runtime.InteropServices;
 
 using Microsoft.Extensions.DependencyInjection;
 
+using Netor.Cortana.AI;
+
 namespace Netor.Cortana.Pages;
 
 /// <summary>
@@ -11,6 +13,7 @@ namespace Netor.Cortana.Pages;
 [ClassInterface(ClassInterfaceType.AutoDual)]
 public class SettingsBridgeHostObject
 {
+    private AIAgentFactory AgentFactory => App.Services.GetRequiredService<AIAgentFactory>();
     private AiProviderService ProviderService => App.Services.GetRequiredService<AiProviderService>();
     private AiModelService ModelService => App.Services.GetRequiredService<AiModelService>();
     private AgentService AgentService => App.Services.GetRequiredService<AgentService>();
@@ -29,12 +32,21 @@ public class SettingsBridgeHostObject
     }
 
     /// <summary>
+    /// 获取所有可选厂商驱动定义（JSON）。
+    /// </summary>
+    public string GetProviderDriverDefinitions()
+    {
+        return JsonSerializer.Serialize(AgentFactory.GetDriverDefinitions());
+    }
+
+    /// <summary>
     /// 保存（新增或更新）AI 厂商。
     /// </summary>
     public string SaveProvider(string json)
     {
         var entity = JsonSerializer.Deserialize<AiProviderEntity>(json);
         if (entity is null) return Error("无效的数据");
+        if (!AgentFactory.IsDriverRegistered(entity.ProviderType)) return Error($"不支持的厂商类型：{entity.ProviderType}");
 
         var svc = ProviderService;
         var existing = svc.GetById(entity.Id);
@@ -284,11 +296,12 @@ public class SettingsBridgeHostObject
         var entity = JsonSerializer.Deserialize<McpServerEntity>(json);
         if (entity is null) return Error("无效的数据");
 
+        McpServerHost? host = null;
         try
         {
             var loggerFactory = App.Services.GetRequiredService<ILoggerFactory>();
-            await using var host = new McpServerHost(entity, loggerFactory);
-            await host.ConnectAsync(CancellationToken.None);
+            host = new McpServerHost(entity, loggerFactory);
+            host.ConnectAsync(CancellationToken.None).GetAwaiter().GetResult();
             var toolCount = host.Tools.Count;
 
             return JsonSerializer.Serialize(new { success = true, toolCount });
@@ -296,6 +309,13 @@ public class SettingsBridgeHostObject
         catch (Exception ex)
         {
             return Error($"连接失败：{ex.Message}");
+        }
+        finally
+        {
+            if (host is not null)
+            {
+                host.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
         }
     }
 

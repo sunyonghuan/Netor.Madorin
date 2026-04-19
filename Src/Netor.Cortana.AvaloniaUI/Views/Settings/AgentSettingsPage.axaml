@@ -37,6 +37,21 @@
                              AcceptsReturn="True" TextWrapping="Wrap" Height="50" MaxLength="1024" />
                 </StackPanel>
 
+                <!-- 默认厂商 -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="默认 AI 厂商（空=跟随会话）" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                    <ComboBox x:Name="CmbProvider" Width="300" HorizontalAlignment="Left"
+                              PlaceholderText="跟随会话"
+                              SelectionChanged="OnProviderSelectionChanged" />
+                </StackPanel>
+
+                <!-- 默认模型 -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="默认 AI 模型（空=跟随会话）" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                    <ComboBox x:Name="CmbModel" Width="300" HorizontalAlignment="Left"
+                              PlaceholderText="跟随会话" />
+                </StackPanel>
+
                 <!-- 系统指令 -->
                 <StackPanel Spacing="4">
                     <TextBlock Text="系统指令 (System Prompt)" Foreground="{StaticResource SubtextBrush}" FontSize="12" />

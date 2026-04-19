@@ -46,6 +46,19 @@ namespace Netor.Cortana.Entitys.Services
         }
 
         /// <summary>
+        /// 根据名称精确查找已启用的智能体。
+        /// </summary>
+        /// <param name="name">智能体名称</param>
+        /// <returns>智能体实体，不存在时返回 null</returns>
+        public AgentEntity? GetByName(string name)
+        {
+            return _db.QueryFirstOrDefault(
+                "SELECT * FROM Agents WHERE Name = @Name AND IsEnabled = 1",
+                ReadEntity,
+                cmd => cmd.Parameters.AddWithValue("@Name", name));
+        }
+
+        /// <summary>
         /// 添加一个新的智能体。
         /// </summary>
         /// <param name="entity">智能体实体</param>
@@ -73,6 +86,7 @@ namespace Netor.Cortana.Entitys.Services
                 UPDATE Agents SET
                     UpdatedTimestamp = @UpdatedTimestamp, Name = @Name, Instructions = @Instructions,
                     Description = @Description, Image = @Image,
+                    Avatar = @Avatar, DefaultProviderId = @DefaultProviderId, DefaultModelId = @DefaultModelId,
                     Temperature = @Temperature, MaxTokens = @MaxTokens, TopP = @TopP,
                     FrequencyPenalty = @FrequencyPenalty, PresencePenalty = @PresencePenalty,
                     MaxHistoryMessages = @MaxHistoryMessages,
@@ -119,9 +133,11 @@ namespace Netor.Cortana.Entitys.Services
 
         private const string InsertSql = """
             INSERT INTO Agents (Id, CreatedTimestamp, UpdatedTimestamp, Name, Instructions, Description, Image,
+                Avatar, DefaultProviderId, DefaultModelId,
                 Temperature, MaxTokens, TopP, FrequencyPenalty, PresencePenalty, MaxHistoryMessages,
                 IsDefault, IsEnabled, SortOrder, EnabledPluginIds, EnabledMcpServerIds)
             VALUES (@Id, @CreatedTimestamp, @UpdatedTimestamp, @Name, @Instructions, @Description, @Image,
+                @Avatar, @DefaultProviderId, @DefaultModelId,
                 @Temperature, @MaxTokens, @TopP, @FrequencyPenalty, @PresencePenalty, @MaxHistoryMessages,
                 @IsDefault, @IsEnabled, @SortOrder, @EnabledPluginIds, @EnabledMcpServerIds)
             """;
@@ -135,6 +151,9 @@ namespace Netor.Cortana.Entitys.Services
             Instructions = r.GetString(r.GetOrdinal("Instructions")),
             Description = r.GetString(r.GetOrdinal("Description")),
             Image = r.GetString(r.GetOrdinal("Image")),
+            Avatar = r.GetString(r.GetOrdinal("Avatar")),
+            DefaultProviderId = r.GetString(r.GetOrdinal("DefaultProviderId")),
+            DefaultModelId = r.GetString(r.GetOrdinal("DefaultModelId")),
             Temperature = r.GetDouble(r.GetOrdinal("Temperature")),
             MaxTokens = r.GetInt32(r.GetOrdinal("MaxTokens")),
             TopP = r.GetDouble(r.GetOrdinal("TopP")),
@@ -157,6 +176,9 @@ namespace Netor.Cortana.Entitys.Services
             cmd.Parameters.AddWithValue("@Instructions", e.Instructions);
             cmd.Parameters.AddWithValue("@Description", e.Description);
             cmd.Parameters.AddWithValue("@Image", e.Image);
+            cmd.Parameters.AddWithValue("@Avatar", e.Avatar);
+            cmd.Parameters.AddWithValue("@DefaultProviderId", e.DefaultProviderId);
+            cmd.Parameters.AddWithValue("@DefaultModelId", e.DefaultModelId);
             cmd.Parameters.AddWithValue("@Temperature", e.Temperature);
             cmd.Parameters.AddWithValue("@MaxTokens", e.MaxTokens);
             cmd.Parameters.AddWithValue("@TopP", e.TopP);

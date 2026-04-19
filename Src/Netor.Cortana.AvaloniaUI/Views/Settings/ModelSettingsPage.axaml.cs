@@ -197,6 +197,21 @@ public partial class ModelSettingsPage : UserControl
         ChkEnabled.IsChecked = true;
         ChkDefault.IsChecked = false;
         BtnDelete.IsVisible = false;
+
+        // 能力默认值
+        ChkInText.IsChecked = true;
+        ChkInImage.IsChecked = false;
+        ChkInAudio.IsChecked = false;
+        ChkInVideo.IsChecked = false;
+        ChkInFile.IsChecked = false;
+        ChkOutText.IsChecked = true;
+        ChkOutImage.IsChecked = false;
+        ChkOutAudio.IsChecked = false;
+        ChkOutVideo.IsChecked = false;
+        ChkFuncCall.IsChecked = false;
+        ChkStreaming.IsChecked = false;
+        ChkSysPrompt.IsChecked = false;
+        ChkJsonMode.IsChecked = false;
     }
 
     // ──────── 添加/编辑 ────────
@@ -231,6 +246,21 @@ public partial class ModelSettingsPage : UserControl
             }
         }
 
+        // 加载能力标志
+        ChkInText.IsChecked = entity.InputCapabilities.HasFlag(InputCapabilities.Text);
+        ChkInImage.IsChecked = entity.InputCapabilities.HasFlag(InputCapabilities.Image);
+        ChkInAudio.IsChecked = entity.InputCapabilities.HasFlag(InputCapabilities.Audio);
+        ChkInVideo.IsChecked = entity.InputCapabilities.HasFlag(InputCapabilities.Video);
+        ChkInFile.IsChecked = entity.InputCapabilities.HasFlag(InputCapabilities.File);
+        ChkOutText.IsChecked = entity.OutputCapabilities.HasFlag(OutputCapabilities.Text);
+        ChkOutImage.IsChecked = entity.OutputCapabilities.HasFlag(OutputCapabilities.Image);
+        ChkOutAudio.IsChecked = entity.OutputCapabilities.HasFlag(OutputCapabilities.Audio);
+        ChkOutVideo.IsChecked = entity.OutputCapabilities.HasFlag(OutputCapabilities.Video);
+        ChkFuncCall.IsChecked = entity.InteractionCapabilities.HasFlag(InteractionCapabilities.FunctionCall);
+        ChkStreaming.IsChecked = entity.InteractionCapabilities.HasFlag(InteractionCapabilities.Streaming);
+        ChkSysPrompt.IsChecked = entity.InteractionCapabilities.HasFlag(InteractionCapabilities.SystemPrompt);
+        ChkJsonMode.IsChecked = entity.InteractionCapabilities.HasFlag(InteractionCapabilities.JsonMode);
+
         ShowForm("编辑模型");
     }
 
@@ -243,6 +273,10 @@ public partial class ModelSettingsPage : UserControl
 
         var modelType = CboModelType.SelectedItem is ComboBoxItem cbi && cbi.Tag is string t ? t : "chat";
 
+        var inputCaps = ReadInputCapabilities();
+        var outputCaps = ReadOutputCapabilities();
+        var interCaps = ReadInteractionCapabilities();
+
         if (_editingId is not null)
         {
             var entity = ModelService.GetById(_editingId);
@@ -254,6 +288,9 @@ public partial class ModelSettingsPage : UserControl
             entity.Description = TxtDesc.Text?.Trim() ?? string.Empty;
             entity.IsEnabled = ChkEnabled.IsChecked ?? true;
             entity.IsDefault = ChkDefault.IsChecked ?? false;
+            entity.InputCapabilities = inputCaps;
+            entity.OutputCapabilities = outputCaps;
+            entity.InteractionCapabilities = interCaps;
             ModelService.Update(entity);
             if (entity.IsDefault)
                 ModelService.SetDefault(entity.Id);
@@ -271,6 +308,9 @@ public partial class ModelSettingsPage : UserControl
                 Description = TxtDesc.Text?.Trim() ?? string.Empty,
                 IsEnabled = ChkEnabled.IsChecked ?? true,
                 IsDefault = ChkDefault.IsChecked ?? false,
+                InputCapabilities = inputCaps,
+                OutputCapabilities = outputCaps,
+                InteractionCapabilities = interCaps,
             };
             ModelService.Add(entity);
             if (entity.IsDefault)
@@ -289,5 +329,38 @@ public partial class ModelSettingsPage : UserControl
         ModelService.Delete(_editingId);
         Publisher.Publish(Events.OnAiModelChange, new DataChangeArgs(_editingId, ChangeType.Delete));
         ShowList();
+    }
+
+    // ──────── 能力标志读取 ────────
+
+    private InputCapabilities ReadInputCapabilities()
+    {
+        var caps = InputCapabilities.None;
+        if (ChkInText.IsChecked == true) caps |= InputCapabilities.Text;
+        if (ChkInImage.IsChecked == true) caps |= InputCapabilities.Image;
+        if (ChkInAudio.IsChecked == true) caps |= InputCapabilities.Audio;
+        if (ChkInVideo.IsChecked == true) caps |= InputCapabilities.Video;
+        if (ChkInFile.IsChecked == true) caps |= InputCapabilities.File;
+        return caps;
+    }
+
+    private OutputCapabilities ReadOutputCapabilities()
+    {
+        var caps = OutputCapabilities.None;
+        if (ChkOutText.IsChecked == true) caps |= OutputCapabilities.Text;
+        if (ChkOutImage.IsChecked == true) caps |= OutputCapabilities.Image;
+        if (ChkOutAudio.IsChecked == true) caps |= OutputCapabilities.Audio;
+        if (ChkOutVideo.IsChecked == true) caps |= OutputCapabilities.Video;
+        return caps;
+    }
+
+    private InteractionCapabilities ReadInteractionCapabilities()
+    {
+        var caps = InteractionCapabilities.None;
+        if (ChkFuncCall.IsChecked == true) caps |= InteractionCapabilities.FunctionCall;
+        if (ChkStreaming.IsChecked == true) caps |= InteractionCapabilities.Streaming;
+        if (ChkSysPrompt.IsChecked == true) caps |= InteractionCapabilities.SystemPrompt;
+        if (ChkJsonMode.IsChecked == true) caps |= InteractionCapabilities.JsonMode;
+        return caps;
     }
 }

@@ -2,6 +2,7 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+using Netor.Cortana.AI.Drivers;
 using Netor.Cortana.AI.Providers;
 using Netor.Cortana.Entitys;
 
@@ -17,10 +18,25 @@ public static class AIServiceExtensions
     /// </summary>
     public static IServiceCollection AddCortanaAI(this IServiceCollection services)
     {
+        // 自定义 User-Agent 避免部分中转站 Cloudflare WAF 拦截
+        services.AddTransient<UserAgentOverrideHandler>();
+        services.AddHttpClient("OpenAiCompatible")
+            .AddHttpMessageHandler<UserAgentOverrideHandler>();
+
         // Providers（同时作为 AIContextProvider 注入到 AIAgentFactory）
         services.AddSingleton<FileMemoryProvider>();
         services.AddSingleton<AIContextProvider>(sp => sp.GetRequiredService<FileMemoryProvider>());
         services.AddSingleton<ChatHistoryDataProvider>();
+
+        // 厂商驱动
+        services.AddSingleton<IAiProviderDriver, OpenAiProviderDriver>();
+        services.AddSingleton<IAiProviderDriver, AzureOpenAiProviderDriver>();
+        services.AddSingleton<IAiProviderDriver, OllamaProviderDriver>();
+        services.AddSingleton<IAiProviderDriver, AnthropicProviderDriver>();
+        services.AddSingleton<IAiProviderDriver, GeminiProviderDriver>();
+        services.AddSingleton<IAiProviderDriver, GlmProviderDriver>();
+        services.AddSingleton<IAiProviderDriver, CustomProviderDriver>();
+        services.AddSingleton<AiProviderDriverRegistry>();
 
         // 核心服务
         services.AddSingleton<AIAgentFactory>();

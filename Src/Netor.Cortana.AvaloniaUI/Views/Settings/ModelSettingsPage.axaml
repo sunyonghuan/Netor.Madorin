@@ -80,6 +80,53 @@
                               Foreground="{StaticResource TextBrush}" />
                 </StackPanel>
 
+                <!-- 输入能力 -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="输入能力" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                    <WrapPanel Orientation="Horizontal">
+                        <CheckBox x:Name="ChkInText" Content="文本" IsChecked="True"
+                                  Foreground="{StaticResource TextBrush}" Margin="0,0,16,0" />
+                        <CheckBox x:Name="ChkInImage" Content="图片"
+                                  Foreground="{StaticResource TextBrush}" Margin="0,0,16,0" />
+                        <CheckBox x:Name="ChkInAudio" Content="音频"
+                                  Foreground="{StaticResource TextBrush}" Margin="0,0,16,0" />
+                        <CheckBox x:Name="ChkInVideo" Content="视频"
+                                  Foreground="{StaticResource TextBrush}" Margin="0,0,16,0" />
+                        <CheckBox x:Name="ChkInFile" Content="文件"
+                                  Foreground="{StaticResource TextBrush}" />
+                    </WrapPanel>
+                </StackPanel>
+
+                <!-- 输出能力 -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="输出能力" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                    <WrapPanel Orientation="Horizontal">
+                        <CheckBox x:Name="ChkOutText" Content="文本" IsChecked="True"
+                                  Foreground="{StaticResource TextBrush}" Margin="0,0,16,0" />
+                        <CheckBox x:Name="ChkOutImage" Content="图片"
+                                  Foreground="{StaticResource TextBrush}" Margin="0,0,16,0" />
+                        <CheckBox x:Name="ChkOutAudio" Content="音频"
+                                  Foreground="{StaticResource TextBrush}" Margin="0,0,16,0" />
+                        <CheckBox x:Name="ChkOutVideo" Content="视频"
+                                  Foreground="{StaticResource TextBrush}" />
+                    </WrapPanel>
+                </StackPanel>
+
+                <!-- 交互能力 -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="交互能力" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                    <WrapPanel Orientation="Horizontal">
+                        <CheckBox x:Name="ChkFuncCall" Content="函数调用"
+                                  Foreground="{StaticResource TextBrush}" Margin="0,0,16,0" />
+                        <CheckBox x:Name="ChkStreaming" Content="流式输出"
+                                  Foreground="{StaticResource TextBrush}" Margin="0,0,16,0" />
+                        <CheckBox x:Name="ChkSysPrompt" Content="系统提示"
+                                  Foreground="{StaticResource TextBrush}" Margin="0,0,16,0" />
+                        <CheckBox x:Name="ChkJsonMode" Content="JSON 模式"
+                                  Foreground="{StaticResource TextBrush}" />
+                    </WrapPanel>
+                </StackPanel>
+
                 <!-- 操作按钮 -->
                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
                     <Button Classes="btn-secondary" Content="取消" Click="OnCancelClick" />

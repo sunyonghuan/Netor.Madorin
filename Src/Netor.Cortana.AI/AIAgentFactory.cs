@@ -1,21 +1,13 @@
-using Anthropic;
-
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using Netor.Cortana.AI.Drivers;
 using Netor.Cortana.AI.Providers;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.Cortana.Plugin;
-
-using OllamaSharp;
-
-using OpenAI;
-
-using System.ClientModel;
-using System.Net;
 
 namespace Netor.Cortana.AI;
 
@@ -27,79 +19,26 @@ public sealed class AIAgentFactory(
     IAppPaths appPaths,
     IEnumerable<AIContextProvider> builtInProviders,
     PluginLoader pluginLoader,
+    AiProviderDriverRegistry driverRegistry,
     IServiceProvider services,
-    SystemSettingsService systemSettings,
     ILogger<AIAgentFactory> logger)
 {
     public TokenTrackingChatClient? ChatClient { get; private set; }
 
     /// <summary>
-    /// 根据提供商配置创建 <see cref="IChatClient"/>。
-    /// 本地网络使用 OllamaApiClient，其余使用 OpenAI 兼容协议。
+    /// 获取所有可用厂商驱动定义，供 UI 构建无关化选择器。
     /// </summary>
-    public static IChatClient CreateChatClient(AiProviderEntity provider, string modelName)
+    public IReadOnlyList<AiProviderDriverDefinition> GetDriverDefinitions()
     {
-        ArgumentNullException.ThrowIfNull(provider);
-        ArgumentException.ThrowIfNullOrWhiteSpace(modelName);
-
-        if (string.Equals(provider.ProviderType, "Ollama", StringComparison.OrdinalIgnoreCase))
-        {
-            return new OllamaApiClient(provider.Url, modelName);
-        }
-        if (string.Equals(provider.ProviderType, "Anthropic", StringComparison.OrdinalIgnoreCase))
-        {
-            return new AnthropicClient(new Anthropic.Core.ClientOptions()
-            {
-                ApiKey = provider.Key,
-                BaseUrl = provider.Url,
-                AuthToken = provider.AuthToken,
-                Timeout = TimeSpan.FromMinutes(10)
-            })
-                .AsIChatClient(modelName);
-        }
-        var credential = new ApiKeyCredential(provider.Key);
-        var options = new OpenAIClientOptions
-        {
-            Endpoint = new Uri(provider.Url.TrimEnd('/')),
-            NetworkTimeout = TimeSpan.FromMinutes(10)
-        };
-
-        return new OpenAIClient(credential, options)
-            .GetChatClient(modelName)
-            .AsIChatClient();
+        return driverRegistry.GetDefinitions();
     }
 
     /// <summary>
-    /// 根据智能体参数构建 <see cref="ChatOptions"/>。
+    /// 判断驱动类型是否已注册。
     /// </summary>
-    public static ChatOptions BuildOptions(AgentEntity agent)
+    public bool IsDriverRegistered(string? driverId)
     {
-        ArgumentNullException.ThrowIfNull(agent);
-
-#pragma warning disable MEAI001
-        var options = new ChatOptions
-        {
-            Temperature = (float)agent.Temperature,
-            TopP = (float)agent.TopP,
-            FrequencyPenalty = (float)agent.FrequencyPenalty,
-            PresencePenalty = (float)agent.PresencePenalty,
-            Instructions = agent.Instructions,
-            AllowBackgroundResponses = false,
-            Tools = [],
-            AdditionalProperties = new AdditionalPropertiesDictionary(new Dictionary<string, object?>()
-            {
-                // 尝试启用流式 usage
-                ["stream_options"] = new { include_usage = true }
-            })
-        };
-#pragma warning restore MEAI001
-
-        if (agent.MaxTokens > 0)
-        {
-            options.MaxOutputTokens = agent.MaxTokens;
-        }
-
-        return options;
+        return driverRegistry.IsRegistered(driverId);
     }
 
     /// <summary>
@@ -112,13 +51,15 @@ public sealed class AIAgentFactory(
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentNullException.ThrowIfNull(model);
 
+        var driver = driverRegistry.Resolve(provider);
+
         var skillDirs = new List<string>
         {
             appPaths.UserSkillsDirectory,
             appPaths.WorkspaceSkillsDirectory
         };
 
-        // 内置 Provider（通过 DI 批量注入）
+        // 内置 Provider（通过 DI 批量注入）+ 技能目录
 #pragma warning disable MAAI001
         var providers = new List<AIContextProvider>
         {
@@ -128,9 +69,185 @@ public sealed class AIAgentFactory(
 
         providers.AddRange(builtInProviders);
 
-        // 工具名称唯一性检查：key=工具名，value=来源描述
+        // 组装插件和 MCP 工具 Provider
         var registeredTools = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AssembleToolProviders(agent, providers, registeredTools);
 
+        ChatClient = new TokenTrackingChatClient(
+            driver.CreateChatClient(provider, model),
+            model.ContextLength);
+
+#pragma warning disable MAAI001
+        return ChatClient
+            .AsBuilder()
+            .BuildAIAgent(new ChatClientAgentOptions
+            {
+                Name = agent.Name,
+                AIContextProviders = providers,
+                ChatOptions = driver.BuildChatOptions(provider, agent),
+                ChatHistoryProvider = services.GetRequiredService<ChatHistoryDataProvider>(),
+            })
+            .AsBuilder()
+            .Build();
+#pragma warning restore MAAI001
+    }
+
+    /// <summary>
+    /// 构建带有子智能体工具的主 <see cref="AIAgent"/>。
+    /// 每个被提及的子智能体通过 <c>AsAIFunction()</c> 包装为工具函数注入主 Agent。
+    /// </summary>
+    public AIAgent BuildWithSubAgents(
+        AgentEntity mainAgent,
+        AiProviderEntity mainProvider,
+        AiModelEntity mainModel,
+        List<AgentMention> mentions,
+        AiProviderService providerService,
+        AiModelService modelService)
+    {
+        ArgumentNullException.ThrowIfNull(mainAgent);
+        ArgumentNullException.ThrowIfNull(mainProvider);
+        ArgumentNullException.ThrowIfNull(mainModel);
+
+        var driver = driverRegistry.Resolve(mainProvider);
+
+        var skillDirs = new List<string>
+        {
+            appPaths.UserSkillsDirectory,
+            appPaths.WorkspaceSkillsDirectory
+        };
+
+#pragma warning disable MAAI001
+        var providers = new List<AIContextProvider>
+        {
+            new AgentSkillsProvider(skillDirs)
+        };
+#pragma warning restore MAAI001
+
+        providers.AddRange(builtInProviders);
+
+        // 组装主智能体的插件和 MCP 工具
+        var registeredTools = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AssembleToolProviders(mainAgent, providers, registeredTools);
+
+        // 构建子智能体并包装为 AIFunction
+        var subAgentFunctions = new List<AIFunction>();
+        var processedAgentIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var mention in mentions)
+        {
+            var subAgentEntity = mention.Agent;
+
+            // 同名智能体去重
+            if (!processedAgentIds.Add(subAgentEntity.Id)) continue;
+
+            var (subProvider, subModel) = ResolveSubAgentProviderAndModel(
+                subAgentEntity, mainProvider, mainModel, providerService, modelService);
+
+            if (subProvider is null || subModel is null)
+            {
+                logger.LogWarning("子智能体 [{Name}] 的厂商或模型无法解析，跳过", subAgentEntity.Name);
+                continue;
+            }
+
+            var subAgent = BuildSubAgent(subAgentEntity, subProvider, subModel);
+            var agentFunction = subAgent.AsAIFunction(
+                new AIFunctionFactoryOptions
+                {
+                    Name = $"agent_{subAgentEntity.Name}",
+                    Description = string.IsNullOrWhiteSpace(subAgentEntity.Description)
+                        ? $"调用子智能体「{subAgentEntity.Name}」来处理任务"
+                        : subAgentEntity.Description
+                });
+
+            subAgentFunctions.Add(agentFunction);
+            logger.LogInformation("已注入子智能体工具：agent_{Name}（{PluginCount} 个插件，{McpCount} 个 MCP）",
+                subAgentEntity.Name, subAgentEntity.EnabledPluginIds.Count, subAgentEntity.EnabledMcpServerIds.Count);
+        }
+
+        // 通过 SubAgentContextProvider 注入子智能体工具
+        if (subAgentFunctions.Count > 0)
+        {
+#pragma warning disable MAAI001
+            providers.Add(new SubAgentContextProvider(subAgentFunctions));
+#pragma warning restore MAAI001
+        }
+
+        ChatClient = new TokenTrackingChatClient(
+            driver.CreateChatClient(mainProvider, mainModel),
+            mainModel.ContextLength);
+
+#pragma warning disable MAAI001
+        return ChatClient
+            .AsBuilder()
+            .BuildAIAgent(new ChatClientAgentOptions
+            {
+                Name = mainAgent.Name,
+                AIContextProviders = providers,
+                ChatOptions = driver.BuildChatOptions(mainProvider, mainAgent),
+                ChatHistoryProvider = services.GetRequiredService<ChatHistoryDataProvider>(),
+            })
+            .AsBuilder()
+            .Build();
+#pragma warning restore MAAI001
+    }
+
+    /// <summary>
+    /// 构建子智能体（轻量）：仅携带 instructions + plugins + MCP，不带历史/memory/skills。
+    /// </summary>
+    private AIAgent BuildSubAgent(AgentEntity agent, AiProviderEntity provider, AiModelEntity model)
+    {
+        var driver = driverRegistry.Resolve(provider);
+
+        var providers = new List<AIContextProvider>();
+        var registeredTools = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AssembleToolProviders(agent, providers, registeredTools);
+
+        var chatClient = driver.CreateChatClient(provider, model);
+
+#pragma warning disable MAAI001
+        return chatClient
+            .AsBuilder()
+            .BuildAIAgent(new ChatClientAgentOptions
+            {
+                Name = agent.Name,
+                Description = agent.Description,
+                AIContextProviders = providers,
+                ChatOptions = driver.BuildChatOptions(provider, agent),
+            })
+            .AsBuilder()
+            .Build();
+#pragma warning restore MAAI001
+    }
+
+    /// <summary>
+    /// 解析子智能体的厂商和模型：优先使用子智能体自身配置，为空时跟随主智能体。
+    /// </summary>
+    private static (AiProviderEntity? Provider, AiModelEntity? Model) ResolveSubAgentProviderAndModel(
+        AgentEntity subAgent,
+        AiProviderEntity mainProvider,
+        AiModelEntity mainModel,
+        AiProviderService providerService,
+        AiModelService modelService)
+    {
+        var provider = string.IsNullOrEmpty(subAgent.DefaultProviderId)
+            ? mainProvider
+            : providerService.GetById(subAgent.DefaultProviderId) ?? mainProvider;
+
+        var model = string.IsNullOrEmpty(subAgent.DefaultModelId)
+            ? mainModel
+            : modelService.GetById(subAgent.DefaultModelId) ?? mainModel;
+
+        return (provider, model);
+    }
+
+    /// <summary>
+    /// 组装智能体已启用的插件 Provider 和 MCP Server Provider 到 providers 列表。
+    /// </summary>
+    private void AssembleToolProviders(
+        AgentEntity agent,
+        List<AIContextProvider> providers,
+        Dictionary<string, string> registeredTools)
+    {
         // 合并该智能体已启用的插件 Provider
         var enabledIds = agent.EnabledPluginIds;
 
@@ -210,42 +327,5 @@ public sealed class AIAgentFactory(
                 ? new McpContextProvider(mcpHost, excluded)
                 : new McpContextProvider(mcpHost));
         }
-        ChatClient = new TokenTrackingChatClient(CreateChatClient(provider, model?.Name ?? string.Empty), model?.ContextLength ?? 128000);
-#pragma warning disable MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
-        return ChatClient
-            .AsBuilder()
-            .BuildAIAgent(new ChatClientAgentOptions
-            {
-                Name = agent.Name,
-                AIContextProviders = providers,
-                ChatOptions = BuildOptions(agent),
-                ChatHistoryProvider = services.GetRequiredService<ChatHistoryDataProvider>(),
-            })
-            .AsBuilder()
-            .Build();
-#pragma warning restore MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
-    }
-
-    /// <summary>
-    /// 判断 URI 是否指向本地网络地址。
-    /// </summary>
-    private static bool IsLocalNetwork(Uri uri)
-    {
-        var host = uri.Host;
-
-        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        if (!IPAddress.TryParse(host, out var ip))
-            return false;
-
-        byte[] bytes = ip.GetAddressBytes();
-        if (bytes.Length != 4)
-            return false;
-
-        return bytes[0] == 10                                          // 10.0.0.0/8
-            || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)   // 172.16.0.0/12
-            || (bytes[0] == 192 && bytes[1] == 168)                    // 192.168.0.0/16
-            || bytes[0] == 127;                                        // 127.0.0.0/8
     }
 }

@@ -25,4 +25,10 @@ internal sealed class AppPaths : IAppPaths
 
     /// <inheritdoc />
     public string PluginDirectory => WorkspacePluginsDirectory;
+
+    /// <inheritdoc />
+    public string WorkspaceResourcesDirectory => Path.Combine(App.WorkspaceDirectory, ".cortana", "resources");
+
+    /// <inheritdoc />
+    public string HistoryResourcesDirectory => Path.Combine(App.WorkspaceDirectory, ".cortana", "resources", "histories");
 }

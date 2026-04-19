@@ -14,7 +14,8 @@ public interface IAiChatEngine
     /// <param name="userInput">用户输入文本。</param>
     /// <param name="cancellationToken">取消令牌。</param>
     /// <param name="attachments">附件列表（可选）。</param>
-    Task SendMessageAsync(string userInput, CancellationToken cancellationToken, List<AttachmentInfo>? attachments = null);
+    /// <param name="mentions">@智能体提及列表（可选）。</param>
+    Task SendMessageAsync(string userInput, CancellationToken cancellationToken, List<AttachmentInfo>? attachments = null, List<AgentMention>? mentions = null);
 
     /// <summary>
     /// 创建新会话。创建成功后会通过 EventHub 发布 <c>Events.OnSessionCreated</c> 事件。

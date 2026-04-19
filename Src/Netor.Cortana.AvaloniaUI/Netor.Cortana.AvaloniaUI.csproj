@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>Cortana</AssemblyName>
     <AssemblyTitle>Cortana</AssemblyTitle>
-    <Version>1.1.6</Version>
+    <Version>1.1.9</Version>
     <ApplicationIcon>..\Netor.Cortana\logo.200.ico</ApplicationIcon>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
@@ -32,13 +32,17 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <!-- 阻止将符号文件复制到发布目录 -->
     <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
-  </PropertyGroup>
+  </PropertyGroup> 
 
   <!-- AOT trimming：保留 NAudio 回调委托和 SherpaOnnx P/Invoke 类型 -->
   <ItemGroup Condition=" '$(Configuration)' == 'Release' ">
     <TrimmerRootAssembly Include="NAudio.WinMM" />
     <TrimmerRootAssembly Include="NAudio.Core" />
     <TrimmerRootAssembly Include="sherpa-onnx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <RdXmlFile Include="rd.xml" />
   </ItemGroup>
 
   <!-- 发布后清理：删除 NuGet 原生包附带的 PDB / XML 文件 -->

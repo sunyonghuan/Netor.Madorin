@@ -26,4 +26,10 @@ public interface IAppPaths
 
     /// <summary>插件目录。</summary>
     string PluginDirectory { get; }
+
+    /// <summary>工作区资源根目录（.cortana/resources）。</summary>
+    string WorkspaceResourcesDirectory { get; }
+
+    /// <summary>聊天历史资源目录（.cortana/resources/histories）。</summary>
+    string HistoryResourcesDirectory { get; }
 }

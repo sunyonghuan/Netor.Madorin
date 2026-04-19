@@ -3,10 +3,13 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 
+using Netor.Cortana.AI;
+
 namespace Netor.Cortana.AvaloniaUI.Views.Settings;
 
 public partial class ProviderSettingsPage : UserControl
 {
+    private AIAgentFactory AgentFactory => App.Services.GetRequiredService<AIAgentFactory>();
     private AiProviderService ProviderService => App.Services.GetRequiredService<AiProviderService>();
     private AiModelService ModelService => App.Services.GetRequiredService<AiModelService>();
     private IPublisher Publisher => App.Services.GetRequiredService<IPublisher>();
@@ -16,7 +19,11 @@ public partial class ProviderSettingsPage : UserControl
     public ProviderSettingsPage()
     {
         InitializeComponent();
-        Loaded += (_, _) => RefreshList();
+        Loaded += (_, _) =>
+        {
+            LoadDriverTypes();
+            RefreshList();
+        };
     }
 
     // ──────── 列表视图 ────────
@@ -47,6 +54,7 @@ public partial class ProviderSettingsPage : UserControl
 
     private Border BuildListItem(AiProviderEntity entity)
     {
+        var driverName = GetDriverDisplayName(entity.ProviderType);
         var name = new TextBlock
         {
             Text = entity.Name,
@@ -57,7 +65,7 @@ public partial class ProviderSettingsPage : UserControl
 
         var sub = new TextBlock
         {
-            Text = $"{entity.ProviderType}  ·  {entity.Url}",
+            Text = $"{driverName}  ·  {entity.Url}",
             Foreground = (IBrush)this.FindResource("SubtextBrush")!,
             FontSize = 11,
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -141,6 +149,50 @@ public partial class ProviderSettingsPage : UserControl
         RefreshList();
     }
 
+    private void LoadDriverTypes()
+    {
+        CboType.Items.Clear();
+
+        foreach (var definition in AgentFactory.GetDriverDefinitions())
+        {
+            CboType.Items.Add(new ComboBoxItem
+            {
+                Content = definition.DisplayName,
+                Tag = definition.Id
+            });
+        }
+
+        if (CboType.ItemCount > 0)
+        {
+            CboType.SelectedIndex = 0;
+        }
+    }
+
+    private string GetDriverDisplayName(string driverId)
+    {
+        var definition = AgentFactory.GetDriverDefinitions()
+            .FirstOrDefault(item => string.Equals(item.Id, driverId, StringComparison.OrdinalIgnoreCase));
+
+        return definition?.DisplayName ?? driverId;
+    }
+
+    private void SelectDriver(string driverId)
+    {
+        for (int i = 0; i < CboType.Items.Count; i++)
+        {
+            if (CboType.Items[i] is ComboBoxItem cbi && cbi.Tag is string tag && tag == driverId)
+            {
+                CboType.SelectedIndex = i;
+                return;
+            }
+        }
+
+        if (CboType.ItemCount > 0)
+        {
+            CboType.SelectedIndex = 0;
+        }
+    }
+
     private void ClearForm()
     {
         TxtName.Text = string.Empty;
@@ -148,7 +200,10 @@ public partial class ProviderSettingsPage : UserControl
         TxtKey.Text = string.Empty;
         TxtAuthToken.Text = string.Empty;
         TxtDesc.Text = string.Empty;
-        CboType.SelectedIndex = 0;
+        if (CboType.ItemCount > 0)
+        {
+            CboType.SelectedIndex = 0;
+        }
         ChkEnabled.IsChecked = true;
         ChkDefault.IsChecked = false;
         BtnDelete.IsVisible = false;
@@ -177,15 +232,7 @@ public partial class ProviderSettingsPage : UserControl
         ChkDefault.IsChecked = entity.IsDefault;
         BtnDelete.IsVisible = true;
 
-        // 选中协议类型
-        for (int i = 0; i < CboType.Items.Count; i++)
-        {
-            if (CboType.Items[i] is ComboBoxItem cbi && cbi.Tag is string tag && tag == entity.ProviderType)
-            {
-                CboType.SelectedIndex = i;
-                break;
-            }
-        }
+        SelectDriver(entity.ProviderType);
 
         ShowForm("编辑厂商");
     }
@@ -200,6 +247,7 @@ public partial class ProviderSettingsPage : UserControl
         if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(url) || string.IsNullOrEmpty(key)) return;
 
         var providerType = CboType.SelectedItem is ComboBoxItem cbi && cbi.Tag is string t ? t : "OpenAI";
+        if (!AgentFactory.IsDriverRegistered(providerType)) return;
 
         if (_editingId is not null)
         {

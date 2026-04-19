@@ -268,6 +268,30 @@ namespace Netor.Cortana.Entitys
                     SortOrder INTEGER NOT NULL DEFAULT 0
                 );
                 """);
+
+            Execute("""
+                CREATE TABLE IF NOT EXISTS ChatMessageAssets (
+                    Id TEXT PRIMARY KEY,
+                    CreatedTimestamp INTEGER NOT NULL,
+                    UpdatedTimestamp INTEGER NOT NULL,
+                    SessionId TEXT NOT NULL DEFAULT '',
+                    MessageId TEXT NOT NULL DEFAULT '',
+                    Role TEXT NOT NULL DEFAULT '',
+                    AssetGroup TEXT NOT NULL DEFAULT '',
+                    AssetKind TEXT NOT NULL DEFAULT '',
+                    MimeType TEXT NOT NULL DEFAULT '',
+                    OriginalName TEXT NOT NULL DEFAULT '',
+                    RelativePath TEXT NOT NULL DEFAULT '',
+                    FileSizeBytes INTEGER NOT NULL DEFAULT 0,
+                    Sha256 TEXT NOT NULL DEFAULT '',
+                    SortOrder INTEGER NOT NULL DEFAULT 0,
+                    Width INTEGER NOT NULL DEFAULT 0,
+                    Height INTEGER NOT NULL DEFAULT 0,
+                    DurationMs INTEGER NOT NULL DEFAULT 0,
+                    SourceType TEXT NOT NULL DEFAULT '',
+                    Status TEXT NOT NULL DEFAULT 'active'
+                );
+                """);
         }
 
         /// <summary>
@@ -280,6 +304,18 @@ namespace Netor.Cortana.Entitys
             TryAddColumn("ALTER TABLE AiProviders ADD COLUMN AuthToken TEXT NOT NULL DEFAULT ''");
             TryAddColumn("ALTER TABLE ChatSessions ADD COLUMN CompactedContext TEXT NOT NULL DEFAULT ''");
             TryAddColumn("ALTER TABLE ChatSessions ADD COLUMN CompactedAtCount INTEGER NOT NULL DEFAULT 0");
+
+            // v1.2: AiModels 能力字段
+            TryAddColumn("ALTER TABLE AiModels ADD COLUMN InputCapabilities INTEGER NOT NULL DEFAULT 1");
+            TryAddColumn("ALTER TABLE AiModels ADD COLUMN OutputCapabilities INTEGER NOT NULL DEFAULT 1");
+            TryAddColumn("ALTER TABLE AiModels ADD COLUMN InteractionCapabilities INTEGER NOT NULL DEFAULT 0");
+            TryAddColumn("ALTER TABLE AiModels ADD COLUMN CapabilitySource TEXT NOT NULL DEFAULT 'manual'");
+            TryAddColumn("ALTER TABLE AiModels ADD COLUMN CapabilityNotes TEXT NOT NULL DEFAULT ''");
+
+            // v1.2: Agents 子智能体字段
+            TryAddColumn("ALTER TABLE Agents ADD COLUMN Avatar TEXT NOT NULL DEFAULT ''");
+            TryAddColumn("ALTER TABLE Agents ADD COLUMN DefaultProviderId TEXT NOT NULL DEFAULT ''");
+            TryAddColumn("ALTER TABLE Agents ADD COLUMN DefaultModelId TEXT NOT NULL DEFAULT ''");
         }
 
         private void TryAddColumn(string alterSql)
@@ -303,6 +339,11 @@ namespace Netor.Cortana.Entitys
             Execute("CREATE INDEX IF NOT EXISTS IX_McpServers_IsEnabled ON McpServers(IsEnabled);");
             Execute("CREATE INDEX IF NOT EXISTS IX_SystemSettings_Group ON SystemSettings([Group]);");
             Execute("CREATE INDEX IF NOT EXISTS IX_SystemSettings_SortOrder ON SystemSettings(SortOrder);");
+
+            // ChatMessageAssets 索引
+            Execute("CREATE INDEX IF NOT EXISTS IX_ChatMessageAssets_SessionId ON ChatMessageAssets(SessionId);");
+            Execute("CREATE INDEX IF NOT EXISTS IX_ChatMessageAssets_MessageId ON ChatMessageAssets(MessageId);");
+            Execute("CREATE INDEX IF NOT EXISTS IX_ChatMessageAssets_Session_Role ON ChatMessageAssets(SessionId, Role);");
         }
 
         /// <summary>

@@ -113,6 +113,7 @@ public partial class SystemSettingsPage : UserControl
                 Background = (IBrush)this.FindResource("Surface0Brush")!,
                 Foreground = (IBrush)this.FindResource("TextBrush")!,
             },
+            "model" => BuildModelComboBox(entity.Value),
             _ => new TextBox
             {
                 Text = entity.Value,
@@ -140,6 +141,33 @@ public partial class SystemSettingsPage : UserControl
         };
     }
 
+    private ComboBox BuildModelComboBox(string currentValue)
+    {
+        var modelService = App.Services.GetRequiredService<AiModelService>();
+        var providerService = App.Services.GetRequiredService<AiProviderService>();
+
+        var cbo = new ComboBox { MinWidth = 280 };
+        cbo.Classes.Add("form-combo");
+        cbo.Items.Add(new ComboBoxItem { Content = "（跟随当前模型）", Tag = "" });
+
+        var providers = providerService.GetAll();
+        int selectedIndex = 0, index = 1;
+
+        foreach (var p in providers)
+        {
+            foreach (var m in modelService.GetByProviderId(p.Id))
+            {
+                var displayName = string.IsNullOrWhiteSpace(m.DisplayName) ? m.Name : m.DisplayName;
+                cbo.Items.Add(new ComboBoxItem { Content = $"{p.Name} / {displayName}", Tag = m.Id });
+                if (m.Id == currentValue) selectedIndex = index;
+                index++;
+            }
+        }
+
+        cbo.SelectedIndex = selectedIndex;
+        return cbo;
+    }
+
     private async void OnSaveClick(object? sender, RoutedEventArgs e)
     {
         var updates = new List<(string Key, string Value)>();
@@ -149,6 +177,7 @@ public partial class SystemSettingsPage : UserControl
             {
                 ToggleSwitch ts => (ts.IsChecked ?? false).ToString().ToLowerInvariant(),
                 NumericUpDown nud => nud.Value?.ToString() ?? "0",
+                ComboBox cbo => cbo.SelectedItem is ComboBoxItem { Tag: string tag } ? tag : string.Empty,
                 TextBox tb => tb.Text ?? string.Empty,
                 _ => string.Empty,
             };

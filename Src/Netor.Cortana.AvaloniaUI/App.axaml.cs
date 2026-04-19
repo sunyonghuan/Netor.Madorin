@@ -155,7 +155,10 @@ public partial class App : Application
                 options.AddSerilog(new LoggerConfiguration()
                     .WriteTo.File(
                         Path.Combine(UserDataDirectory, "logs", ".log"),
-                        rollingInterval: RollingInterval.Day,
+                        rollingInterval: RollingInterval.Hour,
+                        fileSizeLimitBytes: 100 * 1024 * 1024,
+                        retainedFileCountLimit: 72,
+                        rollOnFileSizeLimit: true,
                         outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
                     .CreateLogger(), dispose: true);
             })
@@ -174,6 +177,7 @@ public partial class App : Application
             .AddTransient<AiProviderService>()
             .AddTransient<AiModelService>()
             .AddTransient<ChatMessageService>()
+            .AddTransient<ChatMessageAssetService>()
             .AddTransient<McpServerService>()
             // 跨层契约
             .AddSingleton<IAppPaths, AppPaths>()
@@ -258,6 +262,11 @@ public partial class App : Application
             group: "语音合成", displayName: "唤醒欢迎语",
             description: "AI 被唤醒时播放的欢迎语，修改后需要重启应用才能生效。",
             defaultValue: "主人，我在!", valueType: "string", sortOrder: 1);
+
+        sysSettings.EnsureSetting("Compaction.ModelId",
+            group: "对话历史", displayName: "缩略专用模型",
+            description: "用于会话压缩摘要的模型，留空则跟随当前对话模型。",
+            defaultValue: "", valueType: "model", sortOrder: 2);
 
         var savedWorkspace = sysSettings.GetValue("System.WorkspaceDirectory");
         var workspacePath = (!string.IsNullOrWhiteSpace(savedWorkspace) && Directory.Exists(savedWorkspace))

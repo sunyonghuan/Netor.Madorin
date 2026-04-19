@@ -9,9 +9,13 @@ namespace Netor.Cortana.AvaloniaUI.Views.Settings;
 public partial class AgentSettingsPage : UserControl
 {
     private AgentService AgentService => App.Services.GetRequiredService<AgentService>();
+    private AiProviderService ProviderService => App.Services.GetRequiredService<AiProviderService>();
+    private AiModelService ModelService => App.Services.GetRequiredService<AiModelService>();
     private IPublisher Publisher => App.Services.GetRequiredService<IPublisher>();
 
     private string? _editingId;
+    private List<AiProviderEntity> _providerList = [];
+    private List<AiModelEntity> _modelList = [];
 
     public AgentSettingsPage()
     {
@@ -156,6 +160,9 @@ public partial class AgentSettingsPage : UserControl
         ChkEnabled.IsChecked = true;
         ChkDefault.IsChecked = false;
         BtnDelete.IsVisible = false;
+
+        PopulateProviderComboBox(string.Empty);
+        PopulateModelComboBox(string.Empty, string.Empty);
     }
 
     // ──────── 添加/编辑 ────────
@@ -185,6 +192,9 @@ public partial class AgentSettingsPage : UserControl
         ChkDefault.IsChecked = entity.IsDefault;
         BtnDelete.IsVisible = true;
 
+        PopulateProviderComboBox(entity.DefaultProviderId);
+        PopulateModelComboBox(entity.DefaultProviderId, entity.DefaultModelId);
+
         ShowForm("编辑智能体");
     }
 
@@ -210,6 +220,8 @@ public partial class AgentSettingsPage : UserControl
             entity.MaxHistoryMessages = (int)(NudMaxHistory.Value ?? 0);
             entity.IsEnabled = ChkEnabled.IsChecked ?? true;
             entity.IsDefault = ChkDefault.IsChecked ?? false;
+            entity.DefaultProviderId = GetSelectedProviderId();
+            entity.DefaultModelId = GetSelectedModelId();
             AgentService.Update(entity);
             if (entity.IsDefault)
                 AgentService.SetDefault(entity.Id);
@@ -230,6 +242,8 @@ public partial class AgentSettingsPage : UserControl
                 MaxHistoryMessages = (int)(NudMaxHistory.Value ?? 0),
                 IsEnabled = ChkEnabled.IsChecked ?? true,
                 IsDefault = ChkDefault.IsChecked ?? false,
+                DefaultProviderId = GetSelectedProviderId(),
+                DefaultModelId = GetSelectedModelId(),
             };
             AgentService.Add(entity);
             if (entity.IsDefault)
@@ -248,5 +262,67 @@ public partial class AgentSettingsPage : UserControl
         AgentService.Delete(_editingId);
         Publisher.Publish(Events.OnAgentChange, new DataChangeArgs(_editingId, ChangeType.Delete));
         ShowList();
+    }
+
+    // ──────── 厂商/模型联动 ────────
+
+    private void PopulateProviderComboBox(string selectedId)
+    {
+        _providerList = ProviderService.GetAll();
+        CmbProvider.Items.Clear();
+        CmbProvider.Items.Add(new ComboBoxItem { Content = "（跟随会话）", Tag = "" });
+
+        var selectedIndex = 0;
+        for (var i = 0; i < _providerList.Count; i++)
+        {
+            CmbProvider.Items.Add(new ComboBoxItem { Content = _providerList[i].Name, Tag = _providerList[i].Id });
+            if (_providerList[i].Id == selectedId)
+                selectedIndex = i + 1;
+        }
+        CmbProvider.SelectedIndex = selectedIndex;
+    }
+
+    private void PopulateModelComboBox(string providerId, string selectedModelId)
+    {
+        CmbModel.Items.Clear();
+        CmbModel.Items.Add(new ComboBoxItem { Content = "（跟随会话）", Tag = "" });
+
+        if (string.IsNullOrEmpty(providerId))
+        {
+            _modelList = [];
+            CmbModel.SelectedIndex = 0;
+            return;
+        }
+
+        _modelList = ModelService.GetByProviderId(providerId);
+        var selectedIndex = 0;
+        for (var i = 0; i < _modelList.Count; i++)
+        {
+            var display = string.IsNullOrEmpty(_modelList[i].DisplayName) ? _modelList[i].Name : _modelList[i].DisplayName;
+            CmbModel.Items.Add(new ComboBoxItem { Content = display, Tag = _modelList[i].Id });
+            if (_modelList[i].Id == selectedModelId)
+                selectedIndex = i + 1;
+        }
+        CmbModel.SelectedIndex = selectedIndex;
+    }
+
+    private void OnProviderSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var providerId = GetSelectedProviderId();
+        PopulateModelComboBox(providerId, string.Empty);
+    }
+
+    private string GetSelectedProviderId()
+    {
+        if (CmbProvider.SelectedItem is ComboBoxItem item && item.Tag is string id)
+            return id;
+        return string.Empty;
+    }
+
+    private string GetSelectedModelId()
+    {
+        if (CmbModel.SelectedItem is ComboBoxItem item && item.Tag is string id)
+            return id;
+        return string.Empty;
     }
 }

@@ -150,7 +150,10 @@ namespace Netor.Cortana.Entitys.Services
                 UPDATE AiModels SET
                     UpdatedTimestamp = @UpdatedTimestamp, Name = @Name, DisplayName = @DisplayName,
                     Description = @Description, ContextLength = @ContextLength, ModelType = @ModelType,
-                    IsDefault = @IsDefault, IsEnabled = @IsEnabled, ProviderId = @ProviderId
+                    IsDefault = @IsDefault, IsEnabled = @IsEnabled, ProviderId = @ProviderId,
+                    InputCapabilities = @InputCapabilities, OutputCapabilities = @OutputCapabilities,
+                    InteractionCapabilities = @InteractionCapabilities, CapabilitySource = @CapabilitySource,
+                    CapabilityNotes = @CapabilityNotes
                 WHERE Id = @Id
                 """,
                 cmd => BindEntity(cmd, entity));
@@ -170,8 +173,8 @@ namespace Netor.Cortana.Entitys.Services
         }
 
         private const string InsertSql = """
-            INSERT INTO AiModels (Id, CreatedTimestamp, UpdatedTimestamp, Name, DisplayName, Description, ContextLength, ModelType, IsDefault, IsEnabled, ProviderId)
-            VALUES (@Id, @CreatedTimestamp, @UpdatedTimestamp, @Name, @DisplayName, @Description, @ContextLength, @ModelType, @IsDefault, @IsEnabled, @ProviderId)
+            INSERT INTO AiModels (Id, CreatedTimestamp, UpdatedTimestamp, Name, DisplayName, Description, ContextLength, ModelType, IsDefault, IsEnabled, ProviderId, InputCapabilities, OutputCapabilities, InteractionCapabilities, CapabilitySource, CapabilityNotes)
+            VALUES (@Id, @CreatedTimestamp, @UpdatedTimestamp, @Name, @DisplayName, @Description, @ContextLength, @ModelType, @IsDefault, @IsEnabled, @ProviderId, @InputCapabilities, @OutputCapabilities, @InteractionCapabilities, @CapabilitySource, @CapabilityNotes)
             """;
 
         private static AiModelEntity ReadEntity(SqliteDataReader r) => new()
@@ -186,7 +189,12 @@ namespace Netor.Cortana.Entitys.Services
             ModelType = r.GetString(r.GetOrdinal("ModelType")),
             IsDefault = r.GetBoolean(r.GetOrdinal("IsDefault")),
             IsEnabled = r.GetBoolean(r.GetOrdinal("IsEnabled")),
-            ProviderId = r.GetString(r.GetOrdinal("ProviderId"))
+            ProviderId = r.GetString(r.GetOrdinal("ProviderId")),
+            InputCapabilities = (InputCapabilities)r.GetInt32(r.GetOrdinal("InputCapabilities")),
+            OutputCapabilities = (OutputCapabilities)r.GetInt32(r.GetOrdinal("OutputCapabilities")),
+            InteractionCapabilities = (InteractionCapabilities)r.GetInt32(r.GetOrdinal("InteractionCapabilities")),
+            CapabilitySource = r.GetString(r.GetOrdinal("CapabilitySource")),
+            CapabilityNotes = r.GetString(r.GetOrdinal("CapabilityNotes")),
         };
 
         private static void BindEntity(SqliteCommand cmd, AiModelEntity e)
@@ -202,6 +210,11 @@ namespace Netor.Cortana.Entitys.Services
             cmd.Parameters.AddWithValue("@IsDefault", e.IsDefault);
             cmd.Parameters.AddWithValue("@IsEnabled", e.IsEnabled);
             cmd.Parameters.AddWithValue("@ProviderId", e.ProviderId);
+            cmd.Parameters.AddWithValue("@InputCapabilities", (int)e.InputCapabilities);
+            cmd.Parameters.AddWithValue("@OutputCapabilities", (int)e.OutputCapabilities);
+            cmd.Parameters.AddWithValue("@InteractionCapabilities", (int)e.InteractionCapabilities);
+            cmd.Parameters.AddWithValue("@CapabilitySource", e.CapabilitySource);
+            cmd.Parameters.AddWithValue("@CapabilityNotes", e.CapabilityNotes);
         }
     }
 }

@@ -51,13 +51,7 @@
 					<!-- 协议类型 -->
 					<StackPanel Spacing="4">
 						<TextBlock Text="协议类型" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
-						<ComboBox x:Name="CboType" Classes="form-combo" SelectedIndex="0">
-							<ComboBoxItem Content="OpenAI 兼容" Tag="OpenAI" />
-							<ComboBoxItem Content="Azure OpenAI" Tag="Azure" />
-							<ComboBoxItem Content="Ollama" Tag="Ollama" />
-							<ComboBoxItem Content="Anthropic" Tag="Anthropic" />
-							<ComboBoxItem Content="自定义" Tag="Custom" />
-						</ComboBox>
+						<ComboBox x:Name="CboType" Classes="form-combo" SelectedIndex="0" />
 					</StackPanel>
 
 					<!-- 描述 -->

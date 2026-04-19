@@ -203,7 +203,7 @@
 							<Grid ColumnDefinitions="*,Auto">
 								<TextBox x:Name="InputBox" Grid.Column="0"
 										 Classes="chat-input"
-										 Watermark="输入消息 (# 输入命令 Enter 快捷发送 Shift+Enter 换行) ..."
+										 PlaceholderText="输入消息 (# 引用文件  @ 调用智能体  Enter 发送  Shift+Enter 换行) ..."
 										 TextWrapping="Wrap"
 										 AcceptsReturn="True"
 										 MinHeight="80" MaxHeight="400" />
@@ -239,6 +239,25 @@
 									Padding="4" MinWidth="300" MaxHeight="260">
 								<ScrollViewer VerticalScrollBarVisibility="Auto">
 									<ItemsControl x:Name="FileList">
+										<ItemsControl.ItemsPanel>
+											<ItemsPanelTemplate>
+												<StackPanel Spacing="1" />
+											</ItemsPanelTemplate>
+										</ItemsControl.ItemsPanel>
+									</ItemsControl>
+								</ScrollViewer>
+							</Border>
+						</Popup>
+
+						<!-- @ 智能体补全弹出列表 -->
+						<Popup x:Name="AgentPopup" Placement="TopEdgeAlignedLeft"
+							   PlacementTarget="{Binding #InputBorder}"
+							   IsLightDismissEnabled="True">
+							<Border Background="#181818" CornerRadius="6"
+									BorderBrush="#3c3c3c" BorderThickness="1"
+									Padding="4" MinWidth="300" MaxHeight="260">
+								<ScrollViewer VerticalScrollBarVisibility="Auto">
+									<ItemsControl x:Name="AgentList">
 										<ItemsControl.ItemsPanel>
 											<ItemsPanelTemplate>
 												<StackPanel Spacing="1" />

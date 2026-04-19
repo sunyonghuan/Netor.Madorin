@@ -8,6 +8,7 @@ using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.EventHub;
 
+using System.Security.Cryptography;
 using System.Text;
 
 using AIChatMessage = Microsoft.Extensions.AI.ChatMessage;
@@ -27,6 +28,8 @@ public sealed class AiChatHostedService(
     AiProviderService providerService,
     AgentService agentService,
     AiModelService modelService,
+    ChatMessageAssetService assetService,
+    IAppPaths appPaths,
     IEnumerable<IAiOutputChannel> outputChannels,
     IPublisher publisher,
     ISubscriber subscriber,
@@ -188,7 +191,7 @@ public sealed class AiChatHostedService(
     /// 发送用户消息并启动流式响应。支持附件（图片/文件）的多模态消息。
     /// AI 流式回复将广播到所有活跃的输出通道。
     /// </summary>
-    public async Task SendMessageAsync(string userInput, CancellationToken cancellationToken, List<AttachmentInfo>? attachments = null)
+    public async Task SendMessageAsync(string userInput, CancellationToken cancellationToken, List<AttachmentInfo>? attachments = null, List<AgentMention>? mentions = null)
     {
         if (string.IsNullOrWhiteSpace(userInput) && (attachments is null || attachments.Count == 0)) return;
 
@@ -212,7 +215,17 @@ public sealed class AiChatHostedService(
         }
 
         // 确保 Agent 和 Session 已初始化
-        _agent ??= factory.Build(_currentAgent, _currentProvider, _currentModel);
+        if (mentions is { Count: > 0 })
+        {
+            // 有 @智能体 提及时，临时构建带子智能体工具的主 Agent
+            _agent = factory.BuildWithSubAgents(
+                _currentAgent, _currentProvider, _currentModel,
+                mentions, providerService, modelService);
+        }
+        else
+        {
+            _agent ??= factory.Build(_currentAgent, _currentProvider, _currentModel);
+        }
 
         if (_session is null)
         {
@@ -226,19 +239,27 @@ public sealed class AiChatHostedService(
         // 声明 fullResponse 在 try-catch 外，以便在 catch 块中访问
         var fullResponse = new StringBuilder();
 
+        // 预生成助手消息 ID，确保文本和资源落盘使用同一主键
+        var assistantMessageId = Guid.NewGuid().ToString("N");
+        var currentSessionId = _session?.StateBag.GetValue<string>("sessionid") ?? "";
+
         try
         {
             // 构建多模态消息内容
             var contents = new List<AIContent>();
+            var messageId = Guid.NewGuid().ToString("N");
 
             if (!string.IsNullOrWhiteSpace(userInput))
             {
                 contents.Add(new TextContent(userInput));
             }
 
-            // 读取附件文件并构建对应的 AIContent
+            // 读取附件文件并构建对应的 AIContent，同时导入到资源目录
             if (attachments is { Count: > 0 })
             {
+                var assetEntities = new List<ChatMessageAssetEntity>();
+                var sortOrder = 0;
+
                 foreach (var attachment in attachments)
                 {
                     try
@@ -249,24 +270,62 @@ public sealed class AiChatHostedService(
                             continue;
                         }
 
+                        var assetGroup = ResolveAssetGroup(attachment.MimeType);
+                        var relativePath = Path.Combine("histories", currentSessionId, assetGroup, messageId, attachment.Name);
+                        var absolutePath = Path.Combine(appPaths.WorkspaceResourcesDirectory, relativePath);
+
+                        // 确保目标目录存在并复制文件
+                        var targetDir = Path.GetDirectoryName(absolutePath)!;
+                        if (!Directory.Exists(targetDir))
+                            Directory.CreateDirectory(targetDir);
+
+                        File.Copy(attachment.Path, absolutePath, overwrite: true);
+
+                        // 计算文件元数据
+                        var fileInfo = new FileInfo(absolutePath);
+                        var sha256 = ComputeFileSha256(absolutePath);
+
+                        assetEntities.Add(new ChatMessageAssetEntity
+                        {
+                            SessionId = currentSessionId,
+                            MessageId = messageId,
+                            Role = "user",
+                            AssetGroup = assetGroup,
+                            AssetKind = "attachment",
+                            MimeType = attachment.MimeType,
+                            OriginalName = attachment.Name,
+                            RelativePath = relativePath,
+                            FileSizeBytes = fileInfo.Length,
+                            Sha256 = sha256,
+                            SortOrder = sortOrder++,
+                            SourceType = "local",
+                        });
+
                         if (IsImageMimeType(attachment.MimeType))
                         {
-                            var imageData = await DataContent.LoadFromAsync(attachment.Path, attachment.MimeType, cancellationToken: _streamCts.Token);
+                            var imageData = await DataContent.LoadFromAsync(absolutePath, attachment.MimeType, cancellationToken: _streamCts.Token);
                             contents.Add(imageData);
-                            contents.Add(new TextContent($" ![{attachment.Name}]({attachment.Path}) "));
+                            contents.Add(new TextContent($" ![{attachment.Name}]({absolutePath}) "));
                         }
                         else
                         {
-                            contents.Add(new TextContent($" [{attachment.Name}]({attachment.Path}) "));
+                            contents.Add(new TextContent($" [{attachment.Name}]({absolutePath}) "));
                         }
 
-                        logger.LogInformation("已加载附件：{Name}（{MimeType}）",
+                        logger.LogInformation("已导入附件到资源目录：{Name}（{MimeType}）",
                             attachment.Name, attachment.MimeType);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
                         logger.LogError(ex, "读取附件文件失败：{Path}", attachment.Path);
                     }
+                }
+
+                // 批量写入资源索引
+                if (assetEntities.Count > 0)
+                {
+                    try { assetService.BatchInsert(assetEntities); }
+                    catch (Exception ex) { logger.LogError(ex, "批量写入资源索引失败"); }
                 }
             }
 
@@ -282,10 +341,13 @@ public sealed class AiChatHostedService(
                 CreatedAt = DateTimeOffset.UtcNow,
                 Contents = contents,
                 AuthorName = "用户",
-                MessageId = Guid.NewGuid().ToString("N")
+                MessageId = messageId
             };
 
-            SaveUserMessage(msg.Text);
+            SaveUserMessage(msg.Text, msg.MessageId!);
+
+            // 将预生成的助手消息 ID 写入 StateBag，供 ChatHistoryDataProvider 使用
+            _session!.StateBag.SetValue("assistantmessageid", assistantMessageId);
 
             // 在 try-catch 外已声明 fullResponse
 
@@ -316,8 +378,6 @@ public sealed class AiChatHostedService(
                 //}
             }
 
-            var sessionId = _session?.StateBag.GetValue<string>("sessionid") ?? "";
-
             // 向所有活跃的输出通道广播完成
             foreach (var channel in outputChannels)
             {
@@ -325,7 +385,7 @@ public sealed class AiChatHostedService(
                 {
                     try
                     {
-                        await channel.OnDoneAsync(sessionId, _streamCts.Token);
+                        await channel.OnDoneAsync(currentSessionId, _streamCts.Token);
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
@@ -352,7 +412,8 @@ public sealed class AiChatHostedService(
                     fullResponse.ToString(),
                     _session,
                     _agent,
-                    modelName);
+                    modelName,
+                    assistantMessageId);
             }
         }
         catch (Exception ex)
@@ -377,6 +438,12 @@ public sealed class AiChatHostedService(
             _streamCts?.Dispose();
             _streamCts = null;
 
+            // 子智能体调用后恢复为普通主 Agent，下次消息重建
+            if (mentions is { Count: > 0 })
+            {
+                _agent = null;
+            }
+
             // 无条件通知：AI 推理已结束（无论成功/失败/取消）
             publisher.Publish(Events.OnAiCompleted, new VoiceSignalArgs());
         }
@@ -385,7 +452,7 @@ public sealed class AiChatHostedService(
     /// <summary>
     /// 保存用户消息到数据库。
     /// </summary>
-    private void SaveUserMessage(string content)
+    private void SaveUserMessage(string content, string messageId)
     {
         try
         {
@@ -397,7 +464,7 @@ public sealed class AiChatHostedService(
                 AuthorName = "用户",
                 CreatedAt = DateTimeOffset.UtcNow,
                 CreatedTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                Id = Guid.NewGuid().ToString("N"),
+                Id = messageId,
                 SessionId = sessionId,
                 UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
                 ModelName = _currentModel?.Name ?? string.Empty
@@ -555,6 +622,27 @@ public sealed class AiChatHostedService(
     /// </summary>
     private static bool IsImageMimeType(string mimeType) =>
         mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 根据 MIME 类型判断资源分组。
+    /// </summary>
+    private static string ResolveAssetGroup(string mimeType)
+    {
+        if (mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) return "images";
+        if (mimeType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)) return "audio";
+        if (mimeType.StartsWith("video/", StringComparison.OrdinalIgnoreCase)) return "video";
+        return "files";
+    }
+
+    /// <summary>
+    /// 计算文件的 SHA256 哈希（小写十六进制）。
+    /// </summary>
+    private static string ComputeFileSha256(string filePath)
+    {
+        using var stream = File.OpenRead(filePath);
+        var hash = SHA256.HashData(stream);
+        return Convert.ToHexStringLower(hash);
+    }
 
     // ──────────────────── IDisposable ────────────────────
 

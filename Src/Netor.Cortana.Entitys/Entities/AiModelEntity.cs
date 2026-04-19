@@ -47,6 +47,33 @@ namespace Netor.Cortana.Entitys
         public string ModelType { get; set; } = "chat";
 
         /// <summary>
+        /// 模型支持的输入能力（位标志）。默认仅 Text。
+        /// </summary>
+        public InputCapabilities InputCapabilities { get; set; } = InputCapabilities.Text;
+
+        /// <summary>
+        /// 模型支持的输出能力（位标志）。默认仅 Text。
+        /// </summary>
+        public OutputCapabilities OutputCapabilities { get; set; } = OutputCapabilities.Text;
+
+        /// <summary>
+        /// 模型支持的交互能力（位标志）。默认无。
+        /// </summary>
+        public InteractionCapabilities InteractionCapabilities { get; set; } = InteractionCapabilities.None;
+
+        /// <summary>
+        /// 能力来源：manual（手动配置）、probed（探测）、registry（注册表）。
+        /// </summary>
+        [MaxLength(16)]
+        public string CapabilitySource { get; set; } = "manual";
+
+        /// <summary>
+        /// 能力备注，可选的人类可读说明。
+        /// </summary>
+        [MaxLength(512)]
+        public string CapabilityNotes { get; set; } = string.Empty;
+
+        /// <summary>
         /// 是否为默认模型。启动新会话时若未指定模型，则自动使用标记为默认的模型。
         /// 同一时间只应有一个模型被标记为默认。
         /// </summary>

@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using Netor.Cortana.AvaloniaUI.Controls;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Extensions;
+using Netor.Cortana.Entitys.Services;
 using Netor.EventHub;
 
 namespace Netor.Cortana.AvaloniaUI.Views;
@@ -40,6 +41,12 @@ public partial class MainWindow : Window
 
     // 待发送的附件列表
     private readonly List<AttachmentInfo> _attachments = [];
+
+    // @智能体提及：名称 → AgentEntity 映射
+    private readonly Dictionary<string, AgentEntity> _agentMentions = new(StringComparer.OrdinalIgnoreCase);
+    private List<AgentEntity> _currentAgentSuggestions = [];
+    private int _agentPopupSelectedIndex = -1;
+    private int _currentAgentAtIndex = -1;
 
     // AI 对话进行中标志 & 取消令牌
     private bool _isSending;
@@ -187,10 +194,14 @@ public partial class MainWindow : Window
             return Task.FromResult(false);
         });
 
-        // AI 推理完成 → 恢复按钮为发送状态
+        // AI 推理完成 → 恢复按钮为发送状态 + 刷新侧边栏标题
         _subscriber.Subscribe<VoiceSignalArgs>(Events.OnAiCompleted, (_, _) =>
         {
-            Dispatcher.UIThread.Post(() => SetSendingState(false));
+            Dispatcher.UIThread.Post(() =>
+            {
+                SetSendingState(false);
+                RefreshCurrentSessionTitle();
+            });
             return Task.FromResult(false);
         });
 
@@ -319,6 +330,41 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// 从数据库重新读取当前会话标题，刷新顶部标签和历史列表中对应项。
+    /// </summary>
+    private void RefreshCurrentSessionTitle()
+    {
+        var sessionId = HistoryPanel.CurrentSessionId;
+        if (string.IsNullOrEmpty(sessionId)) return;
+
+        try
+        {
+            var db = App.Services.GetRequiredService<CortanaDbContext>();
+            var session = db.QueryFirstOrDefault(
+                "SELECT * FROM ChatSessions WHERE Id = @Id",
+                ReadSessionEntity,
+                cmd => cmd.Parameters.AddWithValue("@Id", sessionId));
+            if (session is null) return;
+
+            var title = string.IsNullOrWhiteSpace(session.Title) ? "新对话" : session.Title;
+            HistoryLabel.Text = title;
+
+            // 同步更新 Popup 历史列表中对应按钮的文本
+            foreach (var item in HistoryList.Items)
+            {
+                if (item is Button btn && btn.Tag is string id
+                    && string.Equals(id, sessionId, StringComparison.OrdinalIgnoreCase)
+                    && btn.Content is TextBlock tb)
+                {
+                    tb.Text = title;
+                    break;
+                }
+            }
+        }
+        catch { /* 非关键路径，静默忽略 */ }
+    }
+
+    /// <summary>
     /// 切换到指定会话：加载该会话消息并通知 AiChatService。
     /// </summary>
     private void SwitchToSession(string sessionId, string title)
@@ -340,13 +386,28 @@ public partial class MainWindow : Window
 
             HideWelcome();
 
+            // 加载消息关联的资源索引，按 MessageId 分组
+            var assetService = App.Services.GetRequiredService<ChatMessageAssetService>();
+            var allAssets = assetService.GetBySessionId(sessionId);
+            var assetsByMessage = new Dictionary<string, List<ChatMessageAssetEntity>>();
+            foreach (var asset in allAssets)
+            {
+                if (!assetsByMessage.TryGetValue(asset.MessageId, out var list))
+                {
+                    list = [];
+                    assetsByMessage[asset.MessageId] = list;
+                }
+                list.Add(asset);
+            }
+
             foreach (var msg in messages)
             {
                 if (string.IsNullOrWhiteSpace(msg.Content))
                     continue;
 
                 bool isUser = string.Equals(msg.Role, "user", StringComparison.OrdinalIgnoreCase);
-                AddMessageBubble(msg.Content, isUser);
+                assetsByMessage.TryGetValue(msg.Id, out var msgAssets);
+                AddMessageBubble(msg.Content, isUser, msgAssets);
             }
 
             // 加载完消息后强制滚动到底部（等待布局完成后执行）
@@ -866,33 +927,95 @@ public partial class MainWindow : Window
 
     private void OnInputKeyDown(object? sender, KeyEventArgs e)
     {
+        // AgentPopup 键盘导航
+        if (AgentPopup.IsOpen)
+        {
+            if (e.Key == Key.Down)
+            {
+                e.Handled = true;
+                if (_currentAgentSuggestions.Count > 0)
+                {
+                    _agentPopupSelectedIndex = (_agentPopupSelectedIndex + 1) % _currentAgentSuggestions.Count;
+                    HighlightAgentItem(_agentPopupSelectedIndex);
+                }
+                return;
+            }
+            if (e.Key == Key.Up)
+            {
+                e.Handled = true;
+                if (_currentAgentSuggestions.Count > 0)
+                {
+                    _agentPopupSelectedIndex = _agentPopupSelectedIndex <= 0
+                        ? _currentAgentSuggestions.Count - 1
+                        : _agentPopupSelectedIndex - 1;
+                    HighlightAgentItem(_agentPopupSelectedIndex);
+                }
+                return;
+            }
+            if (e.Key == Key.Enter || e.Key == Key.Tab)
+            {
+                e.Handled = true;
+                if (_agentPopupSelectedIndex >= 0 && _agentPopupSelectedIndex < _currentAgentSuggestions.Count)
+                {
+                    OnAgentItemSelected(_currentAgentSuggestions[_agentPopupSelectedIndex], _currentAgentAtIndex);
+                }
+                else if (_currentAgentSuggestions.Count > 0)
+                {
+                    OnAgentItemSelected(_currentAgentSuggestions[0], _currentAgentAtIndex);
+                }
+                return;
+            }
+            if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                AgentPopup.IsOpen = false;
+                return;
+            }
+        }
+
+        // FilePopup 键盘导航
+        if (FilePopup.IsOpen)
+        {
+            if (e.Key == Key.Escape)
+            {
+                e.Handled = true;
+                FilePopup.IsOpen = false;
+                return;
+            }
+        }
+
         if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None)
         {
             // 隧道阶段拦截：阻止 TextBox 插入换行，改为发送消息
             e.Handled = true;
             if (FilePopup.IsOpen)
                 FilePopup.IsOpen = false;
+            if (AgentPopup.IsOpen)
+                AgentPopup.IsOpen = false;
             SendMessage();
-        }
-        // Shift+Enter：不拦截，让 TextBox 自身处理插入换行
-        else if (e.Key == Key.Escape && FilePopup.IsOpen)
-        {
-            e.Handled = true;
-            FilePopup.IsOpen = false;
         }
     }
 
     // ──────── # 文件补全 ────────
 
     /// <summary>
-    /// 输入框文本变化时检测 # 触发文件补全。
+    /// 输入框文本变化时检测 # 触发文件补全、@ 触发智能体补全。
     /// </summary>
     private void OnInputTextChanged(object? sender, TextChangedEventArgs e)
     {
         var text = InputBox.Text ?? string.Empty;
         var caret = InputBox.CaretIndex;
 
-        // 向前查找最近的 # 号
+        // 尝试 @ 智能体补全
+        if (TryShowAgentPopup(text, caret))
+        {
+            FilePopup.IsOpen = false;
+            return;
+        }
+
+        AgentPopup.IsOpen = false;
+
+        // 尝试 # 文件补全
         var hashIndex = text.LastIndexOf('#', Math.Max(0, caret - 1));
         if (hashIndex < 0)
         {
@@ -1006,6 +1129,118 @@ public partial class MainWindow : Window
         _fileReferences[fileName] = fullPath;
     }
 
+    // ──────── @ 智能体补全 ────────
+
+    /// <summary>
+    /// 检测 @ 触发智能体补全弹窗。
+    /// </summary>
+    private bool TryShowAgentPopup(string text, int caret)
+    {
+        if (caret <= 0) return false;
+
+        var atIndex = text.LastIndexOf('@', Math.Max(0, caret - 1));
+        if (atIndex < 0) return false;
+
+        // @ 前面只能是行首或空白字符
+        if (atIndex > 0 && !char.IsWhiteSpace(text[atIndex - 1])) return false;
+
+        var afterAt = text.Substring(atIndex + 1, caret - atIndex - 1);
+
+        if (afterAt.Contains(' ') || afterAt.Contains('\n')) return false;
+
+        var agentService = App.Services.GetRequiredService<AgentService>();
+        var allAgents = agentService.GetAll();
+
+        var matches = string.IsNullOrEmpty(afterAt)
+            ? allAgents
+            : allAgents.Where(a => a.Name.Contains(afterAt, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        if (matches.Count == 0)
+        {
+            AgentPopup.IsOpen = false;
+            return false;
+        }
+
+        _currentAgentSuggestions = matches;
+        _currentAgentAtIndex = atIndex;
+        _agentPopupSelectedIndex = 0;
+        FillAgentList(matches, atIndex);
+        HighlightAgentItem(0);
+        AgentPopup.IsOpen = true;
+        return true;
+    }
+
+    /// <summary>
+    /// 填充智能体补全列表。
+    /// </summary>
+    private void FillAgentList(List<AgentEntity> agents, int atIndex)
+    {
+        AgentList.Items.Clear();
+
+        foreach (var agent in agents)
+        {
+            var sp = new StackPanel { Orientation = Avalonia.Layout.Orientation.Vertical, Spacing = 1 };
+            sp.Children.Add(new TextBlock
+            {
+                Text = agent.Name,
+                FontSize = 12,
+                Foreground = new SolidColorBrush(Color.Parse("#cccccc")),
+            });
+            if (!string.IsNullOrWhiteSpace(agent.Description))
+            {
+                sp.Children.Add(new TextBlock
+                {
+                    Text = agent.Description.Length > 60 ? agent.Description[..60] + "…" : agent.Description,
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Color.Parse("#6a6a6a")),
+                });
+            }
+
+            var btn = new Button
+            {
+                Classes = { "selector-item" },
+                Content = sp,
+                Tag = agent,
+            };
+            btn.Click += (_, _) => OnAgentItemSelected(agent, atIndex);
+            AgentList.Items.Add(btn);
+        }
+    }
+
+    /// <summary>
+    /// 选中智能体后：将 @关键字 替换为 @智能体名 并记录提及。
+    /// </summary>
+    private void OnAgentItemSelected(AgentEntity agent, int atIndex)
+    {
+        AgentPopup.IsOpen = false;
+
+        var text = InputBox.Text ?? string.Empty;
+        var caret = InputBox.CaretIndex;
+
+        var replacement = $"@{agent.Name} ";
+        var newText = string.Concat(text.AsSpan(0, atIndex), replacement, text.AsSpan(caret));
+        InputBox.Text = newText;
+        InputBox.CaretIndex = atIndex + replacement.Length;
+
+        _agentMentions[agent.Name] = agent;
+    }
+
+    /// <summary>
+    /// 高亮指定索引的智能体列表项。
+    /// </summary>
+    private void HighlightAgentItem(int index)
+    {
+        for (var i = 0; i < AgentList.Items.Count; i++)
+        {
+            if (AgentList.Items[i] is Button btn)
+            {
+                btn.Background = i == index
+                    ? new SolidColorBrush(Color.Parse("#2a2d2e"))
+                    : Brushes.Transparent;
+            }
+        }
+    }
+
     private void OnSendClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         SendMessage();
@@ -1105,6 +1340,24 @@ public partial class MainWindow : Window
             : null;
         ClearAttachments();
 
+        // 收集 @智能体 提及并解析位置
+        List<AgentMention>? mentions = null;
+        if (_agentMentions.Count > 0)
+        {
+            mentions = [];
+            foreach (var (name, agent) in _agentMentions)
+            {
+                var marker = $"@{name}";
+                var idx = resolvedText.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+                if (idx >= 0)
+                {
+                    mentions.Add(new AgentMention(agent, idx, idx + marker.Length));
+                }
+            }
+            _agentMentions.Clear();
+            if (mentions.Count == 0) mentions = null;
+        }
+
         // 通过 AiChatService 发送，AI 回复将通过 UiChatOutputChannel 渲染到界面
         var chatService = App.Services.GetRequiredService<AiChatHostedService>();
         var logger = App.Services.GetRequiredService<ILogger<MainWindow>>();
@@ -1117,7 +1370,7 @@ public partial class MainWindow : Window
         {
             try
             {
-                await chatService.SendMessageAsync(resolvedText, token, attachments);
+                await chatService.SendMessageAsync(resolvedText, token, attachments, mentions);
             }
             catch (OperationCanceledException)
             {
@@ -1189,7 +1442,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// 添加消息气泡到消息列表。
     /// </summary>
-    internal void AddMessageBubble(string content, bool isUser)
+    internal void AddMessageBubble(string content, bool isUser, IReadOnlyList<ChatMessageAssetEntity>? assets = null)
     {
         Dispatcher.UIThread.Post(() =>
         {
@@ -1224,6 +1477,26 @@ public partial class MainWindow : Window
                     }
             };
 
+            // ── 气泡内容：Markdown + 可选资源卡片 ──
+            Control bubbleContent;
+            var markdown = new MarkdownRenderer { Markdown = content };
+
+            var hasNonImageAssets = assets is { Count: > 0 } && assets.Any(a => a.AssetGroup != "images");
+            if (hasNonImageAssets)
+            {
+                var appPaths = App.Services.GetRequiredService<IAppPaths>();
+                var cardPanel = new ResourceCardPanel(assets!, appPaths.WorkspaceResourcesDirectory);
+                bubbleContent = new StackPanel
+                {
+                    Spacing = 0,
+                    Children = { markdown, cardPanel },
+                };
+            }
+            else
+            {
+                bubbleContent = markdown;
+            }
+
             // ── 消息气泡 ──
             var bubble = new Border
             {
@@ -1237,10 +1510,7 @@ public partial class MainWindow : Window
                 MinWidth = 120,
                 // 对面留出头像等宽空白(40+10=50)，确保气泡不会顶到边缘
                 Margin = isUser ? new Thickness(50, 0, 0, 0) : new Thickness(0, 0, 50, 0),
-                Child = new MarkdownRenderer
-                {
-                    Markdown = content,
-                }
+                Child = bubbleContent
             };
 
             // ── 消息行：头像 + 气泡（气泡占满剩余宽度） ──

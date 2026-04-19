@@ -69,7 +69,10 @@ internal static class Program
              options.AddSerilog(new LoggerConfiguration()
                  .WriteTo.File(
                      Path.Combine(App.WorkspaceDirectory, "logs", ".log"),
-                     rollingInterval: RollingInterval.Day,
+                     rollingInterval: RollingInterval.Hour,
+                     fileSizeLimitBytes: 100 * 1024 * 1024,
+                     retainedFileCountLimit: 72,
+                     rollOnFileSizeLimit: true,
                      outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
                  .CreateLogger(), dispose: true);
          })
@@ -88,6 +91,7 @@ internal static class Program
             .AddTransient<AiProviderService>()
             .AddTransient<AiModelService>()
             .AddTransient<ChatMessageService>()
+            .AddTransient<ChatMessageAssetService>()
             .AddTransient<McpServerService>()
             // UI 壳提供的跨层契约
             .AddSingleton<CortanaProvider>()

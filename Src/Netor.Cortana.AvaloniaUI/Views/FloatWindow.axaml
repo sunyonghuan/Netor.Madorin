@@ -7,7 +7,7 @@
         CanResize="False"
         ShowInTaskbar="False"
         Topmost="True"
-        SystemDecorations="None"
+        WindowDecorations="None"
         Background="Transparent"
         TransparencyLevelHint="Transparent"
         WindowStartupLocation="Manual">
