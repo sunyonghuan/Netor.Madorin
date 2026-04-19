@@ -504,7 +504,7 @@ public partial class MainWindow : Window
 
     private void FillAgentSelector(string? activeId)
     {
-        AgentList.Items.Clear();
+        AgentSelectorList.Items.Clear();
         foreach (var agent in _agents)
         {
             var btn = new Button
@@ -521,7 +521,7 @@ public partial class MainWindow : Window
                 },
             };
             btn.Click += OnAgentItemClick;
-            AgentList.Items.Add(btn);
+            AgentSelectorList.Items.Add(btn);
         }
     }
 
@@ -1609,7 +1609,7 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnAgentSelectorClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        AgentPopup.IsOpen = !AgentPopup.IsOpen;
+        AgentSelectorPopup.IsOpen = !AgentSelectorPopup.IsOpen;
     }
 
     /// <summary>
@@ -1619,7 +1619,7 @@ public partial class MainWindow : Window
     {
         if (sender is Button btn && btn.Tag is string agentId)
         {
-            AgentPopup.IsOpen = false;
+            AgentSelectorPopup.IsOpen = false;
 
             var agent = _agents.FirstOrDefault(a => a.Id == agentId);
             if (agent is null) return;

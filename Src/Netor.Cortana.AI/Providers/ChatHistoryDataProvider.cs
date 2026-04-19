@@ -1,5 +1,4 @@
 using Microsoft.Agents.AI;
-using Microsoft.Agents.AI.Compaction;
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.Agents.AI.Workflows.Execution;
 using Microsoft.Extensions.AI;
@@ -37,11 +36,6 @@ public sealed class ChatHistoryDataProvider(
     private const string IsNewSessionStateKey = "isnewsession";
 
     /// <summary>
-    /// 最大保留的历史消息条数，从数据库读取，回退默认值 15。
-    /// </summary>
-    private int MaxContentCount => systemSettings.GetValue("ChatHistory.MaxContentCount", 15);
-
-    /// <summary>
     /// 创建新的聊天会话记录，初始标题固定为“新会话”。
     /// </summary>
     public Task<string> CreateNewSessionAsync(AgentSession session, AIAgent agent)
@@ -63,7 +57,7 @@ public sealed class ChatHistoryDataProvider(
 
         var modelName = context.Session?.StateBag.GetValue<string>("modelid") ?? "Unknown";
         var assistantMessageId = context.Session?.StateBag.GetValue<string>("assistantmessageid");
-        var firstText = context.RequestMessages?.FirstOrDefault()?.Text ?? "";
+        var firstText = context.RequestMessages?.FirstOrDefault(m => m.Role == ChatRole.User)?.Text ?? "";
         var sessionId = await AddOrUpdateSessionAsync(context.Session, firstText.Truncate(32), context.Agent);
 
         // 确保 ResponseMessages 不为 null 再进行 Select
@@ -171,7 +165,7 @@ public sealed class ChatHistoryDataProvider(
 
     /// <summary>
     /// 返回指定会话的聊天历史记录，供 Agent 上下文使用。
-    /// 优先从压缩缓存读取，再补充缓存之后的新消息，避免重复 LLM 调用。
+    /// 优先加载压缩段落摘要 + 尾部原始消息，兼容老版 CompactedContext 缓存。
     /// </summary>
     protected override async ValueTask<IEnumerable<AIChatMessage>> ProvideChatHistoryAsync(InvokingContext context, CancellationToken cancellationToken = default)
     {
@@ -184,15 +178,57 @@ public sealed class ChatHistoryDataProvider(
 
         try
         {
-            // 1. 读取会话元数据（含压缩缓存）
+            var segmentService = services.GetRequiredService<CompactionSegmentService>();
+            var segments = segmentService.GetBySessionId(sessionId);
+            var result = new List<AIChatMessage>();
+
+            // ── 新系统：段落摘要 + 尾部原始消息 ──
+            if (segments.Count > 0)
+            {
+                var maxDisplay = systemSettings.GetValue("Compaction.MaxDisplaySegments", 15);
+
+                // 滑动窗口：只加载最近 N 个段落（旧段落不删除，只是不再加载）
+                var displaySegments = segments.Count > maxDisplay
+                    ? segments.Skip(segments.Count - maxDisplay).ToList()
+                    : segments;
+
+                foreach (var seg in displaySegments)
+                {
+                    result.Add(new AIChatMessage(ChatRole.System,
+                        $"[对话摘要 #{seg.SegmentIndex + 1}]\n{seg.Summary}"));
+                }
+
+                // 加载最后一个段落之后的所有原始消息
+                var lastSegment = segments[^1];
+                var tailOffset = lastSegment.EndMessageIndex + 1;
+
+                var tailMessages = dbContext.Query(
+                    "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC LIMIT -1 OFFSET @Offset",
+                    ChatMessageService.ReadEntity,
+                    cmd =>
+                    {
+                        cmd.Parameters.AddWithValue("@SessionId", sessionId);
+                        cmd.Parameters.AddWithValue("@Offset", tailOffset);
+                    });
+
+                result.AddRange(tailMessages.Select(t => new AIChatMessage
+                {
+                    Role = t.ToChatRole(),
+                    AuthorName = t.AuthorName,
+                    MessageId = t.Id,
+                    CreatedAt = t.CreatedAt?.ToLocalTime(),
+                    Contents = [new TextContent(t.Content)]
+                }));
+
+                return result;
+            }
+
+            // ── 老版兼容：CompactedContext 缓存（只读回退） ──
             var session = dbContext.QueryFirstOrDefault(
                 "SELECT * FROM ChatSessions WHERE Id = @Id",
                 ReadSessionEntity,
                 cmd => cmd.Parameters.AddWithValue("@Id", sessionId));
 
-            var result = new List<AIChatMessage>();
-
-            // 2. 如果存在压缩缓存，反序列化为消息列表
             if (session is not null && !string.IsNullOrEmpty(session.CompactedContext))
             {
                 var cached = JsonSerializer.Deserialize(session.CompactedContext, ChatHistoryJsonContext.Default.ListCompactedMessage);
@@ -206,7 +242,6 @@ public sealed class ChatHistoryDataProvider(
                     }));
                 }
 
-                // 3. 补充缓存检查点之后的新消息（OFFSET = CompactedAtCount）
                 var newer = dbContext.Query(
                     "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC LIMIT -1 OFFSET @Offset",
                     ChatMessageService.ReadEntity,
@@ -228,7 +263,7 @@ public sealed class ChatHistoryDataProvider(
                 return result;
             }
 
-            // 4. 无缓存时回退到读取全部消息
+            // ── 无任何压缩：加载全部消息 ──
             var messages = dbContext.Query(
                 "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC",
                 ChatMessageService.ReadEntity,
@@ -369,110 +404,102 @@ public sealed class ChatHistoryDataProvider(
         };
     }
 
+    /// <summary>
+    /// 段落式压缩：将超出尾部保留范围的最早一批未摘要消息生成不可变段落。
+    /// 每次最多生成一个段落，段落一旦创建永不修改，避免递归信息丢失。
+    /// </summary>
     private async Task CompactAndReplaceAsync(AIAgent agent, AgentSession session, string sessionId, CancellationToken cancellationToken)
     {
-        var modelName = session.StateBag.GetValue<string>("modelid") ?? "Unknown";
         var modelId = session.StateBag.GetValue<string>("modeldbid");
         if (string.IsNullOrEmpty(modelId)) return;
         var client = ResolveCompactionClient(agent);
         if (client is null) return;
         try
         {
-            // 1. 读取会话元数据（含压缩检查点）
-            var sessionEntity = dbContext.QueryFirstOrDefault(
-                "SELECT * FROM ChatSessions WHERE Id = @Id",
-                ReadSessionEntity,
-                cmd => cmd.Parameters.AddWithValue("@Id", sessionId));
-            if (sessionEntity is null) return;
+            var segmentSize = systemSettings.GetValue("Compaction.SegmentSize", 30);
+            var rawTailSize = systemSettings.GetValue("Compaction.RawTailSize", 20);
 
-            // 2. 加载该会话全部消息总数
-            var totalCount = dbContext.ExecuteScalar<long>(
+            // 1. 获取消息总数
+            var totalCount = (int)dbContext.ExecuteScalar<long>(
                 "SELECT COUNT(*) FROM ChatMessages WHERE SessionId = @SessionId",
                 cmd => cmd.Parameters.AddWithValue("@SessionId", sessionId));
 
-            // 3. 仅当新消息数量超过检查点一定阈值时才重新压缩
-            var newMessageCount = (int)totalCount - sessionEntity.CompactedAtCount;
-            if (newMessageCount < 10) return;
+            // 2. 获取已被段落覆盖的消息数量
+            var segmentService = services.GetRequiredService<CompactionSegmentService>();
+            var coveredCount = segmentService.GetMaxCoveredMessageIndex(sessionId) + 1;
 
-            // 4. 加载全部消息（按时间正序）
-            var allEntities = dbContext.Query(
-                "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC",
+            // 3. 计算未摘要消息数
+            var unsummarizedCount = totalCount - coveredCount;
+
+            // 4. 仅当未摘要消息超过 段落大小 + 尾部保留数 时触发
+            if (unsummarizedCount <= segmentSize + rawTailSize) return;
+
+            // 5. 加载最早的 SegmentSize 条未摘要消息
+            var messagesToSummarize = dbContext.Query(
+                "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC LIMIT @Limit OFFSET @Offset",
                 ChatMessageService.ReadEntity,
-                cmd => cmd.Parameters.AddWithValue("@SessionId", sessionId))
-                .ToList();
-
-            if (allEntities.Count < 10) return;
-
-            // 5. 转为 ChatMessage
-            var chatMessages = allEntities
-                .Select(t => new AIChatMessage
-                {
-                    Role = t.ToChatRole(),
-                    AuthorName = t.AuthorName,
-                    MessageId = t.Id,
-                    CreatedAt = t.CreatedAt?.ToLocalTime(),
-                    Contents = [new TextContent(t.Content)]
-                })
-                .ToList();
-
-            // 6. 执行压缩
-#pragma warning disable MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
-            var compactionStrategy = CreateCompactionStrategy(client, modelId);
-            var compacted = (await CompactionProvider.CompactAsync(
-                compactionStrategy!, chatMessages, cancellationToken: cancellationToken))
-                .ToList();
-#pragma warning restore MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
-
-            // 7. 如果没有压缩效果，跳过
-            if (compacted.Count >= allEntities.Count) return;
-
-            // 8. 将压缩结果序列化写入 CompactedContext，原始消息保持不动
-            var compactedMessages = compacted.Select(m => new CompactedMessage
-            {
-                Role = m.Role.Value,
-                AuthorName = m.AuthorName ?? "",
-                Content = m.Text ?? ""
-            }).ToList();
-
-            var json = JsonSerializer.Serialize(compactedMessages, ChatHistoryJsonContext.Default.ListCompactedMessage);
-
-            dbContext.Execute(
-                "UPDATE ChatSessions SET CompactedContext = @CompactedContext, CompactedAtCount = @CompactedAtCount WHERE Id = @Id",
                 cmd =>
                 {
-                    cmd.Parameters.AddWithValue("@CompactedContext", json);
-                    cmd.Parameters.AddWithValue("@CompactedAtCount", allEntities.Count);
-                    cmd.Parameters.AddWithValue("@Id", sessionId);
+                    cmd.Parameters.AddWithValue("@SessionId", sessionId);
+                    cmd.Parameters.AddWithValue("@Limit", segmentSize);
+                    cmd.Parameters.AddWithValue("@Offset", coveredCount);
                 });
 
-            logger.LogInformation("会话 {SessionId} 压缩缓存已更新：{Total} 条消息 → {Compacted} 条压缩上下文",
-                sessionId, allEntities.Count, compacted.Count);
+            if (messagesToSummarize.Count < segmentSize) return;
+
+            // 6. 构建摘要请求
+            var summaryPrompt = new List<AIChatMessage>
+            {
+                new(ChatRole.System, """
+                    你是对话摘要助手。请将以下对话片段压缩成简洁的摘要：
+                    - 完整保留代码块、命令、文件路径等技术细节
+                    - 保留工具调用的输入参数和返回结果
+                    - 保留用户的关键需求和 AI 的关键决策
+                    - 保留所有重要的数值、配置项、错误信息
+                    - 使用第三人称叙述，按时间顺序组织
+                    - 摘要长度控制在原文的 30% 以内
+                    """)
+            };
+
+            summaryPrompt.AddRange(messagesToSummarize.Select(t => new AIChatMessage
+            {
+                Role = t.ToChatRole(),
+                AuthorName = t.AuthorName,
+                Contents = [new TextContent(t.Content)]
+            }));
+
+            summaryPrompt.Add(new AIChatMessage(ChatRole.User, "请基于以上对话片段生成摘要，保留所有技术细节。"));
+
+            // 7. 调用 LLM 生成摘要
+            var completion = await client.GetResponseAsync(summaryPrompt, cancellationToken: cancellationToken);
+            var summaryText = completion?.Text;
+
+            if (string.IsNullOrWhiteSpace(summaryText)) return;
+
+            // 8. 创建不可变段落
+            var nextIndex = segmentService.GetMaxSegmentIndex(sessionId) + 1;
+            var segment = new CompactionSegmentEntity
+            {
+                SessionId = sessionId,
+                SegmentIndex = nextIndex,
+                StartMessageIndex = coveredCount,
+                EndMessageIndex = coveredCount + segmentSize - 1,
+                Summary = summaryText,
+                OriginalMessageCount = segmentSize,
+                ModelName = session.StateBag.GetValue<string>("modelid") ?? "Unknown"
+            };
+
+            segmentService.Add(segment);
+
+            logger.LogInformation(
+                "会话 {SessionId} 新增压缩段落 #{Index}：消息 [{Start}..{End}] → 摘要 {Len} 字符",
+                sessionId, nextIndex, coveredCount, coveredCount + segmentSize - 1, summaryText.Length);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "压缩会话 {SessionId} 历史记录时失败。", sessionId);
         }
     }
-
-#pragma warning disable MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续。
-
-    private PipelineCompactionStrategy CreateCompactionStrategy(IChatClient client, string modelid)
-
-    {
-        var model = modelService.GetById(modelid);
-        return new PipelineCompactionStrategy(
-            // 1. 最温和：压缩旧工具调用结果
-            new ToolResultCompactionStrategy(CompactionTriggers.MessagesExceed(20)),
-            // 2. 中等：LLM 摘要旧对话
-            new SummarizationCompactionStrategy(client, CompactionTriggers.TokensExceed((int)((model?.ContextLength ?? 128000) * 0.8))),
-            // 3. 较激进：只保留最近 N 轮
-            new SlidingWindowCompactionStrategy(CompactionTriggers.TurnsExceed(systemSettings.GetValue("ChatHistory.MaxContentCount", 150))),
-            // 4. 兜底：强制截断
-            new TruncationCompactionStrategy(CompactionTriggers.TokensExceed((int)((model?.ContextLength ?? 128000) * 0.9)))
-        );
-    }
-
-#pragma warning restore MAAI001 // 类型仅用于评估，在将来的更新中可能会被更改或删除。取消此诊断以继续
 
     /// <summary>
     /// 解析缩略专用模型。若 Compaction.ModelId 已配置且有效，则创建独立 IChatClient；否则回退到当前 Agent 的 ChatClient。

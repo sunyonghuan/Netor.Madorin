@@ -278,20 +278,25 @@ namespace Netor.Cortana.Entitys.Services
                     value: "主人，我在!", valueType: "string", sortOrder: 1),
 
                 // ── 对话历史 ──────────────────────────
-                Seed("ChatHistory.MaxContentLength",
-                    group: "对话历史", displayName: "最大上下文字符数",
-                    description: "发送给 AI 的历史消息最大总字符数，超出后截断最早消息。",
-                    value: "7500", valueType: "int", sortOrder: 0),
-
-                Seed("ChatHistory.MaxContentCount",
-                    group: "对话历史", displayName: "最大保留消息条数",
-                    description: "发送给 AI 的历史消息最大条数，超出后移除最早消息。",
-                    value: "15", valueType: "int", sortOrder: 1),
-
                 Seed("Compaction.ModelId",
                     group: "对话历史", displayName: "缩略专用模型",
                     description: "用于会话压缩摘要的模型，留空则跟随当前对话模型。",
-                    value: "", valueType: "model", sortOrder: 2),
+                    value: "", valueType: "model", sortOrder: 0),
+
+                Seed("Compaction.SegmentSize",
+                    group: "对话历史", displayName: "压缩段落大小",
+                    description: "每多少条消息生成一个压缩摘要段落（建议 20-50）。",
+                    value: "30", valueType: "int", sortOrder: 1),
+
+                Seed("Compaction.RawTailSize",
+                    group: "对话历史", displayName: "尾部原始消息数",
+                    description: "保留最近多少条原始消息不压缩，确保 AI 看到完整的近期对话细节。",
+                    value: "20", valueType: "int", sortOrder: 2),
+
+                Seed("Compaction.MaxDisplaySegments",
+                    group: "对话历史", displayName: "最大显示段落数",
+                    description: "加载历史时最多携带多少个摘要段落，超出的旧段落不再加载（但不删除）。",
+                    value: "15", valueType: "int", sortOrder: 3),
 
                 // ── 网络 ──────────────────────────────
                 Seed("WebSocket.Port",
@@ -338,6 +343,16 @@ namespace Netor.Cortana.Entitys.Services
             entity.UpdatedTimestamp = now;
 
             _db.Execute(InsertSql, cmd => BindEntity(cmd, entity));
+        }
+
+        /// <summary>
+        /// 删除指定键的设置项（用于版本升级时移除废弃配置）。
+        /// </summary>
+        public void DeleteSetting(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key)) return;
+            _db.Execute("DELETE FROM SystemSettings WHERE Id = @Id",
+                cmd => cmd.Parameters.AddWithValue("@Id", key));
         }
 
         private static SystemSettingsEntity Seed(

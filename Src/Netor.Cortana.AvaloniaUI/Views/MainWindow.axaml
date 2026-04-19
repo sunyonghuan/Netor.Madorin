@@ -326,14 +326,14 @@
 										 Background="{DynamicResource Surface1Brush}" />
 						</StackPanel>
 						<!-- 选择器弹出面板：智能体 -->
-						<Popup x:Name="AgentPopup" Placement="TopEdgeAlignedLeft"
+						<Popup x:Name="AgentSelectorPopup" Placement="TopEdgeAlignedLeft"
 							   PlacementTarget="{Binding #AgentSelectorBtn}"
 							   IsLightDismissEnabled="True">
 							<Border Background="#181818" CornerRadius="6"
 									BorderBrush="#3c3c3c" BorderThickness="1"
 									Padding="4" MinWidth="200" MaxHeight="300">
 								<ScrollViewer VerticalScrollBarVisibility="Auto">
-									<ItemsControl x:Name="AgentList">
+									<ItemsControl x:Name="AgentSelectorList">
 										<ItemsControl.ItemsPanel>
 											<ItemsPanelTemplate>
 												<StackPanel Spacing="2" />

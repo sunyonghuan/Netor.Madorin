@@ -178,6 +178,7 @@ public partial class App : Application
             .AddTransient<AiModelService>()
             .AddTransient<ChatMessageService>()
             .AddTransient<ChatMessageAssetService>()
+            .AddTransient<CompactionSegmentService>()
             .AddTransient<McpServerService>()
             // 跨层契约
             .AddSingleton<IAppPaths, AppPaths>()
@@ -266,7 +267,26 @@ public partial class App : Application
         sysSettings.EnsureSetting("Compaction.ModelId",
             group: "对话历史", displayName: "缩略专用模型",
             description: "用于会话压缩摘要的模型，留空则跟随当前对话模型。",
-            defaultValue: "", valueType: "model", sortOrder: 2);
+            defaultValue: "", valueType: "model", sortOrder: 0);
+
+        sysSettings.EnsureSetting("Compaction.SegmentSize",
+            group: "对话历史", displayName: "压缩段落大小",
+            description: "每多少条消息生成一个压缩摘要段落（建议 20-50）。",
+            defaultValue: "30", valueType: "int", sortOrder: 1);
+
+        sysSettings.EnsureSetting("Compaction.RawTailSize",
+            group: "对话历史", displayName: "尾部原始消息数",
+            description: "保留最近多少条原始消息不压缩，确保 AI 看到完整的近期对话细节。",
+            defaultValue: "20", valueType: "int", sortOrder: 2);
+
+        sysSettings.EnsureSetting("Compaction.MaxDisplaySegments",
+            group: "对话历史", displayName: "最大显示段落数",
+            description: "加载历史时最多携带多少个摘要段落，超出的旧段落不再加载（但不删除）。",
+            defaultValue: "15", valueType: "int", sortOrder: 3);
+
+        // 版本迁移：移除已废弃的旧压缩配置项
+        sysSettings.DeleteSetting("ChatHistory.MaxContentLength");
+        sysSettings.DeleteSetting("ChatHistory.MaxContentCount");
 
         var savedWorkspace = sysSettings.GetValue("System.WorkspaceDirectory");
         var workspacePath = (!string.IsNullOrWhiteSpace(savedWorkspace) && Directory.Exists(savedWorkspace))

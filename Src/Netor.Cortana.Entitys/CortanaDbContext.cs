@@ -292,6 +292,21 @@ namespace Netor.Cortana.Entitys
                     Status TEXT NOT NULL DEFAULT 'active'
                 );
                 """);
+
+            Execute("""
+                CREATE TABLE IF NOT EXISTS CompactionSegments (
+                    Id TEXT PRIMARY KEY,
+                    CreatedTimestamp INTEGER NOT NULL,
+                    UpdatedTimestamp INTEGER NOT NULL,
+                    SessionId TEXT NOT NULL DEFAULT '',
+                    SegmentIndex INTEGER NOT NULL DEFAULT 0,
+                    StartMessageIndex INTEGER NOT NULL DEFAULT 0,
+                    EndMessageIndex INTEGER NOT NULL DEFAULT 0,
+                    Summary TEXT NOT NULL DEFAULT '',
+                    OriginalMessageCount INTEGER NOT NULL DEFAULT 0,
+                    ModelName TEXT NOT NULL DEFAULT ''
+                );
+                """);
         }
 
         /// <summary>
@@ -344,6 +359,10 @@ namespace Netor.Cortana.Entitys
             Execute("CREATE INDEX IF NOT EXISTS IX_ChatMessageAssets_SessionId ON ChatMessageAssets(SessionId);");
             Execute("CREATE INDEX IF NOT EXISTS IX_ChatMessageAssets_MessageId ON ChatMessageAssets(MessageId);");
             Execute("CREATE INDEX IF NOT EXISTS IX_ChatMessageAssets_Session_Role ON ChatMessageAssets(SessionId, Role);");
+
+            // CompactionSegments 索引
+            Execute("CREATE INDEX IF NOT EXISTS IX_CompactionSegments_SessionId ON CompactionSegments(SessionId);");
+            Execute("CREATE INDEX IF NOT EXISTS IX_CompactionSegments_Session_Index ON CompactionSegments(SessionId, SegmentIndex);");
         }
 
         /// <summary>
