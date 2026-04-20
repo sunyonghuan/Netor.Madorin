@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
+using Netor.EventHub;
 
 using System.Collections.Concurrent;
 using System.Net;
@@ -32,7 +33,8 @@ namespace Netor.Cortana.Networks;
 /// </remarks>
 public sealed class WebSocketServerService(
     ILogger<WebSocketServerService> logger,
-    SystemSettingsService settingsService) : IHostedService, IChatTransport, IDisposable
+    SystemSettingsService settingsService,
+    IPublisher publisher) : IHostedService, IChatTransport, IDisposable
 {
     private HttpListener? _listener;
     private CancellationTokenSource? _cts;
@@ -184,6 +186,10 @@ public sealed class WebSocketServerService(
                     continue;
                 }
 
+                var remoteEndPoint = httpContext.Request.RemoteEndPoint;
+                var remoteIp = remoteEndPoint?.Address.ToString() ?? "unknown";
+                var remotePort = remoteEndPoint?.Port ?? 0;
+
                 var wsContext = await httpContext.AcceptWebSocketAsync(null);
                 var clientId = Guid.NewGuid().ToString("N");
                 var socket = wsContext.WebSocket;
@@ -192,7 +198,14 @@ public sealed class WebSocketServerService(
                 _clientLocks.TryAdd(clientId, new SemaphoreSlim(1, 1));
 
                 OnClientConnected?.Invoke(clientId);
-                logger.LogInformation("WebSocket 客户端已连接：{ClientId}，当前连接数：{Count}", clientId, _clients.Count);
+                publisher.Publish(
+                    Events.OnWebSocketClientConnectionChanged,
+                    new WebSocketClientConnectionChangedArgs(clientId, remoteIp, remotePort, true));
+                logger.LogInformation(
+                    "WebSocket 客户端已连接：{ClientId}，远端：{RemoteEndpoint}，当前连接数：{Count}",
+                    clientId,
+                    remotePort > 0 ? $"{remoteIp}:{remotePort}" : remoteIp,
+                    _clients.Count);
 
                 // 将 clientId 发送给客户端，便于后续消息关联
                 var welcome = JsonSerializer.Serialize(new WsMessage { Type = "connected", ClientId = clientId }, WebSocketJsonContext.Default.WsMessage);
@@ -203,7 +216,7 @@ public sealed class WebSocketServerService(
                     endOfMessage: true,
                     cancellationToken);
 
-                _ = ReceiveMessagesAsync(clientId, socket, cancellationToken);
+                _ = ReceiveMessagesAsync(clientId, socket, remoteIp, remotePort, cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -219,7 +232,12 @@ public sealed class WebSocketServerService(
     /// <summary>
     /// 接收指定客户端的消息循环。
     /// </summary>
-    private async Task ReceiveMessagesAsync(string clientId, WebSocket socket, CancellationToken cancellationToken)
+    private async Task ReceiveMessagesAsync(
+        string clientId,
+        WebSocket socket,
+        string remoteIp,
+        int remotePort,
+        CancellationToken cancellationToken)
     {
         var buffer = new byte[4096];
 
@@ -254,7 +272,14 @@ public sealed class WebSocketServerService(
         {
             RemoveClient(clientId);
             OnClientDisconnected?.Invoke(clientId);
-            logger.LogInformation("WebSocket 客户端已断开：{ClientId}，剩余连接数：{Count}", clientId, _clients.Count);
+            publisher.Publish(
+                Events.OnWebSocketClientConnectionChanged,
+                new WebSocketClientConnectionChangedArgs(clientId, remoteIp, remotePort, false));
+            logger.LogInformation(
+                "WebSocket 客户端已断开：{ClientId}，远端：{RemoteEndpoint}，剩余连接数：{Count}",
+                clientId,
+                remotePort > 0 ? $"{remoteIp}:{remotePort}" : remoteIp,
+                _clients.Count);
         }
     }
 

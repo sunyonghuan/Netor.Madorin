@@ -5,6 +5,7 @@ using Avalonia.Platform.Storage;
 using Microsoft.Extensions.Hosting;
 
 using Netor.Cortana.AvaloniaUI.Views;
+using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.Cortana.Networks;
 using Netor.Cortana.Plugin;
@@ -115,6 +116,9 @@ public partial class App : Application
 
             // 初始化托盘图标
             InitializeTrayIcon(desktop);
+
+            // 订阅全局 UI 通知事件
+            SubscribeGlobalNotifications();
 
             // 启动后台服务
             desktop.Startup += (_, _) =>
@@ -352,6 +356,47 @@ public partial class App : Application
             desktop.MainWindow?.Show();
             desktop.MainWindow?.Activate();
         };
+    }
+
+    /// <summary>
+    /// 订阅需要由 App 统一协调显示的全局通知事件。
+    /// </summary>
+    private void SubscribeGlobalNotifications()
+    {
+        var subscriber = Services.GetRequiredService<ISubscriber>();
+        subscriber.Subscribe<WebSocketClientConnectionChangedArgs>(
+            Events.OnWebSocketClientConnectionChanged,
+            (_, args) =>
+            {
+                HandleWebSocketClientConnectionChanged(args);
+                return Task.FromResult(false);
+            });
+    }
+
+    /// <summary>
+    /// 处理 WebSocket 客户端连接/断开通知。
+    /// 主窗口可见时写入聊天界面；主窗口隐藏时额外弹出浮动气泡提示。
+    /// </summary>
+    private void HandleWebSocketClientConnectionChanged(WebSocketClientConnectionChangedArgs args)
+    {
+        var message = args.IsConnected
+            ? $"系统通知：客户端 {args.RemoteEndpoint} 已连接到助理。"
+            : $"系统通知：客户端 {args.RemoteEndpoint} 已断开与助理的连接。";
+
+        var bubbleText = args.IsConnected
+            ? $"客户端 {args.RemoteEndpoint} 已连接"
+            : $"客户端 {args.RemoteEndpoint} 已断开";
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            var mainWindow = Services.GetRequiredService<MainWindow>();
+            mainWindow.AddMessageBubble(message, isUser: false);
+
+            if (!mainWindow.IsVisible)
+            {
+                _bubbleWindow?.ShowSystemNotification(bubbleText, args.IsConnected);
+            }
+        });
     }
 
     /// <summary>

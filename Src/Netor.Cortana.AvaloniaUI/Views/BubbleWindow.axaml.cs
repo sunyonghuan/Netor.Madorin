@@ -26,6 +26,9 @@ public partial class BubbleWindow : Window
     /// <summary>气泡硬超时：兜底防止某次事件丢失导致气泡常驻。</summary>
     private static readonly TimeSpan HardTimeout = TimeSpan.FromSeconds(30);
 
+    /// <summary>系统通知在气泡上的停留时长。</summary>
+    private static readonly TimeSpan DismissAfterSystemNotification = TimeSpan.FromMilliseconds(2600);
+
     private FloatWindow? _anchorWindow;
     private IWindowController? _windowController;
 
@@ -278,6 +281,21 @@ public partial class BubbleWindow : Window
     {
         if (!IsVisible || _anchorWindow is null) return;
         PostToUI(RepositionAboveAnchor);
+    }
+
+    /// <summary>
+    /// 显示一条临时系统通知，用于主窗口隐藏时的连接状态提示。
+    /// </summary>
+    internal void ShowSystemNotification(string text, bool isConnected)
+    {
+        PostToUI(() =>
+        {
+            ShowBubble();
+            UpdateSubtitle(text);
+            StatusDot.Fill = new SolidColorBrush(
+                isConnected ? Color.FromRgb(82, 196, 26) : Color.FromRgb(255, 120, 117));
+            ScheduleDismiss(DismissAfterSystemNotification);
+        });
     }
 
     /// <summary>

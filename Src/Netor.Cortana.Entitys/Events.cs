@@ -67,6 +67,11 @@ public static class Events
     /// <summary>插件列表发生变化（加载/卸载/重载）。</summary>
     public static VoiceSignalEvent OnPluginsChanged = new("plugin.changed");
 
+    // ──────── 网络连接事件 ────────
+
+    /// <summary>WebSocket 客户端连接状态发生变化。</summary>
+    public static WebSocketClientConnectionChangedEvent OnWebSocketClientConnectionChanged = new("network.websocket.client.connection.changed");
+
     // ──────── UI 生命周期事件 ────────
 
     /// <summary>AI 推理开始。</summary>
@@ -115,6 +120,9 @@ public record WorkspaceChangedEvent(string Eventid) : EventID<WorkspaceChangedAr
 /// <summary>会话创建事件</summary>
 public record SessionCreatedEvent(string Eventid) : EventID<SessionCreatedArgs>(Eventid);
 
+/// <summary>WebSocket 客户端连接状态变更事件</summary>
+public record WebSocketClientConnectionChangedEvent(string Eventid) : EventID<WebSocketClientConnectionChangedArgs>(Eventid);
+
 // ──────── 事件参数类型 ────────
 
 /// <summary>
@@ -152,6 +160,22 @@ public record WorkspaceChangedArgs(string Path) : EventArgs;
 /// </summary>
 /// <param name="SessionId">新创建的会话ID</param>
 public record SessionCreatedArgs(string SessionId) : EventArgs;
+
+/// <summary>
+/// WebSocket 客户端连接状态变更事件参数
+/// </summary>
+/// <param name="ClientId">客户端 ID</param>
+/// <param name="RemoteIp">远端 IP 地址</param>
+/// <param name="RemotePort">远端端口</param>
+/// <param name="IsConnected">true 表示连接，false 表示断开</param>
+public record WebSocketClientConnectionChangedArgs(
+    string ClientId,
+    string RemoteIp,
+    int RemotePort,
+    bool IsConnected) : EventArgs
+{
+    public string RemoteEndpoint => RemotePort > 0 ? $"{RemoteIp}:{RemotePort}" : RemoteIp;
+}
 
 /// <summary>
 /// 模型变更类型
