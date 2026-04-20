@@ -52,6 +52,11 @@ public partial class ChatHistoryPanel : UserControl
             Dispatcher.UIThread.Post(Reload);
             return Task.FromResult(false);
         });
+        subscriber.Subscribe<SessionTitleUpdatedArgs>(Events.OnSessionTitleUpdated, (_, args) =>
+        {
+            Dispatcher.UIThread.Post(() => UpdateSessionTitle(args.SessionId, args.Title));
+            return Task.FromResult(false);
+        });
     }
 
     /// <summary>
@@ -127,19 +132,22 @@ public partial class ChatHistoryPanel : UserControl
         };
         checkBox.Click += OnItemCheckClick;
 
+        var titleBlock = new TextBlock
+        {
+            Text = title,
+            Foreground = new SolidColorBrush(Color.Parse("#cccccc")),
+            FontSize = 12,
+            TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
+        };
+        titleBlock.DoubleTapped += OnTitleDoubleTapped;
+
         var textPanel = new StackPanel
         {
             Spacing = 2,
             VerticalAlignment = VerticalAlignment.Center,
             Children =
             {
-                new TextBlock
-                {
-                    Text = title,
-                    Foreground = new SolidColorBrush(Color.Parse("#cccccc")),
-                    FontSize = 12,
-                    TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
-                },
+                titleBlock,
                 new TextBlock
                 {
                     Text = $"更新: {updatedTime:MM-dd HH:mm}  创建: {createdTime:MM-dd HH:mm}",
@@ -169,7 +177,145 @@ public partial class ChatHistoryPanel : UserControl
         return border;
     }
 
+    /// <summary>
+    /// 双击标题进入编辑模式。
+    /// </summary>
+    private void OnTitleDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is not TextBlock titleBlock) return;
+        var parent = titleBlock.Parent as StackPanel;
+        if (parent is null) return;
+
+        var editBox = new TextBox
+        {
+            Text = titleBlock.Text,
+            FontSize = 12,
+            Padding = new Avalonia.Thickness(2, 0),
+            MinHeight = 0,
+            Tag = titleBlock, // 保存原始 TextBlock 引用
+        };
+
+        editBox.KeyDown += OnTitleEditKeyDown;
+        editBox.LostFocus += OnTitleEditLostFocus;
+
+        var index = parent.Children.IndexOf(titleBlock);
+        parent.Children[index] = editBox;
+
+        editBox.Focus();
+        editBox.SelectAll();
+        e.Handled = true;
+    }
+
+    private void OnTitleEditKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox editBox) return;
+
+        if (e.Key == Key.Enter)
+        {
+            CommitTitleEdit(editBox);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CancelTitleEdit(editBox);
+            e.Handled = true;
+        }
+    }
+
+    private void OnTitleEditLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox editBox)
+            CommitTitleEdit(editBox);
+    }
+
+    private void CommitTitleEdit(TextBox editBox)
+    {
+        editBox.KeyDown -= OnTitleEditKeyDown;
+        editBox.LostFocus -= OnTitleEditLostFocus;
+
+        var originalBlock = editBox.Tag as TextBlock;
+        if (originalBlock is null) return;
+
+        var parent = editBox.Parent as StackPanel;
+        if (parent is null) return;
+
+        var newTitle = editBox.Text?.Trim();
+        if (string.IsNullOrWhiteSpace(newTitle))
+            newTitle = originalBlock.Text; // 空输入则还原
+
+        originalBlock.Text = newTitle;
+        var index = parent.Children.IndexOf(editBox);
+        parent.Children[index] = originalBlock;
+
+        // 查找所属 sessionId 并更新数据库
+        var border = parent.Parent is Grid grid ? grid.Parent as Border : null;
+        if (border?.Tag is string sessionId && newTitle != null)
+        {
+            var session = _loadedSessions.Find(s => s.Id == sessionId);
+            if (session is not null)
+                session.Title = newTitle;
+
+            try
+            {
+                var db = App.Services.GetRequiredService<CortanaDbContext>();
+                db.Execute(
+                    "UPDATE ChatSessions SET Title = @Title, UpdatedTimestamp = @Updated WHERE Id = @Id",
+                    cmd =>
+                    {
+                        cmd.Parameters.AddWithValue("@Title", newTitle);
+                        cmd.Parameters.AddWithValue("@Updated", DateTimeOffset.Now.ToUnixTimeMilliseconds());
+                        cmd.Parameters.AddWithValue("@Id", sessionId);
+                    });
+
+                var publisher = App.Services.GetRequiredService<IPublisher>();
+                publisher.Publish(Events.OnSessionTitleUpdated, new SessionTitleUpdatedArgs(sessionId, newTitle));
+            }
+            catch (Exception ex)
+            {
+                var logger = App.Services.GetRequiredService<ILogger<ChatHistoryPanel>>();
+                logger.LogError(ex, "修改会话标题失败");
+            }
+        }
+    }
+
+    private void CancelTitleEdit(TextBox editBox)
+    {
+        editBox.KeyDown -= OnTitleEditKeyDown;
+        editBox.LostFocus -= OnTitleEditLostFocus;
+
+        var originalBlock = editBox.Tag as TextBlock;
+        if (originalBlock is null) return;
+
+        var parent = editBox.Parent as StackPanel;
+        if (parent is null) return;
+
+        var index = parent.Children.IndexOf(editBox);
+        parent.Children[index] = originalBlock;
+    }
+
     // ──────── 事件处理 ────────
+
+    /// <summary>
+    /// 更新指定会话在列表中的标题文本。
+    /// </summary>
+    private void UpdateSessionTitle(string sessionId, string newTitle)
+    {
+        var session = _loadedSessions.Find(s => s.Id == sessionId);
+        if (session is not null)
+            session.Title = newTitle;
+
+        foreach (var item in HistoryItems.Items)
+        {
+            if (item is Border border && border.Tag is string id
+                && string.Equals(id, sessionId, StringComparison.OrdinalIgnoreCase))
+            {
+                // 第一个 TextBlock 是标题
+                if (border.Child is Grid grid && grid.Children[1] is StackPanel sp && sp.Children[0] is TextBlock tb)
+                    tb.Text = newTitle;
+                break;
+            }
+        }
+    }
 
     private void OnItemPressed(object? sender, PointerPressedEventArgs e)
     {

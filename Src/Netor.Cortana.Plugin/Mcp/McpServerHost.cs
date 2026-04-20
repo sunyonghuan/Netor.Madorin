@@ -24,14 +24,9 @@ public sealed class McpServerHost : IAsyncDisposable
     private bool _disposed;
 
     /// <summary>
-    /// 重连退避间隔（毫秒）。依次为 3s、6s、15s、30s、60s。
+    /// 重连退避间隔（秒）。依次为 10s、20s、30s、60s，之后固定 60s 循环。
     /// </summary>
-    private static readonly int[] ReconnectDelaysMs = [3_000, 6_000, 15_000, 30_000, 60_000];
-
-    /// <summary>
-    /// 最大自动重连次数。超过后放弃，标记为 Disconnected。
-    /// </summary>
-    private const int MaxReconnectAttempts = 20;
+    private static readonly int[] ReconnectDelaysSec = [10, 20, 30, 60];
 
     /// <summary>
     /// MCP 服务器的数据库 ID。
@@ -82,15 +77,21 @@ public sealed class McpServerHost : IAsyncDisposable
     private const int ConnectTimeoutMs = 15_000;
 
     /// <summary>
-    /// 根据配置创建传输层并连接到 MCP Server，获取工具列表。
-    /// 包含 15 秒连接超时，防止目标不可达时无限等待或内部重连刷日志。
-    /// 连接成功后自动启动断线监听，断线时触发自动重连。
+    /// 外部调用：连接（或重连）MCP Server。
+    /// 会先停止正在进行的自动重连，然后执行一次连接。
     /// </summary>
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
-        // 取消可能正在进行的重连循环
         StopReconnecting();
+        await ConnectCoreAsync(cancellationToken);
+    }
 
+    /// <summary>
+    /// 核心连接逻辑：创建传输层、建立连接、获取工具列表、启动断线监听。
+    /// 不操作 _reconnectCts，供外部 ConnectAsync 和内部重连循环共用。
+    /// </summary>
+    private async Task ConnectCoreAsync(CancellationToken cancellationToken)
+    {
         IClientTransport? transport = null;
         try
         {
@@ -101,7 +102,6 @@ public sealed class McpServerHost : IAsyncDisposable
                 _ => throw new InvalidOperationException($"不支持的传输类型：{_config.TransportType}")
             };
 
-            // 限制连接超时，防止目标不可达时 SSE/HTTP 传输层无限重连
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(ConnectTimeoutMs);
 
@@ -119,7 +119,6 @@ public sealed class McpServerHost : IAsyncDisposable
                 "MCP Server [{Name}] 连接成功，获取到 {Count} 个工具",
                 _config.Name, _tools.Count);
 
-            // 连接成功后启动断线监听
             _ = MonitorConnectionAsync(_client);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -194,7 +193,8 @@ public sealed class McpServerHost : IAsyncDisposable
     }
 
     /// <summary>
-    /// 带指数退避的自动重连。最多尝试 <see cref="MaxReconnectAttempts"/> 次后放弃。
+    /// 无限重连，递增退避（10s → 20s → 30s → 60s 循环）。
+    /// 仅通过 <see cref="StopReconnecting"/> 或 Dispose 终止。
     /// </summary>
     private async Task ReconnectWithBackoffAsync()
     {
@@ -203,42 +203,35 @@ public sealed class McpServerHost : IAsyncDisposable
         _reconnectCts = new CancellationTokenSource();
         var ct = _reconnectCts.Token;
 
-        for (int attempt = 0; attempt < MaxReconnectAttempts && !ct.IsCancellationRequested; attempt++)
+        for (int attempt = 1; !ct.IsCancellationRequested; attempt++)
         {
-            var delayMs = ReconnectDelaysMs[Math.Min(attempt, ReconnectDelaysMs.Length - 1)];
+            var delaySec = ReconnectDelaysSec[Math.Min(attempt - 1, ReconnectDelaysSec.Length - 1)];
 
             _logger.LogInformation(
-                "MCP Server [{Name}] 将在 {Delay}s 后第 {Attempt}/{Max} 次重连",
-                _config.Name, delayMs / 1000, attempt + 1, MaxReconnectAttempts);
+                "MCP [{Name}] 第 {Attempt} 次重连，{Delay}s 后开始",
+                _config.Name, attempt, delaySec);
 
             try
             {
-                await Task.Delay(delayMs, ct);
-                await ConnectAsync(ct);
+                await Task.Delay(delaySec * 1000, ct);
+                await ConnectCoreAsync(ct);
 
-                _logger.LogInformation("MCP Server [{Name}] 重连成功", _config.Name);
+                _logger.LogInformation("MCP [{Name}] 重连成功", _config.Name);
                 ConnectionStateChanged?.Invoke(this);
-                return; // 重连成功，MonitorConnectionAsync 已在 ConnectAsync 内重新启动
+                return; // MonitorConnectionAsync 已在 ConnectCoreAsync 内启动
             }
             catch (OperationCanceledException)
             {
-                _logger.LogDebug("MCP Server [{Name}] 重连已取消", _config.Name);
+                _logger.LogDebug("MCP [{Name}] 重连已取消", _config.Name);
                 return;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex,
-                    "MCP Server [{Name}] 第 {Attempt}/{Max} 次重连失败",
-                    _config.Name, attempt + 1, MaxReconnectAttempts);
+                // 仅记录简要信息，不记录完整堆栈，避免日志膨胀
+                _logger.LogWarning(
+                    "MCP [{Name}] 第 {Attempt} 次重连失败：{Error}",
+                    _config.Name, attempt, ex.Message);
             }
-        }
-
-        if (!ct.IsCancellationRequested)
-        {
-            _logger.LogError(
-                "MCP Server [{Name}] 已达最大重连次数（{Max}），放弃自动重连。可在设置中手动重新连接",
-                _config.Name, MaxReconnectAttempts);
-            ConnectionStateChanged?.Invoke(this);
         }
     }
 
@@ -253,6 +246,15 @@ public sealed class McpServerHost : IAsyncDisposable
             _reconnectCts.Dispose();
             _reconnectCts = null;
         }
+    }
+
+    /// <summary>
+    /// 从外部启动自动重连循环（用于初始连接失败后触发重连）。
+    /// </summary>
+    public void StartReconnecting()
+    {
+        if (_disposed) return;
+        _ = ReconnectWithBackoffAsync();
     }
 
     /// <summary>

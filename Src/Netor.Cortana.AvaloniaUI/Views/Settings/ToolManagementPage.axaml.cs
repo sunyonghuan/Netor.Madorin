@@ -142,19 +142,9 @@ public partial class ToolManagementPage : UserControl
             Margin = new Thickness(24, 0, 0, 4),
         };
 
-        var toolNames = new TextBlock
-        {
-            Text = "工具: " + string.Join(", ", plugin.Tools.Select(t => t.Name)),
-            Foreground = (IBrush)this.FindResource("Overlay0Brush")!,
-            FontSize = 11,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(24, 0, 0, 0),
-        };
-
         var stack = new StackPanel { Spacing = 2 };
         stack.Children.Add(chk);
         if (!string.IsNullOrWhiteSpace(plugin.Description)) stack.Children.Add(desc);
-        if (plugin.Tools.Count > 0) stack.Children.Add(toolNames);
 
         var border = new Border
         {
@@ -197,19 +187,9 @@ public partial class ToolManagementPage : UserControl
             Margin = new Thickness(24, 0, 0, 4),
         };
 
-        var toolNames = new TextBlock
-        {
-            Text = "工具: " + string.Join(", ", mcp.Tools.Select(t => t.Name)),
-            Foreground = (IBrush)this.FindResource("Overlay0Brush")!,
-            FontSize = 11,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(24, 0, 0, 0),
-        };
-
         var stack = new StackPanel { Spacing = 2 };
         stack.Children.Add(chk);
         if (!string.IsNullOrWhiteSpace(mcp.Description)) stack.Children.Add(desc);
-        if (mcp.Tools.Count > 0) stack.Children.Add(toolNames);
 
         var border = new Border
         {

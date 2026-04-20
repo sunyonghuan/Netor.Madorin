@@ -75,7 +75,8 @@ public partial class SystemSettingsPage : UserControl
             Foreground = (IBrush)this.FindResource("TextBrush")!,
             FontSize = 13,
             VerticalAlignment = VerticalAlignment.Center,
-            Width = 180,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            TextTrimming = TextTrimming.CharacterEllipsis,
         };
 
         var hint = new TextBlock
@@ -113,7 +114,7 @@ public partial class SystemSettingsPage : UserControl
                 Background = (IBrush)this.FindResource("Surface0Brush")!,
                 Foreground = (IBrush)this.FindResource("TextBrush")!,
             },
-            "model" => BuildModelComboBox(entity.Value),
+            "model" => BuildModelSelector(entity.Value),
             _ => new TextBox
             {
                 Text = entity.Value,
@@ -125,8 +126,9 @@ public partial class SystemSettingsPage : UserControl
         _editors[entity.Id] = editor;
 
         var editorRow = new DockPanel { Margin = new Thickness(0, 4) };
-        editorRow.Children.Add(label);
+        DockPanel.SetDock(editor, Dock.Right);
         editorRow.Children.Add(editor);
+        editorRow.Children.Add(label);
 
         var stack = new StackPanel { Spacing = 2 };
         stack.Children.Add(editorRow);
@@ -141,31 +143,73 @@ public partial class SystemSettingsPage : UserControl
         };
     }
 
-    private ComboBox BuildModelComboBox(string currentValue)
+    private Control BuildModelSelector(string currentValue)
     {
         var modelService = App.Services.GetRequiredService<AiModelService>();
         var providerService = App.Services.GetRequiredService<AiProviderService>();
-
-        var cbo = new ComboBox { MinWidth = 280 };
-        cbo.Classes.Add("form-combo");
-        cbo.Items.Add(new ComboBoxItem { Content = "（跟随当前模型）", Tag = "" });
-
         var providers = providerService.GetAll();
-        int selectedIndex = 0, index = 1;
 
-        foreach (var p in providers)
+        var cboProvider = new ComboBox { MinWidth = 120, MaxWidth = 180 };
+        cboProvider.Classes.Add("form-combo");
+        var cboModel = new ComboBox { MinWidth = 140, MaxWidth = 220 };
+        cboModel.Classes.Add("form-combo");
+
+        // 填充厂商列表
+        cboProvider.Items.Add(new ComboBoxItem { Content = "（跟随当前模型）", Tag = "" });
+        var preselectedProviderIndex = 0;
+        for (var i = 0; i < providers.Count; i++)
         {
-            foreach (var m in modelService.GetByProviderId(p.Id))
+            cboProvider.Items.Add(new ComboBoxItem { Content = providers[i].Name, Tag = providers[i].Id });
+            // 根据当前值反推所属厂商
+            if (!string.IsNullOrEmpty(currentValue))
             {
-                var displayName = string.IsNullOrWhiteSpace(m.DisplayName) ? m.Name : m.DisplayName;
-                cbo.Items.Add(new ComboBoxItem { Content = $"{p.Name} / {displayName}", Tag = m.Id });
-                if (m.Id == currentValue) selectedIndex = index;
-                index++;
+                var models = modelService.GetByProviderId(providers[i].Id);
+                if (models.Any(m => m.Id == currentValue))
+                    preselectedProviderIndex = i + 1;
             }
         }
 
-        cbo.SelectedIndex = selectedIndex;
-        return cbo;
+        void FillModels(string providerId, string selectedModelId)
+        {
+            cboModel.Items.Clear();
+            cboModel.Items.Add(new ComboBoxItem { Content = "（跟随当前模型）", Tag = "" });
+            if (string.IsNullOrEmpty(providerId))
+            {
+                cboModel.SelectedIndex = 0;
+                return;
+            }
+
+            var models = modelService.GetByProviderId(providerId);
+            var selectedIndex = 0;
+            for (var i = 0; i < models.Count; i++)
+            {
+                var displayName = string.IsNullOrWhiteSpace(models[i].DisplayName) ? models[i].Name : models[i].DisplayName;
+                cboModel.Items.Add(new ComboBoxItem { Content = displayName, Tag = models[i].Id });
+                if (models[i].Id == selectedModelId) selectedIndex = i + 1;
+            }
+            cboModel.SelectedIndex = selectedIndex;
+        }
+
+        cboProvider.SelectionChanged += (_, _) =>
+        {
+            var pid = cboProvider.SelectedItem is ComboBoxItem { Tag: string tag } ? tag : string.Empty;
+            FillModels(pid, string.Empty);
+        };
+
+        cboProvider.SelectedIndex = preselectedProviderIndex;
+        var selectedProviderId = cboProvider.SelectedItem is ComboBoxItem { Tag: string t } ? t : string.Empty;
+        FillModels(selectedProviderId, currentValue);
+
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Children = { cboProvider, cboModel },
+        };
+
+        // 用 Tag 存放模型 ComboBox 的引用，保存时从这里取值
+        panel.Tag = cboModel;
+        return panel;
     }
 
     private async void OnSaveClick(object? sender, RoutedEventArgs e)
@@ -178,6 +222,8 @@ public partial class SystemSettingsPage : UserControl
                 ToggleSwitch ts => (ts.IsChecked ?? false).ToString().ToLowerInvariant(),
                 NumericUpDown nud => nud.Value?.ToString() ?? "0",
                 ComboBox cbo => cbo.SelectedItem is ComboBoxItem { Tag: string tag } ? tag : string.Empty,
+                StackPanel sp when sp.Tag is ComboBox modelCbo =>
+                    modelCbo.SelectedItem is ComboBoxItem { Tag: string modelId } ? modelId : string.Empty,
                 TextBox tb => tb.Text ?? string.Empty,
                 _ => string.Empty,
             };

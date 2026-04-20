@@ -72,6 +72,9 @@ public static class Events
     /// <summary>WebSocket 客户端连接状态发生变化。</summary>
     public static WebSocketClientConnectionChangedEvent OnWebSocketClientConnectionChanged = new("network.websocket.client.connection.changed");
 
+    /// <summary>MCP 服务器连接状态发生变化（断线/重连成功/重连中）。</summary>
+    public static McpConnectionStateChangedEvent OnMcpConnectionStateChanged = new("network.mcp.connection.changed");
+
     // ──────── UI 生命周期事件 ────────
 
     /// <summary>AI 推理开始。</summary>
@@ -92,6 +95,9 @@ public static class Events
 
     /// <summary>新会话已创建（已写入数据库）。</summary>
     public static SessionCreatedEvent OnSessionCreated = new("session.created");
+
+    /// <summary>会话标题已由 AI 生成更新。</summary>
+    public static SessionTitleUpdatedEvent OnSessionTitleUpdated = new("session.title.updated");
 }
 
 // ──────── AI 配置变更事件类型 ────────
@@ -120,8 +126,14 @@ public record WorkspaceChangedEvent(string Eventid) : EventID<WorkspaceChangedAr
 /// <summary>会话创建事件</summary>
 public record SessionCreatedEvent(string Eventid) : EventID<SessionCreatedArgs>(Eventid);
 
+/// <summary>会话标题更新事件</summary>
+public record SessionTitleUpdatedEvent(string Eventid) : EventID<SessionTitleUpdatedArgs>(Eventid);
+
 /// <summary>WebSocket 客户端连接状态变更事件</summary>
 public record WebSocketClientConnectionChangedEvent(string Eventid) : EventID<WebSocketClientConnectionChangedArgs>(Eventid);
+
+/// <summary>MCP 服务器连接状态变更事件</summary>
+public record McpConnectionStateChangedEvent(string Eventid) : EventID<McpConnectionStateChangedArgs>(Eventid);
 
 // ──────── 事件参数类型 ────────
 
@@ -162,6 +174,13 @@ public record WorkspaceChangedArgs(string Path) : EventArgs;
 public record SessionCreatedArgs(string SessionId) : EventArgs;
 
 /// <summary>
+/// 会话标题更新事件参数
+/// </summary>
+/// <param name="SessionId">会话ID</param>
+/// <param name="Title">AI 生成的新标题</param>
+public record SessionTitleUpdatedArgs(string SessionId, string Title) : EventArgs;
+
+/// <summary>
 /// WebSocket 客户端连接状态变更事件参数
 /// </summary>
 /// <param name="ClientId">客户端 ID</param>
@@ -176,6 +195,19 @@ public record WebSocketClientConnectionChangedArgs(
 {
     public string RemoteEndpoint => RemotePort > 0 ? $"{RemoteIp}:{RemotePort}" : RemoteIp;
 }
+
+/// <summary>
+/// MCP 服务器连接状态变更事件参数
+/// </summary>
+/// <param name="ServerName">MCP 服务器显示名称</param>
+/// <param name="ServerId">MCP 服务器 ID</param>
+/// <param name="IsConnected">true 表示已连接，false 表示断开</param>
+/// <param name="IsReconnecting">true 表示正在自动重连中</param>
+public record McpConnectionStateChangedArgs(
+    string ServerName,
+    string ServerId,
+    bool IsConnected,
+    bool IsReconnecting) : EventArgs;
 
 /// <summary>
 /// 模型变更类型

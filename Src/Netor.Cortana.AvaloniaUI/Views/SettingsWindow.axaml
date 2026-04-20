@@ -3,7 +3,7 @@
         x:Class="Netor.Cortana.AvaloniaUI.Views.SettingsWindow"
         x:CompileBindings="True"
         Title="设置"
-        Width="820" Height="620"
+        Width="820" Height="680"
         MinWidth="680" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BaseBrush}"
@@ -160,12 +160,42 @@
                     <ListBox x:Name="NavList" Classes="nav-list"
                              SelectionChanged="OnNavSelectionChanged"
                              SelectedIndex="0">
-                        <ListBoxItem Classes="nav-item" Tag="system">⚙  系统设置</ListBoxItem>
-                        <ListBoxItem Classes="nav-item" Tag="providers">🏢  AI 厂商</ListBoxItem>
-                        <ListBoxItem Classes="nav-item" Tag="models">🔮  模型管理</ListBoxItem>
-                        <ListBoxItem Classes="nav-item" Tag="agents">🧠  智能体</ListBoxItem>
-                        <ListBoxItem Classes="nav-item" Tag="mcp">🌐  MCP 服务</ListBoxItem>
-                        <ListBoxItem Classes="nav-item" Tag="tools">🔧  工具管理</ListBoxItem>
+                        <ListBoxItem Classes="nav-item" Tag="system">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image Source="/Assets/setting.png" Width="16" Height="16" />
+                                <TextBlock Text="系统设置" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem Classes="nav-item" Tag="providers">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image Source="/Assets/provider.png" Width="16" Height="16" />
+                                <TextBlock Text="AI 厂商" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem Classes="nav-item" Tag="models">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image Source="/Assets/model.png" Width="16" Height="16" />
+                                <TextBlock Text="模型管理" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem Classes="nav-item" Tag="agents">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image Source="/Assets/agent.png" Width="16" Height="16" />
+                                <TextBlock Text="智能体" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem Classes="nav-item" Tag="mcp">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image Source="/Assets/mcp.png" Width="16" Height="16" />
+                                <TextBlock Text="MCP 服务" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem Classes="nav-item" Tag="tools">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image Source="/Assets/tools.png" Width="16" Height="16" />
+                                <TextBlock Text="工具管理" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
                     </ListBox>
                 </DockPanel>
             </Border>

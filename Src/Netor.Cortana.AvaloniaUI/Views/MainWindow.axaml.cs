@@ -205,6 +205,20 @@ public partial class MainWindow : Window
             return Task.FromResult(false);
         });
 
+        // AI 生成会话标题完成 → 刷新标题
+        _subscriber.Subscribe<SessionTitleUpdatedArgs>(Events.OnSessionTitleUpdated, (_, args) =>
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (string.Equals(HistoryPanel.CurrentSessionId, args.SessionId, StringComparison.OrdinalIgnoreCase))
+                {
+                    HistoryLabel.Text = args.Title;
+                }
+                RefreshCurrentSessionTitle();
+            });
+            return Task.FromResult(false);
+        });
+
         // 语音识别最终结果 → 显示用户消息气泡
         _subscriber.Subscribe<VoiceTextArgs>(Events.OnSttFinal, (_, args) =>
         {
@@ -407,7 +421,8 @@ public partial class MainWindow : Window
 
                 bool isUser = string.Equals(msg.Role, "user", StringComparison.OrdinalIgnoreCase);
                 assetsByMessage.TryGetValue(msg.Id, out var msgAssets);
-                AddMessageBubble(msg.Content, isUser, msgAssets);
+                var name = !string.IsNullOrWhiteSpace(msg.AuthorName) ? msg.AuthorName : null;
+                AddMessageBubble(msg.Content, isUser, msgAssets, name, msg.CreatedAt);
             }
 
             // 加载完消息后强制滚动到底部（等待布局完成后执行）
@@ -665,11 +680,21 @@ public partial class MainWindow : Window
         ToolbarModelLabel.Text = displayName;
     }
 
-    private void FillModelSelector(string? activeId)
+    private void FillModelSelector(string? activeId, string? filter = null)
     {
         ModelList.Items.Clear();
         foreach (var model in _models)
         {
+            // 搜索过滤：匹配 DisplayName 或 Name
+            if (!string.IsNullOrWhiteSpace(filter))
+            {
+                var displayName = model.DisplayName ?? model.Name ?? string.Empty;
+                var name = model.Name ?? string.Empty;
+                if (!displayName.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                    && !name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                    continue;
+            }
+
             var btn = new Button
             {
                 Classes = { model.Id == activeId ? "selector-item-active" : "selector-item" },
@@ -686,6 +711,20 @@ public partial class MainWindow : Window
             btn.Click += OnModelItemClick;
             ModelList.Items.Add(btn);
         }
+    }
+
+    /// <summary>
+    /// 模型搜索框文本变更 → 动态过滤模型列表。
+    /// </summary>
+    private void OnModelSearchTextChanged(object? sender, Avalonia.Controls.TextChangedEventArgs e)
+    {
+        var keyword = ModelSearchBox.Text?.Trim();
+        var activeModel = _models.FirstOrDefault(m =>
+        {
+            var display = m.DisplayName ?? m.Name ?? string.Empty;
+            return display == (ToolbarModelLabel.Text ?? string.Empty);
+        });
+        FillModelSelector(activeModel?.Id, keyword);
     }
 
     private void RefreshAgentDisplay()
@@ -1442,7 +1481,11 @@ public partial class MainWindow : Window
     /// <summary>
     /// 添加消息气泡到消息列表。
     /// </summary>
-    internal void AddMessageBubble(string content, bool isUser, IReadOnlyList<ChatMessageAssetEntity>? assets = null)
+    /// <param name="authorName">作者显示名（null 时用户消息显示"我"，AI 消息显示当前智能体名）。</param>
+    /// <param name="timestamp">消息时间（null 时使用当前时间）。</param>
+    internal void AddMessageBubble(string content, bool isUser,
+        IReadOnlyList<ChatMessageAssetEntity>? assets = null,
+        string? authorName = null, DateTimeOffset? timestamp = null)
     {
         Dispatcher.UIThread.Post(() =>
         {
@@ -1476,6 +1519,49 @@ public partial class MainWindow : Window
                         Stretch = Stretch.UniformToFill,
                     }
             };
+
+            // ── 气泡头部：作者名 + 时间 ──
+            var displayName = authorName
+                ?? (isUser ? "我" : (ToolbarAgentLabel.Text ?? "助手"));
+            var displayTime = (timestamp ?? DateTimeOffset.Now).ToLocalTime().ToString("HH:mm");
+
+            var headerPanel = new DockPanel
+            {
+                Margin = isUser ? new Thickness(50, 0, 0, 2) : new Thickness(0, 0, 50, 2),
+            };
+            var nameBlock = new TextBlock
+            {
+                Text = displayName,
+                FontSize = 11,
+                FontWeight = FontWeight.Medium,
+                Foreground = (IBrush)this.FindResource("SubtextBrush")!,
+            };
+            var timeBlock = new TextBlock
+            {
+                Text = displayTime,
+                FontSize = 10,
+                Foreground = (IBrush)this.FindResource("SubtextBrush")!,
+                Opacity = 0.7,
+                Margin = new Thickness(8, 0, 0, 0),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            };
+
+            if (isUser)
+            {
+                nameBlock.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
+                timeBlock.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right;
+                timeBlock.SetValue(DockPanel.DockProperty, Avalonia.Controls.Dock.Right);
+                nameBlock.SetValue(DockPanel.DockProperty, Avalonia.Controls.Dock.Right);
+                headerPanel.Children.Add(timeBlock);
+                headerPanel.Children.Add(nameBlock);
+            }
+            else
+            {
+                nameBlock.SetValue(DockPanel.DockProperty, Avalonia.Controls.Dock.Left);
+                timeBlock.SetValue(DockPanel.DockProperty, Avalonia.Controls.Dock.Left);
+                headerPanel.Children.Add(nameBlock);
+                headerPanel.Children.Add(timeBlock);
+            }
 
             // ── 气泡内容：Markdown + 可选资源卡片 ──
             Control bubbleContent;
@@ -1513,7 +1599,11 @@ public partial class MainWindow : Window
                 Child = bubbleContent
             };
 
-            // ── 消息行：头像 + 气泡（气泡占满剩余宽度） ──
+            // ── 消息行：头像 + (头部信息 + 气泡)（气泡占满剩余宽度） ──
+            var bubbleColumn = new StackPanel { Spacing = 0 };
+            bubbleColumn.Children.Add(headerPanel);
+            bubbleColumn.Children.Add(bubble);
+
             var row = new DockPanel
             {
                 LastChildFill = true,
@@ -1524,12 +1614,12 @@ public partial class MainWindow : Window
             if (isUser)
             {
                 row.Children.Add(avatar);
-                row.Children.Add(bubble);
+                row.Children.Add(bubbleColumn);
             }
             else
             {
                 row.Children.Add(avatar);
-                row.Children.Add(bubble);
+                row.Children.Add(bubbleColumn);
             }
 
             MessageList.Items.Add(row);
@@ -1671,6 +1761,10 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnModelSelectorClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
+        if (!ModelPopup.IsOpen)
+        {
+            ModelSearchBox.Text = string.Empty;
+        }
         ModelPopup.IsOpen = !ModelPopup.IsOpen;
     }
 

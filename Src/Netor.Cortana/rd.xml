@@ -1,7 +1,0 @@
-<Directives>
-  <Application>
-    <Assembly Name="Cortana" Dynamic="Required All" />
-    <Assembly Name="WinFormedge" Dynamic="Required All" />
-    <Assembly Name="System.Text.Json" Dynamic="Required All" />
-  </Application>
-</Directives>

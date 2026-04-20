@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Netor.Cortana.AI.Drivers;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
+using Netor.EventHub;
 
 using OpenAI.Chat;
 
@@ -29,10 +30,20 @@ public sealed class ChatHistoryDataProvider(
     AiModelService modelService,
     IAppPaths appPaths,
     ILogger<ChatHistoryDataProvider> logger,
-    IServiceProvider services) : ChatHistoryProvider
+    IServiceProvider services) : ChatHistoryProvider, IDisposable
 
 {
     internal const string NewSessionTitle = "新会话";
+
+    /// <summary>
+    /// 缓存的压缩专用 ChatClient 实例，避免每次压缩都创建新连接。
+    /// </summary>
+    private IChatClient? _cachedCompactionClient;
+
+    /// <summary>
+    /// 缓存对应的 ModelId，用于检测配置变更时失效重建。
+    /// </summary>
+    private string? _cachedCompactionModelId;
     private const string IsNewSessionStateKey = "isnewsession";
 
     /// <summary>
@@ -100,6 +111,14 @@ public sealed class ChatHistoryDataProvider(
         // ---- 新增：压缩后回写 ----
         if (context.Session is null) return;
         await CompactAndReplaceAsync(context.Agent, context.Session, sessionId, cancellationToken);
+
+        // ---- 新会话首次对话：异步生成 AI 摘要标题 ----
+        if (context.Session.StateBag.GetValue<string>(IsNewSessionStateKey) == bool.TrueString)
+        {
+            context.Session.StateBag.SetValue(IsNewSessionStateKey, bool.FalseString);
+            var aiResponse = context.ResponseMessages?.FirstOrDefault(m => m.Role == ChatRole.Assistant)?.Text ?? "";
+            _ = GenerateAndUpdateTitleAsync(context.Agent, sessionId, firstText, aiResponse);
+        }
     }
 
     /// <summary>
@@ -232,35 +251,45 @@ public sealed class ChatHistoryDataProvider(
             if (session is not null && !string.IsNullOrEmpty(session.CompactedContext))
             {
                 var cached = JsonSerializer.Deserialize(session.CompactedContext, ChatHistoryJsonContext.Default.ListCompactedMessage);
-                if (cached is not null)
+
+                // 检测摘要是否实际生成成功（防止 LLM 失败时仍标记已压缩导致数据丢失）
+                var hasSummaryFailed = cached is null
+                    || cached.Count == 0
+                    || cached.All(m => string.IsNullOrWhiteSpace(m.Content)
+                        || m.Content.Contains("[Summary unavailable]", StringComparison.OrdinalIgnoreCase));
+
+                if (!hasSummaryFailed)
                 {
-                    result.AddRange(cached.Select(m => new AIChatMessage
+                    result.AddRange(cached!.Select(m => new AIChatMessage
                     {
                         Role = new ChatRole(m.Role),
                         AuthorName = m.AuthorName,
                         Contents = [new TextContent(m.Content)]
                     }));
+
+                    var newer = dbContext.Query(
+                        "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC LIMIT -1 OFFSET @Offset",
+                        ChatMessageService.ReadEntity,
+                        cmd =>
+                        {
+                            cmd.Parameters.AddWithValue("@SessionId", sessionId);
+                            cmd.Parameters.AddWithValue("@Offset", session.CompactedAtCount);
+                        });
+
+                    result.AddRange(newer.Select(t => new AIChatMessage
+                    {
+                        Role = t.ToChatRole(),
+                        AuthorName = t.AuthorName,
+                        MessageId = t.Id,
+                        CreatedAt = t.CreatedAt?.ToLocalTime(),
+                        Contents = [new TextContent(t.Content)]
+                    }));
+
+                    return result;
                 }
 
-                var newer = dbContext.Query(
-                    "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC LIMIT -1 OFFSET @Offset",
-                    ChatMessageService.ReadEntity,
-                    cmd =>
-                    {
-                        cmd.Parameters.AddWithValue("@SessionId", sessionId);
-                        cmd.Parameters.AddWithValue("@Offset", session.CompactedAtCount);
-                    });
-
-                result.AddRange(newer.Select(t => new AIChatMessage
-                {
-                    Role = t.ToChatRole(),
-                    AuthorName = t.AuthorName,
-                    MessageId = t.Id,
-                    CreatedAt = t.CreatedAt?.ToLocalTime(),
-                    Contents = [new TextContent(t.Content)]
-                }));
-
-                return result;
+                // 摘要无效 → 跳过老版缓存，回退到加载全部消息
+                logger.LogWarning("会话 {SessionId} 的老版压缩摘要无效（Summary unavailable），回退到加载全部消息。", sessionId);
             }
 
             // ── 无任何压缩：加载全部消息 ──
@@ -405,6 +434,50 @@ public sealed class ChatHistoryDataProvider(
     }
 
     /// <summary>
+    /// 异步调用 AI 为新会话生成摘要标题，更新数据库后通过事件通知 UI。
+    /// </summary>
+    private async Task GenerateAndUpdateTitleAsync(AIAgent agent, string sessionId, string userMessage, string aiResponse)
+    {
+        try
+        {
+            var client = ResolveCompactionClient(agent);
+            if (client is null) return;
+
+            var prompt = new List<AIChatMessage>
+            {
+                new(ChatRole.System, "你是标题生成助手。根据用户问题和AI回复，提取关键词并总结成一个简短的对话标题。要求：不超过20个字，不要引号，不要标点，直接输出标题文本。"),
+                new(ChatRole.User, $"用户：{userMessage.Truncate(200)}\nAI：{aiResponse.Truncate(500)}")
+            };
+
+            var completion = await client.GetResponseAsync(prompt);
+            var title = completion?.Text?.Trim();
+
+            if (string.IsNullOrWhiteSpace(title)) return;
+
+            // 清理可能的引号和多余空白
+            title = title.Trim('"', '"', '"', '「', '」', '\'').Truncate(32);
+
+            dbContext.Execute(
+                "UPDATE ChatSessions SET Title = @Title, UpdatedTimestamp = @Updated WHERE Id = @Id",
+                cmd =>
+                {
+                    cmd.Parameters.AddWithValue("@Title", title);
+                    cmd.Parameters.AddWithValue("@Updated", DateTimeOffset.Now.ToUnixTimeMilliseconds());
+                    cmd.Parameters.AddWithValue("@Id", sessionId);
+                });
+
+            var publisher = services.GetRequiredService<IPublisher>();
+            publisher.Publish(Events.OnSessionTitleUpdated, new SessionTitleUpdatedArgs(sessionId, title));
+
+            logger.LogInformation("会话 {SessionId} 标题已由 AI 生成：{Title}", sessionId, title);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "为会话 {SessionId} 生成 AI 标题失败，保留原标题。", sessionId);
+        }
+    }
+
+    /// <summary>
     /// 段落式压缩：将超出尾部保留范围的最早一批未摘要消息生成不可变段落。
     /// 每次最多生成一个段落，段落一旦创建永不修改，避免递归信息丢失。
     /// </summary>
@@ -451,13 +524,27 @@ public sealed class ChatHistoryDataProvider(
             var summaryPrompt = new List<AIChatMessage>
             {
                 new(ChatRole.System, """
-                    你是对话摘要助手。请将以下对话片段压缩成简洁的摘要：
-                    - 完整保留代码块、命令、文件路径等技术细节
-                    - 保留工具调用的输入参数和返回结果
-                    - 保留用户的关键需求和 AI 的关键决策
-                    - 保留所有重要的数值、配置项、错误信息
-                    - 使用第三人称叙述，按时间顺序组织
-                    - 摘要长度控制在原文的 30% 以内
+                    你是对话摘要助手。请将以下对话片段压缩成结构化的摘要。
+                    
+                    ## 必须完整保留的内容
+                    - 代码块（包括完整代码、不要截断）、Shell 命令、SQL 语句
+                    - 文件路径、URL、API 端点
+                    - 工具调用的名称、输入参数和返回结果
+                    - 所有数值型数据：配置项的值、阈值、端口号、版本号
+                    - 错误信息和异常堆栈的关键行
+                    - 用户明确的决策和结论
+                    
+                    ## 可以精简的内容
+                    - 寒暄、确认、重复的问答
+                    - 冗余的解释和过渡语句
+                    - 已被后续修正覆盖的中间尝试（仅保留最终结果）
+                    
+                    ## 输出格式
+                    - 使用 Markdown 标题分隔不同话题
+                    - 代码块使用 ``` 围栏并标注语言
+                    - 关键决策使用 **粗体** 标注
+                    - 按时间顺序组织，使用第三人称叙述
+                    - 摘要长度应为原文的 20%~40%，宁多勿少，确保不丢失可操作信息
                     """)
             };
 
@@ -468,7 +555,7 @@ public sealed class ChatHistoryDataProvider(
                 Contents = [new TextContent(t.Content)]
             }));
 
-            summaryPrompt.Add(new AIChatMessage(ChatRole.User, "请基于以上对话片段生成摘要，保留所有技术细节。"));
+            summaryPrompt.Add(new AIChatMessage(ChatRole.User, "请基于以上对话片段生成摘要。务必保留所有代码、命令、文件路径和数值数据，不要遗漏任何可操作的技术细节。"));
 
             // 7. 调用 LLM 生成摘要
             var completion = await client.GetResponseAsync(summaryPrompt, cancellationToken: cancellationToken);
@@ -502,13 +589,26 @@ public sealed class ChatHistoryDataProvider(
     }
 
     /// <summary>
-    /// 解析缩略专用模型。若 Compaction.ModelId 已配置且有效，则创建独立 IChatClient；否则回退到当前 Agent 的 ChatClient。
+    /// 解析缩略专用模型。若 Compaction.ModelId 已配置且有效，则复用缓存的 IChatClient；否则回退到当前 Agent 的 ChatClient。
+    /// 当 ModelId 配置变更时自动释放旧实例并重建。
     /// </summary>
     private IChatClient? ResolveCompactionClient(AIAgent agent)
     {
         var compactionModelId = systemSettings.GetValue("Compaction.ModelId");
         if (!string.IsNullOrEmpty(compactionModelId))
         {
+            // 配置未变且缓存可用 → 直接复用
+            if (_cachedCompactionClient is not null
+                && string.Equals(_cachedCompactionModelId, compactionModelId, StringComparison.Ordinal))
+            {
+                return _cachedCompactionClient;
+            }
+
+            // 配置已变更 → 释放旧实例
+            _cachedCompactionClient?.Dispose();
+            _cachedCompactionClient = null;
+            _cachedCompactionModelId = null;
+
             var model = modelService.GetById(compactionModelId);
             if (model is not null)
             {
@@ -518,12 +618,33 @@ public sealed class ChatHistoryDataProvider(
                 {
                     var registry = services.GetRequiredService<AiProviderDriverRegistry>();
                     var driver = registry.Resolve(provider);
-                    return driver.CreateChatClient(provider, model);
+                    _cachedCompactionClient = driver.CreateChatClient(provider, model);
+                    _cachedCompactionModelId = compactionModelId;
+                    return _cachedCompactionClient;
                 }
+            }
+        }
+        else
+        {
+            // 配置已清空 → 释放缓存
+            if (_cachedCompactionClient is not null)
+            {
+                _cachedCompactionClient.Dispose();
+                _cachedCompactionClient = null;
+                _cachedCompactionModelId = null;
             }
         }
 
         return agent.GetService<IChatClient>();
+    }
+
+    /// <summary>
+    /// 释放缓存的压缩专用 ChatClient。
+    /// </summary>
+    public void Dispose()
+    {
+        _cachedCompactionClient?.Dispose();
+        _cachedCompactionClient = null;
     }
 }
 

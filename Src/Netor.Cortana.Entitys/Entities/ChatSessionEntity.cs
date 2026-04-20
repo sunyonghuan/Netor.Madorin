@@ -63,7 +63,8 @@ namespace Netor.Cortana.Entitys
         public long LastActiveTimestamp { get; set; }
 
         /// <summary>
-        /// 该会话累计消耗的总令牌数，用于统计和展示 API 用量。
+        /// 该会话历史累计消耗的总输入令牌数（所有 API 调用之和），用于统计和展示用量。
+        /// 注意：此值是累加值，不代表当前上下文窗口大小。压缩后实际发送的上下文远小于此值。
         /// </summary>
         public long TotalTokenCount { get; set; }
 

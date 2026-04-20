@@ -370,36 +370,40 @@ public sealed class PluginLoader : IDisposable
     }
 
     /// <summary>
-    /// 尝试连接单个 MCP 服务器，失败不抛出异常。
-    /// 订阅 ConnectionStateChanged 事件，断线/重连时自动刷新工具列表。
+    /// 尝试连接单个 MCP 服务器。连接失败时仍加入 _mcpHosts，由 host 内部自动重连。
     /// </summary>
     private async Task TryConnectMcpServerAsync(McpServerEntity config, CancellationToken cancellationToken)
     {
         var host = new McpServerHost(config, _loggerFactory);
         host.ConnectionStateChanged += OnMcpConnectionStateChanged;
+        _mcpHosts[config.Id] = host;
+
         try
         {
             await host.ConnectAsync(cancellationToken);
-            _mcpHosts[config.Id] = host;
             NotifyPluginsChanged();
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "MCP Server [{Name}] 连接失败，跳过", config.Name);
-            host.ConnectionStateChanged -= OnMcpConnectionStateChanged;
-            await host.DisposeAsync();
+            _logger.LogWarning("MCP [{Name}] 初始连接失败，将自动重连：{Error}", config.Name, ex.Message);
+            // host 保留在 _mcpHosts 中，内部将触发自动重连
+            host.StartReconnecting();
         }
     }
 
     /// <summary>
-    /// MCP 服务器连接状态变化回调：通知 UI 刷新工具列表。
+    /// MCP 服务器连接状态变化回调：发布事件通知 + 刷新工具列表。
     /// </summary>
     private void OnMcpConnectionStateChanged(McpServerHost host)
     {
         _logger.LogInformation(
-            "MCP Server [{Name}] 连接状态变化：{State}",
+            "MCP [{Name}] 状态变化：{State}",
             host.Name,
             host.IsConnected ? "已连接" : host.IsReconnecting ? "重连中" : "已断开");
+
+        _publisher.Publish(Events.OnMcpConnectionStateChanged,
+            new McpConnectionStateChangedArgs(host.Name, host.Id, host.IsConnected, host.IsReconnecting));
+
         NotifyPluginsChanged();
     }
 
@@ -422,11 +426,41 @@ public sealed class PluginLoader : IDisposable
     {
         if (_mcpHosts.TryRemove(serverId, out var host))
         {
-            _logger.LogInformation("正在断开 MCP Server [{Name}]", host.Name);
+            _logger.LogInformation("正在断开 MCP [{Name}]", host.Name);
             host.ConnectionStateChanged -= OnMcpConnectionStateChanged;
             await host.DisposeAsync();
             NotifyPluginsChanged();
         }
+    }
+
+    /// <summary>
+    /// 重新连接所有已启用的 MCP 服务器。先断开所有，再重新连接。
+    /// </summary>
+    public async Task ReconnectAllMcpAsync(McpServerService mcpService, CancellationToken cancellationToken = default)
+    {
+        await DisconnectAllMcpAsync();
+        await LoadMcpServersAsync(mcpService, cancellationToken);
+    }
+
+    /// <summary>
+    /// 断开所有 MCP 服务器连接。
+    /// </summary>
+    public async Task DisconnectAllMcpAsync()
+    {
+        var ids = _mcpHosts.Keys.ToList();
+        foreach (var id in ids)
+            await RemoveMcpServerAsync(id);
+    }
+
+    /// <summary>
+    /// 重新连接指定 ID 的 MCP 服务器。
+    /// </summary>
+    public async Task ReconnectMcpAsync(string serverId, McpServerService mcpService, CancellationToken cancellationToken = default)
+    {
+        await RemoveMcpServerAsync(serverId);
+        var config = mcpService.GetById(serverId);
+        if (config is not null && config.IsEnabled)
+            await TryConnectMcpServerAsync(config, cancellationToken);
     }
 
     // ──────── FileSystemWatcher 回调 ────────

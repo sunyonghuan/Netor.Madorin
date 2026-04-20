@@ -107,7 +107,7 @@ internal sealed class UiChatOutputChannel(
 
     /// <summary>
     /// 确保已创建 AI 回复气泡。首次收到 token 时创建。
-    /// 布局与 MainWindow.AddMessageBubble 保持一致：DockPanel(头像 + 气泡)。
+    /// 布局与 MainWindow.AddMessageBubble 保持一致：DockPanel(头像 + 头部信息 + 气泡)。
     /// </summary>
     private void EnsureBubbleCreated()
     {
@@ -119,6 +119,7 @@ internal sealed class UiChatOutputChannel(
 
         var aiBubbleBrush = (IBrush)mainWindow.FindResource("AiBubbleBrush")!;
         var aiBubbleBorderBrush = (IBrush)mainWindow.FindResource("AiBubbleBorderBrush")!;
+        var subtextBrush = (IBrush)mainWindow.FindResource("SubtextBrush")!;
 
         // ── AI 头像 ──
         var avatar = new Border
@@ -142,6 +143,36 @@ internal sealed class UiChatOutputChannel(
             }
         };
 
+        // ── 气泡头部：智能体名称 + 时间 ──
+        var agentLabel = mainWindow.FindControl<TextBlock>("ToolbarAgentLabel");
+        var displayName = agentLabel?.Text ?? "助手";
+        var displayTime = DateTimeOffset.Now.ToLocalTime().ToString("HH:mm");
+
+        var headerPanel = new DockPanel
+        {
+            Margin = new Thickness(0, 0, 50, 2),
+        };
+        var nameBlock = new TextBlock
+        {
+            Text = displayName,
+            FontSize = 11,
+            FontWeight = FontWeight.Medium,
+            Foreground = subtextBrush,
+        };
+        var timeBlock = new TextBlock
+        {
+            Text = displayTime,
+            FontSize = 10,
+            Foreground = subtextBrush,
+            Opacity = 0.7,
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        nameBlock.SetValue(DockPanel.DockProperty, Dock.Left);
+        timeBlock.SetValue(DockPanel.DockProperty, Dock.Left);
+        headerPanel.Children.Add(nameBlock);
+        headerPanel.Children.Add(timeBlock);
+
         _currentPresenter = new MarkdownRenderer
         {
             Markdown = "",
@@ -160,11 +191,15 @@ internal sealed class UiChatOutputChannel(
             Child = _currentPresenter,
         };
 
-        // ── 消息行：头像(Left) + 气泡(Fill) ──
+        // ── 消息行：头像(Left) + (头部信息 + 气泡)(Fill) ──
+        var bubbleColumn = new StackPanel { Spacing = 0 };
+        bubbleColumn.Children.Add(headerPanel);
+        bubbleColumn.Children.Add(bubble);
+
         var row = new DockPanel { LastChildFill = true };
         avatar.SetValue(DockPanel.DockProperty, Dock.Left);
         row.Children.Add(avatar);
-        row.Children.Add(bubble);
+        row.Children.Add(bubbleColumn);
 
         messageList.Items.Add(row);
         ScrollToBottom();

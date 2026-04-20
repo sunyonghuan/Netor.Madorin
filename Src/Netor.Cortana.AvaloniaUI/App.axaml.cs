@@ -371,6 +371,14 @@ public partial class App : Application
                 HandleWebSocketClientConnectionChanged(args);
                 return Task.FromResult(false);
             });
+
+        subscriber.Subscribe<McpConnectionStateChangedArgs>(
+            Events.OnMcpConnectionStateChanged,
+            (_, args) =>
+            {
+                HandleMcpConnectionStateChanged(args);
+                return Task.FromResult(false);
+            });
     }
 
     /// <summary>
@@ -386,6 +394,35 @@ public partial class App : Application
         var bubbleText = args.IsConnected
             ? $"客户端 {args.RemoteEndpoint} 已连接"
             : $"客户端 {args.RemoteEndpoint} 已断开";
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            var mainWindow = Services.GetRequiredService<MainWindow>();
+            mainWindow.AddMessageBubble(message, isUser: false);
+
+            if (!mainWindow.IsVisible)
+            {
+                _bubbleWindow?.ShowSystemNotification(bubbleText, args.IsConnected);
+            }
+        });
+    }
+
+    /// <summary>
+    /// 处理 MCP 服务器连接状态变更通知。
+    /// 断线时通知用户（主窗口可见写入聊天，否则弹浮动气泡）。
+    /// </summary>
+    private void HandleMcpConnectionStateChanged(McpConnectionStateChangedArgs args)
+    {
+        // 仅在断线和重连成功时通知，重连中不反复弹窗
+        if (args.IsReconnecting) return;
+
+        var message = args.IsConnected
+            ? $"系统通知：MCP 服务「{args.ServerName}」已恢复连接。"
+            : $"系统通知：MCP 服务「{args.ServerName}」连接已断开，正在自动重连…";
+
+        var bubbleText = args.IsConnected
+            ? $"MCP {args.ServerName} 已恢复"
+            : $"MCP {args.ServerName} 已断开";
 
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {

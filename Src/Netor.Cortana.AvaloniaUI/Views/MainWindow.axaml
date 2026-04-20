@@ -274,7 +274,7 @@
 							<Button x:Name="AttachButton" Classes="titlebar-btn" Padding="6,3"
 									ToolTip.Tip="添加附件" Click="OnAttachClick">
 								<StackPanel Orientation="Horizontal" Spacing="4">
-									<TextBlock Text="📎" FontSize="12" />
+									<Image Source="/Assets/attachment.png" Width="14" Height="14" />
 									<TextBlock Text="附件" Foreground="#a0a0a0" FontSize="12" />
 								</StackPanel>
 							</Button>
@@ -282,7 +282,7 @@
 							<Button x:Name="AgentSelectorBtn" Classes="titlebar-btn" Padding="6,3"
 									Click="OnAgentSelectorClick">
 								<StackPanel Orientation="Horizontal" Spacing="4">
-									<TextBlock Text="🧠" FontSize="12" />
+									<Image Source="/Assets/agent.png" Width="14" Height="14" />
 									<TextBlock x:Name="ToolbarAgentLabel" Text="智能体"
 											   Foreground="#a0a0a0" FontSize="12" />
 									<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9"
@@ -293,7 +293,7 @@
 							<Button x:Name="ProviderSelectorBtn" Classes="titlebar-btn" Padding="6,3"
 									Click="OnProviderSelectorClick">
 								<StackPanel Orientation="Horizontal" Spacing="4">
-									<TextBlock Text="🏢" FontSize="12" />
+									<Image Source="/Assets/provider.png" Width="14" Height="14" />
 									<TextBlock x:Name="ToolbarProviderLabel" Text="厂商"
 											   Foreground="#a0a0a0" FontSize="12" />
 									<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9"
@@ -304,7 +304,7 @@
 							<Button x:Name="ModelSelectorBtn" Classes="titlebar-btn" Padding="6,3"
 									Click="OnModelSelectorClick">
 								<StackPanel Orientation="Horizontal" Spacing="4">
-									<TextBlock Text="🔮" FontSize="12" />
+									<Image Source="/Assets/model.png" Width="14" Height="14" />
 									<TextBlock x:Name="ToolbarModelLabel" Text="模型"
 											   Foreground="#a0a0a0" FontSize="12" />
 									<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9"
@@ -369,16 +369,22 @@
 							   IsLightDismissEnabled="True">
 							<Border Background="#181818" CornerRadius="6"
 									BorderBrush="#3c3c3c" BorderThickness="1"
-									Padding="4" MinWidth="220" MaxHeight="300">
-								<ScrollViewer VerticalScrollBarVisibility="Auto">
-									<ItemsControl x:Name="ModelList">
-										<ItemsControl.ItemsPanel>
-											<ItemsPanelTemplate>
-												<StackPanel Spacing="2" />
-											</ItemsPanelTemplate>
-										</ItemsControl.ItemsPanel>
-									</ItemsControl>
-								</ScrollViewer>
+									Padding="4" MinWidth="220" MaxHeight="360">
+								<DockPanel>
+									<TextBox x:Name="ModelSearchBox" DockPanel.Dock="Top"
+											 PlaceholderText="搜索模型…" FontSize="12"
+											 Margin="4,2,4,4" Classes="form-input"
+											 TextChanged="OnModelSearchTextChanged" />
+									<ScrollViewer VerticalScrollBarVisibility="Auto">
+										<ItemsControl x:Name="ModelList">
+											<ItemsControl.ItemsPanel>
+												<ItemsPanelTemplate>
+													<StackPanel Spacing="2" />
+												</ItemsPanelTemplate>
+											</ItemsControl.ItemsPanel>
+										</ItemsControl>
+									</ScrollViewer>
+								</DockPanel>
 							</Border>
 						</Popup>
 					</StackPanel>

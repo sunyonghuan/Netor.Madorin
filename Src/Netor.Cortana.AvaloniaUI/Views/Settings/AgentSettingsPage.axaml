@@ -37,6 +37,23 @@
                              AcceptsReturn="True" TextWrapping="Wrap" Height="50" MaxLength="1024" />
                 </StackPanel>
 
+                <!-- 头像 -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="头像" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Border x:Name="AvatarPreview" Width="48" Height="48" CornerRadius="24"
+                                ClipToBounds="True" Background="{StaticResource Surface1Brush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <TextBlock x:Name="AvatarPlaceholder" Text="无" Foreground="{StaticResource SubtextBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" />
+                        </Border>
+                        <Button Classes="btn-secondary" Content="选择图片" Click="OnPickAvatarClick"
+                                VerticalAlignment="Center" />
+                        <Button Classes="btn-secondary" Content="清除" Click="OnClearAvatarClick"
+                                VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+
                 <!-- 默认厂商 -->
                 <StackPanel Spacing="4">
                     <TextBlock Text="默认 AI 厂商（空=跟随会话）" Foreground="{StaticResource SubtextBrush}" FontSize="12" />

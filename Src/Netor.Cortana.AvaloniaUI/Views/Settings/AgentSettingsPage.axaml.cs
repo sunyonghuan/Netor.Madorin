@@ -3,6 +3,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
 
 namespace Netor.Cortana.AvaloniaUI.Views.Settings;
 
@@ -14,6 +16,7 @@ public partial class AgentSettingsPage : UserControl
     private IPublisher Publisher => App.Services.GetRequiredService<IPublisher>();
 
     private string? _editingId;
+    private string _avatarPath = string.Empty;
     private List<AiProviderEntity> _providerList = [];
     private List<AiModelEntity> _modelList = [];
 
@@ -161,6 +164,9 @@ public partial class AgentSettingsPage : UserControl
         ChkDefault.IsChecked = false;
         BtnDelete.IsVisible = false;
 
+        _avatarPath = string.Empty;
+        SetAvatarPreview(null);
+
         PopulateProviderComboBox(string.Empty);
         PopulateModelComboBox(string.Empty, string.Empty);
     }
@@ -192,6 +198,9 @@ public partial class AgentSettingsPage : UserControl
         ChkDefault.IsChecked = entity.IsDefault;
         BtnDelete.IsVisible = true;
 
+        _avatarPath = entity.Avatar;
+        LoadAvatarPreview(entity.Avatar);
+
         PopulateProviderComboBox(entity.DefaultProviderId);
         PopulateModelComboBox(entity.DefaultProviderId, entity.DefaultModelId);
 
@@ -212,6 +221,7 @@ public partial class AgentSettingsPage : UserControl
             entity.Name = name;
             entity.Description = TxtDesc.Text?.Trim() ?? string.Empty;
             entity.Instructions = TxtInstructions.Text ?? string.Empty;
+            entity.Avatar = _avatarPath;
             entity.Temperature = SldTemperature.Value;
             entity.TopP = SldTopP.Value;
             entity.FrequencyPenalty = SldFreqPenalty.Value;
@@ -234,6 +244,7 @@ public partial class AgentSettingsPage : UserControl
                 Name = name,
                 Description = TxtDesc.Text?.Trim() ?? string.Empty,
                 Instructions = TxtInstructions.Text ?? string.Empty,
+                Avatar = _avatarPath,
                 Temperature = SldTemperature.Value,
                 TopP = SldTopP.Value,
                 FrequencyPenalty = SldFreqPenalty.Value,
@@ -324,5 +335,89 @@ public partial class AgentSettingsPage : UserControl
         if (CmbModel.SelectedItem is ComboBoxItem item && item.Tag is string id)
             return id;
         return string.Empty;
+    }
+
+    // ──────── 头像选择 ────────
+
+    private async void OnPickAvatarClick(object? sender, RoutedEventArgs e)
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.StorageProvider is null) return;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "选择头像图片",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("图片文件") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.bmp", "*.webp"] },
+            ]
+        });
+
+        if (files.Count == 0) return;
+
+        var srcPath = files[0].Path.LocalPath;
+        var appPaths = App.Services.GetRequiredService<IAppPaths>();
+        var avatarsDir = System.IO.Path.Combine(appPaths.WorkspaceResourcesDirectory, "avatars");
+        System.IO.Directory.CreateDirectory(avatarsDir);
+
+        var ext = System.IO.Path.GetExtension(srcPath);
+        var destName = $"{System.Guid.NewGuid():N}{ext}";
+        var destPath = System.IO.Path.Combine(avatarsDir, destName);
+        System.IO.File.Copy(srcPath, destPath, overwrite: true);
+
+        _avatarPath = System.IO.Path.Combine("avatars", destName);
+        LoadAvatarPreview(_avatarPath);
+    }
+
+    private void OnClearAvatarClick(object? sender, RoutedEventArgs e)
+    {
+        _avatarPath = string.Empty;
+        SetAvatarPreview(null);
+    }
+
+    private void LoadAvatarPreview(string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            SetAvatarPreview(null);
+            return;
+        }
+
+        var appPaths = App.Services.GetRequiredService<IAppPaths>();
+        var fullPath = System.IO.Path.Combine(appPaths.WorkspaceResourcesDirectory, relativePath);
+        if (!System.IO.File.Exists(fullPath))
+        {
+            SetAvatarPreview(null);
+            return;
+        }
+
+        var bitmap = new Bitmap(fullPath);
+        SetAvatarPreview(bitmap);
+    }
+
+    private void SetAvatarPreview(Bitmap? bitmap)
+    {
+        if (bitmap is not null)
+        {
+            AvatarPreview.Child = new Image
+            {
+                Source = bitmap,
+                Width = 48,
+                Height = 48,
+                Stretch = Stretch.UniformToFill,
+            };
+        }
+        else
+        {
+            AvatarPreview.Child = new TextBlock
+            {
+                Text = "无",
+                Foreground = (IBrush)this.FindResource("SubtextBrush")!,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 11,
+            };
+        }
     }
 }

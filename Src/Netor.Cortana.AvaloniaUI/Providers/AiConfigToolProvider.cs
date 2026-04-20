@@ -109,6 +109,16 @@ internal sealed class AiConfigToolProvider(
             description: "Enable a saved MCP server for an agent. Parameters: mcpIndex (1-based index, call sys_list_mcp_servers first), agentIndex (1-based index, 0 means current default agent).",
             method: (int mcpIndex, int agentIndex) => EnableMcpForAgent(mcpIndex, agentIndex)));
 
+        _tools.Add(AIFunctionFactory.Create(
+            name: "sys_disconnect_mcp_server",
+            description: "Disconnect a specific MCP server by index. Parameter: mcpIndex (1-based, call sys_list_mcp_servers first). Pass 0 to disconnect ALL MCP servers.",
+            method: (int mcpIndex, CancellationToken ct) => DisconnectMcpServerAsync(mcpIndex, ct)));
+
+        _tools.Add(AIFunctionFactory.Create(
+            name: "sys_reconnect_mcp_server",
+            description: "Reconnect a specific MCP server by index. Parameter: mcpIndex (1-based, call sys_list_mcp_servers first). Pass 0 to reconnect ALL enabled MCP servers.",
+            method: (int mcpIndex, CancellationToken ct) => ReconnectMcpServerAsync(mcpIndex, ct)));
+
         // Agent Instructions
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_get_agent_instructions",
@@ -558,6 +568,56 @@ internal sealed class AiConfigToolProvider(
         {
             logger.LogError(ex, "为智能体启用 MCP 服务失败");
             return $"✗ 为智能体启用 MCP 服务失败：{ex.Message}";
+        }
+    }
+
+    private async Task<string> DisconnectMcpServerAsync(int mcpIndex, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (mcpIndex == 0)
+            {
+                await PluginLoader.DisconnectAllMcpAsync();
+                return "✓ 已断开所有 MCP 服务连接。";
+            }
+
+            var list = McpServerService.GetAll();
+            if (mcpIndex < 1 || mcpIndex > list.Count)
+                return $"✗ 无效的序号 {mcpIndex}，有效范围 1~{list.Count}。请先调用 sys_list_mcp_servers 查看列表。";
+
+            var target = list[mcpIndex - 1];
+            await PluginLoader.RemoveMcpServerAsync(target.Id);
+            return $"✓ 已断开 MCP 服务「{target.Name}」。";
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "断开 MCP 服务失败");
+            return $"✗ 断开 MCP 服务失败：{ex.Message}";
+        }
+    }
+
+    private async Task<string> ReconnectMcpServerAsync(int mcpIndex, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (mcpIndex == 0)
+            {
+                await PluginLoader.ReconnectAllMcpAsync(McpServerService, cancellationToken);
+                return "✓ 已重新连接所有已启用的 MCP 服务。";
+            }
+
+            var list = McpServerService.GetAll();
+            if (mcpIndex < 1 || mcpIndex > list.Count)
+                return $"✗ 无效的序号 {mcpIndex}，有效范围 1~{list.Count}。请先调用 sys_list_mcp_servers 查看列表。";
+
+            var target = list[mcpIndex - 1];
+            await PluginLoader.ReconnectMcpAsync(target.Id, McpServerService, cancellationToken);
+            return $"✓ 已重新连接 MCP 服务「{target.Name}」。";
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "重新连接 MCP 服务失败");
+            return $"✗ 重新连接 MCP 服务失败：{ex.Message}";
         }
     }
 

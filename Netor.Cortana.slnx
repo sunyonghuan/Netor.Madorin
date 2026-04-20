@@ -11,7 +11,6 @@
     <Project Path="Src/Netor.Cortana.Entitys/Netor.Cortana.Entitys.csproj" />
     <Project Path="Src/Netor.Cortana.Networks/Netor.Cortana.Networks.csproj" Id="00688320-d548-47f6-aea5-f9eebdc2762c" />
     <Project Path="Src/Netor.Cortana.Voice/Netor.Cortana.Voice.csproj" Id="d9878a80-5e4e-467c-9eda-06bfff897b58" />
-    <Project Path="Src/Netor.Cortana/Netor.Cortana.csproj" />
   </Folder>
   <Folder Name="/Src/Plugins/">
     <Project Path="Src/Netor.Cortana.Plugin/Netor.Cortana.Plugin.csproj" Id="ff1f0d68-6e21-4305-bf12-392e7000d906" />
