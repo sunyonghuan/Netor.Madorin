@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.Cortana.Plugin;
-using Netor.Cortana.Plugin.Dotnet;
 using Netor.Cortana.Plugin.Mcp;
 using Netor.Cortana.Plugin.Native;
 using Netor.Cortana.Plugin.Process;
@@ -29,7 +28,6 @@ public sealed class PluginLoader : IDisposable
     private readonly ISubscriber _subscriber;
     private readonly IAppPaths _appPaths;
 
-    private readonly ConcurrentDictionary<string, DotNetPluginHost> _dotnetHosts = new();
     private readonly ConcurrentDictionary<string, NativePluginHost> _nativeHosts = new();
     private readonly ConcurrentDictionary<string, ProcessPluginHost> _processHosts = new();
     private readonly ConcurrentDictionary<string, McpServerHost> _mcpHosts = new();
@@ -78,11 +76,9 @@ public sealed class PluginLoader : IDisposable
     /// </summary>
     public IReadOnlyList<IPlugin> GetActivePlugins()
     {
-        return _dotnetHosts.Values
+        return _nativeHosts.Values
+            .Where(h => h.IsProcessAlive)
             .SelectMany(h => h.Plugins)
-            .Concat(_nativeHosts.Values
-                .Where(h => h.IsProcessAlive)
-                .SelectMany(h => h.Plugins))
             .Concat(_processHosts.Values
                 .Where(h => h.IsProcessAlive)
                 .SelectMany(h => h.Plugins))
@@ -142,9 +138,8 @@ public sealed class PluginLoader : IDisposable
         }
 
         _logger.LogInformation(
-            "插件扫描完成，共扫描 {DirectoryCount} 个插件根目录，加载 {DotnetCount} 个 .NET 插件目录，{NativeCount} 个原生插件目录，{ProcessCount} 个进程插件目录，{PluginCount} 个插件实例",
+            "插件扫描完成，共扫描 {DirectoryCount} 个插件根目录，加载 {NativeCount} 个原生插件目录，{ProcessCount} 个进程插件目录，{PluginCount} 个插件实例",
             pluginDirectories.Count,
-            _dotnetHosts.Count,
             _nativeHosts.Count,
             _processHosts.Count,
             GetActivePlugins().Count);
@@ -185,10 +180,6 @@ public sealed class PluginLoader : IDisposable
     private void UnloadAllPlugins()
     {
         DisposeWatchers();
-
-        foreach (var host in _dotnetHosts.Values)
-            host.Dispose();
-        _dotnetHosts.Clear();
 
         foreach (var host in _nativeHosts.Values)
             host.Dispose();
@@ -287,7 +278,7 @@ public sealed class PluginLoader : IDisposable
         switch (manifest.Runtime)
         {
             case PluginRuntime.Dotnet:
-                _logger.LogWarning("Native AOT 模式不支持 .NET 托管插件，跳过：{Id}", manifest.Id);
+                _logger.LogWarning("旧 .NET 托管插件通道已废弃，跳过：{Id}", manifest.Id);
                 break;
 
             case PluginRuntime.Native:
@@ -301,34 +292,6 @@ public sealed class PluginLoader : IDisposable
             default:
                 _logger.LogWarning("未知的 runtime 类型：{Runtime}，跳过：{Id}", manifest.Runtime, manifest.Id);
                 break;
-        }
-    }
-
-    /// <summary>
-    /// 加载 dotnet 通道的插件。
-    /// </summary>
-    private async Task LoadDotNetPluginAsync(
-        string pluginDir,
-        PluginManifest manifest,
-        CancellationToken cancellationToken)
-    {
-        var hostLogger = _loggerFactory.CreateLogger<DotNetPluginHost>();
-        var host = new DotNetPluginHost(pluginDir, manifest, hostLogger);
-
-        // 为插件创建独立的数据目录
-        var dataDir = Path.Combine(pluginDir, "data");
-        var context = new PluginContext(dataDir, _loggerFactory, _httpClientFactory, _appPaths, WsPort);
-
-        await host.LoadAsync(context, cancellationToken);
-
-        if (host.Plugins.Count > 0)
-        {
-            _dotnetHosts[pluginDir] = host;
-            NotifyPluginsChanged();
-        }
-        else
-        {
-            host.Dispose();
         }
     }
 
@@ -572,13 +535,6 @@ public sealed class PluginLoader : IDisposable
 
         DisposeWatchers();
 
-        foreach (var host in _dotnetHosts.Values)
-        {
-            host.Dispose();
-        }
-
-        _dotnetHosts.Clear();
-
         foreach (var nativeHost in _nativeHosts.Values)
         {
             nativeHost.Dispose();
@@ -638,13 +594,6 @@ public sealed class PluginLoader : IDisposable
     private void UnloadPluginByPath(string pluginPath)
     {
         var changed = false;
-
-        if (_dotnetHosts.TryRemove(pluginPath, out var dotnetHost))
-        {
-            _logger.LogInformation("正在卸载 .NET 插件目录：{Dir}", pluginPath);
-            dotnetHost.Dispose();
-            changed = true;
-        }
 
         if (_nativeHosts.TryRemove(pluginPath, out var nativeHost))
         {

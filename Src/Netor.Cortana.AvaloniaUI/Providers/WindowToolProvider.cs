@@ -102,7 +102,7 @@ internal sealed class WindowToolProvider(
         // Working Directory Management
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_change_workspace_directory",
-            description: "Changes the current working directory. Pass the full path of the new working directory, which must already exist. Changes are automatically synchronized to all related modules.",
+            description: "Change the current workspace directory. Call this only after the user explicitly agrees to change the workspace boundary. The target directory must already exist.",
             method: (string path) => ChangeWorkspaceDirectory(path)));
 
         // Session Management
@@ -303,7 +303,7 @@ internal sealed class WindowToolProvider(
         - 需要知道全局插件目录时，调用 sys_get_user_plugins_directory
 
         ### 工作目录管理
-        - 用户要求切换/修改工作目录时，调用 sys_change_workspace_directory 并传入完整目录路径
+        - 只有在用户明确同意切换工作目录边界后，才调用 sys_change_workspace_directory 并传入完整目录路径
         - 目录必须已存在，不会自动创建
         - 切换后所有相关模块（文件树、会话列表、设置）会自动同步
 

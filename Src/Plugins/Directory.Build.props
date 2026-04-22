@@ -6,14 +6,14 @@
        发布新版本时只需修改此处的 Version 即可。
        ============================================================ -->
   <PropertyGroup>
-    <Version>1.0.13</Version>
+    <Version>1.0.17</Version>
     <Authors>Netor</Authors>
     <IsPackable>true</IsPackable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Nullable>enable</Nullable>
     <PackageIcon>logo.200.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageOutputPath>E:\Netor.me\Netor.Cortana\Src\Netor.Cortana\Realases\Nupkgs</PackageOutputPath>
+    <PackageOutputPath>E:\Netor.me\Cortana\Realases\Nupkgs</PackageOutputPath>
   </PropertyGroup>
   <!-- 公共打包资源：README + 图标 -->
   <ItemGroup>

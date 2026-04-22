@@ -16,11 +16,8 @@
     ║    -Bump major  → Major +1  (如 1.1.0 → 2.0.0)              ║
     ╚══════════════════════════════════════════════════════════════╝
 
-     涉及的 4 个包（按依赖顺序打包）：
-       1. Netor.Cortana.Plugin.Abstractions           (netstandard2.0)
-       2. Netor.Cortana.Plugin.Native.Generator       (netstandard2.0, Source Generator)
-       3. Netor.Cortana.Plugin.Native                 (net10.0, 依赖前两者)
-       4. Netor.Cortana.Plugin.Native.Debugger        (net10.0, 依赖 Plugin.Native)
+         脚本会自动扫描 Src\Plugins 下的项目目录，
+         对其中所有可打包且非 Exe 的项目执行打包与推送。
 
 .PARAMETER Bump
     版本递增级别：patch(默认)、minor、major。
@@ -57,15 +54,41 @@ $SolutionRoot = $ScriptDir
 $PluginsDir = Join-Path $SolutionRoot 'Src\Plugins'
 $PropsFile = Join-Path $PluginsDir 'Directory.Build.props'
 
-$Projects = @(
-    (Join-Path $PluginsDir 'Netor.Cortana.Plugin.Abstractions\Netor.Cortana.Plugin.Abstractions.csproj')
-    (Join-Path $PluginsDir 'Netor.Cortana.Plugin.Native.Generator\Netor.Cortana.Plugin.Native.Generator.csproj')
-    (Join-Path $PluginsDir 'Netor.Cortana.Plugin.Native\Netor.Cortana.Plugin.Native.csproj')
-    (Join-Path $PluginsDir 'Netor.Cortana.Plugin.Native.Debuger\Netor.Cortana.Plugin.Native.Debugger.csproj')
-)
-
 if (-not (Test-Path $PropsFile)) {
     Write-Error "找不到 Directory.Build.props: $PropsFile"
+    exit 1
+}
+
+function Get-PackProjects([string]$pluginsDir) {
+    $projects = New-Object System.Collections.Generic.List[string]
+
+    foreach ($projectDir in (Get-ChildItem -Path $pluginsDir -Directory | Sort-Object Name)) {
+        $csproj = Get-ChildItem -Path $projectDir.FullName -Filter "*.csproj" -File | Select-Object -First 1
+        if (-not $csproj) {
+            continue
+        }
+
+        [xml]$projectXml = Get-Content $csproj.FullName -Encoding UTF8
+        $isPackableNode = $projectXml.SelectSingleNode("//PropertyGroup/IsPackable")
+        $outputTypeNode = $projectXml.SelectSingleNode("//PropertyGroup/OutputType")
+
+        if ($isPackableNode -and [string]::Equals($isPackableNode.InnerText.Trim(), "false", [System.StringComparison]::OrdinalIgnoreCase)) {
+            continue
+        }
+
+        if ($outputTypeNode -and [string]::Equals($outputTypeNode.InnerText.Trim(), "Exe", [System.StringComparison]::OrdinalIgnoreCase)) {
+            continue
+        }
+
+        $projects.Add($csproj.FullName)
+    }
+
+    return $projects
+}
+
+$Projects = @(Get-PackProjects -pluginsDir $PluginsDir)
+if ($Projects.Count -eq 0) {
+    Write-Error "未在 $PluginsDir 下找到可打包的项目"
     exit 1
 }
 
@@ -128,10 +151,17 @@ Write-Host "  配置:      $Configuration"
 Write-Host "  输出目录:  $PackageOutputPath"
 Write-Host "  NuGet源:   $NuGetSource"
 Write-Host "  推送:      $(if ($SkipPush) { '否 (仅打包)' } else { '是' })"
+Write-Host "  项目数:    $($Projects.Count)"
+Write-Host ""
+
+Write-Host "  自动发现的可打包项目:" -ForegroundColor DarkGray
+foreach ($proj in $Projects) {
+    Write-Host "    - $([System.IO.Path]::GetFileNameWithoutExtension($proj))" -ForegroundColor DarkGray
+}
 Write-Host ""
 
 Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor DarkGray
-Write-Host "  [1/2] 打包 4 个项目 (v$CurrentVersion)" -ForegroundColor Green
+Write-Host "  [1/2] 打包 $($Projects.Count) 个项目 (v$CurrentVersion)" -ForegroundColor Green
 Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor DarkGray
 Write-Host ""
 

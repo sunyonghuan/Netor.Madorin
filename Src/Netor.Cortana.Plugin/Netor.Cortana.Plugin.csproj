@@ -18,7 +18,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Netor.Cortana.Entitys\Netor.Cortana.Entitys.csproj" />
-    <ProjectReference Include="..\Plugins\Netor.Cortana.Plugin.Abstractions\Netor.Cortana.Plugin.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

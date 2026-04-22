@@ -14,7 +14,6 @@
   <Folder Name="/Src/Plugins/">
     <Project Path="Src/Netor.Cortana.Plugin/Netor.Cortana.Plugin.csproj" Id="ff1f0d68-6e21-4305-bf12-392e7000d906" />
     <Project Path="Src/Plugins/Netor.Cortana.NativeHost/Netor.Cortana.NativeHost.csproj" />
-    <Project Path="Src/Plugins/Netor.Cortana.Plugin.Abstractions/Netor.Cortana.Plugin.Abstractions.csproj" Id="0e6f042a-4a8d-4a87-ae1e-ef0b4e40dcf0" />
     <Project Path="Src/Plugins/Netor.Cortana.Plugin.Native.Debuger/Netor.Cortana.Plugin.Native.Debugger.csproj" Id="1e96f5d4-ee35-4370-9a3b-9a59ede7bad3" />
     <Project Path="Src/Plugins/Netor.Cortana.Plugin.Native.Generator/Netor.Cortana.Plugin.Native.Generator.csproj" />
     <Project Path="Src/Plugins/Netor.Cortana.Plugin.Native/Netor.Cortana.Plugin.Native.csproj" />

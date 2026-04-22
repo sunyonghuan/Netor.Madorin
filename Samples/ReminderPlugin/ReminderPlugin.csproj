@@ -12,14 +12,13 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
-    <PackageReference Include="Netor.Cortana.Plugin.Native" Version="1.0.7" />
-    <PackageReference Include="Netor.Cortana.Plugin.Native.Generator" Version="1.0.7"
+    <ProjectReference Include="..\..\Src\Plugins\Netor.Cortana.Plugin.Native\Netor.Cortana.Plugin.Native.csproj" />
+    <ProjectReference Include="..\..\Src\Plugins\Netor.Cortana.Plugin.Native.Generator\Netor.Cortana.Plugin.Native.Generator.csproj"
                       OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\Src\Plugins\Netor.Cortana.Plugin.Abstractions\Netor.Cortana.Plugin.Abstractions.csproj" />
-  </ItemGroup>
+  <Import Project="..\..\Src\Plugins\Netor.Cortana.Plugin.Native.Generator\build\Netor.Cortana.Plugin.Native.Generator.targets" />
 
 </Project>

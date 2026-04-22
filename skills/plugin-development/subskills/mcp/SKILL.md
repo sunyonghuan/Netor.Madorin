@@ -1,6 +1,7 @@
 ---
 name: mcp
 description: 'Cortana MCP 通道子技能。位置：plugin-development/subskills/mcp。用于接入和校验外部 MCP Server 的 stdio、sse、streamable-http 配置。触发关键词：MCP、Model Context Protocol、stdio、sse、streamable-http。'
+version: 1
 user-invocable: true
 ---
 

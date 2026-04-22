@@ -1,6 +1,7 @@
 ---
 name: plugin-development
 description: 'Cortana 插件开发入口技能。用于统一编排 Native、MCP、Process 三类通道，约束工程规范、外部包 AOT 校验、发布安装与运行时更新流程。触发关键词：插件开发、Native 插件、MCP 插件、Process 插件、进程插件、发布插件、安装插件。'
+version: 5
 user-invocable: true
 ---
 
@@ -38,6 +39,7 @@ user-invocable: true
 ```powershell
 .\skills\plugin-development\scripts\setup-dev-environment.ps1
 .\skills\plugin-development\scripts\create-native-plugin.ps1 -Name MyPlugin -Id my_plugin
+.\skills\plugin-development\scripts\create-process-plugin.ps1 -Name MyPlugin -Id my_plugin
 .\skills\plugin-development\subskills\mcp\scripts\validate-mcp-server-config.ps1 -TransportType stdio -Name github -Command npx -Arguments '-y','@modelcontextprotocol/server-github'
 .\skills\plugin-development\scripts\resolve-package-version.ps1 -PackageId Polly
 .\skills\plugin-development\scripts\test-aot-package.ps1 -PackageId Polly

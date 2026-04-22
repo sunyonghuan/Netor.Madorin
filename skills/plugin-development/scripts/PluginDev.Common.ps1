@@ -3,7 +3,21 @@ Set-StrictMode -Version Latest
 function Get-PluginDevSolutionDir {
     param([string]$ScriptRoot)
 
-    return (Split-Path -Parent (Split-Path -Parent $ScriptRoot))
+    $current = $ScriptRoot
+    while (-not [string]::IsNullOrWhiteSpace($current)) {
+        if ((Test-Path (Join-Path $current 'Netor.Cortana.slnx')) -or (Test-Path (Join-Path $current 'Src\Plugins\Directory.Build.props'))) {
+            return $current
+        }
+
+        $parent = Split-Path -Parent $current
+        if ($parent -eq $current) {
+            break
+        }
+
+        $current = $parent
+    }
+
+    throw "无法从脚本目录定位仓库根：$ScriptRoot"
 }
 
 function Get-PluginDevRepoPackageVersion {

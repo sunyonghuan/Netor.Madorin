@@ -146,6 +146,9 @@ public sealed class AiChatHostedService(
 
         _sessionId = await chatHistoryProvider.CreateNewSessionAsync(_session, _agent);
         publisher.Publish(Events.OnSessionCreated, new SessionCreatedArgs(_sessionId));
+
+        // 新会话上下文为空，清除上一会话的 Token 进度显示
+        factory.ResetTokenStats();
     }
 
     /// <summary>
@@ -164,6 +167,9 @@ public sealed class AiChatHostedService(
             _session.StateBag.SetValue("modelid", _currentModel.Name);
             _session.StateBag.SetValue("modeldbid", _currentModel.Id);
         }
+
+        // 恢复历史会话时暂无真实 usage，先清阀进度条，等下一轮对话的 API 返回重新填充
+        factory.ResetTokenStats();
     }
 
     /// <summary>
@@ -622,6 +628,10 @@ public sealed class AiChatHostedService(
 
         _agent = factory.Build(_currentAgent, _currentProvider, _currentModel);
         _session = null;
+
+        // 模型/Provider/Agent 已切换，旧的 LastInputTokens 与新的 MaxContextTokens 不匹配
+        // （可能导致进度条爆表或异常偏小），由下一次真实对话重新填充
+        factory.ResetTokenStats();
     }
 
     /// <summary>

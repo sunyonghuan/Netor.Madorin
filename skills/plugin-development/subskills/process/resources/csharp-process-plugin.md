@@ -1,352 +1,231 @@
 # C# Process 插件开发指南
 
-> **注意**：后续将提供官方 SDK 包（`Netor.Cortana.Plugin.Process`），封装消息循环，
-> 届时只需关注业务逻辑。当前版本需手动实现协议层（直接复制本文模板即可）。
+## 当前推荐路径
 
----
+对于 C# Process 插件，直接使用 `Netor.Cortana.Plugin.Process` 框架。
 
-## 一、项目结构
+不要再手写这些胶水代码：
+
+- stdin/stdout 消息循环
+- `get_info / init / invoke / destroy` 分派
+- `plugin.json` 输出
+- 调试阶段的手工 JSON 拼接
+
+框架会在编译时自动生成：
+
+- `Program.g.cs`：标准消息循环入口
+- `{PluginClass}Debugger.g.cs`：强类型调试器
+- `plugin.json`：输出到 build/publish 目录
+
+## 一、脚手架命令
+
+```powershell
+.\skills\plugin-development\scripts\create-process-plugin.ps1 -Name MyPlugin -Id my_plugin
+```
+
+生成结构：
 
 ```text
-MyPlugin/
+Samples/MyPlugin/
 ├── MyPlugin.csproj
-├── Program.cs          ← 消息循环（协议层，复制模板后不需修改）
-├── PluginInfo.cs       ← 插件元数据定义
-├── MessageHandler.cs   ← init / invoke / destroy 业务入口
-├── Protocol/
-│   ├── HostRequest.cs  ← 协议请求结构（复制模板）
-│   └── HostResponse.cs ← 协议响应结构（复制模板）
+├── Program.cs
+├── Startup.cs
+├── PluginJsonContext.cs
+├── Application/
+│   └── MyPluginGreetingService.cs
+├── Contracts/
+│   └── HelloResult.cs
 └── Tools/
-    └── MyTools.cs      ← 工具实现
+    └── MyPluginTools.cs
 ```
 
-发布产物（plugin 目录）：
+## 二、框架包引用
 
-```text
-my-plugin/
-├── plugin.json
-└── MyPlugin.exe        ← JIT self-contained 或 AOT exe
-```
+### 常规开发：引用 NuGet 包
 
----
-
-## 二、csproj 配置
+只需要引用一个包：
 
 ```xml
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <!-- JIT 发布时不需要 PublishAot，AOT 发布时取消注释 -->
-    <!-- <PublishAot>true</PublishAot> -->
-  </PropertyGroup>
-</Project>
+<ItemGroup>
+  <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
+  <PackageReference Include="Netor.Cortana.Plugin.Process" Version="1.0.16" />
+</ItemGroup>
 ```
 
-> AOT 发布时需遵循 AOT 约束（禁止动态反射、Emit 等），参考 native 子技能的 AOT Rules。
+`Netor.Cortana.Plugin.Process` 包内部已经带上 Generator 和 buildTransitive 目标。
+因此不需要再额外引用 `Netor.Cortana.Plugin.Process.Generator`，也不需要手写 `plugin.json`。
 
----
+### 在当前仓库内联调：引用本地项目
 
-## 三、协议结构（复制到 Protocol/ 目录，不需要 NuGet 依赖）
+如果你就在本仓库里开发，可改成：
 
-### Protocol/HostRequest.cs
+```xml
+<ItemGroup>
+  <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
+  <ProjectReference Include="..\..\Src\Plugins\Netor.Cortana.Plugin.Process\Netor.Cortana.Plugin.Process.csproj" />
+</ItemGroup>
+```
+
+## 三、最小可编译模板
+
+### Program.cs
 
 ```csharp
-using System.Text.Json.Serialization;
+using MyPlugin;
 
-namespace MyPlugin.Protocol;
+await Startup.RunPluginAsync();
+```
 
-internal sealed record HostRequest
+### Startup.cs
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Netor.Cortana.Plugin;
+
+namespace MyPlugin;
+
+[Plugin(
+    Id = "my_plugin",
+    Name = "MyPlugin",
+    Version = "1.0.0",
+    Description = "插件描述")]
+public static partial class Startup
 {
-    [JsonPropertyName("method")]   public string Method   { get; init; } = string.Empty;
-    [JsonPropertyName("toolName")] public string? ToolName { get; init; }
-    [JsonPropertyName("args")]     public string? Args     { get; init; }
+    public static void Configure(IServiceCollection services)
+    {
+        services.AddLogging();
+        services.AddSingleton<MyPluginGreetingService>();
+    }
 }
 ```
 
-### Protocol/HostResponse.cs
+### Tools/MyPluginTools.cs
 
 ```csharp
-using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
+using Netor.Cortana.Plugin;
 
-namespace MyPlugin.Protocol;
+namespace MyPlugin;
 
-internal sealed record HostResponse
+[Tool]
+public sealed class MyPluginTools(MyPluginGreetingService greetingService, ILogger<MyPluginTools> logger)
 {
-    [JsonPropertyName("success")] public bool    Success { get; init; }
-    [JsonPropertyName("data")]    public string? Data    { get; init; }
-    [JsonPropertyName("error")]   public string? Error   { get; init; }
-
-    internal static HostResponse Ok(string? data)   => new() { Success = true,  Data  = data  };
-    internal static HostResponse Fail(string error) => new() { Success = false, Error = error };
+    [Tool(Description = "返回问候语")]
+    public HelloResult Hello([Parameter(Description = "输入名称")] string name)
+    {
+        logger.LogInformation("执行 hello 工具，输入长度：{Length}", name?.Length ?? 0);
+        return greetingService.CreateGreeting(name);
+    }
 }
 ```
 
-### Protocol/PluginJsonContext.cs（AOT 必须，JIT 可选但推荐）
+### Contracts/HelloResult.cs
 
 ```csharp
-using System.Text.Json.Serialization;
+namespace MyPlugin;
 
-namespace MyPlugin.Protocol;
-
-[JsonSerializable(typeof(HostRequest))]
-[JsonSerializable(typeof(HostResponse))]
-[JsonSerializable(typeof(PluginInfoData))]
-[JsonSerializable(typeof(InitConfig))]
-internal sealed partial class PluginJsonContext : JsonSerializerContext;
+public sealed record HelloResult(string Message, DateTimeOffset GeneratedAt);
 ```
 
----
-
-## 四、插件元数据结构
-
-### PluginInfo.cs
+### PluginJsonContext.cs
 
 ```csharp
 using System.Text.Json.Serialization;
 
 namespace MyPlugin;
 
-/// <summary>get_info 响应的 data 字段内容（序列化为 JSON 字符串）。</summary>
-internal sealed record PluginInfoData
-{
-    [JsonPropertyName("id")]           public string           Id           { get; init; } = string.Empty;
-    [JsonPropertyName("name")]         public string           Name         { get; init; } = string.Empty;
-    [JsonPropertyName("version")]      public string           Version      { get; init; } = string.Empty;
-    [JsonPropertyName("description")]  public string           Description  { get; init; } = string.Empty;
-    [JsonPropertyName("instructions")] public string?          Instructions { get; init; }
-    [JsonPropertyName("tags")]         public List<string>?    Tags         { get; init; }
-    [JsonPropertyName("tools")]        public List<ToolInfoData> Tools      { get; init; } = [];
-}
-
-internal sealed record ToolInfoData
-{
-    [JsonPropertyName("name")]        public string                   Name        { get; init; } = string.Empty;
-    [JsonPropertyName("description")] public string                   Description { get; init; } = string.Empty;
-    [JsonPropertyName("parameters")]  public List<ParameterInfoData>? Parameters  { get; init; }
-}
-
-internal sealed record ParameterInfoData
-{
-    [JsonPropertyName("name")]        public string Name        { get; init; } = string.Empty;
-    [JsonPropertyName("type")]        public string Type        { get; init; } = "string";
-    [JsonPropertyName("description")] public string Description { get; init; } = string.Empty;
-    [JsonPropertyName("required")]    public bool   Required    { get; init; }
-}
-
-/// <summary>init 方法收到的 args 字段内容。</summary>
-internal sealed record InitConfig
-{
-    [JsonPropertyName("dataDirectory")]      public string DataDirectory      { get; init; } = string.Empty;
-    [JsonPropertyName("workspaceDirectory")] public string WorkspaceDirectory { get; init; } = string.Empty;
-    [JsonPropertyName("wsPort")]             public int    WsPort             { get; init; }
-    [JsonPropertyName("pluginDirectory")]    public string PluginDirectory    { get; init; } = string.Empty;
-}
+[JsonSerializable(typeof(HelloResult))]
+internal partial class PluginJsonContext : JsonSerializerContext;
 ```
 
----
+## 四、为什么不需要手写协议层
 
-## 五、消息循环（Program.cs 完整模板）
+框架消费方只写业务声明：
 
-```csharp
-using System.Text.Json;
-using MyPlugin.Protocol;
+- `[Plugin]`：插件元数据
+- `[Tool]`：工具类与工具方法
+- `Configure(IServiceCollection)`：DI 注册
 
-// stdout 不缓冲，确保每行写出后立即发送
-Console.OutputEncoding = System.Text.Encoding.UTF8;
-Console.InputEncoding  = System.Text.Encoding.UTF8;
+编译后会自动生成：
 
-var handler = new MessageHandler();
-var opts    = new JsonSerializerOptions { TypeInfoResolver = PluginJsonContext.Default };
+- `Startup.RunPluginAsync()`：标准 Process 消息循环入口
+- `StartupDebugger.Create()`：强类型调试器入口
+- `plugin.json`：位于 `bin/.../plugin.json` 和 publish 目录
 
-while (Console.ReadLine() is string line)
-{
-    HostRequest? req;
-    try
-    {
-        req = JsonSerializer.Deserialize(line, PluginJsonContext.Default.HostRequest);
-        if (req is null) continue;
-    }
-    catch (Exception ex)
-    {
-        WriteResponse(HostResponse.Fail($"parse error: {ex.Message}"));
-        continue;
-    }
+这意味着 AI 在补代码时，应该把精力放在：
 
-    HostResponse resp;
-    try
-    {
-        resp = req.Method switch
-        {
-            "get_info" => HandleGetInfo(),
-            "init"     => handler.Init(req.Args),
-            "invoke"   => handler.Invoke(req.ToolName, req.Args),
-            "destroy"  => handler.Destroy(),
-            _          => HostResponse.Fail($"unknown method: {req.Method}")
-        };
-    }
-    catch (Exception ex)
-    {
-        resp = HostResponse.Fail(ex.Message);
-    }
+- 业务服务
+- 工具参数与返回模型
+- DI 注册
+- 调试与发布命令
 
-    WriteResponse(resp);
+而不是重新实现宿主协议。
 
-    if (req.Method == "destroy")
-        break;
-}
+## 五、调试方式
 
-Environment.Exit(0);
-
-static void WriteResponse(HostResponse resp)
-{
-    Console.WriteLine(JsonSerializer.Serialize(resp, PluginJsonContext.Default.HostResponse));
-}
-
-static HostResponse HandleGetInfo()
-{
-    var info = new PluginInfoData
-    {
-        Id          = "my-plugin",
-        Name        = "我的插件",
-        Version     = "1.0.0",
-        Description = "插件功能描述",
-        Tools       =
-        [
-            new ToolInfoData
-            {
-                Name        = "my_tool",
-                Description = "工具描述",
-                Parameters  =
-                [
-                    new ParameterInfoData { Name = "input", Type = "string", Description = "输入内容", Required = true }
-                ]
-            }
-        ]
-    };
-    // data 字段必须是已序列化的 JSON 字符串
-    var dataJson = JsonSerializer.Serialize(info, PluginJsonContext.Default.PluginInfoData);
-    return HostResponse.Ok(dataJson);
-}
-```
-
----
-
-## 六、MessageHandler.cs 模板
-
-```csharp
-using System.Text.Json;
-using MyPlugin.Protocol;
-
-namespace MyPlugin;
-
-internal sealed class MessageHandler
-{
-    private InitConfig _config = new();
-
-    public HostResponse Init(string? argsJson)
-    {
-        if (string.IsNullOrEmpty(argsJson))
-            return HostResponse.Fail("missing args");
-
-        _config = JsonSerializer.Deserialize(argsJson, PluginJsonContext.Default.InitConfig)
-                  ?? throw new InvalidOperationException("init args 反序列化失败");
-
-        // TODO: 在此初始化业务资源（数据库、缓存等）
-        return HostResponse.Ok(null);
-    }
-
-    public HostResponse Invoke(string? toolName, string? argsJson)
-    {
-        return toolName switch
-        {
-            "my_tool" => InvokeMyTool(argsJson),
-            _         => HostResponse.Fail($"unknown tool: {toolName}")
-        };
-    }
-
-    public HostResponse Destroy()
-    {
-        // TODO: 释放资源
-        return HostResponse.Ok(null);
-    }
-
-    private HostResponse InvokeMyTool(string? argsJson)
-    {
-        // argsJson 是宿主传来的参数 JSON，按需反序列化
-        // 返回值是字符串（可以是纯文本或 JSON）
-        return HostResponse.Ok("工具执行结果");
-    }
-}
-```
-
----
-
-## 七、plugin.json 样例
-
-```json
-{
-  "id": "my-plugin",
-  "name": "我的插件",
-  "version": "1.0.0",
-  "description": "插件功能描述",
-  "runtime": "process",
-  "command": "MyPlugin.exe"
-}
-```
-
-字段说明：
-
-| 字段 | 必须 | 说明 |
-|------|------|------|
-| id | ✓ | 唯一标识，建议小写 kebab-case |
-| name | ✓ | 显示名称 |
-| version | ✓ | 版本号 |
-| runtime | ✓ | 固定填 `"process"` |
-| command | ✓ | 插件目录下的 exe 文件名（相对路径） |
-
----
-
-## 八、发布命令
-
-### JIT self-contained（推荐，无 AOT 约束）
+### 1. 正常编译
 
 ```powershell
-dotnet publish MyPlugin.csproj `
-  -c Release `
-  -r win-x64 `
-  --self-contained `
-  /p:PublishSingleFile=true `
-  -o publish/
+dotnet build
 ```
 
-产物 `publish/MyPlugin.exe` 约 60-100 MB，包含 .NET Runtime，目标机器无需安装 .NET。
+### 2. 使用生成的强类型 Debugger
 
-### AOT exe（启动更快，体积更小）
+构建后，Generator 会生成 `{PluginClass}Debugger`。
+如果入口类叫 `Startup`，则调试器名就是 `StartupDebugger`。
+
+示例：
+
+```csharp
+using MyPlugin;
+
+await using var debugger = StartupDebugger.Create();
+await debugger.InitAsync();
+
+var resultJson = await debugger.HelloAsync("Copilot");
+Console.WriteLine(resultJson);
+```
+
+优点：
+
+- 不需要手写 `HostRequest` JSON
+- 不需要启动真实子进程
+- 覆盖的仍然是同一条消息循环代码路径
+
+### 3. 查看生成物
+
+构建后重点看：
+
+- `obj/.../generated/.../Program.g.cs`
+- `obj/.../generated/.../{PluginClass}Debugger.g.cs`
+- `bin/.../plugin.json`
+
+## 六、发布命令
+
+### 默认：JIT self-contained
 
 ```powershell
-dotnet publish MyPlugin.csproj `
-  -c Release `
-  -r win-x64 `
-  /p:PublishAot=true `
-  -o publish/
+.\skills\plugin-development\scripts\publish-process-plugin.ps1 -ProjectDir Samples\MyPlugin
 ```
 
-AOT 约束：禁止动态反射、Emit、MakeGenericType（运行时未知类型）。  
-所有序列化类型须注册到 `PluginJsonContext`。详见 native 子技能 AOT Rules。
+### framework-dependent
 
----
-
-## 九、安装到插件目录
-
-```text
-%AppData%\Cortana\plugins\my-plugin\
-├── plugin.json
-└── MyPlugin.exe
+```powershell
+.\skills\plugin-development\scripts\publish-process-plugin.ps1 -ProjectDir Samples\MyPlugin -FrameworkDependent
 ```
 
-运行时安装（已运行中的插件更新）请切换到 publish-install 子技能，
-使用 sys_unload_plugin → zip 安装 → sys_reload_plugin 流程。
+### AOT exe
 
+```powershell
+.\skills\plugin-development\scripts\publish-process-plugin.ps1 -ProjectDir Samples\MyPlugin -Aot
+```
+
+## 七、AI 编码规则
+
+- 不要手写 `ProcessPluginHost`、`HostRequest`、`HostResponse`、`ToolInvoker` 这类框架层代码。
+- 不要手写 `plugin.json`。
+- `Program.cs` 只保留 `await Startup.RunPluginAsync();`。
+- 返回自定义对象时，先补 `PluginJsonContext`，再写工具实现。
+- 调试优先用 `StartupDebugger`，不要自己拼 invoke 协议 JSON。
+- 需要完整 JIT 生态时优先走默认 JIT 发布；确实要极致启动速度或单文件部署时再评估 `-Aot`。

@@ -1,6 +1,7 @@
 ---
 name: native
 description: 'Cortana Native 插件开发子技能。位置：plugin-development/subskills/native。用于 Native AOT 插件创建、Startup 组合、Tool 编写、JsonContext、后台服务、AOT 规则。触发关键词：Native 插件、AOT 插件、Startup.Configure、ToolAttribute、原生插件。'
+version: 1
 user-invocable: true
 ---
 

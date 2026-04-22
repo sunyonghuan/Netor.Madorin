@@ -70,7 +70,7 @@ public sealed class ChatHistoryDataProvider(
         var modelName = context.Session?.StateBag.GetValue<string>("modelid") ?? "Unknown";
         var assistantMessageId = context.Session?.StateBag.GetValue<string>("assistantmessageid");
         var firstText = context.RequestMessages?.FirstOrDefault(m => m.Role == ChatRole.User)?.Text ?? "";
-        var sessionId = await AddOrUpdateSessionAsync(context.Session, firstText.Truncate(32), context.Agent);
+        var sessionId = await AddOrUpdateSessionAsync(context.Session, firstText.Truncate(32), context.Agent, accumulateInputTokens: true);
 
         // 确保 ResponseMessages 不为 null 再进行 Select
         var messages = (context.ResponseMessages ?? [])
@@ -334,7 +334,12 @@ public sealed class ChatHistoryDataProvider(
     /// <summary>
     /// 创建或更新聊天会话记录。
     /// </summary>
-    private async Task<string> AddOrUpdateSessionAsync(AgentSession? session, string title, AIAgent agent)
+    /// <param name="accumulateInputTokens">
+    /// 是否把当前 <see cref="AIAgentFactory.LastInputTokens"/> 累加到会话的 TotalTokenCount。
+    /// 仅应在真实对话保存路径（<see cref="StoreChatHistoryAsync"/>）置为 true，
+    /// 新建会话/取消对话等其他路径不应累加，避免重复计算或污染统计。
+    /// </param>
+    private async Task<string> AddOrUpdateSessionAsync(AgentSession? session, string title, AIAgent agent, bool accumulateInputTokens = false)
     {
         var sessionId = session?.StateBag.GetValue<string>("sessionid") ?? Guid.NewGuid().ToString("N");
         JsonElement? sessionJson = null;
@@ -375,7 +380,10 @@ public sealed class ChatHistoryDataProvider(
 
             sessionEntity.UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
             sessionEntity.LastActiveTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-            sessionEntity.TotalTokenCount += services.GetRequiredService<AIAgentFactory>().LastInputTokens;
+            if (accumulateInputTokens)
+            {
+                sessionEntity.TotalTokenCount += services.GetRequiredService<AIAgentFactory>().LastInputTokens;
+            }
 
             dbContext.Execute(
                 """
@@ -463,6 +471,8 @@ public sealed class ChatHistoryDataProvider(
                 new(ChatRole.User, $"用户：{userMessage.Truncate(200)}\nAI：{aiResponse.Truncate(500)}")
             };
 
+            // 若借用主对话的 TokenTrackingChatClient，抑制其 usage 上报，避免污染主进度条
+            using var _ = (client as TokenTrackingChatClient)?.SuppressUsage();
             var completion = await client.GetResponseAsync(prompt);
             var title = completion?.Text?.Trim();
 
@@ -571,7 +581,8 @@ public sealed class ChatHistoryDataProvider(
 
             summaryPrompt.Add(new AIChatMessage(ChatRole.User, "请基于以上对话片段生成摘要。务必保留所有代码、命令、文件路径和数值数据，不要遗漏任何可操作的技术细节。"));
 
-            // 7. 调用 LLM 生成摘要
+            // 7. 调用 LLM 生成摘要（若借用主对话 ChatClient，抑制其 usage 上报避免进度条跳变）
+            using var _ = (client as TokenTrackingChatClient)?.SuppressUsage();
             var completion = await client.GetResponseAsync(summaryPrompt, cancellationToken: cancellationToken);
             var summaryText = completion?.Text;
 

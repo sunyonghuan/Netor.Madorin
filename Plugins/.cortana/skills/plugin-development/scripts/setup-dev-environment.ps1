@@ -8,7 +8,7 @@
     4. 未安装则自动安装 Visual Studio Build Tools（仅 C++ 桌面组件，不装 VS/VSCode）
     5. 验证环境就绪
 .PARAMETER SkipAot
-    跳过 AOT 工具链检测（仅开发 Dotnet 托管插件时可跳过）。
+    跳过 AOT 工具链检测（仅在不需要构建 Native DLL 插件时使用）。
 .PARAMETER DotnetChannel
     .NET SDK 安装通道，默认 10.0（可改为 STS 或其他版本号）。
 .NOTES
@@ -196,8 +196,7 @@ if ($SkipAot) {
                 Write-Host "  请手动运行: $vsbtInstaller --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended" -ForegroundColor Yellow
             }
         } else {
-            Write-Host "    跳过安装。Native AOT 发布将不可用。" -ForegroundColor Yellow
-            Write-Host "    如果只开发 Dotnet 托管插件，可忽略此项。" -ForegroundColor Gray
+            Write-Host "    跳过安装。Native DLL 插件将无法构建（Process EXE 插件不受影响）。" -ForegroundColor Yellow
         }
     }
 }

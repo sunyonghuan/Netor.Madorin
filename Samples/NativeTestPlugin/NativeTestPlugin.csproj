@@ -11,15 +11,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Netor.Cortana.Plugin.Native" Version="1.0.11" />
-    <PackageReference Include="Netor.Cortana.Plugin.Native.Generator" Version="1.0.11" OutputItemType="Analyzer" ReferenceOutputAssembly="false">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
+    <ProjectReference Include="..\..\Src\Plugins\Netor.Cortana.Plugin.Native\Netor.Cortana.Plugin.Native.csproj" />
+    <ProjectReference Include="..\..\Src\Plugins\Netor.Cortana.Plugin.Native.Generator\Netor.Cortana.Plugin.Native.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\Src\Plugins\Netor.Cortana.Plugin.Abstractions\Netor.Cortana.Plugin.Abstractions.csproj" />
-  </ItemGroup>
+  <Import Project="..\..\Src\Plugins\Netor.Cortana.Plugin.Native.Generator\build\Netor.Cortana.Plugin.Native.Generator.targets" />
 
 </Project>

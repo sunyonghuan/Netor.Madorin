@@ -32,41 +32,17 @@ public sealed class FileBrowserProvider : AIContextProvider
         }
 
         return new ValueTask<AIContext>(new AIContext { Tools = _tools, Instructions = """
-    ### 文件浏览工具使用规范
+    ### File Browser Rules
 
-    你拥有在允许范围内浏览和查看系统文件的能力。所有操作受到安全约束限制。
-
-    #### 可用工具
-    - **sys_list_directory** - 列出指定目录中的所有文件和文件夹
-    - **sys_get_file_info** - 获取单个文件或文件夹的详细信息
-    - **sys_read_file** - 读取文本文件的内容（仅支持10MB以内的文件）
-    - **sys_search_files** - 使用模式（如 *.txt）搜索文件（异步，最多返回50个结果）
-    - **sys_get_drives** - 获取系统中所有可用的驱动器
-    - **sys_open_in_explorer** - 在资源管理器中打开目录，或定位文件/目录
-
-    #### 安全约束
-    - **禁止访问的目录**：C:\Windows, C:\Program Files, C:\Program Files (x86), C:\ProgramData, C:\System Volume Information, C:\$Recycle.Bin
-    - **允许的文件类型**：仅支持文本、代码、图片、视频、音频、压缩文件、文档等特定扩展名
-    - **文件大小限制**：读取文件内容时最大 10MB
-    - **返回数量限制**：目录列表最多 100 项，搜索结果最多 50 个
-
-    #### 工具使用建议
-    1. 首先使用 **sys_get_drives** 或 **sys_list_directory** 确认目录结构
-    2. 使用 **sys_get_file_info** 检查文件详情（大小、权限等）后再读取
-    3. 对于大文件，使用 **sys_search_files** 时指定递归选项和搜索模式
-    4. 使用 **sys_open_in_explorer** 时，mode=open 表示打开目录，mode=select 表示在资源管理器中定位文件或目录
-    5. 如果遇到权限错误，说明该目录不在允许范围内
-
-    #### 参数说明
-    - **path**：目录或文件路径，使用绝对路径或相对路径均可
-    - **pattern**：搜索模式，支持通配符（如 *.txt, *.cs）
-    - **recursive**：是否递归搜索，默认为 true
-    - **mode**：资源管理器模式，支持 open 或 select
-
-    #### 输出说明
-    - 成功操作返回 "✓" 前缀的结果
-    - 失败操作返回 "✗" 前缀的错误信息
-    - 警告信息返回 "⚠️" 前缀
+    - Scope: use these tools only for the current workspace directory.
+    - Never browse, read, search, or open paths outside the current workspace directory.
+    - If the user wants to access a path outside the workspace, do not use these tools yet. First get explicit user consent to change the workspace directory, then change the workspace directory, then continue.
+    - Prefer relative paths when working inside the workspace.
+    - Use sys_list_directory first when the target path is uncertain.
+    - Read only allowed text/code/document/media/archive file types.
+    - Read file size limit: 10 MB.
+    - Directory listing limit: 100 items. Search result limit: 50 items.
+    - Blocked system folders remain inaccessible.
     """ });
     }
 
@@ -75,37 +51,37 @@ public sealed class FileBrowserProvider : AIContextProvider
         // 工具1：列出目录
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_list_directory",
-            description: "列出指定目录中的所有文件和文件夹。返回文件名、大小、修改时间等信息。最多返回100项。",
+            description: "List files and folders in the current workspace directory. Returns up to 100 items.",
             method: ListDirectoryAsync));
 
         // 工具2：获取文件信息
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_get_file_info",
-            description: "获取单个文件或文件夹的详细信息。",
+            description: "Get metadata for a file or folder in the current workspace directory.",
             method: GetFileInfoAsync));
 
         // 工具3：读取文件内容
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_read_file",
-            description: "读取文本文件的内容。仅支持小于10MB的文本/代码文件。",
+            description: "Read a text or code file in the current workspace directory. Allowed file types only, up to 10 MB.",
             method: ReadFileAsync));
 
         // 工具4：搜索文件
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_search_files",
-            description: "搜索符合模式的文件。支持通配符（如 *.txt）。异步搜索，最多返回50个结果。",
+            description: "Search files in the current workspace directory by pattern. Returns up to 50 matches.",
             method: SearchFilesAsync));
 
         // 工具5：获取驱动器列表
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_get_drives",
-            description: "获取系统中所有可用的驱动器（如 C:\\, D:\\ 等）。",
+            description: "Get available system drives. Use only when the user explicitly wants to change the workspace directory.",
             method: GetDrivesAsync));
 
         // 工具6：资源管理器操作
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_open_in_explorer",
-            description: "在资源管理器中打开目录，或定位文件/目录。mode=open 时打开目录，mode=select 时定位目标。",
+            description: "Open or reveal a file or folder in Explorer within the current workspace directory. mode=open opens a folder. mode=select reveals a file or folder.",
             method: OpenInExplorerAsync));
     }
 

@@ -27,8 +27,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Netor.Cortana.Plugin\Netor.Cortana.Plugin.csproj" />
     <ProjectReference Include="..\Netor.Cortana.Plugin.Native\Netor.Cortana.Plugin.Native.csproj" />
-    <ProjectReference Include="..\Netor.Cortana.Plugin.Abstractions\Netor.Cortana.Plugin.Abstractions.csproj" />
   </ItemGroup>
 
   <ItemGroup>

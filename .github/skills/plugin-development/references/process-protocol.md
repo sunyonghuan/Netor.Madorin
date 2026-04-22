@@ -123,4 +123,4 @@ version: 2
 
 ## 6. 参考实现
 
-- 最小 C# 模板：[template-process-csharp/](./template-process-csharp)
+- C# Process 插件请直接使用 `scripts/create-process-plugin.ps1` 脚手架，不再提供手写协议模板目录

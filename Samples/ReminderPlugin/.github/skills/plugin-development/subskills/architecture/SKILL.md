@@ -1,6 +1,7 @@
 ---
 name: architecture
 description: 'Cortana 插件工程规范子技能。位置：plugin-development/subskills/architecture。用于插件架构设计、职责分离、依赖注入、AOT 安全编码、配置与日志、质量门禁。触发关键词：插件架构、职责分离、依赖注入、工程规范、AOT 安全、插件设计。'
+version: 1
 user-invocable: true
 ---
 

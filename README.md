@@ -273,10 +273,11 @@ Netor.Cortana/                          # Git 仓库根目录
     │   ├── KokoroAudition/             # 🎵 TTS 相关实验工程
     │   └── Plugins/                    # 🧩 插件基础设施与开发包
     │       ├── Netor.Cortana.NativeHost/           # Native 插件宿主子进程
-    │       ├── Netor.Cortana.Plugin.Abstractions/  # 插件契约层
     │       ├── Netor.Cortana.Plugin.Native/        # Native 插件开发包
     │       ├── Netor.Cortana.Plugin.Native.Generator/ # Native 插件源码生成器
-    │       └── Netor.Cortana.Plugin.Native.Debugger/  # Native 插件调试工具
+    │       ├── Netor.Cortana.Plugin.Native.Debugger/  # Native 插件调试工具
+    │       ├── Netor.Cortana.Plugin.Process/       # Process 插件开发包
+    │       └── Netor.Cortana.Plugin.Process.Generator/ # Process 插件源码生成器
     │
     ├── Samples/                        # 📝 示例插件
     │   ├── SamplePlugins/              #    Dotnet 示例插件
@@ -293,22 +294,22 @@ Netor.Cortana/                          # Git 仓库根目录
 
 - **Netor.Cortana.AvaloniaUI** — 当前主项目，默认的开发、调试、发布和验收入口
 - **Netor.Cortana** — 旧 WinForms 宿主，保留在仓库中用于历史参考，不再维护
-- 插件体系以 **Native + MCP** 为主；Dotnet 插件属于历史方案，不再推荐
+- 插件体系以 **Native + Process + MCP** 为主；旧 Dotnet 通道已退场
 - 如果文档与实际不一致，以 AvaloniaUI 为准
 
 ## 插件系统
 
-Cortana 当前推荐两条主扩展路线：Native 和 MCP。Dotnet 通道仍存在于仓库和运行时中，但属于兼容保留能力，不再是推荐的插件开发方向。
+Cortana 当前推荐三条扩展路线：Native、Process 和 MCP。旧 Dotnet 通道已经退场，不再作为可开发或可部署的插件模式。
 
 | 通道 | 运行方式 | 适用场景 | 隔离级别 |
 |------|---------|---------|---------|
 | Native | NativeHost 子进程 + NativeLibrary | C/C++/Rust/C# AOT、高性能计算、高隔离 | 进程级（崩溃隔离） |
 | MCP | Model Context Protocol 客户端 | 远程服务集成、跨语言工具 | 进程级/网络级 |
-| Dotnet | AssemblyLoadContext 加载 | 历史托管插件兼容、迁移过渡 | 进程内（ALC 隔离） |
+| Process | 子进程 + stdio NDJSON 协议 | 需要完整 JIT 生态、跨语言可执行程序接入 | 进程级（崩溃隔离） |
 
 ### 本地插件目录结构
 
-本地插件部署在 .cortana/plugins 目录下。当前建议的新本地插件以 Native 模式为主；plugin.json 仍可用于 Dotnet 和 Native 两类本地插件。MCP 通道通过 UI 和数据库配置，不使用 plugin.json 部署。
+本地插件部署在 .cortana/plugins 目录下。当前建议的新本地插件以 Native 或 Process 模式为主；plugin.json 用于声明本地插件。MCP 通道通过 UI 和数据库配置，不使用 plugin.json 部署。
 
 ```
 .cortana/plugins/
@@ -331,14 +332,12 @@ Cortana 当前推荐两条主扩展路线：Native 和 MCP。Dotnet 通道仍存
 }
 ```
 
-- 新插件默认按 Native 字段组织。
-- 历史 Dotnet 插件仍然使用 assemblyName，但不再作为本文档默认模板。
+- 新插件默认按 Native 或 Process 字段组织。
 - MCP 通道不通过 plugin.json 注册，而是通过设置界面或数据库记录配置连接信息。
 
 > 详细的插件开发指南请参阅：
 > - [Docs/plugin-native.md](Docs/plugin-native.md) — Native 原生插件开发
 > - [Docs/plugin-mcp.md](Docs/plugin-mcp.md) — MCP 服务器集成
-> - [Docs/plugin-dotnet.md](Docs/plugin-dotnet.md) — Dotnet 托管插件开发（历史兼容）
 
 ## 文档索引
 
@@ -347,7 +346,6 @@ Cortana 当前推荐两条主扩展路线：Native 和 MCP。Dotnet 通道仍存
 | [Docs/release-notes/v1.2.0/RELEASE.md](Docs/release-notes/v1.2.0/RELEASE.md) | **v1.2.0 发布说明 — @智能体 多智能体协作** |
 | [Docs/plugin-native.md](Docs/plugin-native.md) | Native 原生插件开发指南 |
 | [Docs/plugin-mcp.md](Docs/plugin-mcp.md) | MCP 服务器集成指南 |
-| [Docs/plugin-dotnet.md](Docs/plugin-dotnet.md) | Dotnet 托管插件开发指南（历史兼容） |
 | [Docs/websocket-api.md](Docs/websocket-api.md) | WebSocket 接入协议与消息格式 |
 | [Docs/class-reference.md](Docs/class-reference.md) | 核心类文件说明 |
 

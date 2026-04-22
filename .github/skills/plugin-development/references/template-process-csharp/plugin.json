@@ -1,8 +1,0 @@
-{
-  "id": "my_process_plugin",
-  "name": "我的子进程插件",
-  "version": "1.0.0",
-  "runtime": "process",
-  "command": "my-process-plugin.exe",
-  "description": "C# AOT EXE 插件模板"
-}

@@ -16,7 +16,6 @@
 | Netor.Cortana.NativeHost | net10.0 | Native 插件宿主子进程 |
 | Netor.Cortana.Plugin.Native | net10.0 | Native 插件开发包 |
 | Netor.Cortana.Plugin.Native.Generator | netstandard2.0 | Native 插件源码生成器 |
-| Netor.Cortana.Plugin.Abstractions | netstandard2.0 | 历史 Dotnet 插件契约层，兼容保留 |
 
 ## 当前主入口
 
@@ -58,8 +57,7 @@
 | 组件 | 说明 |
 |------|------|
 | PluginLoader | 插件扫描、校验、加载和热插拔总入口 |
-| PluginManifest | plugin.json 模型；当前运行时仍兼容 dotnet / native / process |
-| Dotnet/ | 历史兼容通道，不再作为推荐扩展主线 |
+| PluginManifest | plugin.json 模型；当前运行时以 native / process / mcp 为主，旧 dotnet 仅识别后跳过 |
 | Native/ | 当前推荐的本地插件主路线 |
 | Mcp/ | 当前推荐的远程/跨语言工具接入路线 |
 
@@ -72,8 +70,8 @@
 
 ### 兼容路线
 
-- Dotnet：仍可被运行时识别，但主要用于历史插件兼容和迁移，不建议新插件继续以此为默认目标。
-- Netor.Cortana.Plugin.Abstractions：仅服务于 Dotnet 历史插件契约，不代表当前插件主路线。
+- Process：当前推荐的可执行文件插件路线，适合需要完整 JIT 生态或跨语言实现的场景。
+- 旧 Dotnet 通道已经退场，不再提供独立契约层或推荐开发路径。
 
 ## 数据与配置
 
@@ -105,5 +103,4 @@
 ## 历史说明
 
 - 本文档不再把 Netor.Cortana 旧 WinForms UI 视为主项目。
-- 本文档不再把 Netor.Cortana.Plugin.Abstractions 视为当前插件主契约。
 - 对于历史设计细节，请结合对应文档顶部的状态说明判断是否仍然适用。

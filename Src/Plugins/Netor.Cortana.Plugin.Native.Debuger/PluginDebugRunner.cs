@@ -82,7 +82,6 @@ public static class PluginDebugRunner
                name.StartsWith("netstandard", StringComparison.Ordinal) ||
                name.StartsWith("mscorlib", StringComparison.Ordinal) ||
                name.StartsWith("Netor.Cortana.Plugin.Native", StringComparison.Ordinal) ||
-               name.StartsWith("Netor.Cortana.Plugin.Abstractions", StringComparison.Ordinal) ||
                name.StartsWith("Netor.Extensions", StringComparison.Ordinal);
     }
 }

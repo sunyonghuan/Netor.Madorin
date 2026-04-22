@@ -1,6 +1,6 @@
 ---
 name: plugin-development
-version: 3
+version: 5
 description: ' 插件开发全流程技能。按通道类型引导：Native DLL / Process EXE / MCP。主推 C#（提供脚手架），其他语言提供协议规范。触发关键词：插件开发、创建插件、发布插件、Native 插件、Process 插件、MCP 接入。'
 user-invocable: true
 ---
@@ -71,7 +71,7 @@ user-invocable: true
 .\scripts\publish-process-plugin.ps1 -ProjectDir Samples\MyPlugin
 ```
 
-脚手架基于 [references/template-process-csharp/](./references/template-process-csharp)。
+脚手架默认引用 `Netor.Cortana.Plugin.Process` 框架；编译时会自动生成消息循环、`plugin.json` 和 `{PluginClass}Debugger`。
 
 ### 其他语言（Python / Node.js / Go / Rust ...）
 
@@ -79,7 +79,7 @@ user-invocable: true
 
 该规范是语言中立的完整契约：NDJSON 帧格式、4 个方法 (`get_info`/`init`/`invoke`/`destroy`)、`plugin.json` 结构、实现要点清单。
 
-打包要求：产出单个 EXE（Python 用 PyInstaller、Node 用 pkg、Go/Rust 直接 `build`）。
+打包要求：产出单个 EXE；C# 场景优先使用 `publish-process-plugin.ps1` 统一输出运行目录和 zip 包。
 
 ## 四、MCP 通道
 
@@ -99,7 +99,7 @@ user-invocable: true
 | 想做 | 看 |
 |---|---|
 | C# 原生 DLL 插件 | [references/csharp-native.md](./references/csharp-native.md) |
-| C# EXE 子进程插件 | [references/template-process-csharp/](./references/template-process-csharp) |
+| C# EXE 子进程插件 | 使用 `scripts/create-process-plugin.ps1` 生成框架工程 |
 | Python / Node / Go / Rust 子进程插件 | [references/process-protocol.md](./references/process-protocol.md) |
 | MCP 接入 | [references/mcp-setup.md](./references/mcp-setup.md) |
 | AOT 编译错误 | [references/csharp-aot-errors.md](./references/csharp-aot-errors.md) |

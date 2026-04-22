@@ -16,10 +16,23 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Netor.Cortana.Plugin.Abstractions\Netor.Cortana.Plugin.Abstractions.csproj" />
     <ProjectReference Include="..\Netor.Cortana.Plugin.Native.Generator\Netor.Cortana.Plugin.Native.Generator.csproj"
                       OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Netor.Cortana.Plugin.Native.Generator\build\Netor.Cortana.Plugin.Native.Generator.targets"
+          Pack="true"
+          PackagePath="buildTransitive\Netor.Cortana.Plugin.Native.targets" />
+  </ItemGroup>
+
+  <Target Name="_AddNativeGeneratorToPackage" BeforeTargets="_GetPackageFiles" AfterTargets="Build">
+    <ItemGroup>
+      <_PackageFiles Include="..\Netor.Cortana.Plugin.Native.Generator\bin\$(Configuration)\netstandard2.0\Netor.Cortana.Plugin.Native.Generator.dll"
+                     PackagePath="analyzers/dotnet/cs" />
+    </ItemGroup>
+  </Target>
 
 </Project>

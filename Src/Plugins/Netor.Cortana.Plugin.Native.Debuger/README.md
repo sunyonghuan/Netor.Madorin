@@ -102,7 +102,7 @@ Netor.Cortana.Plugin.Native.Debuger/
 ```
 Netor.Cortana.Plugin.Native.Debugger
 ├── Netor.Cortana.Plugin.Native       ([Plugin]、[Tool] 特性定义)
-├── Netor.Cortana.Plugin.Abstractions (IPluginContext 接口)
+├── Netor.Cortana.Plugin              (IPluginContext 接口)
 ├── Microsoft.Extensions.Hosting      (宿主框架)
 ├── Microsoft.Extensions.Logging.Console (控制台日志)
 └── Microsoft.Extensions.Http         (HTTP 客户端)
@@ -116,7 +116,7 @@ Netor.Cortana.Plugin.Native.Debugger
 | `PluginScanner` | `...Debugger.Discovery` | 扫描程序集中的 `[Plugin]` 标记类，验证唯一性 |
 | `ToolScanner` | `...Debugger.Discovery` | 扫描程序集中的 `[Tool]` 标记方法，构建工具注册表 |
 | `DebugPluginHost` | `...Debugger.Hosting` | 调试宿主，负责服务容器构建、插件加载、工具调用 |
-| `DebugPluginContext` | `...Debugger.Hosting` | 调试上下文，实现 `IPluginContext` 接口 |
+| `DebugPluginContext` | `...Debugger.Hosting` | 调试上下文，实现当前宿主侧的 `IPluginContext` 接口 |
 | `ToolInvoker` | `...Debugger.Invocation` | 工具调用器，处理 DI 实例化、JSON 参数绑定、async/await 执行 |
 
 ### 执行流程
@@ -132,7 +132,7 @@ Netor.Cortana.Plugin.Native.Debugger
        ├─ PluginScanner.Scan() → 验证插件入口唯一性
        ├─ ToolScanner.Scan() → 扫描所有 [Tool] 方法
        ├─ 构建 ServiceCollection
-       │   ├─ 注册 IPluginContext
+    │   ├─ 注册宿主侧 IPluginContext
        │   ├─ 注册 ILoggerFactory / IHttpClientFactory
        │   ├─ 调用插件的 Configure(IServiceCollection) 静态方法
        │   └─ 注册所有包含 Tool 方法的类为单例
