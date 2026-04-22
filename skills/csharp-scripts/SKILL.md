@@ -1,6 +1,6 @@
 ---
 name: csharp-scripts
-version: 1.0.2
+version: 1.0.3
 description: 以脚本方式运行单文件 C# 程序，用于快速实验、原型验证和概念测试。当用户希望编写并执行一个小型 C# 程序而无需创建完整项目时使用。
 ---
 
@@ -154,12 +154,21 @@ using Humanizer;
 Console.WriteLine("hello world".Titleize());
 ```
 
-### 步骤 5：清理
+### 步骤 5：清理（**视情况**）
 
-使用完毕后删除脚本文件。清除缓存的构建产物：
+脚本分两类，处理方式不同：
+
+| 类型 | 判定依据 | 执行完的处理 |
+|------|----------|----------------|
+| **临时脚本** | 用户说「测试一下 / 跑一下 / 验证一下」；AI 为演示或一次性计算临时写的文件；放在 `tmp/` `temp/` `%TEMP%` 等临时目录 | 删除文件，必要时 `dotnet clean <file>.cs` |
+| **长期脚本** | 用户明确保存到某个目录；已存在于项目 / 仓库 / `scripts/` `tools/` 等目录；用户提及「以后还要用 / 保留 / 加到 git」 | **不删除**，仅在用户明确要求时执行清理 |
+
+默认原则：**不确定时默认保留，并提醒用户文件路径**。删除动作不可逆，宁愧勿纵。
 
 ```bash
+# 仅在临时脚本时执行：
 dotnet clean hello.cs
+Remove-Item hello.cs
 ```
 
 ## Unix shebang 支持
@@ -225,14 +234,14 @@ mkdir -p /tmp/csharp-script && cd /tmp/csharp-script
 dotnet new console -o . --force
 ```
 
-将生成的 `Program.cs` 替换为脚本内容，然后使用 `dotnet run` 运行。使用 `dotnet add package <name>` 添加 NuGet 包。完成后删除该目录。
+将生成的 `Program.cs` 替换为脚本内容，然后使用 `dotnet run` 运行。使用 `dotnet add package <name>` 添加 NuGet 包。临时项目执行完后可删除该目录；若用户要求保留，保留即可。
 
 ## 验证清单
 
 - [ ] `dotnet --version` 报告 10.0 或更高版本（或已使用回退方案）
 - [ ] 脚本编译无错误（可通过 `dotnet build <file>.cs` 显式检查）
 - [ ] `dotnet <file>.cs` 产生预期输出
-- [ ] 会话结束后已清理脚本文件和缓存的构建产物
+- [ ] 仅对「临时脚本」执行了清理；「长期脚本」保留未被误删
 
 ## 常见问题
 
