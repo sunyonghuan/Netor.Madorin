@@ -72,6 +72,9 @@ public static class Events
     /// <summary>WebSocket 客户端连接状态发生变化。</summary>
     public static WebSocketClientConnectionChangedEvent OnWebSocketClientConnectionChanged = new("network.websocket.client.connection.changed");
 
+    /// <summary>WebSocket 输入通道收到用户消息，供主界面即时显示。</summary>
+    public static WebSocketUserMessageReceivedEvent OnWebSocketUserMessageReceived = new("network.websocket.user.message.received");
+
     /// <summary>MCP 服务器连接状态发生变化（断线/重连成功/重连中）。</summary>
     public static McpConnectionStateChangedEvent OnMcpConnectionStateChanged = new("network.mcp.connection.changed");
 
@@ -98,6 +101,20 @@ public static class Events
 
     /// <summary>会话标题已由 AI 生成更新。</summary>
     public static SessionTitleUpdatedEvent OnSessionTitleUpdated = new("session.title.updated");
+
+    // ──────── 对话事实事件 ────────
+
+    /// <summary>一轮对话已开始，宿主已分配 turnId / traceId。</summary>
+    public static ConversationTurnStartedEvent OnConversationTurnStarted = new("conversation.turn.started");
+
+    /// <summary>本轮用户消息已进入宿主 AI 对话流程。</summary>
+    public static ConversationUserMessageEvent OnConversationUserMessage = new("conversation.user.message");
+
+    /// <summary>本轮 AI 流式输出了一个增量片段。</summary>
+    public static ConversationAssistantDeltaEvent OnConversationAssistantDelta = new("conversation.assistant.delta");
+
+    /// <summary>本轮对话已结束，状态可能是成功、取消或失败。</summary>
+    public static ConversationTurnCompletedEvent OnConversationTurnCompleted = new("conversation.turn.completed");
 }
 
 // ──────── AI 配置变更事件类型 ────────
@@ -129,8 +146,23 @@ public record SessionCreatedEvent(string Eventid) : EventID<SessionCreatedArgs>(
 /// <summary>会话标题更新事件</summary>
 public record SessionTitleUpdatedEvent(string Eventid) : EventID<SessionTitleUpdatedArgs>(Eventid);
 
+/// <summary>对话轮次开始事件</summary>
+public record ConversationTurnStartedEvent(string Eventid) : EventID<ConversationTurnStartedArgs>(Eventid);
+
+/// <summary>用户消息事件</summary>
+public record ConversationUserMessageEvent(string Eventid) : EventID<ConversationUserMessageArgs>(Eventid);
+
+/// <summary>助手流式增量事件</summary>
+public record ConversationAssistantDeltaEvent(string Eventid) : EventID<ConversationAssistantDeltaArgs>(Eventid);
+
+/// <summary>对话轮次结束事件</summary>
+public record ConversationTurnCompletedEvent(string Eventid) : EventID<ConversationTurnCompletedArgs>(Eventid);
+
 /// <summary>WebSocket 客户端连接状态变更事件</summary>
 public record WebSocketClientConnectionChangedEvent(string Eventid) : EventID<WebSocketClientConnectionChangedArgs>(Eventid);
+
+/// <summary>WebSocket 用户消息接收事件</summary>
+public record WebSocketUserMessageReceivedEvent(string Eventid) : EventID<WebSocketUserMessageReceivedArgs>(Eventid);
 
 /// <summary>MCP 服务器连接状态变更事件</summary>
 public record McpConnectionStateChangedEvent(string Eventid) : EventID<McpConnectionStateChangedArgs>(Eventid);
@@ -181,6 +213,166 @@ public record SessionCreatedArgs(string SessionId) : EventArgs;
 public record SessionTitleUpdatedArgs(string SessionId, string Title) : EventArgs;
 
 /// <summary>
+/// 对话事实事件统一上下文。
+/// </summary>
+public abstract record ConversationEventArgs(
+    string SessionId,
+    string TurnId,
+    string TraceId,
+    string ProviderId,
+    string ProviderName,
+    string AgentId,
+    string AgentName,
+    string ModelId,
+    string ModelName,
+    string UserMessageId,
+    string AssistantMessageId,
+    DateTimeOffset OccurredAt) : EventArgs;
+
+/// <summary>
+/// 一轮对话开始事件参数。
+/// </summary>
+public record ConversationTurnStartedArgs(
+    string SessionId,
+    string TurnId,
+    string TraceId,
+    string ProviderId,
+    string ProviderName,
+    string AgentId,
+    string AgentName,
+    string ModelId,
+    string ModelName,
+    string UserMessageId,
+    string AssistantMessageId,
+    DateTimeOffset OccurredAt,
+    int AttachmentCount,
+    IReadOnlyList<string> MentionedAgentIds) : ConversationEventArgs(
+        SessionId,
+        TurnId,
+        TraceId,
+        ProviderId,
+        ProviderName,
+        AgentId,
+        AgentName,
+        ModelId,
+        ModelName,
+        UserMessageId,
+        AssistantMessageId,
+        OccurredAt);
+
+/// <summary>
+/// 用户消息事件参数。
+/// </summary>
+public record ConversationUserMessageArgs(
+    string SessionId,
+    string TurnId,
+    string TraceId,
+    string ProviderId,
+    string ProviderName,
+    string AgentId,
+    string AgentName,
+    string ModelId,
+    string ModelName,
+    string UserMessageId,
+    string AssistantMessageId,
+    DateTimeOffset OccurredAt,
+    string Content,
+    IReadOnlyList<AttachmentInfo> Attachments) : ConversationEventArgs(
+        SessionId,
+        TurnId,
+        TraceId,
+        ProviderId,
+        ProviderName,
+        AgentId,
+        AgentName,
+        ModelId,
+        ModelName,
+        UserMessageId,
+        AssistantMessageId,
+        OccurredAt);
+
+/// <summary>
+/// 助手流式增量事件参数。
+/// </summary>
+public record ConversationAssistantDeltaArgs(
+    string SessionId,
+    string TurnId,
+    string TraceId,
+    string ProviderId,
+    string ProviderName,
+    string AgentId,
+    string AgentName,
+    string ModelId,
+    string ModelName,
+    string UserMessageId,
+    string AssistantMessageId,
+    DateTimeOffset OccurredAt,
+    string Delta,
+    int Sequence) : ConversationEventArgs(
+        SessionId,
+        TurnId,
+        TraceId,
+        ProviderId,
+        ProviderName,
+        AgentId,
+        AgentName,
+        ModelId,
+        ModelName,
+        UserMessageId,
+        AssistantMessageId,
+        OccurredAt);
+
+/// <summary>
+/// 对话轮次结束状态。
+/// </summary>
+public enum ConversationTurnStatus
+{
+    [Display(Name = "成功")]
+    Succeeded,
+
+    [Display(Name = "取消")]
+    Cancelled,
+
+    [Display(Name = "失败")]
+    Failed
+}
+
+/// <summary>
+/// 对话轮次结束事件参数。
+/// </summary>
+public record ConversationTurnCompletedArgs(
+    string SessionId,
+    string TurnId,
+    string TraceId,
+    string ProviderId,
+    string ProviderName,
+    string AgentId,
+    string AgentName,
+    string ModelId,
+    string ModelName,
+    string UserMessageId,
+    string AssistantMessageId,
+    DateTimeOffset OccurredAt,
+    ConversationTurnStatus Status,
+    string UserInput,
+    string AssistantResponse,
+    string? ErrorMessage,
+    int AssistantDeltaCount,
+    int AttachmentCount) : ConversationEventArgs(
+        SessionId,
+        TurnId,
+        TraceId,
+        ProviderId,
+        ProviderName,
+        AgentId,
+        AgentName,
+        ModelId,
+        ModelName,
+        UserMessageId,
+        AssistantMessageId,
+        OccurredAt);
+
+/// <summary>
 /// WebSocket 客户端连接状态变更事件参数
 /// </summary>
 /// <param name="ClientId">客户端 ID</param>
@@ -195,6 +387,17 @@ public record WebSocketClientConnectionChangedArgs(
 {
     public string RemoteEndpoint => RemotePort > 0 ? $"{RemoteIp}:{RemotePort}" : RemoteIp;
 }
+
+/// <summary>
+/// WebSocket 输入通道收到的用户消息参数。
+/// </summary>
+/// <param name="ClientId">发送消息的客户端 ID</param>
+/// <param name="Text">用户输入文本</param>
+/// <param name="Attachments">附件列表</param>
+public record WebSocketUserMessageReceivedArgs(
+    string ClientId,
+    string Text,
+    IReadOnlyList<AttachmentInfo> Attachments) : EventArgs;
 
 /// <summary>
 /// MCP 服务器连接状态变更事件参数

@@ -6,7 +6,7 @@
        发布新版本时只需修改此处的 Version 即可。
        ============================================================ -->
   <PropertyGroup>
-    <Version>1.0.17</Version>
+    <Version>1.0.19</Version>
     <Authors>Netor</Authors>
     <IsPackable>true</IsPackable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

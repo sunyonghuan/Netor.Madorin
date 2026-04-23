@@ -298,6 +298,12 @@ namespace Netor.Cortana.Entitys.Services
                     description: "加载历史时最多携带多少个摘要段落，超出的旧段落不再加载（但不删除）。",
                     value: "15", valueType: "int", sortOrder: 3),
 
+                // ── 记忆体系 ──────────────────────────
+                Seed("Memory.ModelId",
+                    group: "记忆体系", displayName: "记忆加工模型",
+                    description: "插件申请 LLM 用于记忆提取/更新/检索时所使用的模型。留空则回退到当前对话模型。",
+                    value: "", valueType: "model", sortOrder: 0),
+
                 // ── 网络 ──────────────────────────────
                 Seed("WebSocket.Port",
                     group: "网络", displayName: "WebSocket 端口",

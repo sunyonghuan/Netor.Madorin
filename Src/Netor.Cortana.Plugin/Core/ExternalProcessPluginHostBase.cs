@@ -4,6 +4,7 @@ using System.Text.Json;
 
 using Microsoft.Extensions.Logging;
 
+using Netor.Cortana.Entitys;
 using Netor.Cortana.Plugin;
 using Netor.Cortana.Plugin.Native;
 using ProcessDiag = System.Diagnostics.Process;
@@ -192,7 +193,14 @@ public abstract class ExternalProcessPluginHostBase : IDisposable
             DataDirectory = Path.Combine(PluginDirectory, "data"),
             WorkspaceDirectory = context.WorkspaceDirectory,
             WsPort = context.WsPort,
-            PluginDirectory = PluginDirectory
+            PluginDirectory = PluginDirectory,
+            Extensions = new NativePluginInitExtensions
+            {
+                ChatWsEndpoint = CortanaWsEndpoints.BuildChatEndpoint(context.WsPort),
+                ConversationFeedEndpoint = CortanaWsEndpoints.BuildConversationFeedEndpoint(context.WsPort),
+                ConversationFeedProtocol = CortanaWsEndpoints.ConversationFeedProtocol,
+                ConversationFeedVersion = CortanaWsEndpoints.ConversationFeedVersion
+            }
         }, NativePluginJsonContext.Default.NativePluginInitConfig);
 
         var initResponse = await SendRequestAsync(

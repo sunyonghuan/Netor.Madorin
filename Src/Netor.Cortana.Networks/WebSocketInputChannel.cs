@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 using Netor.Cortana.Entitys;
+using Netor.EventHub;
 
 namespace Netor.Cortana.Networks;
 
@@ -13,6 +14,7 @@ public sealed class WebSocketInputChannel(
     ILogger<WebSocketInputChannel> logger,
     IChatTransport transport,
     IAiChatEngine chatEngine,
+    IPublisher publisher,
     WebSocketRequestContext requestContext) : IAiInputChannel, IHostedService, IDisposable
 {
     private bool _disposed;
@@ -48,6 +50,10 @@ public sealed class WebSocketInputChannel(
         switch (type)
         {
             case "send":
+                publisher.Publish(
+                    Events.OnWebSocketUserMessageReceived,
+                    new WebSocketUserMessageReceivedArgs(clientId, data, [.. attachments]));
+
                 requestContext.ActiveClientId = clientId;
                 try
                 {

@@ -223,7 +223,11 @@ public static class ProcessPluginHost
             dataDirectory: config.DataDirectory,
             workspaceDirectory: config.WorkspaceDirectory,
             pluginDirectory: config.PluginDirectory,
-            wsPort: config.WsPort);
+            wsPort: config.WsPort,
+            chatWsEndpoint: config.Extensions?.ChatWsEndpoint ?? string.Empty,
+            conversationFeedEndpoint: config.Extensions?.ConversationFeedEndpoint ?? string.Empty,
+            conversationFeedProtocol: config.Extensions?.ConversationFeedProtocol ?? string.Empty,
+            conversationFeedVersion: config.Extensions?.ConversationFeedVersion ?? string.Empty);
 
         accessor.Set(settings);
         logger.LogInformation(

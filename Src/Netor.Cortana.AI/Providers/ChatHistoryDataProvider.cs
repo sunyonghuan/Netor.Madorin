@@ -28,7 +28,6 @@ namespace Netor.Cortana.AI.Providers;
 public sealed class ChatHistoryDataProvider(
     CortanaDbContext dbContext,
     SystemSettingsService systemSettings,
-    AiModelService modelService,
     IAppPaths appPaths,
     ILogger<ChatHistoryDataProvider> logger,
     IServiceProvider services) : ChatHistoryProvider, IDisposable
@@ -36,15 +35,6 @@ public sealed class ChatHistoryDataProvider(
 {
     internal const string NewSessionTitle = "新会话";
 
-    /// <summary>
-    /// 缓存的压缩专用 ChatClient 实例，避免每次压缩都创建新连接。
-    /// </summary>
-    private IChatClient? _cachedCompactionClient;
-
-    /// <summary>
-    /// 缓存对应的 ModelId，用于检测配置变更时失效重建。
-    /// </summary>
-    private string? _cachedCompactionModelId;
     private const string IsNewSessionStateKey = "isnewsession";
 
     /// <summary>
@@ -77,7 +67,8 @@ public sealed class ChatHistoryDataProvider(
             .Select(t => new ChatMessageEntity
             {
                 Role = t.Role.ToString(),
-                Content = t.Text,
+                Content = t.ToPersistedContent(),
+                ContentsJson = ChatMessageExtensions.BuildContentsJson(t.Contents),
                 AuthorName = GetChatRoleText(t.Role, context.Agent.Name ?? "未知"),
                 CreatedAt = t.CreatedAt ?? DateTimeOffset.UtcNow,
                 CreatedTimestamp = t.CreatedAt?.ToLocalTime().ToUnixTimeMilliseconds() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
@@ -96,9 +87,9 @@ public sealed class ChatHistoryDataProvider(
                     using var cmd = conn.CreateCommand();
                     cmd.CommandText = """
                         INSERT OR REPLACE INTO ChatMessages
-                            (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, TokenCount, ModelName, CreatedAt)
+                            (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, ContentsJson, TokenCount, ModelName, CreatedAt)
                         VALUES
-                            (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @TokenCount, @ModelName, @CreatedAt)
+                            (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @ContentsJson, @TokenCount, @ModelName, @CreatedAt)
                         """;
                     ChatMessageService.BindEntity(cmd, message);
                     cmd.ExecuteNonQuery();
@@ -161,10 +152,12 @@ public sealed class ChatHistoryDataProvider(
             }
 
             // 创建部分响应消息
+            var partialContents = new List<AIContent> { new TextContent(partialResponse) };
             var message = new ChatMessageEntity
             {
                 Role = ChatRole.Assistant.ToString(),
-                Content = partialResponse,
+                Content = ChatMessageExtensions.BuildPersistedContent(partialResponse, partialContents),
+                ContentsJson = ChatMessageExtensions.BuildContentsJson(partialContents),
                 AuthorName = GetChatRoleText(ChatRole.Assistant, agent.Name ?? "未知"),
                 CreatedAt = DateTimeOffset.UtcNow,
                 CreatedTimestamp = DateTimeOffset.UtcNow.ToLocalTime().ToUnixTimeMilliseconds(),
@@ -180,9 +173,9 @@ public sealed class ChatHistoryDataProvider(
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
                     INSERT OR REPLACE INTO ChatMessages
-                        (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, TokenCount, ModelName, CreatedAt)
+                        (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, ContentsJson, TokenCount, ModelName, CreatedAt)
                     VALUES
-                        (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @TokenCount, @ModelName, @CreatedAt)
+                        (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @ContentsJson, @TokenCount, @ModelName, @CreatedAt)
                     """;
                 ChatMessageService.BindEntity(cmd, message);
                 cmd.ExecuteNonQuery();
@@ -250,7 +243,7 @@ public sealed class ChatHistoryDataProvider(
                     AuthorName = t.AuthorName,
                     MessageId = t.Id,
                     CreatedAt = t.CreatedAt?.ToLocalTime(),
-                    Contents = BuildContentsWithAssets(t.Id, t.Content)
+                    Contents = BuildContentsWithAssets(t)
                 }));
 
                 return result;
@@ -296,7 +289,7 @@ public sealed class ChatHistoryDataProvider(
                         AuthorName = t.AuthorName,
                         MessageId = t.Id,
                         CreatedAt = t.CreatedAt?.ToLocalTime(),
-                        Contents = BuildContentsWithAssets(t.Id, t.Content)
+                        Contents = BuildContentsWithAssets(t)
                     }));
 
                     return result;
@@ -320,7 +313,7 @@ public sealed class ChatHistoryDataProvider(
                     AuthorName = t.AuthorName,
                     MessageId = t.Id,
                     CreatedAt = t.CreatedAt?.ToLocalTime(),
-                    Contents = BuildContentsWithAssets(t.Id, t.Content)
+                    Contents = BuildContentsWithAssets(t)
                 });
             return messages;
         }
@@ -614,80 +607,51 @@ public sealed class ChatHistoryDataProvider(
     }
 
     /// <summary>
-    /// 解析缩略专用模型。若 Compaction.ModelId 已配置且有效，则复用缓存的 IChatClient；否则回退到当前 Agent 的 ChatClient。
-    /// 当 ModelId 配置变更时自动释放旧实例并重建。
+    /// 解析缩略专用模型。若 Compaction.ModelId 已配置且有效，则通过 <see cref="ModelPurposeResolver"/>
+    /// 复用缓存的 <see cref="IChatClient"/>；否则回退到当前 Agent 的 ChatClient。
     /// </summary>
     private IChatClient? ResolveCompactionClient(AIAgent agent)
     {
-        var compactionModelId = systemSettings.GetValue("Compaction.ModelId");
-        if (!string.IsNullOrEmpty(compactionModelId))
-        {
-            // 配置未变且缓存可用 → 直接复用
-            if (_cachedCompactionClient is not null
-                && string.Equals(_cachedCompactionModelId, compactionModelId, StringComparison.Ordinal))
-            {
-                return _cachedCompactionClient;
-            }
-
-            // 配置已变更 → 释放旧实例
-            _cachedCompactionClient?.Dispose();
-            _cachedCompactionClient = null;
-            _cachedCompactionModelId = null;
-
-            var model = modelService.GetById(compactionModelId);
-            if (model is not null)
-            {
-                var providerService = services.GetRequiredService<AiProviderService>();
-                var provider = providerService.GetById(model.ProviderId);
-                if (provider is not null)
-                {
-                    var registry = services.GetRequiredService<AiProviderDriverRegistry>();
-                    var driver = registry.Resolve(provider);
-                    _cachedCompactionClient = driver.CreateChatClient(provider, model);
-                    _cachedCompactionModelId = compactionModelId;
-                    return _cachedCompactionClient;
-                }
-            }
-        }
-        else
-        {
-            // 配置已清空 → 释放缓存
-            if (_cachedCompactionClient is not null)
-            {
-                _cachedCompactionClient.Dispose();
-                _cachedCompactionClient = null;
-                _cachedCompactionModelId = null;
-            }
-        }
-
-        return agent.GetService<IChatClient>();
+        var resolver = services.GetRequiredService<ModelPurposeResolver>();
+        return resolver.TryResolve("Compaction.ModelId") ?? agent.GetService<IChatClient>();
     }
 
     /// <summary>
-    /// 释放缓存的压缩专用 ChatClient。
+    /// 释放本 Provider 持有的资源。用途级客户端统一由 <see cref="ModelPurposeResolver"/> 托管。
     /// </summary>
     public void Dispose()
     {
-        _cachedCompactionClient?.Dispose();
-        _cachedCompactionClient = null;
+        // 压缩客户端缓存已迁移到 ModelPurposeResolver，此处无需释放。
     }
 
     // ──────────────────── 资源加载 / 保存辅助 ────────────────────
 
     /// <summary>
-    /// 构造一条历史消息的 Contents 列表：文本 + （如果存在）ChatMessageAssets 表中的图片资源。
+    /// 构造一条历史消息的 Contents 列表：优先从 <c>ContentsJson</c> 还原结构化内容（工具调用/结果）；
+    /// 否则退化为文本快照。无论走哪条路径，都会追加 <c>ChatMessageAssets</c> 表中的图片资源。
     /// 非图片资源（文档/音视频）不回灌到 AI 上下文，避免占用 token；它们通过消息 Content 中的
     /// 链接引用（用户附件）或由 UI 侧的 ResourceCardPanel 独立渲染。
     /// </summary>
-    private IList<AIContent> BuildContentsWithAssets(string? messageId, string text)
+    private IList<AIContent> BuildContentsWithAssets(ChatMessageEntity entity)
     {
-        var contents = new List<AIContent> { new TextContent(text ?? string.Empty) };
-        if (string.IsNullOrEmpty(messageId)) return contents;
+        List<AIContent> contents;
+
+        var structured = ChatMessageExtensions.ParseContentsJson(entity.ContentsJson);
+        if (structured is { Count: > 0 })
+        {
+            contents = [.. structured];
+        }
+        else
+        {
+            contents = [new TextContent(entity.Content ?? string.Empty)];
+        }
+
+        if (string.IsNullOrEmpty(entity.Id)) return contents;
 
         try
         {
             var assetService = services.GetRequiredService<ChatMessageAssetService>();
-            var assets = assetService.GetByMessageId(messageId);
+            var assets = assetService.GetByMessageId(entity.Id);
             foreach (var asset in assets)
             {
                 if (asset.AssetGroup != "images") continue; // 仅图片回灌给 AI
@@ -700,7 +664,7 @@ public sealed class ChatHistoryDataProvider(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "加载消息 {MessageId} 的历史资源失败。", messageId);
+            logger.LogWarning(ex, "加载消息 {MessageId} 的历史资源失败。", entity.Id);
         }
         return contents;
     }

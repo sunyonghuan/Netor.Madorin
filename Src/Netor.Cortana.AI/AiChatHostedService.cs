@@ -244,16 +244,34 @@ public sealed class AiChatHostedService(
 
         // 声明 fullResponse 在 try-catch 外，以便在 catch 块中访问
         var fullResponse = new StringBuilder();
+        var turnId = Guid.NewGuid().ToString("N");
+        var traceId = Guid.NewGuid().ToString("N");
+        var userMessageId = Guid.NewGuid().ToString("N");
+        var safeAttachments = attachments?.ToArray() ?? [];
+        var mentionedAgentIds = mentions?
+            .Select(t => t.Agent.Id)
+            .Where(static t => !string.IsNullOrWhiteSpace(t))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray() ?? [];
+        var assistantDeltaCount = 0;
 
         // 预生成助手消息 ID，确保文本和资源落盘使用同一主键
         var assistantMessageId = Guid.NewGuid().ToString("N");
         var currentSessionId = _session?.StateBag.GetValue<string>("sessionid") ?? "";
+        ConversationEventMetadata? conversationMetadata = null;
 
         try
         {
+            conversationMetadata = CreateConversationEventMetadata(
+                currentSessionId,
+                turnId,
+                traceId,
+                userMessageId,
+                assistantMessageId);
+            PublishConversationTurnStarted(conversationMetadata, safeAttachments.Length, mentionedAgentIds);
+
             // 构建多模态消息内容
             var contents = new List<AIContent>();
-            var messageId = Guid.NewGuid().ToString("N");
 
             if (!string.IsNullOrWhiteSpace(userInput))
             {
@@ -284,7 +302,7 @@ public sealed class AiChatHostedService(
                         {
                             // 图片：拷贝到资源目录 + 写入索引，保留历史回看
                             var assetGroup = ResolveAssetGroup(attachment.MimeType);
-                            var relativePath = Path.Combine("histories", currentSessionId, assetGroup, messageId, attachment.Name);
+                            var relativePath = Path.Combine("histories", currentSessionId, assetGroup, userMessageId, attachment.Name);
                             var absolutePath = Path.Combine(appPaths.WorkspaceResourcesDirectory, relativePath);
 
                             var targetDir = Path.GetDirectoryName(absolutePath)!;
@@ -299,7 +317,7 @@ public sealed class AiChatHostedService(
                             assetEntities.Add(new ChatMessageAssetEntity
                             {
                                 SessionId = currentSessionId,
-                                MessageId = messageId,
+                                MessageId = userMessageId,
                                 Role = "user",
                                 AssetGroup = assetGroup,
                                 AssetKind = "attachment",
@@ -354,10 +372,11 @@ public sealed class AiChatHostedService(
                 CreatedAt = DateTimeOffset.UtcNow,
                 Contents = contents,
                 AuthorName = "用户",
-                MessageId = messageId
+                MessageId = userMessageId
             };
 
-            SaveUserMessage(msg.Text, msg.MessageId!);
+            SaveUserMessage(msg);
+            PublishConversationUserMessage(conversationMetadata, msg.Text, safeAttachments);
 
             // 将预生成的助手消息 ID 写入 StateBag，供 ChatHistoryDataProvider 使用
             _session!.StateBag.SetValue("assistantmessageid", assistantMessageId);
@@ -370,6 +389,8 @@ public sealed class AiChatHostedService(
                 if (string.IsNullOrEmpty(chunk.Text)) continue;
 
                 fullResponse.Append(chunk.Text);
+                assistantDeltaCount++;
+                PublishConversationAssistantDelta(conversationMetadata, chunk.Text, assistantDeltaCount);
 
                 // 向所有活跃的输出通道广播 token
                 foreach (var channel in outputChannels)
@@ -407,6 +428,15 @@ public sealed class AiChatHostedService(
                 }
             }
 
+            PublishConversationTurnCompleted(
+                conversationMetadata,
+                ConversationTurnStatus.Succeeded,
+                userInput,
+                fullResponse.ToString(),
+                null,
+                assistantDeltaCount,
+                safeAttachments.Length);
+
             if (!string.IsNullOrWhiteSpace(fullResponse.ToString()))
             {
                 logger.LogInformation("AI 对话完成，回复长度：{Length}", fullResponse.Length);
@@ -428,10 +458,28 @@ public sealed class AiChatHostedService(
                     modelName,
                     assistantMessageId);
             }
+
+            PublishConversationTurnCompleted(
+                conversationMetadata,
+                ConversationTurnStatus.Cancelled,
+                userInput,
+                fullResponse.ToString(),
+                null,
+                assistantDeltaCount,
+                safeAttachments.Length);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "AI 流式响应出错");
+
+            PublishConversationTurnCompleted(
+                conversationMetadata,
+                ConversationTurnStatus.Failed,
+                userInput,
+                fullResponse.ToString(),
+                ex.Message,
+                assistantDeltaCount,
+                safeAttachments.Length);
 
             foreach (var channel in outputChannels)
             {
@@ -465,7 +513,7 @@ public sealed class AiChatHostedService(
     /// <summary>
     /// 保存用户消息到数据库。
     /// </summary>
-    private void SaveUserMessage(string content, string messageId)
+    private void SaveUserMessage(AIChatMessage message)
     {
         try
         {
@@ -473,11 +521,12 @@ public sealed class AiChatHostedService(
             var entity = new ChatMessageEntity
             {
                 Role = ChatRole.User.ToString(),
-                Content = content,
+                Content = message.ToPersistedContent(),
+                ContentsJson = ChatMessageExtensions.BuildContentsJson(message.Contents),
                 AuthorName = "用户",
                 CreatedAt = DateTimeOffset.UtcNow,
                 CreatedTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                Id = messageId,
+                Id = message.MessageId ?? Guid.NewGuid().ToString("N"),
                 SessionId = sessionId,
                 UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
                 ModelName = _currentModel?.Name ?? string.Empty
@@ -486,9 +535,9 @@ public sealed class AiChatHostedService(
             dbContext.Execute(
                 """
                 INSERT OR REPLACE INTO ChatMessages
-                    (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, TokenCount, ModelName, CreatedAt)
+                    (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, ContentsJson, TokenCount, ModelName, CreatedAt)
                 VALUES
-                    (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @TokenCount, @ModelName, @CreatedAt)
+                    (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @ContentsJson, @TokenCount, @ModelName, @CreatedAt)
                 """,
                 cmd => ChatMessageService.BindEntity(cmd, entity));
         }
@@ -615,6 +664,156 @@ public sealed class AiChatHostedService(
             }
         }
     }
+
+    private ConversationEventMetadata CreateConversationEventMetadata(
+        string sessionId,
+        string turnId,
+        string traceId,
+        string userMessageId,
+        string assistantMessageId)
+    {
+        return new ConversationEventMetadata(
+            sessionId,
+            turnId,
+            traceId,
+            _currentProvider?.Id ?? string.Empty,
+            _currentProvider?.Name ?? string.Empty,
+            _currentAgent?.Id ?? string.Empty,
+            _currentAgent?.Name ?? string.Empty,
+            _currentModel?.Id ?? string.Empty,
+            _currentModel?.Name ?? string.Empty,
+            userMessageId,
+            assistantMessageId);
+    }
+
+    private void PublishConversationTurnStarted(
+        ConversationEventMetadata? metadata,
+        int attachmentCount,
+        IReadOnlyList<string> mentionedAgentIds)
+    {
+        if (metadata is null)
+        {
+            return;
+        }
+
+        publisher.Publish(Events.OnConversationTurnStarted, new ConversationTurnStartedArgs(
+            metadata.SessionId,
+            metadata.TurnId,
+            metadata.TraceId,
+            metadata.ProviderId,
+            metadata.ProviderName,
+            metadata.AgentId,
+            metadata.AgentName,
+            metadata.ModelId,
+            metadata.ModelName,
+            metadata.UserMessageId,
+            metadata.AssistantMessageId,
+            DateTimeOffset.UtcNow,
+            attachmentCount,
+            mentionedAgentIds));
+    }
+
+    private void PublishConversationUserMessage(
+        ConversationEventMetadata? metadata,
+        string content,
+        IReadOnlyList<AttachmentInfo> attachments)
+    {
+        if (metadata is null)
+        {
+            return;
+        }
+
+        publisher.Publish(Events.OnConversationUserMessage, new ConversationUserMessageArgs(
+            metadata.SessionId,
+            metadata.TurnId,
+            metadata.TraceId,
+            metadata.ProviderId,
+            metadata.ProviderName,
+            metadata.AgentId,
+            metadata.AgentName,
+            metadata.ModelId,
+            metadata.ModelName,
+            metadata.UserMessageId,
+            metadata.AssistantMessageId,
+            DateTimeOffset.UtcNow,
+            content,
+            attachments));
+    }
+
+    private void PublishConversationAssistantDelta(
+        ConversationEventMetadata? metadata,
+        string delta,
+        int sequence)
+    {
+        if (metadata is null)
+        {
+            return;
+        }
+
+        publisher.Publish(Events.OnConversationAssistantDelta, new ConversationAssistantDeltaArgs(
+            metadata.SessionId,
+            metadata.TurnId,
+            metadata.TraceId,
+            metadata.ProviderId,
+            metadata.ProviderName,
+            metadata.AgentId,
+            metadata.AgentName,
+            metadata.ModelId,
+            metadata.ModelName,
+            metadata.UserMessageId,
+            metadata.AssistantMessageId,
+            DateTimeOffset.UtcNow,
+            delta,
+            sequence));
+    }
+
+    private void PublishConversationTurnCompleted(
+        ConversationEventMetadata? metadata,
+        ConversationTurnStatus status,
+        string userInput,
+        string assistantResponse,
+        string? errorMessage,
+        int assistantDeltaCount,
+        int attachmentCount)
+    {
+        if (metadata is null)
+        {
+            return;
+        }
+
+        publisher.Publish(Events.OnConversationTurnCompleted, new ConversationTurnCompletedArgs(
+            metadata.SessionId,
+            metadata.TurnId,
+            metadata.TraceId,
+            metadata.ProviderId,
+            metadata.ProviderName,
+            metadata.AgentId,
+            metadata.AgentName,
+            metadata.ModelId,
+            metadata.ModelName,
+            metadata.UserMessageId,
+            metadata.AssistantMessageId,
+            DateTimeOffset.UtcNow,
+            status,
+            userInput,
+            assistantResponse,
+            errorMessage,
+            assistantDeltaCount,
+            attachmentCount));
+    }
+
+    private sealed record ConversationEventMetadata(
+        string SessionId,
+        string TurnId,
+        string TraceId,
+        string ProviderId,
+        string ProviderName,
+        string AgentId,
+        string AgentName,
+        string ModelId,
+        string ModelName,
+        string UserMessageId,
+        string AssistantMessageId);
 
     /// <summary>
     /// 重新构建 Agent 实例（当提供商、模型或智能体通过前端手动切换时调用）。

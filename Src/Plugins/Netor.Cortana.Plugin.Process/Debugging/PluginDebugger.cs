@@ -92,7 +92,14 @@ public abstract class PluginDebugger : IAsyncDisposable
             DataDirectory = dataDirectory ?? Path.Combine(Path.GetTempPath(), "cortana-debugger"),
             WorkspaceDirectory = workspaceDirectory ?? Directory.GetCurrentDirectory(),
             PluginDirectory = pluginDirectory ?? AppContext.BaseDirectory,
-            WsPort = wsPort
+            WsPort = wsPort,
+            Extensions = new InitExtensions
+            {
+                ChatWsEndpoint = $"ws://localhost:{wsPort}/ws/",
+                ConversationFeedEndpoint = $"ws://localhost:{wsPort}/internal/conversation-feed/",
+                ConversationFeedProtocol = "conversation-feed",
+                ConversationFeedVersion = "1.0.0"
+            }
         };
         return InitAsync(config);
     }

@@ -22,6 +22,8 @@ public static class NetworkServiceExtensions
         services.AddSingleton<IChatTransport>(sp => sp.GetRequiredService<WebSocketServerService>());
         services.AddSingleton<WebSocketEventRelayService>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketEventRelayService>());
+        services.AddSingleton<WebSocketConversationFeedRelayService>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketConversationFeedRelayService>());
 
         services.AddSingleton<WebSocketChatOutputChannel>();
         services.AddSingleton<IAiOutputChannel>(sp => sp.GetRequiredService<WebSocketChatOutputChannel>());

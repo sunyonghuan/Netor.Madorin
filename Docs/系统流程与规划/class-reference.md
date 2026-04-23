@@ -50,7 +50,9 @@
 
 | 能力 | 说明 |
 |------|------|
-| WebSocketServer | 对外暴露 WebSocket 接口，推送 AI 和语音事件 |
+| WebSocketServer | 当前对外聊天 WebSocket 接口，负责聊天输入输出与语音事件广播 |
+
+> 规划补充：后续将新增“内部对话事件订阅 WebSocket”，专门向插件分发宿主内部对话事实流。该内部协议与当前对外聊天 WebSocket 明确区分，不复用同一消息对象。
 
 ### Netor.Cortana.Plugin
 
@@ -84,6 +86,14 @@
 | McpServerEntity | MCP Server 连接配置实体 |
 | ChatSessionEntity / ChatMessageEntity | 对话会话和消息存储 |
 | Services/ | 基于 Microsoft.Data.Sqlite 的 CRUD 服务 |
+
+> 规划补充：主程序数据库继续作为宿主事实源之一，但不再作为插件直接访问的数据源。后续插件通过内部事件流接收对话事实，避免宿主污染和安全边界变弱。
+
+## 记忆体系规划补充
+
+- 当前 `FileMemoryProvider` 所提供的文件记忆将重新定位为“规则记忆”，只在当前工作区生效。
+- 面向智能体长期成长的“长期记忆体系”将独立于当前文件记忆实现。
+- 长期记忆体系计划通过独立插件 / 子进程承载，并通过内部对话事件 WebSocket 接收宿主对话事实流。
 
 ## Native 基础设施
 

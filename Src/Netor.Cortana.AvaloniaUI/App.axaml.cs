@@ -292,6 +292,12 @@ public partial class App : Application
             description: "加载历史时最多携带多少个摘要段落，超出的旧段落不再加载（但不删除）。",
             defaultValue: "15", valueType: "int", sortOrder: 3);
 
+        // v1.2.x: 用途级模型路由 —— 宿主先行原则
+        sysSettings.EnsureSetting("Memory.ModelId",
+            group: "记忆体系", displayName: "记忆加工模型",
+            description: "插件申请 LLM 用于记忆提取/更新/检索时所使用的模型。留空则回退到当前对话模型。",
+            defaultValue: "", valueType: "model", sortOrder: 0);
+
         // 版本迁移：移除已废弃的旧压缩配置项
         sysSettings.DeleteSetting("ChatHistory.MaxContentLength");
         sysSettings.DeleteSetting("ChatHistory.MaxContentCount");

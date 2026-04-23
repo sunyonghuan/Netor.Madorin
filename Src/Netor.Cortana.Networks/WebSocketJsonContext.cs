@@ -1,4 +1,7 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
+
+using Netor.Cortana.Entitys;
 
 namespace Netor.Cortana.Networks;
 
@@ -6,6 +9,12 @@ namespace Netor.Cortana.Networks;
 /// WebSocket 消息 JSON 源生成器上下文（AOT 兼容）。
 /// </summary>
 [JsonSerializable(typeof(WsMessage))]
+[JsonSerializable(typeof(ConversationFeedControlMessage))]
+[JsonSerializable(typeof(ConversationFeedEventMessage))]
+[JsonSerializable(typeof(ConversationTurnStartedArgs))]
+[JsonSerializable(typeof(ConversationUserMessageArgs))]
+[JsonSerializable(typeof(ConversationAssistantDeltaArgs))]
+[JsonSerializable(typeof(ConversationTurnCompletedArgs))]
 internal partial class WebSocketJsonContext : JsonSerializerContext;
 
 /// <summary>
@@ -24,4 +33,52 @@ internal sealed record WsMessage
 
     [JsonPropertyName("sessionId")]
     public string? SessionId { get; init; }
+}
+
+/// <summary>
+/// 内部对话事件 feed 的控制消息。
+/// </summary>
+internal sealed record ConversationFeedControlMessage
+{
+    [JsonPropertyName("type")]
+    public string Type { get; init; } = string.Empty;
+
+    [JsonPropertyName("protocol")]
+    public string Protocol { get; init; } = string.Empty;
+
+    [JsonPropertyName("version")]
+    public string Version { get; init; } = string.Empty;
+
+    [JsonPropertyName("clientId")]
+    public string? ClientId { get; init; }
+
+    [JsonPropertyName("topics")]
+    public string[]? Topics { get; init; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; init; }
+}
+
+/// <summary>
+/// 内部对话事件 feed 的事件消息。
+/// </summary>
+internal sealed record ConversationFeedEventMessage
+{
+    [JsonPropertyName("type")]
+    public string Type { get; init; } = string.Empty;
+
+    [JsonPropertyName("protocol")]
+    public string Protocol { get; init; } = string.Empty;
+
+    [JsonPropertyName("version")]
+    public string Version { get; init; } = string.Empty;
+
+    [JsonPropertyName("topic")]
+    public string Topic { get; init; } = string.Empty;
+
+    [JsonPropertyName("eventType")]
+    public string EventType { get; init; } = string.Empty;
+
+    [JsonPropertyName("payload")]
+    public JsonElement Payload { get; init; }
 }

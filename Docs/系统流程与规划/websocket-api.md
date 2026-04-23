@@ -2,6 +2,8 @@
 
 > 当前说明：该接口面向当前 AvaloniaUI 主线和整体宿主能力，对外协议与 UI 技术栈解耦。只要宿主运行，客户端即可通过 WebSocket 接入，不依赖旧 WinForms UI。
 
+> 说明补充：本文档描述的是当前对外聊天 WebSocket 协议，不包含宿主后续规划中的“内部对话事件订阅 WebSocket”。内部事件协议将单独建文档，并与当前聊天消息对象明确区分。
+
 ## 概述
 
 Cortana 内置 WebSocket 服务，允许外部应用通过标准 WebSocket 协议接入 AI 对话能力。支持：

@@ -195,6 +195,31 @@ public partial class MainWindow : Window
             return Task.FromResult(false);
         });
 
+        _subscriber.Subscribe<WebSocketUserMessageReceivedArgs>(Events.OnWebSocketUserMessageReceived, (_, args) =>
+        {
+            var attachmentNames = args.Attachments.Count > 0
+                ? string.Join(", ", args.Attachments.Select(attachment => $"📎 {attachment.Name}"))
+                : string.Empty;
+            var displayText = string.IsNullOrWhiteSpace(attachmentNames)
+                ? args.Text
+                : string.IsNullOrWhiteSpace(args.Text)
+                    ? attachmentNames
+                    : $"{args.Text}\n{attachmentNames}";
+
+            if (string.IsNullOrWhiteSpace(displayText))
+            {
+                return Task.FromResult(false);
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                HideWelcome();
+                AddMessageBubble(displayText, isUser: true);
+            });
+
+            return Task.FromResult(false);
+        });
+
         // 工作目录变更 → 刷新文件树 + 重载会话
         _subscriber.Subscribe<WorkspaceChangedArgs>(Events.OnWorkspaceChanged, (_, args) =>
         {

@@ -7,6 +7,11 @@ namespace Netor.Cortana.Plugin;
 /// </summary>
 public sealed class PluginSettings
 {
+	private const string DefaultChatPath = "/ws/";
+	private const string DefaultConversationFeedPath = "/internal/conversation-feed/";
+	private const string DefaultConversationFeedProtocol = "conversation-feed";
+	private const string DefaultConversationFeedVersion = "1.0.0";
+
 	/// <summary>
 	/// 插件专属的数据存储目录。
 	/// </summary>
@@ -28,18 +33,54 @@ public sealed class PluginSettings
 	public int WsPort { get; }
 
 	/// <summary>
+	/// 旧聊天 WebSocket 端点。
+	/// </summary>
+	public string ChatWsEndpoint { get; }
+
+	/// <summary>
+	/// 内部对话 feed 端点。
+	/// </summary>
+	public string ConversationFeedEndpoint { get; }
+
+	/// <summary>
+	/// 内部对话 feed 协议名。
+	/// </summary>
+	public string ConversationFeedProtocol { get; }
+
+	/// <summary>
+	/// 内部对话 feed 协议版本。
+	/// </summary>
+	public string ConversationFeedVersion { get; }
+
+	/// <summary>
 	/// 直接构造运行时配置。
 	/// </summary>
 	public PluginSettings(
 		string dataDirectory,
 		string workspaceDirectory,
 		string pluginDirectory,
-		int wsPort)
+		int wsPort,
+		string chatWsEndpoint,
+		string conversationFeedEndpoint,
+		string conversationFeedProtocol,
+		string conversationFeedVersion)
 	{
 		DataDirectory = dataDirectory;
 		WorkspaceDirectory = workspaceDirectory;
 		PluginDirectory = pluginDirectory;
 		WsPort = wsPort;
+		ChatWsEndpoint = !string.IsNullOrWhiteSpace(chatWsEndpoint)
+			? chatWsEndpoint
+			: wsPort > 0 ? $"ws://localhost:{wsPort}{DefaultChatPath}" : string.Empty;
+		ConversationFeedEndpoint = !string.IsNullOrWhiteSpace(conversationFeedEndpoint)
+			? conversationFeedEndpoint
+			: wsPort > 0 ? $"ws://localhost:{wsPort}{DefaultConversationFeedPath}" : string.Empty;
+		ConversationFeedProtocol = !string.IsNullOrWhiteSpace(conversationFeedProtocol)
+			? conversationFeedProtocol
+			: DefaultConversationFeedProtocol;
+		ConversationFeedVersion = !string.IsNullOrWhiteSpace(conversationFeedVersion)
+			? conversationFeedVersion
+			: DefaultConversationFeedVersion;
 	}
 
 	/// <summary>
@@ -68,6 +109,38 @@ public sealed class PluginSettings
 			? wp.GetInt32()
 			: 0;
 
-		return new PluginSettings(dataDirectory, workspaceDirectory, pluginDirectory, wsPort);
+		var chatWsEndpoint = string.Empty;
+		var conversationFeedEndpoint = string.Empty;
+		var conversationFeedProtocol = string.Empty;
+		var conversationFeedVersion = string.Empty;
+
+		if (root.TryGetProperty("extensions", out var extensionsElement) && extensionsElement.ValueKind == JsonValueKind.Object)
+		{
+			chatWsEndpoint = extensionsElement.TryGetProperty("chatWsEndpoint", out var chatWsEndpointElement)
+				? chatWsEndpointElement.GetString() ?? string.Empty
+				: string.Empty;
+
+			conversationFeedEndpoint = extensionsElement.TryGetProperty("conversationFeedEndpoint", out var conversationFeedEndpointElement)
+				? conversationFeedEndpointElement.GetString() ?? string.Empty
+				: string.Empty;
+
+			conversationFeedProtocol = extensionsElement.TryGetProperty("conversationFeedProtocol", out var conversationFeedProtocolElement)
+				? conversationFeedProtocolElement.GetString() ?? string.Empty
+				: string.Empty;
+
+			conversationFeedVersion = extensionsElement.TryGetProperty("conversationFeedVersion", out var conversationFeedVersionElement)
+				? conversationFeedVersionElement.GetString() ?? string.Empty
+				: string.Empty;
+		}
+
+		return new PluginSettings(
+			dataDirectory,
+			workspaceDirectory,
+			pluginDirectory,
+			wsPort,
+			chatWsEndpoint,
+			conversationFeedEndpoint,
+			conversationFeedProtocol,
+			conversationFeedVersion);
 	}
 }

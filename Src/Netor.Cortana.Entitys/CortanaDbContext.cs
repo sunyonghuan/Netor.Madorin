@@ -231,6 +231,7 @@ namespace Netor.Cortana.Entitys
                     Role TEXT NOT NULL DEFAULT '',
                     AuthorName TEXT NOT NULL DEFAULT '',
                     Content TEXT NOT NULL DEFAULT '',
+                    ContentsJson TEXT NOT NULL DEFAULT '',
                     TokenCount INTEGER NOT NULL DEFAULT 0,
                     ModelName TEXT NOT NULL DEFAULT '',
                     CreatedAt TEXT
@@ -331,6 +332,9 @@ namespace Netor.Cortana.Entitys
             TryAddColumn("ALTER TABLE Agents ADD COLUMN Avatar TEXT NOT NULL DEFAULT ''");
             TryAddColumn("ALTER TABLE Agents ADD COLUMN DefaultProviderId TEXT NOT NULL DEFAULT ''");
             TryAddColumn("ALTER TABLE Agents ADD COLUMN DefaultModelId TEXT NOT NULL DEFAULT ''");
+
+            // v1.2.x: ChatMessages 结构化内容列，保存工具调用/结果等多态 AIContent 快照
+            TryAddColumn("ALTER TABLE ChatMessages ADD COLUMN ContentsJson TEXT NOT NULL DEFAULT ''");
         }
 
         private void TryAddColumn(string alterSql)

@@ -42,6 +42,13 @@ namespace Netor.Cortana.Entitys
         public string Content { get; set; } = string.Empty;
 
         /// <summary>
+        /// 结构化的消息内容 JSON 快照（Microsoft.Extensions.AI.AIContent 列表），用于在历史恢复时
+        /// 精确还原工具调用 / 工具结果等非纯文本内容。
+        /// 为空字符串时表示仅有文本内容，走兼容路径。
+        /// </summary>
+        public string ContentsJson { get; set; } = string.Empty;
+
+        /// <summary>
         /// 该消息消耗的令牌数量（Token Count），用于统计和展示 API 用量。
         /// 0 表示未统计或不适用（例如用户消息通常不单独统计）。
         /// </summary>

@@ -41,6 +41,18 @@ namespace Netor.Cortana.Entitys.Services
         {
             var createdAtOrdinal = r.GetOrdinal("CreatedAt");
 
+            // ContentsJson 列在老数据库中可能不存在（迁移前），做兼容读取
+            string contentsJson = string.Empty;
+            try
+            {
+                var idx = r.GetOrdinal("ContentsJson");
+                if (!r.IsDBNull(idx)) contentsJson = r.GetString(idx);
+            }
+            catch (IndexOutOfRangeException)
+            {
+                // 未迁移的老库，忽略
+            }
+
             return new ChatMessageEntity
             {
                 Id = r.GetString(r.GetOrdinal("Id")),
@@ -50,6 +62,7 @@ namespace Netor.Cortana.Entitys.Services
                 Role = r.GetString(r.GetOrdinal("Role")),
                 AuthorName = r.GetString(r.GetOrdinal("AuthorName")),
                 Content = r.GetString(r.GetOrdinal("Content")),
+                ContentsJson = contentsJson,
                 TokenCount = r.GetInt32(r.GetOrdinal("TokenCount")),
                 ModelName = r.GetString(r.GetOrdinal("ModelName")),
                 CreatedAt = r.IsDBNull(createdAtOrdinal) ? null : DateTimeOffset.Parse(r.GetString(createdAtOrdinal))
@@ -65,6 +78,7 @@ namespace Netor.Cortana.Entitys.Services
             cmd.Parameters.AddWithValue("@Role", e.Role);
             cmd.Parameters.AddWithValue("@AuthorName", e.AuthorName);
             cmd.Parameters.AddWithValue("@Content", e.Content);
+            cmd.Parameters.AddWithValue("@ContentsJson", e.ContentsJson ?? string.Empty);
             cmd.Parameters.AddWithValue("@TokenCount", e.TokenCount);
             cmd.Parameters.AddWithValue("@ModelName", e.ModelName);
             cmd.Parameters.AddWithValue("@CreatedAt", (object?)e.CreatedAt?.ToString("O") ?? DBNull.Value);

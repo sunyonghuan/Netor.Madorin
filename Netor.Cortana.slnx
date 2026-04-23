@@ -1,8 +1,8 @@
 <Solution>
   <Folder Name="/Samples/">
-    <Project Path="Samples/NativeTestPlugin/NativeTestPlugin.csproj" />
-    <Project Path="Samples/ReminderPlugin/ReminderPlugin.csproj" />
-    <Project Path="Src/KokoroAudition/KokoroAudition.csproj" />
+    <Project Path="Plugins/Samples/NativeTestPlugin/NativeTestPlugin.csproj" />
+    <Project Path="Plugins/Samples/ReminderPlugin/ReminderPlugin.csproj" />
+    <Project Path="Plugins/Samples/KokoroAudition/KokoroAudition.csproj" />
   </Folder>
   <Folder Name="/Src/">
     <Project Path="Src/Netor.Cortana.AI/Netor.Cortana.AI.csproj" Id="ed55708c-48f3-48a0-912b-5a62e5c0f4fb" />

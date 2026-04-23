@@ -40,6 +40,9 @@ public sealed class WebSocketServerService(
     private CancellationTokenSource? _cts;
     private readonly ConcurrentDictionary<string, WebSocket> _clients = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _clientLocks = new();
+    private readonly ConcurrentDictionary<string, WebSocket> _conversationFeedClients = new();
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _conversationFeedClientLocks = new();
+    private readonly ConcurrentDictionary<string, byte> _conversationFeedSubscriptions = new();
 
     /// <summary>
     /// 服务器监听端口。
@@ -82,7 +85,8 @@ public sealed class WebSocketServerService(
 
             try
             {
-                _listener.Prefixes.Add($"http://localhost:{Port}/ws/");
+                _listener.Prefixes.Add($"http://localhost:{Port}{CortanaWsEndpoints.ChatPath}");
+                _listener.Prefixes.Add($"http://localhost:{Port}{CortanaWsEndpoints.ConversationFeedPath}");
                 _listener.Start();
             }
             catch (HttpListenerException ex)
@@ -91,7 +95,8 @@ public sealed class WebSocketServerService(
                 _listener.Close();
                 _listener = new HttpListener();
                 Port = GetRandomPort();
-                _listener.Prefixes.Add($"http://localhost:{Port}/ws/");
+                _listener.Prefixes.Add($"http://localhost:{Port}{CortanaWsEndpoints.ChatPath}");
+                _listener.Prefixes.Add($"http://localhost:{Port}{CortanaWsEndpoints.ConversationFeedPath}");
                 _listener.Start();
             }
 
@@ -121,8 +126,16 @@ public sealed class WebSocketServerService(
             await CloseClientAsync(clientId, socket, "服务器关闭");
         }
 
+        foreach (var (clientId, socket) in _conversationFeedClients)
+        {
+            await CloseClientAsync(clientId, socket, "服务器关闭");
+        }
+
         _clients.Clear();
         _clientLocks.Clear();
+        _conversationFeedClients.Clear();
+        _conversationFeedClientLocks.Clear();
+        _conversationFeedSubscriptions.Clear();
 
         _listener?.Close();
         logger.LogInformation("WebSocket 服务器已停止");
@@ -169,6 +182,17 @@ public sealed class WebSocketServerService(
     }
 
     /// <summary>
+    /// 向所有已订阅 conversation topic 的内部 feed 客户端广播原始事件消息。
+    /// </summary>
+    public async Task BroadcastConversationFeedAsync(string message, CancellationToken cancellationToken = default)
+    {
+        foreach (var (clientId, _) in _conversationFeedSubscriptions)
+        {
+            await SendToConversationFeedClientAsync(clientId, message, cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// 接受客户端连接，为每个新客户端分配唯一 ID。
     /// </summary>
     private async Task AcceptConnectionsAsync(CancellationToken cancellationToken)
@@ -178,45 +202,26 @@ public sealed class WebSocketServerService(
             try
             {
                 var httpContext = await _listener.GetContextAsync().WaitAsync(cancellationToken);
-
-                if (!httpContext.Request.IsWebSocketRequest)
-                {
-                    httpContext.Response.StatusCode = 400;
-                    httpContext.Response.Close();
-                    continue;
-                }
-
                 var remoteEndPoint = httpContext.Request.RemoteEndPoint;
                 var remoteIp = remoteEndPoint?.Address.ToString() ?? "unknown";
                 var remotePort = remoteEndPoint?.Port ?? 0;
 
-                var wsContext = await httpContext.AcceptWebSocketAsync(null);
-                var clientId = Guid.NewGuid().ToString("N");
-                var socket = wsContext.WebSocket;
+                var requestPath = NormalizePath(httpContext.Request.Url?.AbsolutePath);
 
-                _clients.TryAdd(clientId, socket);
-                _clientLocks.TryAdd(clientId, new SemaphoreSlim(1, 1));
+                if (requestPath == NormalizePath(CortanaWsEndpoints.ChatPath))
+                {
+                    await AcceptChatClientAsync(httpContext, remoteIp, remotePort, cancellationToken);
+                    continue;
+                }
 
-                OnClientConnected?.Invoke(clientId);
-                publisher.Publish(
-                    Events.OnWebSocketClientConnectionChanged,
-                    new WebSocketClientConnectionChangedArgs(clientId, remoteIp, remotePort, true));
-                logger.LogInformation(
-                    "WebSocket 客户端已连接：{ClientId}，远端：{RemoteEndpoint}，当前连接数：{Count}",
-                    clientId,
-                    remotePort > 0 ? $"{remoteIp}:{remotePort}" : remoteIp,
-                    _clients.Count);
+                if (requestPath == NormalizePath(CortanaWsEndpoints.ConversationFeedPath))
+                {
+                    await AcceptConversationFeedClientAsync(httpContext, remoteIp, remotePort, cancellationToken);
+                    continue;
+                }
 
-                // 将 clientId 发送给客户端，便于后续消息关联
-                var welcome = JsonSerializer.Serialize(new WsMessage { Type = "connected", ClientId = clientId }, WebSocketJsonContext.Default.WsMessage);
-                var bytes = Encoding.UTF8.GetBytes(welcome);
-                await socket.SendAsync(
-                    new ArraySegment<byte>(bytes),
-                    WebSocketMessageType.Text,
-                    endOfMessage: true,
-                    cancellationToken);
-
-                _ = ReceiveMessagesAsync(clientId, socket, remoteIp, remotePort, cancellationToken);
+                httpContext.Response.StatusCode = 404;
+                httpContext.Response.Close();
             }
             catch (OperationCanceledException)
             {
@@ -227,6 +232,86 @@ public sealed class WebSocketServerService(
                 logger.LogError(ex, "接受 WebSocket 连接时出错");
             }
         }
+    }
+
+    private async Task AcceptChatClientAsync(
+        HttpListenerContext httpContext,
+        string remoteIp,
+        int remotePort,
+        CancellationToken cancellationToken)
+    {
+        if (!httpContext.Request.IsWebSocketRequest)
+        {
+            httpContext.Response.StatusCode = 400;
+            httpContext.Response.Close();
+            return;
+        }
+
+        var wsContext = await httpContext.AcceptWebSocketAsync(null);
+        var clientId = Guid.NewGuid().ToString("N");
+        var socket = wsContext.WebSocket;
+
+        _clients.TryAdd(clientId, socket);
+        _clientLocks.TryAdd(clientId, new SemaphoreSlim(1, 1));
+
+        OnClientConnected?.Invoke(clientId);
+        publisher.Publish(
+            Events.OnWebSocketClientConnectionChanged,
+            new WebSocketClientConnectionChangedArgs(clientId, remoteIp, remotePort, true));
+        logger.LogInformation(
+            "WebSocket 客户端已连接：{ClientId}，远端：{RemoteEndpoint}，当前连接数：{Count}",
+            clientId,
+            remotePort > 0 ? $"{remoteIp}:{remotePort}" : remoteIp,
+            _clients.Count);
+
+        var welcome = JsonSerializer.Serialize(new WsMessage { Type = "connected", ClientId = clientId }, WebSocketJsonContext.Default.WsMessage);
+        var bytes = Encoding.UTF8.GetBytes(welcome);
+        await socket.SendAsync(
+            new ArraySegment<byte>(bytes),
+            WebSocketMessageType.Text,
+            endOfMessage: true,
+            cancellationToken);
+
+        _ = ReceiveMessagesAsync(clientId, socket, remoteIp, remotePort, cancellationToken);
+    }
+
+    private async Task AcceptConversationFeedClientAsync(
+        HttpListenerContext httpContext,
+        string remoteIp,
+        int remotePort,
+        CancellationToken cancellationToken)
+    {
+        if (!httpContext.Request.IsWebSocketRequest)
+        {
+            httpContext.Response.StatusCode = 400;
+            httpContext.Response.Close();
+            return;
+        }
+
+        var wsContext = await httpContext.AcceptWebSocketAsync(null);
+        var clientId = Guid.NewGuid().ToString("N");
+        var socket = wsContext.WebSocket;
+
+        _conversationFeedClients.TryAdd(clientId, socket);
+        _conversationFeedClientLocks.TryAdd(clientId, new SemaphoreSlim(1, 1));
+
+        logger.LogInformation(
+            "内部对话 feed 客户端已连接：{ClientId}，远端：{RemoteEndpoint}，当前连接数：{Count}",
+            clientId,
+            remotePort > 0 ? $"{remoteIp}:{remotePort}" : remoteIp,
+            _conversationFeedClients.Count);
+
+        var welcome = JsonSerializer.Serialize(new ConversationFeedControlMessage
+        {
+            Type = "connected",
+            ClientId = clientId,
+            Protocol = CortanaWsEndpoints.ConversationFeedProtocol,
+            Version = CortanaWsEndpoints.ConversationFeedVersion,
+            Topics = [CortanaWsEndpoints.ConversationTopic]
+        }, WebSocketJsonContext.Default.ConversationFeedControlMessage);
+
+        await SendToConversationFeedClientAsync(clientId, welcome, cancellationToken);
+        _ = ReceiveConversationFeedMessagesAsync(clientId, socket, remoteIp, remotePort, cancellationToken);
     }
 
     /// <summary>
@@ -283,6 +368,52 @@ public sealed class WebSocketServerService(
         }
     }
 
+    private async Task ReceiveConversationFeedMessagesAsync(
+        string clientId,
+        WebSocket socket,
+        string remoteIp,
+        int remotePort,
+        CancellationToken cancellationToken)
+    {
+        var buffer = new byte[4096];
+
+        try
+        {
+            while (socket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+            {
+                var segment = new ArraySegment<byte>(buffer);
+                var result = await socket.ReceiveAsync(segment, cancellationToken);
+
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    break;
+                }
+
+                if (result.MessageType == WebSocketMessageType.Text)
+                {
+                    var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    await HandleConversationFeedMessageAsync(clientId, json, cancellationToken);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (WebSocketException ex)
+        {
+            logger.LogWarning(ex, "内部对话 feed 通信异常，客户端：{ClientId}", clientId);
+        }
+        finally
+        {
+            RemoveConversationFeedClient(clientId);
+            logger.LogInformation(
+                "内部对话 feed 客户端已断开：{ClientId}，远端：{RemoteEndpoint}，剩余连接数：{Count}",
+                clientId,
+                remotePort > 0 ? $"{remoteIp}:{remotePort}" : remoteIp,
+                _conversationFeedClients.Count);
+        }
+    }
+
     /// <summary>
     /// 处理指定客户端发来的 JSON 消息。
     /// </summary>
@@ -322,6 +453,64 @@ public sealed class WebSocketServerService(
         }
     }
 
+    private async Task HandleConversationFeedMessageAsync(string clientId, string json, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var type = root.TryGetProperty("type", out var typeElement)
+                ? typeElement.GetString() ?? string.Empty
+                : string.Empty;
+
+            if (!string.Equals(type, "subscribe", StringComparison.Ordinal))
+            {
+                logger.LogWarning("内部对话 feed 收到未知消息类型：{Type}", type);
+                return;
+            }
+
+            var protocol = root.TryGetProperty("protocol", out var protocolElement)
+                ? protocolElement.GetString() ?? string.Empty
+                : string.Empty;
+            if (!string.Equals(protocol, CortanaWsEndpoints.ConversationFeedProtocol, StringComparison.Ordinal))
+            {
+                await SendConversationFeedErrorAsync(clientId, "protocol 不匹配", cancellationToken);
+                return;
+            }
+
+            var requestedTopics = root.TryGetProperty("topics", out var topicsElement) && topicsElement.ValueKind == JsonValueKind.Array
+                ? topicsElement.EnumerateArray()
+                    .Select(static t => t.GetString())
+                    .Where(static t => !string.IsNullOrWhiteSpace(t))
+                    .Cast<string>()
+                    .ToArray()
+                : [CortanaWsEndpoints.ConversationTopic];
+
+            if (!requestedTopics.Contains(CortanaWsEndpoints.ConversationTopic, StringComparer.Ordinal))
+            {
+                await SendConversationFeedErrorAsync(clientId, "当前仅支持 topic=conversation", cancellationToken);
+                return;
+            }
+
+            _conversationFeedSubscriptions[clientId] = 0;
+
+            var ack = JsonSerializer.Serialize(new ConversationFeedControlMessage
+            {
+                Type = "subscribed",
+                ClientId = clientId,
+                Protocol = CortanaWsEndpoints.ConversationFeedProtocol,
+                Version = CortanaWsEndpoints.ConversationFeedVersion,
+                Topics = [CortanaWsEndpoints.ConversationTopic]
+            }, WebSocketJsonContext.Default.ConversationFeedControlMessage);
+
+            await SendToConversationFeedClientAsync(clientId, ack, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "解析内部对话 feed 消息失败：{ClientId}，{Json}", clientId, json);
+        }
+    }
+
     /// <summary>
     /// 向指定客户端发送原始文本。
     /// </summary>
@@ -355,6 +544,52 @@ public sealed class WebSocketServerService(
         {
             sendLock.Release();
         }
+    }
+
+    private async Task SendToConversationFeedClientAsync(string clientId, string message, CancellationToken cancellationToken = default)
+    {
+        if (!_conversationFeedClients.TryGetValue(clientId, out var socket) || socket.State != WebSocketState.Open)
+        {
+            return;
+        }
+
+        if (!_conversationFeedClientLocks.TryGetValue(clientId, out var sendLock))
+        {
+            return;
+        }
+
+        await sendLock.WaitAsync(cancellationToken);
+        try
+        {
+            var bytes = Encoding.UTF8.GetBytes(message);
+            await socket.SendAsync(
+                new ArraySegment<byte>(bytes),
+                WebSocketMessageType.Text,
+                endOfMessage: true,
+                cancellationToken);
+        }
+        catch (WebSocketException ex)
+        {
+            logger.LogWarning(ex, "发送内部对话 feed 消息失败，客户端：{ClientId}", clientId);
+        }
+        finally
+        {
+            sendLock.Release();
+        }
+    }
+
+    private Task SendConversationFeedErrorAsync(string clientId, string message, CancellationToken cancellationToken)
+    {
+        var payload = JsonSerializer.Serialize(new ConversationFeedControlMessage
+        {
+            Type = "error",
+            ClientId = clientId,
+            Protocol = CortanaWsEndpoints.ConversationFeedProtocol,
+            Version = CortanaWsEndpoints.ConversationFeedVersion,
+            Message = message
+        }, WebSocketJsonContext.Default.ConversationFeedControlMessage);
+
+        return SendToConversationFeedClientAsync(clientId, payload, cancellationToken);
     }
 
     /// <summary>
@@ -393,6 +628,29 @@ public sealed class WebSocketServerService(
         }
     }
 
+    private void RemoveConversationFeedClient(string clientId)
+    {
+        _conversationFeedClients.TryRemove(clientId, out _);
+        _conversationFeedSubscriptions.TryRemove(clientId, out _);
+
+        if (_conversationFeedClientLocks.TryRemove(clientId, out var sendLock))
+        {
+            sendLock.Dispose();
+        }
+    }
+
+    private static string NormalizePath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "/";
+        }
+
+        return path.EndsWith("/", StringComparison.Ordinal)
+            ? path
+            : $"{path}/";
+    }
+
     /// <summary>
     /// 获取一个可用的随机端口。
     /// </summary>
@@ -429,12 +687,34 @@ public sealed class WebSocketServerService(
 
         _clients.Clear();
 
+        foreach (var (clientId, socket) in _conversationFeedClients)
+        {
+            if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+            {
+                socket.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    "服务器关闭",
+                    CancellationToken.None).GetAwaiter().GetResult();
+            }
+
+            socket.Dispose();
+        }
+
+        _conversationFeedClients.Clear();
+        _conversationFeedSubscriptions.Clear();
+
         foreach (var (_, sendLock) in _clientLocks)
         {
             sendLock.Dispose();
         }
 
+        foreach (var (_, sendLock) in _conversationFeedClientLocks)
+        {
+            sendLock.Dispose();
+        }
+
         _clientLocks.Clear();
+        _conversationFeedClientLocks.Clear();
         _listener?.Close();
     }
 }
