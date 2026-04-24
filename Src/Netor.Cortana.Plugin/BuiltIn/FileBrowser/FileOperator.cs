@@ -29,19 +29,250 @@ public sealed class FileOperator
         _logger = logger;
     }
 
+    /// <summary>
+    /// 文件工具统一结果模型。
+    /// </summary>
+    public sealed record FileToolResult
+    {
+        public string Tool { get; init; } = string.Empty;
+
+        public bool Success { get; init; }
+
+        public string Path { get; init; } = string.Empty;
+
+        public string? TargetPath { get; init; }
+
+        public string? Message { get; init; }
+
+        public string? Error { get; init; }
+
+        public string? BackupPath { get; init; }
+
+        public string? Operation { get; init; }
+
+        public long? BytesWritten { get; init; }
+
+        public int? StartLine { get; init; }
+
+        public int? EndLine { get; init; }
+
+        public int? ChangedLineCount { get; init; }
+
+        public int? SuccessCount { get; init; }
+
+        public int? FailCount { get; init; }
+
+        public List<FileToolResult>? Items { get; init; }
+    }
+
+    /// <summary>
+    /// 工具：大文件写入（sys_write_large_file）
+    /// 参数：
+    ///   - path: 文件路径（绝对或相对工作区）
+    ///   - content: 文件完整内容，无大小限制
+    ///   - overwrite: 是否覆盖，默认 true
+    ///   - backup: 是否备份，默认 true
+    /// 返回：
+    ///   - success: 是否成功
+    ///   - path: 实际写入路径
+    ///   - bytesWritten: 写入字节数
+    /// </summary>
+    public WriteLargeFileResult SysWriteLargeFile(
+        string path,
+        string content,
+        bool overwrite = true,
+        bool backup = true)
+    {
+        try
+        {
+            var fullPath = ResolveSafePath(path);
+            var fileExists = File.Exists(fullPath);
+
+            var dir = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
+            if (fileExists && !overwrite)
+            {
+                _logger.LogWarning("文件已存在且未设置覆盖：{Path}", fullPath);
+                return new WriteLargeFileResult(false, fullPath, 0, "文件已存在且未设置覆盖", null);
+            }
+
+            string? backupPath = null;
+            if (fileExists && backup)
+            {
+                backupPath = BackupFile(fullPath);
+            }
+
+            var bytes = Encoding.UTF8.GetBytes(content ?? string.Empty);
+            File.WriteAllBytes(fullPath, bytes);
+
+            _logger.LogInformation("大文件写入：{Path} 字节数：{Bytes}", fullPath, bytes.Length);
+            return new WriteLargeFileResult(true, fullPath, bytes.Length, null, backupPath);
+        }
+        catch (Exception ex) when (ex is not SecurityException)
+        {
+            _logger.LogError(ex, "大文件写入失败：{Path}", path);
+            return new WriteLargeFileResult(false, path, 0, ex.Message, null);
+        }
+    }
+
+    /// <summary>
+    /// 工具：批量文件写入（sys_write_files_batch）
+    /// 参数：
+    ///   - files: 文件列表（path, content, overwrite）
+    ///   - backup: 统一备份开关，默认 true
+    ///   - stopOnError: 遇错停止，默认 false
+    /// 返回：
+    ///   - results: 每个文件的写入结果（path, success, error）
+    ///   - successCount: 成功数
+    ///   - failCount: 失败数
+    /// </summary>
+    public BatchWriteFilesResult SysWriteFilesBatch(
+        List<BatchWriteFile> files,
+        bool backup = true,
+        bool stopOnError = false)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+
+        var results = new List<BatchWriteResult>();
+        var successCount = 0;
+        var failCount = 0;
+
+        foreach (var file in files)
+        {
+            try
+            {
+                var fullPath = ResolveSafePath(file.Path);
+                var fileExists = File.Exists(fullPath);
+
+                var dir = Path.GetDirectoryName(fullPath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+
+                if (fileExists && !(file.Overwrite ?? true))
+                {
+                    results.Add(new BatchWriteResult
+                    {
+                        Path = fullPath,
+                        Success = false,
+                        Error = "文件已存在且未设置覆盖",
+                        BackupPath = null
+                    });
+                    failCount++;
+
+                    if (stopOnError)
+                        break;
+
+                    continue;
+                }
+
+                string? backupPath = null;
+                if (fileExists && backup)
+                {
+                    backupPath = BackupFile(fullPath);
+                }
+
+                var bytes = Encoding.UTF8.GetBytes(file.Content ?? string.Empty);
+                File.WriteAllBytes(fullPath, bytes);
+
+                results.Add(new BatchWriteResult
+                {
+                    Path = fullPath,
+                    Success = true,
+                    Error = string.Empty,
+                    BackupPath = backupPath
+                });
+                successCount++;
+            }
+            catch (Exception ex) when (ex is not SecurityException)
+            {
+                var errorMessage = ex.Message;
+                results.Add(new BatchWriteResult
+                {
+                    Path = file.Path,
+                    Success = false,
+                    Error = errorMessage,
+                    BackupPath = null
+                });
+                failCount++;
+
+                _logger.LogError(ex, "批量写入文件失败：{Path}", file.Path);
+
+                if (stopOnError)
+                    break;
+            }
+        }
+
+        return new BatchWriteFilesResult(results, successCount, failCount);
+    }
+
+    /// <summary>
+    /// 大文件写入结果。
+    /// </summary>
+    public sealed record WriteLargeFileResult(
+        bool Success,
+        string Path,
+        long BytesWritten,
+        string? Error,
+        string? BackupPath);
+
+    /// <summary>
+    /// 批量文件写入结果。
+    /// </summary>
+    public sealed record BatchWriteFilesResult(
+        List<BatchWriteResult> Results,
+        int SuccessCount,
+        int FailCount);
+
+    /// <summary>
+    /// 批量写入单文件参数。
+    /// </summary>
+    public sealed class BatchWriteFile
+    {
+        public string Path { get; set; } = string.Empty;
+
+        public string Content { get; set; } = string.Empty;
+
+        public bool? Overwrite { get; set; } = true;
+    }
+
+    /// <summary>
+    /// 批量写入结果。
+    /// </summary>
+    public sealed class BatchWriteResult
+    {
+        public string Path { get; set; } = string.Empty;
+
+        public bool Success { get; set; }
+
+        public string Error { get; set; } = string.Empty;
+
+        public string? BackupPath { get; set; }
+    }
+
     // ──────── 文件操作 ────────
 
     /// <summary>
     /// 创建新文件（不覆盖已存在的文件）。
     /// </summary>
-    public string CreateFile(string path, string content)
+    public FileToolResult CreateFile(string path, string content)
     {
         try
         {
             var fullPath = ResolveSafePath(path);
 
             if (File.Exists(fullPath))
-                return $"错误：文件已存在 - {fullPath}";
+            {
+                return new FileToolResult
+                {
+                    Tool = "create_file",
+                    Success = false,
+                    Path = fullPath,
+                    Error = $"文件已存在 - {fullPath}",
+                    Message = $"错误：文件已存在 - {fullPath}"
+                };
+            }
 
             var dir = Path.GetDirectoryName(fullPath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
@@ -50,19 +281,32 @@ public sealed class FileOperator
             File.WriteAllText(fullPath, content ?? "", Encoding.UTF8);
 
             _logger.LogInformation("文件已创建：{Path}", fullPath);
-            return $"文件已创建：{fullPath}";
+            return new FileToolResult
+            {
+                Tool = "create_file",
+                Success = true,
+                Path = fullPath,
+                Message = $"文件已创建：{fullPath}"
+            };
         }
         catch (Exception ex) when (ex is not SecurityException)
         {
             _logger.LogError(ex, "创建文件失败：{Path}", path);
-            return $"错误：创建文件失败 - {ex.Message}";
+            return new FileToolResult
+            {
+                Tool = "create_file",
+                Success = false,
+                Path = path,
+                Error = ex.Message,
+                Message = $"错误：创建文件失败 - {ex.Message}"
+            };
         }
     }
 
     /// <summary>
     /// 写入文件内容；文件不存在时创建，已存在时覆盖。
     /// </summary>
-    public string WriteFile(string path, string content, bool backup = true)
+    public FileToolResult WriteFile(string path, string content, bool backup = true)
     {
         try
         {
@@ -94,18 +338,38 @@ public sealed class FileOperator
             if (!fileExists)
             {
                 _logger.LogInformation("文件已写入：{Path}", fullPath);
-                return $"文件已写入：{fullPath}";
+                return new FileToolResult
+                {
+                    Tool = "write_file",
+                    Success = true,
+                    Path = fullPath,
+                    Message = $"文件已写入：{fullPath}"
+                };
             }
 
             _logger.LogInformation("文件已写入：{Path}", fullPath);
-            return backupPath is not null
-                ? $"文件已写入：{fullPath}，已备份到 {backupPath}"
-                : $"文件已写入：{fullPath}";
+            return new FileToolResult
+            {
+                Tool = "write_file",
+                Success = true,
+                Path = fullPath,
+                BackupPath = backupPath,
+                Message = backupPath is not null
+                    ? $"文件已写入：{fullPath}，已备份到 {backupPath}"
+                    : $"文件已写入：{fullPath}"
+            };
         }
         catch (Exception ex) when (ex is not SecurityException)
         {
             _logger.LogError(ex, "写入文件失败：{Path}", path);
-            return $"错误：写入文件失败 - {ex.Message}";
+            return new FileToolResult
+            {
+                Tool = "write_file",
+                Success = false,
+                Path = path,
+                Error = ex.Message,
+                Message = $"错误：写入文件失败 - {ex.Message}"
+            };
         }
     }
 
@@ -164,14 +428,23 @@ public sealed class FileOperator
     /// <summary>
     /// 删除文件。
     /// </summary>
-    public string DeleteFile(string path, bool backup = true)
+    public FileToolResult DeleteFile(string path, bool backup = true)
     {
         try
         {
             var fullPath = ResolveSafePath(path);
 
             if (!File.Exists(fullPath))
-                return $"错误：文件不存在 - {fullPath}";
+            {
+                return new FileToolResult
+                {
+                    Tool = "delete_file",
+                    Success = false,
+                    Path = fullPath,
+                    Error = $"文件不存在 - {fullPath}",
+                    Message = $"错误：文件不存在 - {fullPath}"
+                };
+            }
 
             string? backupPath = null;
             if (backup)
@@ -180,21 +453,35 @@ public sealed class FileOperator
             File.Delete(fullPath);
 
             _logger.LogInformation("文件已删除：{Path}", fullPath);
-            return backupPath is not null
-                ? $"文件已删除：{fullPath}，已备份到 {backupPath}"
-                : $"文件已删除：{fullPath}";
+            return new FileToolResult
+            {
+                Tool = "delete_file",
+                Success = true,
+                Path = fullPath,
+                BackupPath = backupPath,
+                Message = backupPath is not null
+                    ? $"文件已删除：{fullPath}，已备份到 {backupPath}"
+                    : $"文件已删除：{fullPath}"
+            };
         }
         catch (Exception ex) when (ex is not SecurityException)
         {
             _logger.LogError(ex, "删除文件失败：{Path}", path);
-            return $"错误：删除文件失败 - {ex.Message}";
+            return new FileToolResult
+            {
+                Tool = "delete_file",
+                Success = false,
+                Path = path,
+                Error = ex.Message,
+                Message = $"错误：删除文件失败 - {ex.Message}"
+            };
         }
     }
 
     /// <summary>
     /// 移动/重命名文件。
     /// </summary>
-    public string MoveFile(string sourcePath, string destPath)
+    public FileToolResult MoveFile(string sourcePath, string destPath)
     {
         try
         {
@@ -202,10 +489,30 @@ public sealed class FileOperator
             var fullDest = ResolveSafePath(destPath);
 
             if (!File.Exists(fullSource))
-                return $"错误：源文件不存在 - {fullSource}";
+            {
+                return new FileToolResult
+                {
+                    Tool = "move_file",
+                    Success = false,
+                    Path = fullSource,
+                    TargetPath = fullDest,
+                    Error = $"源文件不存在 - {fullSource}",
+                    Message = $"错误：源文件不存在 - {fullSource}"
+                };
+            }
 
             if (File.Exists(fullDest))
-                return $"错误：目标文件已存在 - {fullDest}";
+            {
+                return new FileToolResult
+                {
+                    Tool = "move_file",
+                    Success = false,
+                    Path = fullSource,
+                    TargetPath = fullDest,
+                    Error = $"目标文件已存在 - {fullDest}",
+                    Message = $"错误：目标文件已存在 - {fullDest}"
+                };
+            }
 
             var destDir = Path.GetDirectoryName(fullDest);
             if (!string.IsNullOrEmpty(destDir) && !Directory.Exists(destDir))
@@ -214,12 +521,27 @@ public sealed class FileOperator
             File.Move(fullSource, fullDest);
 
             _logger.LogInformation("文件已移动：{Source} -> {Dest}", fullSource, fullDest);
-            return $"文件已移动：{fullSource} -> {fullDest}";
+            return new FileToolResult
+            {
+                Tool = "move_file",
+                Success = true,
+                Path = fullSource,
+                TargetPath = fullDest,
+                Message = $"文件已移动：{fullSource} -> {fullDest}"
+            };
         }
         catch (Exception ex) when (ex is not SecurityException)
         {
             _logger.LogError(ex, "移动文件失败：{Source} -> {Dest}", sourcePath, destPath);
-            return $"错误：移动文件失败 - {ex.Message}";
+            return new FileToolResult
+            {
+                Tool = "move_file",
+                Success = false,
+                Path = sourcePath,
+                TargetPath = destPath,
+                Error = ex.Message,
+                Message = $"错误：移动文件失败 - {ex.Message}"
+            };
         }
     }
 
@@ -228,51 +550,103 @@ public sealed class FileOperator
     /// <summary>
     /// 创建文件夹（含递归创建父目录）。
     /// </summary>
-    public string CreateDirectory(string path)
+    public FileToolResult CreateDirectory(string path)
     {
         try
         {
             var fullPath = ResolveSafePath(path);
 
             if (Directory.Exists(fullPath))
-                return $"文件夹已存在：{fullPath}";
+            {
+                return new FileToolResult
+                {
+                    Tool = "create_directory",
+                    Success = true,
+                    Path = fullPath,
+                    Message = $"文件夹已存在：{fullPath}"
+                };
+            }
 
             Directory.CreateDirectory(fullPath);
 
             _logger.LogInformation("文件夹已创建：{Path}", fullPath);
-            return $"文件夹已创建：{fullPath}";
+            return new FileToolResult
+            {
+                Tool = "create_directory",
+                Success = true,
+                Path = fullPath,
+                Message = $"文件夹已创建：{fullPath}"
+            };
         }
         catch (Exception ex) when (ex is not SecurityException)
         {
             _logger.LogError(ex, "创建文件夹失败：{Path}", path);
-            return $"错误：创建文件夹失败 - {ex.Message}";
+            return new FileToolResult
+            {
+                Tool = "create_directory",
+                Success = false,
+                Path = path,
+                Error = ex.Message,
+                Message = $"错误：创建文件夹失败 - {ex.Message}"
+            };
         }
     }
 
     /// <summary>
     /// 删除空文件夹。
     /// </summary>
-    public string DeleteDirectory(string path)
+    public FileToolResult DeleteDirectory(string path)
     {
         try
         {
             var fullPath = ResolveSafePath(path);
 
             if (!Directory.Exists(fullPath))
-                return $"错误：文件夹不存在 - {fullPath}";
+            {
+                return new FileToolResult
+                {
+                    Tool = "delete_directory",
+                    Success = false,
+                    Path = fullPath,
+                    Error = $"文件夹不存在 - {fullPath}",
+                    Message = $"错误：文件夹不存在 - {fullPath}"
+                };
+            }
 
             if (Directory.EnumerateFileSystemEntries(fullPath).Any())
-                return $"错误：文件夹非空，不允许删除 - {fullPath}";
+            {
+                return new FileToolResult
+                {
+                    Tool = "delete_directory",
+                    Success = false,
+                    Path = fullPath,
+                    Error = $"文件夹非空，不允许删除 - {fullPath}",
+                    Message = $"错误：文件夹非空，不允许删除 - {fullPath}"
+                };
+            }
 
             Directory.Delete(fullPath);
 
             _logger.LogInformation("文件夹已删除：{Path}", fullPath);
-            return $"文件夹已删除：{fullPath}";
+            return new FileToolResult
+            {
+                Tool = "delete_directory",
+                Success = true,
+                Path = fullPath,
+                Message = $"文件夹已删除：{fullPath}"
+            };
         }
         catch (Exception ex) when (ex is not SecurityException)
         {
             _logger.LogError(ex, "删除文件夹失败：{Path}", path);
-            return $"错误：删除文件夹失败 - {ex.Message}";
+            return new FileToolResult
+            {
+                Tool = "delete_directory",
+                Success = false,
+                Path = path,
+                Error = ex.Message,
+                Message = $"错误：删除文件夹失败 - {ex.Message}"
+            };
         }
     }
 

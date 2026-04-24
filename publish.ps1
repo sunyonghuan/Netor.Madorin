@@ -22,7 +22,7 @@ $ErrorActionPreference = 'Stop'
 $SolutionDir = $PSScriptRoot
 $ReleaseDir = Join-Path $SolutionDir 'Realases\Cortana'
 
-$CortanaProj = Join-Path $SolutionDir 'Src\Netor.Cortana\Netor.Cortana.csproj'
+$CortanaProj = Join-Path $SolutionDir 'Src\Netor.Cortana.AvaloniaUI\Netor.Cortana.AvaloniaUI.csproj'
 $NativeHostProj = Join-Path $SolutionDir 'Src\Plugins\Netor.Cortana.NativeHost\Netor.Cortana.NativeHost.csproj'
 $NativePluginProj = Join-Path $SolutionDir 'Samples\NativeTestPlugin\NativeTestPlugin.csproj'
 
@@ -37,6 +37,18 @@ Write-Host ""
 Write-Host "[1/3] 发布 Cortana 主程序（SingleFile + SelfContained + ReadyToRun）..." -ForegroundColor Yellow
 dotnet publish $CortanaProj -c Release -p:PublishProfile=FolderProfile --nologo
 if ($LASTEXITCODE -ne 0) { throw "Cortana 主程序发布失败" }
+
+$cortanaPublishDir = Join-Path (Split-Path $CortanaProj -Parent) 'bin\publish'
+if (-not (Test-Path $cortanaPublishDir)) {
+    throw "发布产出目录未找到：$cortanaPublishDir"
+}
+
+if (Test-Path $ReleaseDir) {
+    Remove-Item $ReleaseDir -Recurse -Force
+}
+
+New-Item -ItemType Directory -Path $ReleaseDir -Force | Out-Null
+Copy-Item (Join-Path $cortanaPublishDir '*') $ReleaseDir -Recurse -Force
 
 $cortanaExe = Join-Path $ReleaseDir 'Cortana.exe'
 if (Test-Path $cortanaExe) {
