@@ -16,6 +16,7 @@
 	<PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0-preview.3.26207.106" />
 	<PackageReference Include="Netor.EventHub" Version="1.2.5" />
 	<PackageReference Include="OllamaSharp" Version="5.4.25" />
+	<PackageReference Include="OpenTelemetry.Api" Version="1.15.3" />
   </ItemGroup>
 
   <ItemGroup>

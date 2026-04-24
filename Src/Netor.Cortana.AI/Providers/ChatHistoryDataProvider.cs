@@ -52,36 +52,45 @@ public sealed class ChatHistoryDataProvider(
 
     /// <summary>
     /// Agent 执行完成后保存聊天历史到数据库。
+    /// 确保工具调用链条完整（assistant tool_calls → tool result），每条消息独立 ID，按原序入库。
     /// </summary>
     protected override async ValueTask StoreChatHistoryAsync(InvokedContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         var modelName = context.Session?.StateBag.GetValue<string>("modelid") ?? "Unknown";
-        var assistantMessageId = context.Session?.StateBag.GetValue<string>("assistantmessageid");
+        var modelDbId = context.Session?.StateBag.GetValue<string>("modeldbid");
+        var modelService = services.GetRequiredService<Netor.Cortana.Entitys.Services.AiModelService>();
+        var modelEntity = string.IsNullOrEmpty(modelDbId) ? null : modelService.GetById(modelDbId);
+        var reasoningEnabled = modelEntity?.InteractionCapabilities.HasFlag(Netor.Cortana.Entitys.InteractionCapabilities.Reasoning) == true;
         var firstText = context.RequestMessages?.FirstOrDefault(m => m.Role == ChatRole.User)?.Text ?? "";
         var sessionId = await AddOrUpdateSessionAsync(context.Session, firstText.Truncate(32), context.Agent, accumulateInputTokens: true);
 
-        // 确保 ResponseMessages 不为 null 再进行 Select
+        // ──── 完整工具链条落库：保证消息顺序，每条消息独立 ID ────
         var messages = (context.ResponseMessages ?? [])
-            .Select(t => new ChatMessageEntity
+            .Select((t, index) => new ChatMessageEntity
             {
                 Role = t.Role.ToString(),
-                Content = t.ToPersistedContent(),
-                ContentsJson = ChatMessageExtensions.BuildContentsJson(t.Contents),
+            Content = ChatMessageExtensions.BuildPersistedContent(t.Text, FilterContents(t.Contents, reasoningEnabled)),
+            ContentsJson = ChatMessageExtensions.BuildContentsJson(FilterContents(t.Contents, reasoningEnabled)),
                 AuthorName = GetChatRoleText(t.Role, context.Agent.Name ?? "未知"),
                 CreatedAt = t.CreatedAt ?? DateTimeOffset.UtcNow,
                 CreatedTimestamp = t.CreatedAt?.ToLocalTime().ToUnixTimeMilliseconds() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                Id = (t.Role == ChatRole.Assistant ? assistantMessageId : null) ?? t.MessageId ?? Guid.NewGuid().ToString("N"),
+                // ── 关键修复 1：每条消息独立 ID，不覆盖 ──
+                // 优先 t.MessageId（OpenAI 兼容接口返回的真实消息 ID），兜底才生成新 Guid
+                // 不再把 assistant 消息强行统一为同一个 assistantMessageId，避免链条断裂
+                Id = t.MessageId ?? Guid.NewGuid().ToString("N"),
                 SessionId = sessionId,
                 UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
                 ModelName = modelName
-            });
+            })
+            .ToList(); // 立即物化，确保顺序固定且能多次遍历
 
         try
         {
             dbContext.ExecuteInTransaction(conn =>
             {
+                // ── 关键修复 2：按原序逐条入库，保证链条不乱序 ──
                 foreach (var message in messages)
                 {
                     using var cmd = conn.CreateCommand();
@@ -94,6 +103,28 @@ public sealed class ChatHistoryDataProvider(
                     ChatMessageService.BindEntity(cmd, message);
                     cmd.ExecuteNonQuery();
                 }
+
+                // ── 关键修复 3：验证工具链完整性（日志诊断） ──
+                // 检查本轮是否存在"孤立 tool 消息"（无对应 assistant tool_calls）
+                var toolMessages = messages.Where(m => m.Role == ChatRole.Tool.ToString()).ToList();
+                if (toolMessages.Count > 0)
+                {
+                    var assistantToolCallMessages = messages.Where(m => 
+                        m.Role == ChatRole.Assistant.ToString() && 
+                        !string.IsNullOrEmpty(m.ContentsJson) && 
+                        (m.ContentsJson.Contains("functionCall") || m.ContentsJson.Contains("toolCall"))).ToList();
+
+                    if (assistantToolCallMessages.Count == 0)
+                    {
+                        logger.LogWarning("⚠️ 工具链条警告：检测到 {ToolCount} 条 tool 消息，但无对应的 assistant tool_calls 消息。可能导致历史恢复时报错。", 
+                            toolMessages.Count);
+                    }
+                    else
+                    {
+                        logger.LogInformation("✓ 工具链条完整：{ToolCallCount} 条 assistant tool_calls + {ToolCount} 条 tool 结果已同步入库。", 
+                            assistantToolCallMessages.Count, toolMessages.Count);
+                    }
+                }
             });
         }
         catch (Exception ex)
@@ -101,12 +132,24 @@ public sealed class ChatHistoryDataProvider(
             logger.LogError(ex, "保存聊天历史到数据库时失败。");
         }
 
+        static IList<AIContent>? FilterContents(IList<AIContent>? contents, bool enableReasoning)
+        {
+            if (enableReasoning) return contents;
+            if (contents is null || contents.Count == 0) return contents;
+            var filtered = contents.Where(c => c is not TextReasoningContent).ToList();
+            return filtered.Count == 0 ? null : filtered;
+        }
+
         // ---- 保存 AI 生成的多媒体资源（图片/音频/视频等）到资源库 ----
         // 注意：用户上传的附件已在 AiChatHostedService.SendMessageAsync 中处理（图片拷贝+入表，
         // 文档类直接引用原始路径）。此处仅处理"AI 返回的"多媒体内容（AssetKind=generated）。
         try
         {
-            await SaveGeneratedAssetsAsync(context, sessionId, assistantMessageId);
+            var assistantPersistedIds = messages
+                .Where(m => m.Role == ChatRole.Assistant.ToString())
+                .Select(m => m.Id)
+                .ToList();
+            await SaveGeneratedAssetsAsync(context, sessionId, assistantPersistedIds);
         }
         catch (Exception ex)
         {
@@ -674,21 +717,25 @@ public sealed class ChatHistoryDataProvider(
     /// 对应 <c>AssetKind="generated"</c> / <c>SourceType="generated"</c> / <c>Role="assistant"</c>。
     /// 纯 URI 引用（无内联 bytes）直接跳过——运行时下载超出本次职责。
     /// </summary>
-    private async Task SaveGeneratedAssetsAsync(InvokedContext context, string sessionId, string? assistantMessageId)
+    private async Task SaveGeneratedAssetsAsync(InvokedContext context, string sessionId, IReadOnlyList<string> assistantPersistedIds)
     {
         if (context.ResponseMessages is null) return;
 
         var assetService = services.GetRequiredService<ChatMessageAssetService>();
         var generatedEntities = new List<ChatMessageAssetEntity>();
         var sortOrder = 0;
+        var assistantIndex = 0; // 与入库时的 assistant 顺序对齐
 
         foreach (var msg in context.ResponseMessages)
         {
             if (msg.Role != ChatRole.Assistant) continue;
             if (msg.Contents is null || msg.Contents.Count == 0) continue;
 
-            // 与 ChatMessages 表的 Id 策略保持一致：优先 assistantMessageId，其次 msg.MessageId，再兜底新 Guid
-            var messageId = assistantMessageId ?? msg.MessageId ?? Guid.NewGuid().ToString("N");
+            // 与 ChatMessages 表已入库的 assistant Id 一一对应，确保资源归属稳定
+            var messageId = assistantIndex < assistantPersistedIds.Count
+                ? assistantPersistedIds[assistantIndex]
+                : (msg.MessageId ?? Guid.NewGuid().ToString("N"));
+            assistantIndex++;
 
             foreach (var content in msg.Contents)
             {

@@ -40,4 +40,5 @@ public enum InteractionCapabilities
     Streaming = 1 << 1,
     SystemPrompt = 1 << 2,
     JsonMode = 1 << 3,
+    Reasoning = 1 << 4,
 }

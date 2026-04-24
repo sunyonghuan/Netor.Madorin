@@ -59,7 +59,7 @@ public sealed class AIAgentFactory(
     /// <item>不清零旧值 —— 在新用量到达之前保留上一次显示，避免进度条闪烁归零。</item>
     /// </list>
     /// </summary>
-    private TokenTrackingChatClient CreateTrackingClient(IChatClient inner, long maxContextTokens)
+    private TokenTrackingChatClient CreateTrackingClient(IChatClient inner, long maxContextTokens, bool enableReasoning)
     {
         var normalizedMax = maxContextTokens <= 0 ? 128_000 : maxContextTokens;
         Interlocked.Exchange(ref _maxContextTokens, normalizedMax);
@@ -74,7 +74,7 @@ public sealed class AIAgentFactory(
             {
                 logger.LogWarning(ex, "TokenUsageChanged 事件订阅者抛出异常");
             }
-        });
+        }, enableReasoning);
     }
 
     /// <summary>重置 token 统计（新建会话或切换工作区时调用）。</summary>
@@ -133,9 +133,11 @@ public sealed class AIAgentFactory(
         var registeredTools = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         AssembleToolProviders(agent, providers, registeredTools);
 
+        var enableReasoning = model.InteractionCapabilities.HasFlag(InteractionCapabilities.Reasoning);
         ChatClient = CreateTrackingClient(
             driver.CreateChatClient(provider, model),
-            model.ContextLength);
+            model.ContextLength,
+            enableReasoning);
 
 #pragma warning disable MAAI001
         return ChatClient
@@ -232,9 +234,11 @@ public sealed class AIAgentFactory(
 #pragma warning restore MAAI001
         }
 
+        var enableReasoning2 = mainModel.InteractionCapabilities.HasFlag(InteractionCapabilities.Reasoning);
         ChatClient = CreateTrackingClient(
             driver.CreateChatClient(mainProvider, mainModel),
-            mainModel.ContextLength);
+            mainModel.ContextLength,
+            enableReasoning2);
 
 #pragma warning disable MAAI001
         return ChatClient

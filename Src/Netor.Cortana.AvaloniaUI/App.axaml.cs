@@ -156,12 +156,17 @@ public partial class App : Application
             {
                 options.AddConsole()
                 .AddDebug();
+                var logDir = Environment.GetEnvironmentVariable("CORTANA_LOG_DIR")
+                    ?? Path.Combine(WorkspaceDirectory, ".cortana", "logs");
+                try { Directory.CreateDirectory(logDir); } catch { }
+
                 options.AddSerilog(new LoggerConfiguration()
                     .MinimumLevel
                     .Warning()
                     .WriteTo
                     .File(
-                        Path.Combine(UserDataDirectory, "logs", ".log"),
+                        // 将日志写入可覆写目录（支持 CORTANA_LOG_DIR 环境变量）
+                        Path.Combine(logDir, "app-.log"),
                         restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning,
                         rollingInterval: RollingInterval.Hour,
                         fileSizeLimitBytes: 100 * 1024 * 1024,

@@ -30,7 +30,7 @@ public sealed class FileMemoryProvider(IAppPaths appPaths, ILogger<FileMemoryPro
     private string FileName => Path.Combine(
         appPaths.WorkspaceDirectory,
         ".cortana",
-        $"{new DirectoryInfo(appPaths.WorkspaceDirectory).Name.ToLowerInvariant()}-memory.md");
+        "memory.md");
 
     private const string SystemInstructionPrefix =
         "### Please strictly follow the following rules when processing content\n\n";

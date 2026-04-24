@@ -2,12 +2,12 @@
 .SYNOPSIS
     Package existing AvaloniaUI release output.
 .DESCRIPTION
-    Creates zip and sha256 files from Realases\AvaloniaUI only.
+    Creates zip and sha256 files from Realases\Cortana only.
 #>
 
 param(
     [string]$Version,
-    [string]$SourceDir = 'Realases\AvaloniaUI',
+    [string]$SourceDir = 'Realases\Cortana',
     [string]$OutputDir = 'Realases',
     [string]$PackageName = 'Netor.Cortana'
 )

@@ -387,7 +387,7 @@ public sealed class AiChatHostedService(
             {
                 if (chunk.Role is not null && chunk.Role != ChatRole.Assistant) continue;
                 if (string.IsNullOrEmpty(chunk.Text)) continue;
-
+                //if (chunk.Contents.Any(t => t is TextReasoningContent)) continue;
                 fullResponse.Append(chunk.Text);
                 assistantDeltaCount++;
                 PublishConversationAssistantDelta(conversationMetadata, chunk.Text, assistantDeltaCount);
@@ -481,15 +481,20 @@ public sealed class AiChatHostedService(
                 assistantDeltaCount,
                 safeAttachments.Length);
 
+            // 额外记录：向各输出通道分发错误
+           logger.LogError(ex, "分发错误到输出通道：{Count}", outputChannels.Count());
             foreach (var channel in outputChannels)
             {
-                if (channel.IsActive)
+                if (!channel.IsActive) continue;
+                try
                 {
-                    try
-                    {
-                        await channel.OnErrorAsync($"AI 对话出错：{ex.Message}");
-                    }
-                    catch { }
+                    logger.LogWarning("通知输出通道错误：{Channel}", channel.Name);
+                    await channel.OnErrorAsync($"AI 对话出错：{ex.Message}");
+                }
+                catch (Exception chEx)
+                {
+                    // 不再吞异常：记录哪个通道的错误回传失败
+                    logger.LogWarning(chEx, "输出通道 {Channel} 错误通知失败", channel.Name);
                 }
             }
         }

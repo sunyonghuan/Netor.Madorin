@@ -31,8 +31,20 @@ namespace Netor.Cortana.Entitys.Services
             if (string.IsNullOrWhiteSpace(sessionId))
                 return [];
 
+            // 前端聊天窗口不显示：
+            // 1) 工具消息（role = 'tool'）
+            // 2) 仅包含工具调用而无可读文本/结果的助手占位消息（纯 functionCall/toolCall）
             return _db.Query(
-                "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp",
+                "SELECT * FROM ChatMessages\n"
+                + "WHERE SessionId = @SessionId\n"
+                + "  AND Role <> 'tool'\n"
+                + "  AND NOT (Role = 'assistant'\n"
+                + "           AND IFNULL(ContentsJson,'') <> ''\n"
+                + "           AND (ContentsJson LIKE '%\"functionCall\"%' OR ContentsJson LIKE '%\"toolCall\"%')\n"
+                + "           AND ContentsJson NOT LIKE '%\"text\"%'\n"
+                + "           AND ContentsJson NOT LIKE '%\"functionResult\"%'\n"
+                + "           AND ContentsJson NOT LIKE '%\"toolResult\"%')\n"
+                + "ORDER BY CreatedTimestamp",
                 ReadEntity,
                 cmd => cmd.Parameters.AddWithValue("@SessionId", sessionId));
         }
