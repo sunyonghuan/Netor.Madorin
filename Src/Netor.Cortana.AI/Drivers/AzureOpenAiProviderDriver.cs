@@ -1,9 +1,11 @@
+using Microsoft.Extensions.Logging;
+
 using Netor.Cortana.Entitys;
 
 namespace Netor.Cortana.AI.Drivers;
 
-public sealed class AzureOpenAiProviderDriver(IHttpClientFactory httpClientFactory)
-    : OpenAiCompatibleProviderDriverBase(httpClientFactory)
+public sealed class AzureOpenAiProviderDriver(IHttpClientFactory httpClientFactory, ILoggerFactory loggerFactory)
+    : OpenAiCompatibleProviderDriverBase(httpClientFactory, loggerFactory)
 {
     public override AiProviderDriverDefinition Definition { get; } =
         new("Azure", "Azure OpenAI", false);

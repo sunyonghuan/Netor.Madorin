@@ -131,7 +131,14 @@ public sealed class AIAgentFactory(
 
         // 组装插件和 MCP 工具 Provider
         var registeredTools = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        AssembleToolProviders(agent, providers, registeredTools);
+        if (model.InteractionCapabilities.HasFlag(InteractionCapabilities.FunctionCall))
+        {
+            AssembleToolProviders(agent, providers, registeredTools);
+        }
+        else
+        {
+            logger.LogInformation("模型 {Model} 未启用函数调用，跳过工具配送。", model.Name);
+        }
 
         var enableReasoning = model.InteractionCapabilities.HasFlag(InteractionCapabilities.Reasoning);
         ChatClient = CreateTrackingClient(
@@ -189,41 +196,52 @@ public sealed class AIAgentFactory(
 
         // 组装主智能体的插件和 MCP 工具
         var registeredTools = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        AssembleToolProviders(mainAgent, providers, registeredTools);
+        var mainFuncEnabled = mainModel.InteractionCapabilities.HasFlag(InteractionCapabilities.FunctionCall);
+        if (mainFuncEnabled)
+        {
+            AssembleToolProviders(mainAgent, providers, registeredTools);
+        }
+        else
+        {
+            logger.LogInformation("主模型 {Model} 未启用函数调用，跳过工具配送与子智能体工具注入。", mainModel.Name);
+        }
 
-        // 构建子智能体并包装为 AIFunction
+        // 构建子智能体并包装为 AIFunction（仅当主模型支持函数调用时才注入）
         var subAgentFunctions = new List<AIFunction>();
         var processedAgentIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var mention in mentions)
+        if (mainFuncEnabled)
         {
-            var subAgentEntity = mention.Agent;
-
-            // 同名智能体去重
-            if (!processedAgentIds.Add(subAgentEntity.Id)) continue;
-
-            var (subProvider, subModel) = ResolveSubAgentProviderAndModel(
-                subAgentEntity, mainProvider, mainModel, providerService, modelService);
-
-            if (subProvider is null || subModel is null)
+            foreach (var mention in mentions)
             {
-                logger.LogWarning("子智能体 [{Name}] 的厂商或模型无法解析，跳过", subAgentEntity.Name);
-                continue;
-            }
+                var subAgentEntity = mention.Agent;
 
-            var subAgent = BuildSubAgent(subAgentEntity, subProvider, subModel);
-            var agentFunction = subAgent.AsAIFunction(
-                new AIFunctionFactoryOptions
+                // 同名智能体去重
+                if (!processedAgentIds.Add(subAgentEntity.Id)) continue;
+
+                var (subProvider, subModel) = ResolveSubAgentProviderAndModel(
+                    subAgentEntity, mainProvider, mainModel, providerService, modelService);
+
+                if (subProvider is null || subModel is null)
                 {
-                    Name = $"agent_{subAgentEntity.Name}",
-                    Description = string.IsNullOrWhiteSpace(subAgentEntity.Description)
-                        ? $"调用子智能体「{subAgentEntity.Name}」来处理任务"
-                        : subAgentEntity.Description
-                });
+                    logger.LogWarning("子智能体 [{Name}] 的厂商或模型无法解析，跳过", subAgentEntity.Name);
+                    continue;
+                }
 
-            subAgentFunctions.Add(agentFunction);
-            logger.LogInformation("已注入子智能体工具：agent_{Name}（{PluginCount} 个插件，{McpCount} 个 MCP）",
-                subAgentEntity.Name, subAgentEntity.EnabledPluginIds.Count, subAgentEntity.EnabledMcpServerIds.Count);
+                var subAgent = BuildSubAgent(subAgentEntity, subProvider, subModel);
+                var agentFunction = subAgent.AsAIFunction(
+                    new AIFunctionFactoryOptions
+                    {
+                        Name = $"agent_{subAgentEntity.Name}",
+                        Description = string.IsNullOrWhiteSpace(subAgentEntity.Description)
+                            ? $"调用子智能体「{subAgentEntity.Name}」来处理任务"
+                            : subAgentEntity.Description
+                    });
+
+                subAgentFunctions.Add(agentFunction);
+                logger.LogInformation("已注入子智能体工具：agent_{Name}（{PluginCount} 个插件，{McpCount} 个 MCP）",
+                    subAgentEntity.Name, subAgentEntity.EnabledPluginIds.Count, subAgentEntity.EnabledMcpServerIds.Count);
+            }
         }
 
         // 通过 SubAgentContextProvider 注入子智能体工具
@@ -264,7 +282,14 @@ public sealed class AIAgentFactory(
 
         var providers = new List<AIContextProvider>();
         var registeredTools = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        AssembleToolProviders(agent, providers, registeredTools);
+        if (model.InteractionCapabilities.HasFlag(InteractionCapabilities.FunctionCall))
+        {
+            AssembleToolProviders(agent, providers, registeredTools);
+        }
+        else
+        {
+            logger.LogInformation("子智能体模型 {Model} 未启用函数调用，跳过工具配送。", model.Name);
+        }
 
         var chatClient = driver.CreateChatClient(provider, model);
 

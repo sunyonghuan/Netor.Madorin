@@ -208,10 +208,11 @@ public partial class ModelSettingsPage : UserControl
         ChkOutImage.IsChecked = false;
         ChkOutAudio.IsChecked = false;
         ChkOutVideo.IsChecked = false;
-        ChkFuncCall.IsChecked = false;
+        ChkFuncCall.IsChecked = true; // 默认开启函数调用
         ChkStreaming.IsChecked = false;
         ChkSysPrompt.IsChecked = false;
         ChkJsonMode.IsChecked = false;
+        ChkReasoning.IsChecked = false;
     }
 
     // ──────── 添加/编辑 ────────
@@ -260,6 +261,7 @@ public partial class ModelSettingsPage : UserControl
         ChkStreaming.IsChecked = entity.InteractionCapabilities.HasFlag(InteractionCapabilities.Streaming);
         ChkSysPrompt.IsChecked = entity.InteractionCapabilities.HasFlag(InteractionCapabilities.SystemPrompt);
         ChkJsonMode.IsChecked = entity.InteractionCapabilities.HasFlag(InteractionCapabilities.JsonMode);
+        ChkReasoning.IsChecked = entity.InteractionCapabilities.HasFlag(InteractionCapabilities.Reasoning);
 
         ShowForm("编辑模型");
     }
@@ -361,6 +363,7 @@ public partial class ModelSettingsPage : UserControl
         if (ChkStreaming.IsChecked == true) caps |= InteractionCapabilities.Streaming;
         if (ChkSysPrompt.IsChecked == true) caps |= InteractionCapabilities.SystemPrompt;
         if (ChkJsonMode.IsChecked == true) caps |= InteractionCapabilities.JsonMode;
+        if (ChkReasoning.IsChecked == true) caps |= InteractionCapabilities.Reasoning;
         return caps;
     }
 }

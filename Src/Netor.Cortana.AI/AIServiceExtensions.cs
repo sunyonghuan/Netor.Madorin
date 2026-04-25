@@ -22,7 +22,9 @@ public static class AIServiceExtensions
         services.AddTransient<UserAgentOverrideHandler>();
         services.AddHttpClient("OpenAiCompatible")
             .AddHttpMessageHandler<UserAgentOverrideHandler>();
-
+        services.AddTransient<DeepseekOverrideHandler>()
+            .AddHttpClient("Deepseek")
+            .AddHttpMessageHandler<DeepseekOverrideHandler>();
         // Providers（同时作为 AIContextProvider 注入到 AIAgentFactory）
         services.AddSingleton<FileMemoryProvider>();
         services.AddSingleton<AIContextProvider>(sp => sp.GetRequiredService<FileMemoryProvider>());
@@ -34,6 +36,7 @@ public static class AIServiceExtensions
         services.AddSingleton<IAiProviderDriver, AzureOpenAiProviderDriver>();
         services.AddSingleton<IAiProviderDriver, OllamaProviderDriver>();
         services.AddSingleton<IAiProviderDriver, AnthropicProviderDriver>();
+        services.AddSingleton<IAiProviderDriver, DeepseekProviderDriver>();
         services.AddSingleton<IAiProviderDriver, GeminiProviderDriver>();
         services.AddSingleton<IAiProviderDriver, GlmProviderDriver>();
         services.AddSingleton<IAiProviderDriver, CustomProviderDriver>();

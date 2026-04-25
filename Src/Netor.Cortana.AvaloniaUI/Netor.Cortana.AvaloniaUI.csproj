@@ -71,7 +71,7 @@
 
   <!-- 基础设施 -->
   <ItemGroup>
-    <PackageReference Include="Netor.EventHub" Version="1.2.5" />
+    <PackageReference Include="Netor.EventHub" Version="1.2.6" />
     <PackageReference Include="Netor.EventHub.SourceGenerator" Version="1.1.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

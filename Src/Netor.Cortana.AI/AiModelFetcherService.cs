@@ -41,6 +41,8 @@ public sealed class AiModelFetcherService(AiProviderDriverRegistry driverRegistr
                 ContextLength = model.ContextLength ?? 0,
                 IsEnabled = true,
                 ProviderId = provider.Id,
+                // 默认开启函数调用能力，便于工具链直接可用
+                InteractionCapabilities = InteractionCapabilities.FunctionCall,
             });
         }
 

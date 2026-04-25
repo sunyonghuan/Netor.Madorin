@@ -14,6 +14,8 @@ using Netor.EventHub;
 
 using Serilog;
 
+using System.Text;
+
 namespace Netor.Cortana.AvaloniaUI;
 
 /// <summary>
@@ -91,7 +93,6 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-
         ConfigureServices();
         EnsureDirectories();
         InitializeWorkspace();
@@ -176,7 +177,11 @@ public partial class App : Application
                     .CreateLogger(), dispose: true);
             })
             .AddEventHub()
+            //.AddTransient<HttpLoggingHandler>()
             .AddHttpClient()
+            //.AddHttpClient("OpenAiCompatible")
+            //.AddHttpMessageHandler<HttpLoggingHandler>()
+            //.Services
             // 窗口
             .AddSingleton<MainWindow>()
             .AddSingleton<FloatWindow>()
@@ -527,3 +532,45 @@ public partial class App : Application
         }
     }
 }
+
+//internal sealed class HttpLoggingHandler(ILogger<HttpLoggingHandler> logger) : DelegatingHandler
+//{
+//    private readonly ILogger<HttpLoggingHandler> _logger = logger;
+
+//    protected override async Task<HttpResponseMessage> SendAsync(
+//        HttpRequestMessage request,
+//        CancellationToken cancellationToken)
+//    {
+//        string? requestBody = null;
+//        if (request.Content is not null)
+//        {
+//            requestBody = await request.Content.ReadAsStringAsync(cancellationToken);
+//        }
+
+//        _logger.LogWarning(
+//            "HTTP 请求: {Method} {Url}\nHeaders: {Headers}\nBody: {Body}",
+//            request.Method,
+//            request.RequestUri,
+//            request.Headers.ToString(),
+//            requestBody);
+
+//        var response = await base.SendAsync(request, cancellationToken);
+
+//        string? responseBody = null;
+//        if (response.Content is not null)
+//        {
+//            responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+//            var mediaType = response.Content.Headers.ContentType?.MediaType ?? "application/json";
+//            response.Content = new StringContent(responseBody, Encoding.UTF8, mediaType);
+//        }
+
+//        _logger.LogWarning(
+//            "HTTP 响应: {StatusCode}\nHeaders: {Headers}\nBody: {Body}",
+//            (int)response.StatusCode,
+//            response.Headers.ToString(),
+//            responseBody);
+
+//        return response;
+//    }
+//}

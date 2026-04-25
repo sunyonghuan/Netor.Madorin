@@ -123,6 +123,8 @@
                         <CheckBox x:Name="ChkSysPrompt" Content="系统提示"
                                   Foreground="{StaticResource TextBrush}" Margin="0,0,16,0" />
                         <CheckBox x:Name="ChkJsonMode" Content="JSON 模式"
+                                  Foreground="{StaticResource TextBrush}" Margin="0,0,16,0" />
+                        <CheckBox x:Name="ChkReasoning" Content="思考模式"
                                   Foreground="{StaticResource TextBrush}" />
                     </WrapPanel>
                 </StackPanel>

@@ -1,7 +1,8 @@
 ﻿using Microsoft.Extensions.AI;
 
-using System.Runtime.CompilerServices;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace Netor.Cortana.AI.Providers;
 
@@ -25,8 +26,9 @@ public class TokenTrackingChatClient : DelegatingChatClient
 
     private long _lastInputTokens;
     private long _totalOutputTokens;
-    private string? _lastAssistantReasoning;
+    private StringBuilder _lastAssistantReasoning = new();
     private readonly bool _enableReasoning;
+    private volatile bool _requireReasoningPassback;
 
     /// <summary>
     /// Usage 上报抑制计数（支持嵌套）。>0 时 <see cref="RecordUsage"/> 直接忽略。
@@ -57,6 +59,11 @@ public class TokenTrackingChatClient : DelegatingChatClient
         _usageObserver = usageObserver;
         _enableReasoning = enableReasoning;
     }
+
+    /// <summary>
+    /// 标记本模型在当前会话需要强制回传 reasoning（例如服务端返回 400 要求）。
+    /// </summary>
+    public void RequireReasoningPassback() => _requireReasoningPassback = true;
 
     /// <summary>
     /// 重置最近一次输入 Token 和累计输出 Token 计数。
@@ -112,7 +119,8 @@ public class TokenTrackingChatClient : DelegatingChatClient
         CancellationToken ct = default)
     {
         var response = await base.GetResponseAsync(
-            _enableReasoning ? EnsureReasoningPassed(messages) : messages,
+            (_enableReasoning || _requireReasoningPassback || _lastAssistantReasoning.Length > 0)
+                ? EnsureReasoningPassed(messages) : messages,
             options, ct);
         RecordUsage(response.Usage);
         return response;
@@ -133,9 +141,11 @@ public class TokenTrackingChatClient : DelegatingChatClient
         long? pendingInput = null;
         long pendingOutput = 0;
         UsageDetails? lastUsage = null;
-
-        await foreach (var update in base.GetStreamingResponseAsync(
-            _enableReasoning ? EnsureReasoningPassed(messages) : messages, options, ct))
+        //_lastAssistantReasoning.Clear();
+        //await foreach (var update in base.GetStreamingResponseAsync(
+        //    (_enableReasoning || _requireReasoningPassback || _lastAssistantReasoning.Length > 0)
+        //        ? EnsureReasoningPassed(messages) : messages, options, ct))
+        await foreach (var update in base.GetStreamingResponseAsync(messages, options, ct))
         {
             foreach (var content in update.Contents)
             {
@@ -148,10 +158,10 @@ public class TokenTrackingChatClient : DelegatingChatClient
                         pendingOutput += o;
                     lastUsage = details;
                 }
-                else if (_enableReasoning && content is TextReasoningContent reasoning && !string.IsNullOrWhiteSpace(reasoning.Text))
+                else if (content is TextReasoningContent reasoning && !string.IsNullOrWhiteSpace(reasoning.Text))
                 {
                     // 捕获最近一条 assistant 的 reasoning 内容，供同轮工具二次调用时回传
-                    _lastAssistantReasoning = reasoning.Text;
+                    _lastAssistantReasoning.Append(reasoning.Text);
                 }
             }
             yield return update;
@@ -180,24 +190,32 @@ public class TokenTrackingChatClient : DelegatingChatClient
     {
         // 若上一轮（同一 Run 流程内）模型给出了 reasoning，需要在包含 tool_calls 的 assistant 消息上回传
         // 以满足部分思维模型的协议要求。
-        var listInput = messages?.ToList() ?? new List<ChatMessage>(0);
-        if (string.IsNullOrWhiteSpace(_lastAssistantReasoning))
+        var listInput = messages?.ToList() ?? [];
+        if (_lastAssistantReasoning.Length <= 0)
         {
             foreach (var m in listInput) yield return m;
             yield break;
         }
-
+        var results = new List<ChatMessage>(messages!)
+        {
+            new(ChatRole.Assistant, string.Empty)
+            {
+                 Contents=[new TextReasoningContent(_lastAssistantReasoning.ToString())]
+            }
+        };
+        foreach (var m in results) yield return m;
+        yield break;
         // 1) 针对包含 tool_calls 但缺失 reasoning 的 assistant：注入 reasoning
         for (var i = 0; i < listInput.Count; i++)
         {
             var m = listInput[i];
             if (m.Role != ChatRole.Assistant) continue;
             var hasReasoning = m.Contents?.Any(c => c is TextReasoningContent) == true;
-            var hasToolCall = m.Contents?.Any(c => c is ToolCallContent || c is McpServerToolCallContent) == true;
+            var hasToolCall = m.Contents?.Any(c => c is ToolCallContent or McpServerToolCallContent) == true;
             if (hasToolCall && !hasReasoning)
             {
-                var c = m.Contents is null ? new List<AIContent>() : new List<AIContent>(m.Contents);
-                c.Insert(0, new TextReasoningContent(_lastAssistantReasoning));
+                var c = m.Contents is null ? [] : new List<AIContent>(m.Contents);
+                c.Insert(0, new TextReasoningContent(_lastAssistantReasoning.ToString()));
                 listInput[i] = new ChatMessage { Role = m.Role, AuthorName = m.AuthorName, MessageId = m.MessageId, CreatedAt = m.CreatedAt, Contents = c };
             }
         }
@@ -210,8 +228,8 @@ public class TokenTrackingChatClient : DelegatingChatClient
             var hasReasoning = m.Contents?.Any(c => c is TextReasoningContent) == true;
             if (!hasReasoning)
             {
-                var c = m.Contents is null ? new List<AIContent>() : new List<AIContent>(m.Contents);
-                c.Insert(0, new TextReasoningContent(_lastAssistantReasoning));
+                var c = m.Contents is null ? [] : new List<AIContent>(m.Contents);
+                c.Insert(0, new TextReasoningContent(_lastAssistantReasoning.ToString()));
                 listInput[i] = new ChatMessage { Role = m.Role, AuthorName = m.AuthorName, MessageId = m.MessageId, CreatedAt = m.CreatedAt, Contents = c };
             }
             break; // 只处理最近一条 assistant

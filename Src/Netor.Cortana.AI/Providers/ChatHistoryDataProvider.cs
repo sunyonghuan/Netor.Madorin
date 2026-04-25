@@ -13,6 +13,7 @@ using Netor.EventHub;
 using OpenAI.Chat;
 
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -59,10 +60,6 @@ public sealed class ChatHistoryDataProvider(
         ArgumentNullException.ThrowIfNull(context);
 
         var modelName = context.Session?.StateBag.GetValue<string>("modelid") ?? "Unknown";
-        var modelDbId = context.Session?.StateBag.GetValue<string>("modeldbid");
-        var modelService = services.GetRequiredService<Netor.Cortana.Entitys.Services.AiModelService>();
-        var modelEntity = string.IsNullOrEmpty(modelDbId) ? null : modelService.GetById(modelDbId);
-        var reasoningEnabled = modelEntity?.InteractionCapabilities.HasFlag(Netor.Cortana.Entitys.InteractionCapabilities.Reasoning) == true;
         var firstText = context.RequestMessages?.FirstOrDefault(m => m.Role == ChatRole.User)?.Text ?? "";
         var sessionId = await AddOrUpdateSessionAsync(context.Session, firstText.Truncate(32), context.Agent, accumulateInputTokens: true);
 
@@ -71,15 +68,15 @@ public sealed class ChatHistoryDataProvider(
             .Select((t, index) => new ChatMessageEntity
             {
                 Role = t.Role.ToString(),
-            Content = ChatMessageExtensions.BuildPersistedContent(t.Text, FilterContents(t.Contents, reasoningEnabled)),
-            ContentsJson = ChatMessageExtensions.BuildContentsJson(FilterContents(t.Contents, reasoningEnabled)),
+                Content = ChatMessageExtensions.BuildPersistedContent(t.Text, t.Contents),
+                ContentsJson = ChatMessageExtensions.BuildContentsJson(t.Contents),
                 AuthorName = GetChatRoleText(t.Role, context.Agent.Name ?? "未知"),
                 CreatedAt = t.CreatedAt ?? DateTimeOffset.UtcNow,
                 CreatedTimestamp = t.CreatedAt?.ToLocalTime().ToUnixTimeMilliseconds() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 // ── 关键修复 1：每条消息独立 ID，不覆盖 ──
                 // 优先 t.MessageId（OpenAI 兼容接口返回的真实消息 ID），兜底才生成新 Guid
                 // 不再把 assistant 消息强行统一为同一个 assistantMessageId，避免链条断裂
-                Id = t.MessageId ?? Guid.NewGuid().ToString("N"),
+                Id = Guid.NewGuid().ToString("N"),
                 SessionId = sessionId,
                 UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
                 ModelName = modelName
@@ -109,19 +106,19 @@ public sealed class ChatHistoryDataProvider(
                 var toolMessages = messages.Where(m => m.Role == ChatRole.Tool.ToString()).ToList();
                 if (toolMessages.Count > 0)
                 {
-                    var assistantToolCallMessages = messages.Where(m => 
-                        m.Role == ChatRole.Assistant.ToString() && 
-                        !string.IsNullOrEmpty(m.ContentsJson) && 
+                    var assistantToolCallMessages = messages.Where(m =>
+                        m.Role == ChatRole.Assistant.ToString() &&
+                        !string.IsNullOrEmpty(m.ContentsJson) &&
                         (m.ContentsJson.Contains("functionCall") || m.ContentsJson.Contains("toolCall"))).ToList();
 
                     if (assistantToolCallMessages.Count == 0)
                     {
-                        logger.LogWarning("⚠️ 工具链条警告：检测到 {ToolCount} 条 tool 消息，但无对应的 assistant tool_calls 消息。可能导致历史恢复时报错。", 
+                        logger.LogWarning("⚠️ 工具链条警告：检测到 {ToolCount} 条 tool 消息，但无对应的 assistant tool_calls 消息。可能导致历史恢复时报错。",
                             toolMessages.Count);
                     }
                     else
                     {
-                        logger.LogInformation("✓ 工具链条完整：{ToolCallCount} 条 assistant tool_calls + {ToolCount} 条 tool 结果已同步入库。", 
+                        logger.LogInformation("✓ 工具链条完整：{ToolCallCount} 条 assistant tool_calls + {ToolCount} 条 tool 结果已同步入库。",
                             assistantToolCallMessages.Count, toolMessages.Count);
                     }
                 }
@@ -130,14 +127,6 @@ public sealed class ChatHistoryDataProvider(
         catch (Exception ex)
         {
             logger.LogError(ex, "保存聊天历史到数据库时失败。");
-        }
-
-        static IList<AIContent>? FilterContents(IList<AIContent>? contents, bool enableReasoning)
-        {
-            if (enableReasoning) return contents;
-            if (contents is null || contents.Count == 0) return contents;
-            var filtered = contents.Where(c => c is not TextReasoningContent).ToList();
-            return filtered.Count == 0 ? null : filtered;
         }
 
         // ---- 保存 AI 生成的多媒体资源（图片/音频/视频等）到资源库 ----
@@ -250,6 +239,12 @@ public sealed class ChatHistoryDataProvider(
             var segmentService = services.GetRequiredService<CompactionSegmentService>();
             var segments = segmentService.GetBySessionId(sessionId);
             var result = new List<AIChatMessage>();
+            var requestMessageIds = (context.RequestMessages ?? [])
+                .Where(t => t.Role == ChatRole.User)
+                .Select(t => t.MessageId)
+                .Where(static t => !string.IsNullOrWhiteSpace(t))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
 
             // ── 新系统：段落摘要 + 尾部原始消息 ──
             if (segments.Count > 0)
@@ -270,13 +265,12 @@ public sealed class ChatHistoryDataProvider(
                 // 加载最后一个段落之后的所有原始消息
                 var lastSegment = segments[^1];
                 var tailOffset = lastSegment.EndMessageIndex + 1;
-
                 var tailMessages = dbContext.Query(
-                    "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC LIMIT -1 OFFSET @Offset",
+                    BuildChatHistoryQuery("LIMIT -1 OFFSET @Offset", requestMessageIds),
                     ChatMessageService.ReadEntity,
                     cmd =>
                     {
-                        cmd.Parameters.AddWithValue("@SessionId", sessionId);
+                        BindChatHistoryParameters(cmd, sessionId, requestMessageIds);
                         cmd.Parameters.AddWithValue("@Offset", tailOffset);
                     });
 
@@ -318,11 +312,11 @@ public sealed class ChatHistoryDataProvider(
                     }));
 
                     var newer = dbContext.Query(
-                        "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC LIMIT -1 OFFSET @Offset",
+                        BuildChatHistoryQuery("LIMIT -1 OFFSET @Offset", requestMessageIds),
                         ChatMessageService.ReadEntity,
                         cmd =>
                         {
-                            cmd.Parameters.AddWithValue("@SessionId", sessionId);
+                            BindChatHistoryParameters(cmd, sessionId, requestMessageIds);
                             cmd.Parameters.AddWithValue("@Offset", session.CompactedAtCount);
                         });
 
@@ -344,11 +338,11 @@ public sealed class ChatHistoryDataProvider(
 
             // ── 无任何压缩：加载全部消息 ──
             var messages = dbContext.Query(
-                "SELECT * FROM ChatMessages WHERE SessionId = @SessionId ORDER BY CreatedTimestamp ASC",
+                BuildChatHistoryQuery(string.Empty, requestMessageIds),
                 ChatMessageService.ReadEntity,
                 cmd =>
                 {
-                    cmd.Parameters.AddWithValue("@SessionId", sessionId);
+                    BindChatHistoryParameters(cmd, sessionId, requestMessageIds);
                 })
                 .Select(t => new AIChatMessage
                 {
@@ -364,6 +358,32 @@ public sealed class ChatHistoryDataProvider(
         {
             logger.LogError(ex, "从数据库加载聊天历史时失败。");
             return [];
+        }
+
+        static string BuildChatHistoryQuery(string suffix, IReadOnlyList<string> excludedMessageIds)
+        {
+            var builder = new StringBuilder("SELECT * FROM ChatMessages WHERE SessionId = @SessionId");
+            for (var index = 0; index < excludedMessageIds.Count; index++)
+            {
+                builder.Append(" AND Id <> @ExcludedMessageId").Append(index);
+            }
+
+            builder.Append(" ORDER BY CreatedTimestamp ASC");
+            if (!string.IsNullOrWhiteSpace(suffix))
+            {
+                builder.Append(' ').Append(suffix);
+            }
+
+            return builder.ToString();
+        }
+
+        static void BindChatHistoryParameters(Microsoft.Data.Sqlite.SqliteCommand cmd, string sessionId, IReadOnlyList<string> excludedMessageIds)
+        {
+            cmd.Parameters.AddWithValue("@SessionId", sessionId);
+            for (var index = 0; index < excludedMessageIds.Count; index++)
+            {
+                cmd.Parameters.AddWithValue($"@ExcludedMessageId{index}", excludedMessageIds[index]);
+            }
         }
     }
 
@@ -585,7 +605,7 @@ public sealed class ChatHistoryDataProvider(
             {
                 new(ChatRole.System, """
                     你是对话摘要助手。请将以下对话片段压缩成结构化的摘要。
-                    
+
                     ## 必须完整保留的内容
                     - 代码块（包括完整代码、不要截断）、Shell 命令、SQL 语句
                     - 文件路径、URL、API 端点
@@ -593,12 +613,12 @@ public sealed class ChatHistoryDataProvider(
                     - 所有数值型数据：配置项的值、阈值、端口号、版本号
                     - 错误信息和异常堆栈的关键行
                     - 用户明确的决策和结论
-                    
+
                     ## 可以精简的内容
                     - 寒暄、确认、重复的问答
                     - 冗余的解释和过渡语句
                     - 已被后续修正覆盖的中间尝试（仅保留最终结果）
-                    
+
                     ## 输出格式
                     - 使用 Markdown 标题分隔不同话题
                     - 代码块使用 ``` 围栏并标注语言
