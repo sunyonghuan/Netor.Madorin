@@ -38,6 +38,10 @@ public sealed class PluginLoader : IDisposable
     /// WebSocket 服务器端口，在 DI 注册时由 UI 壳设置。
     /// </summary>
     public int WsPort { get; set; }
+    /// <summary>
+    /// Conversation Feed 服务器端口，由网络模块启动后回填。
+    /// </summary>
+    public int FeedPort { get; set; }
 
     /// <summary>
     /// 默认插件目录根路径。
@@ -307,7 +311,7 @@ public sealed class PluginLoader : IDisposable
         var host = new ProcessPluginHost(pluginDir, manifest, hostLogger);
 
         var dataDir = Path.Combine(pluginDir, "data");
-        var context = new PluginContext(dataDir, _loggerFactory, _httpClientFactory, _appPaths, WsPort);
+        var context = new PluginContext(dataDir, _loggerFactory, _httpClientFactory, _appPaths, WsPort, FeedPort);
 
         await host.LoadAsync(context, cancellationToken);
 
@@ -334,7 +338,7 @@ public sealed class PluginLoader : IDisposable
         var host = new NativePluginHost(pluginDir, manifest, hostLogger);
 
         var dataDir = Path.Combine(pluginDir, "data");
-        var context = new PluginContext(dataDir, _loggerFactory, _httpClientFactory, _appPaths, WsPort);
+        var context = new PluginContext(dataDir, _loggerFactory, _httpClientFactory, _appPaths, WsPort, FeedPort);
 
         await host.LoadAsync(context, cancellationToken);
 

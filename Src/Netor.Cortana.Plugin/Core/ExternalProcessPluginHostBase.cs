@@ -196,10 +196,11 @@ public abstract class ExternalProcessPluginHostBase : IDisposable
             PluginDirectory = PluginDirectory,
             Extensions = new NativePluginInitExtensions
             {
-                ChatWsEndpoint = CortanaWsEndpoints.BuildChatEndpoint(context.WsPort),
-                ConversationFeedEndpoint = CortanaWsEndpoints.BuildConversationFeedEndpoint(context.WsPort),
-                ConversationFeedProtocol = CortanaWsEndpoints.ConversationFeedProtocol,
-                ConversationFeedVersion = CortanaWsEndpoints.ConversationFeedVersion
+                ["chatWsEndpoint"] = CortanaWsEndpoints.BuildChatEndpoint(context.WsPort),
+                ["conversationFeedEndpoint"] = CortanaWsEndpoints.BuildConversationFeedEndpoint(context.FeedPort > 0 ? context.FeedPort : context.WsPort),
+                ["conversationFeedPort"] = (context.FeedPort > 0 ? context.FeedPort : context.WsPort).ToString(),
+                ["conversationFeedProtocol"] = CortanaWsEndpoints.ConversationFeedProtocol,
+                ["conversationFeedVersion"] = CortanaWsEndpoints.ConversationFeedVersion
             }
         }, NativePluginJsonContext.Default.NativePluginInitConfig);
 

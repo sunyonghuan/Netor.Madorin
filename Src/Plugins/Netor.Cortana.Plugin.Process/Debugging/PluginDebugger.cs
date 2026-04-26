@@ -95,10 +95,10 @@ public abstract class PluginDebugger : IAsyncDisposable
             WsPort = wsPort,
             Extensions = new InitExtensions
             {
-                ChatWsEndpoint = $"ws://localhost:{wsPort}/ws/",
-                ConversationFeedEndpoint = $"ws://localhost:{wsPort}/internal/conversation-feed/",
-                ConversationFeedProtocol = "conversation-feed",
-                ConversationFeedVersion = "1.0.0"
+                ["chatWsEndpoint"] = $"ws://localhost:{wsPort}/ws/",
+                ["conversationFeedEndpoint"] = $"ws://localhost:{wsPort}/internal/conversation-feed/",
+                ["conversationFeedProtocol"] = "conversation-feed",
+                ["conversationFeedVersion"] = "1.0.0"
             }
         };
         return InitAsync(config);

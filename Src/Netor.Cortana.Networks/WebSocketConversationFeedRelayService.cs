@@ -12,7 +12,7 @@ namespace Netor.Cortana.Networks;
 /// 订阅宿主内部 Conversation 事件，并通过内部 WebSocket feed 转发给插件侧订阅者。
 /// </summary>
 public sealed class WebSocketConversationFeedRelayService(
-    WebSocketServerService server,
+    WebSocketFeedServerService server,
     ISubscriber subscriber) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)

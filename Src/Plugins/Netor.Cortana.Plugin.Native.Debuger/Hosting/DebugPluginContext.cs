@@ -28,6 +28,9 @@ public class DebugPluginContext : IPluginContext
     /// <summary>WebSocket 服务器端口</summary>
     public int WsPort { get; }
 
+    /// <summary>对话事实 Feed 专用端口</summary>
+    public int FeedPort { get; }
+
     /// <summary>
     /// 创建调试上下文
     /// </summary>
@@ -39,11 +42,13 @@ public class DebugPluginContext : IPluginContext
         string? dataDirectory = null,
         string? workspaceDirectory = null,
         int wsPort = 9090,
+        int feedPort = 9091,
         ILoggerFactory? loggerFactory = null)
     {
         DataDirectory = dataDirectory ?? Path.Combine(AppContext.BaseDirectory, ".debug_data");
         WorkspaceDirectory = workspaceDirectory ?? Path.Combine(AppContext.BaseDirectory, ".debug_workspace");
         WsPort = wsPort;
+        FeedPort = feedPort;
         LoggerFactory = loggerFactory ?? CreateDefaultLoggerFactory();
         HttpClientFactory = CreateDefaultHttpClientFactory();
 

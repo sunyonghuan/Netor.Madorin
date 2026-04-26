@@ -492,12 +492,14 @@ public partial class App : Application
         try
         {
             var wsServer = Services.GetRequiredService<WebSocketServerService>();
+            var feedServer = Services.GetRequiredService<WebSocketFeedServerService>();
             var pluginLoader = Services.GetRequiredService<PluginLoader>();
             pluginLoader.WsPort = wsServer.Port;
+            pluginLoader.FeedPort = feedServer.Port;
 
-            if (pluginLoader.WsPort <= 0)
+            if (pluginLoader.WsPort <= 0 || pluginLoader.FeedPort <= 0)
             {
-                logger.LogWarning("WebSocket 服务器端口未初始化，插件可能无法连接宿主：{Port}", pluginLoader.WsPort);
+                logger.LogWarning("WS 端口未初始化，插件可能无法连接宿主：ws={WsPort} feed={FeedPort}", pluginLoader.WsPort, pluginLoader.FeedPort);
             }
 
             await pluginLoader.ScanAndLoadAsync(cancellationToken);

@@ -15,19 +15,12 @@ internal partial class NativePluginJsonContext : JsonSerializerContext;
 /// <summary>
 /// 插件 init 扩展槽位。
 /// </summary>
-public sealed record NativePluginInitExtensions
+public sealed class NativePluginInitExtensions : Dictionary<string, string>
 {
-    [JsonPropertyName("chatWsEndpoint")]
-    public string ChatWsEndpoint { get; init; } = string.Empty;
-
-    [JsonPropertyName("conversationFeedEndpoint")]
-    public string ConversationFeedEndpoint { get; init; } = string.Empty;
-
-    [JsonPropertyName("conversationFeedProtocol")]
-    public string ConversationFeedProtocol { get; init; } = string.Empty;
-
-    [JsonPropertyName("conversationFeedVersion")]
-    public string ConversationFeedVersion { get; init; } = string.Empty;
+    /// <summary>创建插件 init 扩展槽位。</summary>
+    public NativePluginInitExtensions() : base(StringComparer.Ordinal)
+    {
+    }
 }
 
 /// <summary>

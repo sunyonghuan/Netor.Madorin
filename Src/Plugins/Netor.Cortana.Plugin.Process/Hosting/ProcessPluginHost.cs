@@ -224,10 +224,12 @@ public static class ProcessPluginHost
             workspaceDirectory: config.WorkspaceDirectory,
             pluginDirectory: config.PluginDirectory,
             wsPort: config.WsPort,
-            chatWsEndpoint: config.Extensions?.ChatWsEndpoint ?? string.Empty,
-            conversationFeedEndpoint: config.Extensions?.ConversationFeedEndpoint ?? string.Empty,
-            conversationFeedProtocol: config.Extensions?.ConversationFeedProtocol ?? string.Empty,
-            conversationFeedVersion: config.Extensions?.ConversationFeedVersion ?? string.Empty);
+            chatWsEndpoint: GetExtension(config.Extensions, "chatWsEndpoint"),
+            conversationFeedEndpoint: GetExtension(config.Extensions, "conversationFeedEndpoint"),
+            conversationFeedProtocol: GetExtension(config.Extensions, "conversationFeedProtocol"),
+            conversationFeedVersion: GetExtension(config.Extensions, "conversationFeedVersion"),
+            conversationFeedPort: GetExtensionInt32(config.Extensions, "conversationFeedPort"),
+            extensions: config.Extensions);
 
         accessor.Set(settings);
         logger.LogInformation(
@@ -235,6 +237,16 @@ public static class ProcessPluginHost
             config.DataDirectory, config.WorkspaceDirectory, config.PluginDirectory, config.WsPort);
 
         return HostResponse.Ok(null);
+    }
+
+    private static string GetExtension(IReadOnlyDictionary<string, string>? extensions, string name)
+    {
+        return extensions is not null && extensions.TryGetValue(name, out var value) ? value : string.Empty;
+    }
+
+    private static int GetExtensionInt32(IReadOnlyDictionary<string, string>? extensions, string name)
+    {
+        return extensions is not null && extensions.TryGetValue(name, out var value) && int.TryParse(value, out var number) ? number : 0;
     }
 
     /// <summary>

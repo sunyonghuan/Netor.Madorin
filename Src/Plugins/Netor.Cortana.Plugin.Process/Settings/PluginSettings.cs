@@ -33,6 +33,11 @@ public sealed class PluginSettings
 	public int WsPort { get; }
 
 	/// <summary>
+	/// 插件 init 扩展参数。
+	/// </summary>
+	public IReadOnlyDictionary<string, string> Extensions { get; }
+
+	/// <summary>
 	/// 旧聊天 WebSocket 端点。
 	/// </summary>
 	public string ChatWsEndpoint { get; }
@@ -53,8 +58,23 @@ public sealed class PluginSettings
 	public string ConversationFeedVersion { get; }
 
 	/// <summary>
+	/// 内部对话 feed 端口（扩展字段，优先于 Endpoint）。
+	/// </summary>
+	public int ConversationFeedPort { get; }
+
+	/// <summary>
 	/// 直接构造运行时配置。
 	/// </summary>
+	/// <param name="dataDirectory">插件专属的数据存储目录。</param>
+	/// <param name="workspaceDirectory">当前工作区目录。</param>
+	/// <param name="pluginDirectory">插件目录。</param>
+	/// <param name="wsPort">WebSocket 服务器端口。</param>
+	/// <param name="chatWsEndpoint">旧聊天 WebSocket 端点。</param>
+	/// <param name="conversationFeedEndpoint">内部对话 feed 端点。</param>
+	/// <param name="conversationFeedProtocol">内部对话 feed 协议名。</param>
+	/// <param name="conversationFeedVersion">内部对话 feed 协议版本。</param>
+	/// <param name="conversationFeedPort">内部对话 feed 端口。</param>
+	/// <param name="extensions">插件 init 扩展参数。</param>
 	public PluginSettings(
 		string dataDirectory,
 		string workspaceDirectory,
@@ -63,12 +83,17 @@ public sealed class PluginSettings
 		string chatWsEndpoint,
 		string conversationFeedEndpoint,
 		string conversationFeedProtocol,
-		string conversationFeedVersion)
+		string conversationFeedVersion,
+		int conversationFeedPort = 0,
+		IReadOnlyDictionary<string, string>? extensions = null)
 	{
 		DataDirectory = dataDirectory;
 		WorkspaceDirectory = workspaceDirectory;
 		PluginDirectory = pluginDirectory;
 		WsPort = wsPort;
+		Extensions = extensions is null
+			? new Dictionary<string, string>(StringComparer.Ordinal)
+			: new Dictionary<string, string>(extensions, StringComparer.Ordinal);
 		ChatWsEndpoint = !string.IsNullOrWhiteSpace(chatWsEndpoint)
 			? chatWsEndpoint
 			: wsPort > 0 ? $"ws://localhost:{wsPort}{DefaultChatPath}" : string.Empty;
@@ -81,6 +106,7 @@ public sealed class PluginSettings
 		ConversationFeedVersion = !string.IsNullOrWhiteSpace(conversationFeedVersion)
 			? conversationFeedVersion
 			: DefaultConversationFeedVersion;
+        ConversationFeedPort = conversationFeedPort;
 	}
 
 	/// <summary>
@@ -109,29 +135,12 @@ public sealed class PluginSettings
 			? wp.GetInt32()
 			: 0;
 
-		var chatWsEndpoint = string.Empty;
-		var conversationFeedEndpoint = string.Empty;
-		var conversationFeedProtocol = string.Empty;
-		var conversationFeedVersion = string.Empty;
-
-		if (root.TryGetProperty("extensions", out var extensionsElement) && extensionsElement.ValueKind == JsonValueKind.Object)
-		{
-			chatWsEndpoint = extensionsElement.TryGetProperty("chatWsEndpoint", out var chatWsEndpointElement)
-				? chatWsEndpointElement.GetString() ?? string.Empty
-				: string.Empty;
-
-			conversationFeedEndpoint = extensionsElement.TryGetProperty("conversationFeedEndpoint", out var conversationFeedEndpointElement)
-				? conversationFeedEndpointElement.GetString() ?? string.Empty
-				: string.Empty;
-
-			conversationFeedProtocol = extensionsElement.TryGetProperty("conversationFeedProtocol", out var conversationFeedProtocolElement)
-				? conversationFeedProtocolElement.GetString() ?? string.Empty
-				: string.Empty;
-
-			conversationFeedVersion = extensionsElement.TryGetProperty("conversationFeedVersion", out var conversationFeedVersionElement)
-				? conversationFeedVersionElement.GetString() ?? string.Empty
-				: string.Empty;
-		}
+		var extensions = ReadExtensions(root);
+		var chatWsEndpoint = GetExtension(extensions, "chatWsEndpoint");
+		var conversationFeedEndpoint = GetExtension(extensions, "conversationFeedEndpoint");
+		var conversationFeedProtocol = GetExtension(extensions, "conversationFeedProtocol");
+		var conversationFeedVersion = GetExtension(extensions, "conversationFeedVersion");
+		var conversationFeedPort = GetExtensionInt32(extensions, "conversationFeedPort");
 
 		return new PluginSettings(
 			dataDirectory,
@@ -141,6 +150,34 @@ public sealed class PluginSettings
 			chatWsEndpoint,
 			conversationFeedEndpoint,
 			conversationFeedProtocol,
-			conversationFeedVersion);
+			conversationFeedVersion,
+			conversationFeedPort,
+			extensions);
+	}
+
+	private static Dictionary<string, string> ReadExtensions(JsonElement root)
+	{
+		var extensions = new Dictionary<string, string>(StringComparer.Ordinal);
+		if (!root.TryGetProperty("extensions", out var extensionsElement) || extensionsElement.ValueKind != JsonValueKind.Object)
+			return extensions;
+
+		foreach (var property in extensionsElement.EnumerateObject())
+		{
+			extensions[property.Name] = property.Value.ValueKind == JsonValueKind.String
+				? property.Value.GetString() ?? string.Empty
+				: property.Value.GetRawText();
+		}
+
+		return extensions;
+	}
+
+	private static string GetExtension(IReadOnlyDictionary<string, string> extensions, string name)
+	{
+		return extensions.TryGetValue(name, out var value) ? value : string.Empty;
+	}
+
+	private static int GetExtensionInt32(IReadOnlyDictionary<string, string> extensions, string name)
+	{
+		return extensions.TryGetValue(name, out var value) && int.TryParse(value, out var number) ? number : 0;
 	}
 }

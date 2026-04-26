@@ -13,6 +13,7 @@ public sealed class PluginContext : IPluginContext
 {
     private readonly IAppPaths _appPaths;
     private readonly int _wsPort;
+    private readonly int _feedPort;
 
     /// <inheritdoc />
     public string DataDirectory { get; }
@@ -28,13 +29,15 @@ public sealed class PluginContext : IPluginContext
 
     /// <inheritdoc />
     public int WsPort => _wsPort;
+    public int FeedPort => _feedPort;
 
     public PluginContext(
         string dataDirectory,
         ILoggerFactory loggerFactory,
         IHttpClientFactory httpClientFactory,
         IAppPaths appPaths,
-        int wsPort)
+        int wsPort,
+        int feedPort)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         ArgumentNullException.ThrowIfNull(loggerFactory);
@@ -46,6 +49,7 @@ public sealed class PluginContext : IPluginContext
         HttpClientFactory = httpClientFactory;
         _appPaths = appPaths;
         _wsPort = wsPort;
+        _feedPort = feedPort;
 
         if (!Directory.Exists(dataDirectory))
             Directory.CreateDirectory(dataDirectory);

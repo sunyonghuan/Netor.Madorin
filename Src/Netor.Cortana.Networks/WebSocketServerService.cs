@@ -34,7 +34,8 @@ namespace Netor.Cortana.Networks;
 public sealed class WebSocketServerService(
     ILogger<WebSocketServerService> logger,
     SystemSettingsService settingsService,
-    IPublisher publisher) : IHostedService, IChatTransport, IDisposable
+    IPublisher publisher,
+    CortanaDbContext db) : IHostedService, IChatTransport, IDisposable
 {
     private HttpListener? _listener;
     private CancellationTokenSource? _cts;
@@ -463,51 +464,138 @@ public sealed class WebSocketServerService(
                 ? typeElement.GetString() ?? string.Empty
                 : string.Empty;
 
-            if (!string.Equals(type, "subscribe", StringComparison.Ordinal))
+            if (string.Equals(type, "subscribe", StringComparison.Ordinal))
             {
-                logger.LogWarning("内部对话 feed 收到未知消息类型：{Type}", type);
+                var protocol = root.TryGetProperty("protocol", out var protocolElement)
+                    ? protocolElement.GetString() ?? string.Empty
+                    : string.Empty;
+                if (!string.Equals(protocol, CortanaWsEndpoints.ConversationFeedProtocol, StringComparison.Ordinal))
+                {
+                    await SendConversationFeedErrorAsync(clientId, "protocol 不匹配", cancellationToken);
+                    return;
+                }
+
+                var requestedTopics = root.TryGetProperty("topics", out var topicsElement) && topicsElement.ValueKind == JsonValueKind.Array
+                    ? topicsElement.EnumerateArray()
+                        .Select(static t => t.GetString())
+                        .Where(static t => !string.IsNullOrWhiteSpace(t))
+                        .Cast<string>()
+                        .ToArray()
+                    : [CortanaWsEndpoints.ConversationTopic];
+
+                if (!requestedTopics.Contains(CortanaWsEndpoints.ConversationTopic, StringComparer.Ordinal))
+                {
+                    await SendConversationFeedErrorAsync(clientId, "当前仅支持 topic=conversation", cancellationToken);
+                    return;
+                }
+
+                _conversationFeedSubscriptions[clientId] = 0;
+
+                var ack = JsonSerializer.Serialize(new ConversationFeedControlMessage
+                {
+                    Type = "subscribed",
+                    ClientId = clientId,
+                    Protocol = CortanaWsEndpoints.ConversationFeedProtocol,
+                    Version = CortanaWsEndpoints.ConversationFeedVersion,
+                    Topics = [CortanaWsEndpoints.ConversationTopic]
+                }, WebSocketJsonContext.Default.ConversationFeedControlMessage);
+
+                await SendToConversationFeedClientAsync(clientId, ack, cancellationToken);
                 return;
             }
 
-            var protocol = root.TryGetProperty("protocol", out var protocolElement)
-                ? protocolElement.GetString() ?? string.Empty
-                : string.Empty;
-            if (!string.Equals(protocol, CortanaWsEndpoints.ConversationFeedProtocol, StringComparison.Ordinal))
+            if (string.Equals(type, "replay", StringComparison.Ordinal))
             {
-                await SendConversationFeedErrorAsync(clientId, "protocol 不匹配", cancellationToken);
+                var since = root.TryGetProperty("sinceTimestamp", out var s) ? s.GetInt64() : 0L;
+                var batchSize = root.TryGetProperty("batchSize", out var b) ? Math.Clamp(b.GetInt32(), 100, 2000) : 500;
+
+                await SendReplayBatchesAsync(clientId, since, batchSize, cancellationToken);
                 return;
             }
 
-            var requestedTopics = root.TryGetProperty("topics", out var topicsElement) && topicsElement.ValueKind == JsonValueKind.Array
-                ? topicsElement.EnumerateArray()
-                    .Select(static t => t.GetString())
-                    .Where(static t => !string.IsNullOrWhiteSpace(t))
-                    .Cast<string>()
-                    .ToArray()
-                : [CortanaWsEndpoints.ConversationTopic];
-
-            if (!requestedTopics.Contains(CortanaWsEndpoints.ConversationTopic, StringComparer.Ordinal))
-            {
-                await SendConversationFeedErrorAsync(clientId, "当前仅支持 topic=conversation", cancellationToken);
-                return;
-            }
-
-            _conversationFeedSubscriptions[clientId] = 0;
-
-            var ack = JsonSerializer.Serialize(new ConversationFeedControlMessage
-            {
-                Type = "subscribed",
-                ClientId = clientId,
-                Protocol = CortanaWsEndpoints.ConversationFeedProtocol,
-                Version = CortanaWsEndpoints.ConversationFeedVersion,
-                Topics = [CortanaWsEndpoints.ConversationTopic]
-            }, WebSocketJsonContext.Default.ConversationFeedControlMessage);
-
-            await SendToConversationFeedClientAsync(clientId, ack, cancellationToken);
+            logger.LogWarning("内部对话 feed 收到未知消息类型：{Type}", type);
+            return;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "解析内部对话 feed 消息失败：{ClientId}，{Json}", clientId, json);
+        }
+    }
+
+    private async Task SendReplayBatchesAsync(string clientId, long sinceTimestamp, int batchSize, CancellationToken ct)
+    {
+        try
+        {
+            var total = 0;
+            var lastTimestamp = sinceTimestamp;
+            while (true)
+            {
+                var rows = db.Query(
+                    $"SELECT Id, SessionId, Role, Content, CreatedTimestamp, ModelName FROM ChatMessages WHERE CreatedTimestamp >= @Since ORDER BY CreatedTimestamp LIMIT {batchSize}",
+                    r => new ConversationExportRecord
+                    {
+                        Id = r.GetString(r.GetOrdinal("Id")),
+                        SessionId = r.GetString(r.GetOrdinal("SessionId")),
+                        Role = r.GetString(r.GetOrdinal("Role")),
+                        Content = r.IsDBNull(r.GetOrdinal("Content")) ? null : r.GetString(r.GetOrdinal("Content")),
+                        CreatedTimestamp = r.GetInt64(r.GetOrdinal("CreatedTimestamp")),
+                        ModelName = r.IsDBNull(r.GetOrdinal("ModelName")) ? null : r.GetString(r.GetOrdinal("ModelName"))
+                    },
+                    cmd => cmd.Parameters.AddWithValue("@Since", lastTimestamp));
+
+                if (rows.Count == 0)
+                {
+                    // completed
+                    var completed = JsonSerializer.Serialize(new ConversationFeedEventMessage
+                    {
+                        Type = "event",
+                        Protocol = CortanaWsEndpoints.ConversationFeedProtocol,
+                        Version = CortanaWsEndpoints.ConversationFeedVersion,
+                        Topic = CortanaWsEndpoints.ConversationTopic,
+                        EventType = "conversation.export.completed",
+                        Payload = JsonDocument.Parse($"{{\"total\":{total}}}").RootElement
+                    }, WebSocketJsonContext.Default.ConversationFeedEventMessage);
+                    await SendToConversationFeedClientAsync(clientId, completed, ct);
+                    break;
+                }
+
+                total += rows.Count;
+                lastTimestamp = rows[^1].CreatedTimestamp + 1; // 下一批从后一毫秒开始
+
+                var batch = new ConversationExportBatch
+                {
+                    BatchId = Guid.NewGuid().ToString("N"),
+                    HasMore = true,
+                    Items = rows.ToArray()
+                };
+
+                var payload = JsonSerializer.SerializeToElement(batch, WebSocketJsonContext.Default.ConversationExportBatch);
+                var message = JsonSerializer.Serialize(new ConversationFeedEventMessage
+                {
+                    Type = "event",
+                    Protocol = CortanaWsEndpoints.ConversationFeedProtocol,
+                    Version = CortanaWsEndpoints.ConversationFeedVersion,
+                    Topic = CortanaWsEndpoints.ConversationTopic,
+                    EventType = "conversation.export.batch",
+                    Payload = payload
+                }, WebSocketJsonContext.Default.ConversationFeedEventMessage);
+
+                await SendToConversationFeedClientAsync(clientId, message, ct);
+            }
+            logger.LogInformation("Conversation replay 完成：Since={Since}, Total={Total}", sinceTimestamp, total);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Conversation replay 失败");
+            var err = JsonSerializer.Serialize(new ConversationFeedControlMessage
+            {
+                Type = "error",
+                ClientId = clientId,
+                Protocol = CortanaWsEndpoints.ConversationFeedProtocol,
+                Version = CortanaWsEndpoints.ConversationFeedVersion,
+                Message = $"replay failed: {ex.Message}"
+            }, WebSocketJsonContext.Default.ConversationFeedControlMessage);
+            await SendToConversationFeedClientAsync(clientId, err, ct);
         }
     }
 

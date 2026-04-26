@@ -1,17 +1,49 @@
 <Solution>
+  <Folder Name="/Docs/" />
+  <Folder Name="/Docs/memory/" />
+  <Folder Name="/Docs/memory/执行步骤/">
+    <File Path="docs/memory/执行步骤/S05-控制面通道骨架（能力申请与召回）.md" />
+    <File Path="docs/memory/执行步骤/S06-历史同步与增量摄取落库.md" />
+  </Folder>
+  <Folder Name="/Docs/memory/构架规划/">
+    <File Path="docs/memory/构架规划/01-总体架构设计.md" />
+    <File Path="docs/memory/构架规划/02-对话事件总线设计.md" />
+    <File Path="docs/memory/构架规划/03-内部事件WebSocket协议.md" />
+    <File Path="docs/memory/构架规划/04-插件接入与初始化扩展.md" />
+    <File Path="docs/memory/构架规划/05-记忆体系设计.md" />
+    <File Path="docs/memory/构架规划/06-规则记忆与长期记忆分层.md" />
+    <File Path="docs/memory/构架规划/07-执行计划.md" />
+    <File Path="docs/memory/构架规划/08-风险与治理.md" />
+    <File Path="docs/memory/构架规划/09-认知式记忆模型.md" />
+    <File Path="docs/memory/构架规划/10-记忆系统实现策划（程序与算法）.md" />
+    <File Path="docs/memory/构架规划/11-记忆系统细化设计（接口与数据结构）.md" />
+    <File Path="docs/memory/构架规划/12-第11步验收清单.md" />
+    <File Path="docs/memory/构架规划/13-字段级兼容映射表（协议与数据库）.md" />
+    <File Path="docs/memory/构架规划/14-迁移脚本与回滚脚本（按版本编号）.md" />
+    <File Path="docs/memory/构架规划/15-回滚后读写链路验证用例.md" />
+    <File Path="docs/memory/构架规划/16-兼容测试报告（矩阵逐项结果）.md" />
+    <File Path="docs/memory/构架规划/17-性能压测报告（含分位数与样本量）.md" />
+    <File Path="docs/memory/构架规划/18-灰度与回滚演练记录.md" />
+    <File Path="docs/memory/构架规划/19-记忆插件-ObservationRecord-表结构与同步验收.md" />
+    <File Path="docs/memory/构架规划/README.md" />
+    <File Path="docs/memory/构架规划/协议总览.md" />
+  </Folder>
   <Folder Name="/Src/">
-    <Project Path="../Src/Plugins/Netor.Cortana.Plugin.Native.Debuger/Netor.Cortana.Plugin.Native.Debugger.csproj" />
-    <Project Path="Src/Cortana.Plugins.Reminder/Cortana.Plugins.Reminder.csproj" />
-    <Project Path="Src/Cortana.Plugins.Bt/Cortana.Plugins.Bt.csproj" />
-    <Project Path="Src/Cortana.Plugins.WsBridge/Cortana.Plugins.WsBridge.csproj" />
-    <Project Path="Src/Cortana.Plugins.Office/Cortana.Plugins.Office.csproj" />
-    <Project Path="Src/Cortana.Plugins.ScriptRunner/Cortana.Plugins.ScriptRunner.csproj" />
+    <Project Path="E:/Netor.me/Cortana/Plugins/Src/Cortana.Plugins.Bt/Cortana.Plugins.Bt.csproj" />
+    <Project Path="E:/Netor.me/Cortana/Plugins/Src/Cortana.Plugins.Memory/Cortana.Plugins.Memory.csproj" />
+    <Project Path="E:/Netor.me/Cortana/Plugins/Src/Cortana.Plugins.Office/Cortana.Plugins.Office.csproj" />
+    <Project Path="E:/Netor.me/Cortana/Plugins/Src/Cortana.Plugins.Reminder/Cortana.Plugins.Reminder.csproj" />
+    <Project Path="E:/Netor.me/Cortana/Plugins/Src/Cortana.Plugins.ScriptRunner/Cortana.Plugins.ScriptRunner.csproj" />
+    <Project Path="E:/Netor.me/Cortana/Plugins/Src/Cortana.Plugins.WsBridge/Cortana.Plugins.WsBridge.csproj" />
+    <Project Path="E:/Netor.me/Cortana/Src/Plugins/Netor.Cortana.Plugin.Native.Debuger/Netor.Cortana.Plugin.Native.Debugger.csproj" />
   </Folder>
   <Folder Name="/Tests/">
-    <Project Path="Tests/Reminder/Reminder.Test.csproj" Id="bcc081df-88cc-4619-a4b3-6a004b818a2c" />
-    <Project Path="Tests/Bt/Bt.Test.csproj" />
-    <Project Path="Tests/WsBridge/WsBridge.Test.csproj" />
-    <Project Path="Tests/Office/Office.Test.csproj" />
+    <Project Path="E:/Netor.me/Cortana/Plugins/Tests/Bt/Bt.Test.csproj" />
+    <Project Path="E:/Netor.me/Cortana/Plugins/Tests/Office/Office.Test.csproj" />
+    <Project Path="E:/Netor.me/Cortana/Plugins/Tests/Reminder/Reminder.Test.csproj" Id="bcc081df-88cc-4619-a4b3-6a004b818a2c" />
+    <Project Path="E:/Netor.me/Cortana/Plugins/Tests/WsBridge/WsBridge.Test.csproj" />
+    <Project Path="Tests/GoogleSearch/GoogleSearch.Test.csproj" />
+    <Project Path="Tests/Memory/Memory.Test.csproj" />
   </Folder>
 </Solution>
  

@@ -21,4 +21,7 @@ public interface IPluginContext
 
     /// <summary>宿主 WebSocket 端口。</summary>
     int WsPort { get; }
+
+    /// <summary>对话事实 Feed 专用端口。</summary>
+    int FeedPort { get; }
 }

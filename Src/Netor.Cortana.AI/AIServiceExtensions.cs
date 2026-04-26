@@ -30,6 +30,7 @@ public static class AIServiceExtensions
         services.AddSingleton<AIContextProvider>(sp => sp.GetRequiredService<FileMemoryProvider>());
         services.AddSingleton<ChatHistoryDataProvider>();
         services.AddSingleton<ModelPurposeResolver>();
+        services.AddSingleton<IHostCapabilityBroker, HostCapabilityBroker>();
 
         // 厂商驱动
         services.AddSingleton<IAiProviderDriver, OpenAiProviderDriver>();

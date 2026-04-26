@@ -1,4 +1,5 @@
 <Solution>
+  <Folder Name="/docs/" />
   <Folder Name="/Samples/">
     <Project Path="Plugins/Samples/KokoroAudition/KokoroAudition.csproj" />
   </Folder>

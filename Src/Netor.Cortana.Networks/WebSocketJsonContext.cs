@@ -11,6 +11,8 @@ namespace Netor.Cortana.Networks;
 [JsonSerializable(typeof(WsMessage))]
 [JsonSerializable(typeof(ConversationFeedControlMessage))]
 [JsonSerializable(typeof(ConversationFeedEventMessage))]
+[JsonSerializable(typeof(ConversationExportBatch))]
+[JsonSerializable(typeof(ConversationExportRecord))]
 [JsonSerializable(typeof(ConversationTurnStartedArgs))]
 [JsonSerializable(typeof(ConversationUserMessageArgs))]
 [JsonSerializable(typeof(ConversationAssistantDeltaArgs))]
@@ -81,4 +83,27 @@ internal sealed record ConversationFeedEventMessage
 
     [JsonPropertyName("payload")]
     public JsonElement Payload { get; init; }
+}
+
+/// <summary>
+/// 历史回放批次负载（conversation.export.batch）。
+/// </summary>
+internal sealed record ConversationExportBatch
+{
+    [JsonPropertyName("batchId")] public string BatchId { get; init; } = string.Empty;
+    [JsonPropertyName("hasMore")] public bool HasMore { get; init; }
+    [JsonPropertyName("items")] public ConversationExportRecord[] Items { get; init; } = Array.Empty<ConversationExportRecord>();
+}
+
+/// <summary>
+/// 导出消息最小列集。
+/// </summary>
+internal sealed record ConversationExportRecord
+{
+    [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
+    [JsonPropertyName("sessionId")] public string SessionId { get; init; } = string.Empty;
+    [JsonPropertyName("role")] public string Role { get; init; } = string.Empty;
+    [JsonPropertyName("content")] public string? Content { get; init; }
+    [JsonPropertyName("createdTimestamp")] public long CreatedTimestamp { get; init; }
+    [JsonPropertyName("modelName")] public string? ModelName { get; init; }
 }
