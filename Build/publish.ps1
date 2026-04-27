@@ -20,11 +20,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $SolutionDir = $PSScriptRoot
-$ReleaseDir = Join-Path $SolutionDir 'Realases\Cortana'
+$ReleaseDir = Join-Path $SolutionDir '..\Realases\Cortana'
 
-$CortanaProj = Join-Path $SolutionDir 'Src\Netor.Cortana.AvaloniaUI\Netor.Cortana.AvaloniaUI.csproj'
-$NativeHostProj = Join-Path $SolutionDir 'Src\Plugins\Netor.Cortana.NativeHost\Netor.Cortana.NativeHost.csproj'
-$NativePluginProj = Join-Path $SolutionDir 'Samples\NativeTestPlugin\NativeTestPlugin.csproj'
+$CortanaProj = Join-Path (Join-Path $SolutionDir '..') 'Src\Netor.Cortana.AvaloniaUI\Netor.Cortana.AvaloniaUI.csproj'
+$NativeHostProj = Join-Path (Join-Path $SolutionDir '..') 'Src\Plugins\Netor.Cortana.NativeHost\Netor.Cortana.NativeHost.csproj'
+$NativePluginProj = Join-Path (Join-Path $SolutionDir '..') 'Samples\NativeTestPlugin\NativeTestPlugin.csproj'
 
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "  Netor.Cortana 一键发布" -ForegroundColor Cyan

@@ -1,4 +1,4 @@
-Add-Type -Path (Get-ChildItem -Recurse -Filter Microsoft.Data.Sqlite.dll | Select-Object -First 1 -ExpandProperty FullName)
+Add-Type -Path (Get-ChildItem -Recurse -Path (Join-Path $PSScriptRoot '..') -Filter Microsoft.Data.Sqlite.dll | Select-Object -First 1 -ExpandProperty FullName)
 $connection = New-Object Microsoft.Data.Sqlite.SqliteConnection("Data Source=cortana.db")
 $connection.Open()
 $command = $connection.CreateCommand()

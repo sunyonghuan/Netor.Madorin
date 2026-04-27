@@ -1,13 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
 
-using System;
-using System.IO;
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Netor.Cortana.AI.Drivers;
 
@@ -28,6 +23,10 @@ internal class DeepseekOverrideHandler(ILogger<DeepseekOverrideHandler> logger) 
             if (request.Content is not null && IsJsonContent(request.Content.Headers.ContentType))
             {
                 var originalBody = await request.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+#if DEBUG
+                logger.LogWarning($"DeepSeek 请求原始内容：{originalBody}");
+#endif
+
                 var rewrittenBody = RewriteRequestBody(originalBody);
                 if (!ReferenceEquals(rewrittenBody, originalBody))
                 {

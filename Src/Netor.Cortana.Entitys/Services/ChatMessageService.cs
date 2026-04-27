@@ -38,6 +38,7 @@ namespace Netor.Cortana.Entitys.Services
                 "SELECT * FROM ChatMessages\n"
                 + "WHERE SessionId = @SessionId\n"
                 + "  AND Role <> 'tool'\n"
+                + "  AND Content NOT LIKE '[工具调用]%'\n"
                 + "  AND NOT (Role = 'assistant'\n"
                 + "           AND IFNULL(ContentsJson,'') <> ''\n"
                 + "           AND (ContentsJson LIKE '%\"functionCall\"%' OR ContentsJson LIKE '%\"toolCall\"%')\n"

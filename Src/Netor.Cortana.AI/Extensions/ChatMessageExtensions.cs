@@ -28,6 +28,7 @@ public static class ChatMessageExtensions
     /// </summary>
     public static string ToPersistedContent(this ChatMessage message)
     {
+        return message.Text;
         return BuildPersistedContent(message.Text, message.Contents);
     }
 
@@ -36,6 +37,7 @@ public static class ChatMessageExtensions
     /// </summary>
     public static string BuildPersistedContent(string? fallbackText, IList<AIContent>? contents)
     {
+        return fallbackText ?? string.Empty;
         if (contents is null || contents.Count == 0)
         {
             return fallbackText ?? string.Empty;
@@ -60,12 +62,18 @@ public static class ChatMessageExtensions
         return string.Join("\n\n", parts);
     }
 
+    /// <summary>
+    /// 将 AIContent 渲染为可读的文本字符串。
+    /// 根据内容类型分发到对应的渲染方法。
+    /// </summary>
+    /// <param name="content">AI 内容实例</param>
+    /// <returns>渲染后的文本，若无法渲染则返回 null</returns>
     private static string? RenderContent(AIContent content)
     {
         return content switch
         {
             TextContent text => text.Text,
-            TextReasoningContent reasoning => reasoning.Text,
+            //TextReasoningContent reasoning => reasoning.Text,
             FunctionCallContent functionCall => RenderFunctionCall(functionCall),
             FunctionResultContent functionResult => RenderFunctionResult(functionResult),
             DataContent data => RenderDataContent(data),
@@ -73,6 +81,12 @@ public static class ChatMessageExtensions
         };
     }
 
+    /// <summary>
+    /// 将函数调用内容渲染为格式化的文本字符串。
+    /// 包含方法名称、调用ID和参数字典。
+    /// </summary>
+    /// <param name="functionCall">函数调用内容</param>
+    /// <returns>格式化的文本表示</returns>
     private static string RenderFunctionCall(FunctionCallContent functionCall)
     {
         var builder = new StringBuilder();
@@ -91,6 +105,12 @@ public static class ChatMessageExtensions
         return builder.ToString();
     }
 
+    /// <summary>
+    /// 将函数执行结果渲染为格式化的文本字符串。
+    /// 包含调用ID、异常信息或执行结果。
+    /// </summary>
+    /// <param name="functionResult">函数执行结果内容</param>
+    /// <returns>格式化的文本表示</returns>
     private static string RenderFunctionResult(FunctionResultContent functionResult)
     {
         var builder = new StringBuilder();
@@ -111,6 +131,12 @@ public static class ChatMessageExtensions
         return builder.ToString();
     }
 
+    /// <summary>
+    /// 将数据内容渲染为文本或二进制描述。
+    /// 文本类型数据直接返回内容，二进制数据返回元信息描述。
+    /// </summary>
+    /// <param name="data">数据内容</param>
+    /// <returns>渲染后的文本或描述字符串</returns>
     private static string RenderDataContent(DataContent data)
     {
         var descriptor = string.IsNullOrWhiteSpace(data.Name)
@@ -133,6 +159,12 @@ public static class ChatMessageExtensions
         return $"[二进制内容] {descriptor}, {data.Data.Length.ToString(CultureInfo.InvariantCulture)} bytes";
     }
 
+    /// <summary>
+    /// 将任意类型的值渲染为统一的文本字符串表示。
+    /// 支持常见原始类型、字典、枚举和 JSON 元素。
+    /// </summary>
+    /// <param name="value">待渲染的值</param>
+    /// <returns>文本表示形式</returns>
     private static string RenderValue(object? value)
     {
         return value switch
@@ -158,6 +190,12 @@ public static class ChatMessageExtensions
         };
     }
 
+    /// <summary>
+    /// 将字符串键值对字典渲染为 JSON 风格的对象文本。
+    /// 格式：{ "key1": value1, "key2": value2 }
+    /// </summary>
+    /// <param name="dictionary">字典实例</param>
+    /// <returns>JSON 格式的字符串表示</returns>
     private static string RenderDictionary(IDictionary<string, object?> dictionary)
     {
         if (dictionary.Count == 0)
@@ -183,6 +221,12 @@ public static class ChatMessageExtensions
         return builder.ToString();
     }
 
+    /// <summary>
+    /// 将可枚举集合渲染为逗号分隔的数组文本。
+    /// 格式：[item1, item2, item3]
+    /// </summary>
+    /// <param name="values">可枚举集合</param>
+    /// <returns>数组格式的字符串表示</returns>
     private static string RenderEnumerable(IEnumerable values)
     {
         var items = new List<string>();
@@ -245,6 +289,12 @@ public static class ChatMessageExtensions
         return result.Count == 0 ? null : result;
     }
 
+    /// <summary>
+    /// 将运行时 AIContent 映射为可持久化的 PersistedContent 结构。
+    /// 处理各种内容类型（文本、推理、函数调用、函数结果、数据等）。
+    /// </summary>
+    /// <param name="content">源 AI 内容</param>
+    /// <returns>持久化内容结构，若无法映射则返回 null</returns>
     private static PersistedContent? MapToPersisted(AIContent content)
     {
         switch (content)
@@ -357,6 +407,12 @@ public static class ChatMessageExtensions
         }
     }
 
+    /// <summary>
+    /// 将持久化的 PersistedContent 反向映射回运行时 AIContent。
+    /// 用于从数据库恢复对话上下文。
+    /// </summary>
+    /// <param name="p">持久化内容</param>
+    /// <returns>运行时 AI 内容，若无法恢复则返回 null</returns>
     private static AIContent? MapFromPersisted(PersistedContent p)
     {
         switch (p.Kind)
@@ -365,8 +421,10 @@ public static class ChatMessageExtensions
                 return string.IsNullOrEmpty(p.Text) ? null : new TextContent(p.Text);
 
             case "reasoning":
-                var reasoning = new TextReasoningContent(p.Text);
-                reasoning.ProtectedData = p.ProtectedData;
+                var reasoning = new TextReasoningContent(p.Text)
+                {
+                    ProtectedData = p.ProtectedData
+                };
                 return reasoning;
 
             case "functionCall":
@@ -408,8 +466,10 @@ public static class ChatMessageExtensions
                     var mcpCall = new McpServerToolCallContent(
                         callId: p.CallId ?? string.Empty,
                         name: p.Name,
-                        serverName: p.ServerName);
-                    mcpCall.Arguments = DeserializeToolArguments(p.RawArgumentsJson);
+                        serverName: p.ServerName)
+                    {
+                        Arguments = DeserializeToolArguments(p.RawArgumentsJson)
+                    };
                     return mcpCall;
                 }
                 return string.IsNullOrWhiteSpace(p.CallId) ? null : new ToolCallContent(p.CallId);
@@ -434,6 +494,12 @@ public static class ChatMessageExtensions
         }
     }
 
+    /// <summary>
+    /// 将任意值规范化为 JsonElement。
+    /// 对常见原始类型直接构造 JSON 文本，避免反射开销。
+    /// </summary>
+    /// <param name="value">待规范化的值</param>
+    /// <returns>规范化后的 JsonElement</returns>
     private static JsonElement NormalizeToJsonElement(object? value)
     {
         if (value is JsonElement je) return je;
@@ -454,6 +520,12 @@ public static class ChatMessageExtensions
         return JsonDocument.Parse(json).RootElement;
     }
 
+    /// <summary>
+    /// 将工具调用参数字典序列化为 JSON 字符串。
+    /// 参数值统一规范化为 JsonElement 后序列化。
+    /// </summary>
+    /// <param name="arguments">参数字典</param>
+    /// <returns>JSON 字符串，序列化失败时返回 null</returns>
     private static string? SerializeToolArguments(IDictionary<string, object?>? arguments)
     {
         if (arguments is null || arguments.Count == 0)
@@ -479,6 +551,11 @@ public static class ChatMessageExtensions
         }
     }
 
+    /// <summary>
+    /// 将 JSON 字符串反序列化为工具调用参数字典。
+    /// </summary>
+    /// <param name="json">JSON 字符串</param>
+    /// <returns>参数字典，反序列化失败或为空时返回 null</returns>
     private static IDictionary<string, object?>? DeserializeToolArguments(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -511,6 +588,12 @@ public static class ChatMessageExtensions
         }
     }
 
+    /// <summary>
+    /// 将工具输出列表序列化为换行分隔的文本字符串。
+    /// 仅提取各输出的文本表示。
+    /// </summary>
+    /// <param name="outputs">AI 内容列表</param>
+    /// <returns>换行分隔的文本，若无有效内容则返回 null</returns>
     private static string? SerializeOutputs(IList<AIContent>? outputs)
     {
         if (outputs is null || outputs.Count == 0)
@@ -531,6 +614,12 @@ public static class ChatMessageExtensions
         return string.Join("\n", textOutputs);
     }
 
+    /// <summary>
+    /// 将换行分隔的文本反序列化为 AI 内容列表。
+    /// 每个文本行转换为一个 TextContent。
+    /// </summary>
+    /// <param name="json">换行分隔的文本</param>
+    /// <returns>AI 内容列表，反序列化失败时返回 null</returns>
     private static IList<AIContent>? DeserializeOutputs(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))

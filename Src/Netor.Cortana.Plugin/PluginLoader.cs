@@ -405,10 +405,10 @@ public sealed class PluginLoader : IDisposable
         _logger.LogInformation(
             "MCP [{Name}] 状态变化：{State}",
             host.Name,
-            host.IsConnected ? "已连接" : host.IsReconnecting ? "重连中" : "已断开");
+            host.IsConnected ? $"已连接,[{host.Tools.Count}]个工具可用" : host.IsReconnecting ? "重连中" : "已断开");
 
         _publisher.Publish(Events.OnMcpConnectionStateChanged,
-            new McpConnectionStateChangedArgs(host.Name, host.Id, host.IsConnected, host.IsReconnecting));
+            new McpConnectionStateChangedArgs(host.Name , host.Id, host.IsConnected, host.IsReconnecting));
 
         NotifyPluginsChanged();
     }

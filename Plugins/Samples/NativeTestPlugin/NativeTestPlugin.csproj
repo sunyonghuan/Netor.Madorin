@@ -10,14 +10,12 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\..\Src\Plugins\Netor.Cortana.Plugin.Native\Netor.Cortana.Plugin.Native.csproj" />
-    <ProjectReference Include="..\..\Src\Plugins\Netor.Cortana.Plugin.Native.Generator\Netor.Cortana.Plugin.Native.Generator.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false"
-                      PrivateAssets="all" />
-  </ItemGroup>
 
-  <Import Project="..\..\Src\Plugins\Netor.Cortana.Plugin.Native.Generator\build\Netor.Cortana.Plugin.Native.Generator.targets" />
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Src\Plugins\Netor.Cortana.Plugin.Native.Generator\Netor.Cortana.Plugin.Native.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\..\Src\Plugins\Netor.Cortana.Plugin.Native\Netor.Cortana.Plugin.Native.csproj" />
+  </ItemGroup>
 
 </Project>

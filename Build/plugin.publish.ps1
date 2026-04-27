@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 <#
 .SYNOPSIS
     Cortana 插件 NuGet 打包 & 推送一键脚本。
@@ -50,7 +50,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = $PSScriptRoot
-$SolutionRoot = $ScriptDir
+$SolutionRoot = Split-Path $ScriptDir -Parent   # 脚本在 Build 目录，需要回到解决方案根目录
 $PluginsDir = Join-Path $SolutionRoot 'Src\Plugins'
 $PropsFile = Join-Path $PluginsDir 'Directory.Build.props'
 
@@ -68,7 +68,7 @@ function Get-PackProjects([string]$pluginsDir) {
             continue
         }
 
-        [xml]$projectXml = Get-Content $csproj.FullName -Encoding UTF8
+        [xml]$projectXml = Get-Content $csproj.FullName -Raw -Encoding UTF8
         $isPackableNode = $projectXml.SelectSingleNode("//PropertyGroup/IsPackable")
         $outputTypeNode = $projectXml.SelectSingleNode("//PropertyGroup/OutputType")
 
@@ -92,7 +92,7 @@ if ($Projects.Count -eq 0) {
     exit 1
 }
 
-[xml]$propsXml = Get-Content $PropsFile -Encoding UTF8
+[xml]$propsXml = Get-Content $PropsFile -Raw -Encoding UTF8
 $versionNode = $propsXml.SelectSingleNode("//Version")
 if (-not $versionNode) {
     Write-Error "Directory.Build.props 中未找到 <Version> 节点"
@@ -142,37 +142,37 @@ if ([string]::IsNullOrWhiteSpace($ApiKey)) {
 }
 
 Write-Host ""
-Write-Host "╔══════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║        Cortana 插件 NuGet 打包 & 推送脚本              ║" -ForegroundColor Cyan
-Write-Host "╚══════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "        Cortana Plugin NuGet Pack & Push Script            " -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  版本号:    $OldVersion → $NewVersion ($Bump +1)" -ForegroundColor Yellow
-Write-Host "  配置:      $Configuration"
-Write-Host "  输出目录:  $PackageOutputPath"
-Write-Host "  NuGet源:   $NuGetSource"
-Write-Host "  推送:      $(if ($SkipPush) { '否 (仅打包)' } else { '是' })"
-Write-Host "  项目数:    $($Projects.Count)"
+Write-Host "  Version:     $OldVersion -> $NewVersion ($Bump +1)" -ForegroundColor Yellow
+Write-Host "  Config:      $Configuration"
+Write-Host "  Output:      $PackageOutputPath"
+Write-Host "  NuGet Src:   $NuGetSource"
+Write-Host "  Push:        $(if ($SkipPush) { 'No (pack only)' } else { 'Yes' })"
+Write-Host "  Projects:    $($Projects.Count)"
 Write-Host ""
 
-Write-Host "  自动发现的可打包项目:" -ForegroundColor DarkGray
+Write-Host "  Auto-discovered packable projects:" -ForegroundColor DarkGray
 foreach ($proj in $Projects) {
     Write-Host "    - $([System.IO.Path]::GetFileNameWithoutExtension($proj))" -ForegroundColor DarkGray
 }
 Write-Host ""
 
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor DarkGray
-Write-Host "  [1/2] 打包 $($Projects.Count) 个项目 (v$CurrentVersion)" -ForegroundColor Green
-Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor DarkGray
+Write-Host "============================================================" -ForegroundColor DarkGray
+Write-Host "  [1/2] Packing $($Projects.Count) projects (v$CurrentVersion)" -ForegroundColor Green
+Write-Host "============================================================" -ForegroundColor DarkGray
 Write-Host ""
 
 $packSuccess = $true
 foreach ($proj in $Projects) {
     $projName = [System.IO.Path]::GetFileNameWithoutExtension($proj)
-    Write-Host "  📦 打包 $projName ..." -ForegroundColor White
+    Write-Host "  [Pack] $projName ..." -ForegroundColor White
 
     dotnet pack $proj -c $Configuration --no-restore
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "  ❌ 打包失败: $projName" -ForegroundColor Red
+        Write-Host "  [FAIL] Pack failed: $projName" -ForegroundColor Red
         $packSuccess = $false
         break
     }
@@ -180,24 +180,24 @@ foreach ($proj in $Projects) {
     $nupkgFile = Join-Path $PackageOutputPath "$projName.$CurrentVersion.nupkg"
     if (Test-Path $nupkgFile) {
         $size = [math]::Round((Get-Item $nupkgFile).Length / 1KB, 1)
-        Write-Host "  ✅ $projName.$CurrentVersion.nupkg (${size} KB)" -ForegroundColor Green
+        Write-Host "  [OK] $projName.$CurrentVersion.nupkg ($size KB)" -ForegroundColor Green
     }
     Write-Host ""
 }
 
 if (-not $packSuccess) {
-    Write-Host "打包过程中出现错误，已中止。" -ForegroundColor Red
+    Write-Host "Pack failed, aborted." -ForegroundColor Red
     exit 1
 }
 
 if ($SkipPush) {
-    Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor DarkGray
-    Write-Host "  已跳过推送 (-SkipPush)" -ForegroundColor Yellow
-    Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor DarkGray
+    Write-Host "============================================================" -ForegroundColor DarkGray
+    Write-Host "  Skipped push (-SkipPush)" -ForegroundColor Yellow
+    Write-Host "============================================================" -ForegroundColor DarkGray
 } else {
-    Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor DarkGray
-    Write-Host "  [2/2] 推送到 NuGet 服务器" -ForegroundColor Green
-    Write-Host "═══════════════════════════════════════════════════════════" -ForegroundColor DarkGray
+    Write-Host "============================================================" -ForegroundColor DarkGray
+    Write-Host "  [2/2] Push to NuGet server" -ForegroundColor Green
+    Write-Host "============================================================" -ForegroundColor DarkGray
     Write-Host ""
 
     $pushSuccess = $true
@@ -206,31 +206,31 @@ if ($SkipPush) {
         $nupkgFile = Join-Path $PackageOutputPath "$projName.$CurrentVersion.nupkg"
 
         if (-not (Test-Path $nupkgFile)) {
-            Write-Host "  ⚠  找不到包: $nupkgFile" -ForegroundColor Red
+            Write-Host "  [WARN] Package not found: $nupkgFile" -ForegroundColor Red
             $pushSuccess = $false
             break
         }
 
-        Write-Host "  🚀 推送 $projName.$CurrentVersion.nupkg ..." -ForegroundColor White
+        Write-Host "  [Push] $projName.$CurrentVersion.nupkg ..." -ForegroundColor White
         dotnet nuget push $nupkgFile --source $NuGetSource --api-key $ApiKey --skip-duplicate
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "  ❌ 推送失败: $projName" -ForegroundColor Red
+            Write-Host "  [FAIL] Push failed: $projName" -ForegroundColor Red
             $pushSuccess = $false
             break
         }
-        Write-Host "  ✅ 推送成功" -ForegroundColor Green
+        Write-Host "  [OK] Push succeeded" -ForegroundColor Green
         Write-Host ""
     }
 
     if (-not $pushSuccess) {
-        Write-Host "推送过程中出现错误。" -ForegroundColor Red
+        Write-Host "Push failed." -ForegroundColor Red
         exit 1
     }
 }
 
 Write-Host ""
-Write-Host "╔══════════════════════════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "║  ✅ 全部完成！版本 $OldVersion → $NewVersion 已发布" -ForegroundColor Green
-Write-Host "║  Directory.Build.props 已自动更新为 $NewVersion         ║" -ForegroundColor Green
-Write-Host "╚══════════════════════════════════════════════════════════╝" -ForegroundColor Green
+Write-Host "============================================================" -ForegroundColor Green
+Write-Host "  DONE! Version $OldVersion -> $NewVersion published" -ForegroundColor Green
+Write-Host "  Directory.Build.props updated to $NewVersion" -ForegroundColor Green
+Write-Host "============================================================" -ForegroundColor Green
 Write-Host ""

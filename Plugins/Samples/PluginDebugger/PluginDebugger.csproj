@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Netor.Cortana.Plugin.Native.Debugger" Version="1.0.23" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Src\Plugins\Netor.Cortana.Plugin.Native.Debuger\Netor.Cortana.Plugin.Native.Debugger.csproj" />
+    <ProjectReference Include="..\NativeTestPlugin\NativeTestPlugin.csproj" />
+  </ItemGroup>
+
+</Project>

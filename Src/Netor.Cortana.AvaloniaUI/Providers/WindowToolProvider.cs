@@ -1,6 +1,7 @@
 using Avalonia.Threading;
 
 using Netor.Cortana.AvaloniaUI.Views;
+using Netor.Cortana.Entitys.Extensions;
 
 namespace Netor.Cortana.AvaloniaUI.Providers;
 
@@ -110,6 +111,12 @@ internal sealed class WindowToolProvider(
             name: "sys_new_session",
             description: "Creates a new conversation session. Call when the user requests to start a new conversation, change topics, or restart. The interface automatically switches to the new session upon creation.",
             method: NewSession));
+
+        // 获取当前工作环境ID（工作目录路径的MD5），用于区分不同工作环境，避免数据混淆
+        _tools.Add(AIFunctionFactory.Create(
+            name: "sys_get_workspaceId",
+            description: "Gets the workspaceId for the current workspace.",
+            method: () => appPaths.WorkspaceDirectory.Md5Encrypt()));
     }
 
     // ──────── 窗口管理 ────────
@@ -282,33 +289,26 @@ internal sealed class WindowToolProvider(
     // ──────── 指令 ────────
 
     private static string BuildInstructions() => """
-        ### 自身窗口管理工具使用规范
-
-        你拥有控制自身应用窗口的能力。
-
-        - 用户要求打开/显示主界面时，调用 sys_show_main_window
-        - 用户要求隐藏/关闭主界面时，调用 sys_hide_main_window
-        - 用户要求打开设置时，调用 sys_show_settings_window
-        - 用户要求显示/打开浮动球时，调用 sys_show_float_window
-        - 用户要求移动浮动球时，调用 sys_move_float_window 并传入坐标
-        - 执行窗口操作后，可调用 sys_get_main_window_status 或 sys_get_settings_window_status 验证操作结果
-        - 用户询问窗口是否打开/关闭时，调用对应的状态查询工具
-
-        ### 路径查询
-        - 需要知道工作目录时，调用 sys_get_workspace_directory
-        - 需要知道数据存储目录时，调用 sys_get_user_data_directory
-        - 需要知道当前工作环境的技能目录时，调用 sys_get_workspace_skills_directory
-        - 需要知道当前工作环境的插件目录时，调用 sys_get_workspace_plugins_directory
-        - 需要知道全局技能目录时，调用 sys_get_user_skills_directory
-        - 需要知道全局插件目录时，调用 sys_get_user_plugins_directory
-
-        ### 工作目录管理
-        - 只有在用户明确同意切换工作目录边界后，才调用 sys_change_workspace_directory 并传入完整目录路径
-        - 目录必须已存在，不会自动创建
-        - 切换后所有相关模块（文件树、会话列表、设置）会自动同步
-
-        ### 会话管理
-        - 用户要求开始新对话、换个话题、重新开始时，调用 sys_new_session
-        - 创建后界面会自动切换到新会话
+        ### Window Management
+        - Show main window: sys_show_main_window
+        - Hide main window: sys_hide_main_window
+        - Open settings: sys_show_settings_window
+        - Show float window: sys_show_float_window
+        - Move float window: sys_move_float_window (provide x, y coordinates)
+        - Check main window status: sys_get_main_window_status
+        - Check settings window status: sys_get_settings_window_status
+        ### Path Queries
+        - Workspace directory: sys_get_workspace_directory
+        - User data directory: sys_get_user_data_directory
+        - Workspace skills: sys_get_workspace_skills_directory
+        - Workspace plugins: sys_get_workspace_plugins_directory
+        - Global skills: sys_get_user_skills_directory
+        - Global plugins: sys_get_user_plugins_directory
+        ### Workspace
+        - Change workspace: sys_change_workspace_directory (requires user confirmation, directory must exist)
+        - UI will auto-sync after change
+        ### Session
+        - New session: sys_new_session
+        - UI auto-switches to new session
         """;
 }

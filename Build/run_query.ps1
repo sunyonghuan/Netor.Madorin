@@ -1,4 +1,4 @@
-Add-Type -Path 'E:\Netor.me\Cortana\Plugins\Tests\PowerShell\bin\Debug\net10.0\Microsoft.Data.Sqlite.dll'
+Add-Type -Path (Join-Path $PSScriptRoot '..\Plugins\Tests\PowerShell\bin\Debug\net10.0\Microsoft.Data.Sqlite.dll')
 $connection = New-Object Microsoft.Data.Sqlite.SqliteConnection("Data Source=cortana.db")
 $connection.Open()
 try {

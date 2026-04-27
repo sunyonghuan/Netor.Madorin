@@ -1,10 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-using Netor.Cortana.Plugin;
-
-using System.Net.Http;
-
 namespace Netor.Cortana.Plugin.Native.Debugger.Hosting;
 
 /// <summary>

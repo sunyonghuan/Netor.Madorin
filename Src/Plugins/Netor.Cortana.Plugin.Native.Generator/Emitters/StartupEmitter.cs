@@ -1,8 +1,8 @@
+using Netor.Cortana.Plugin.Native.Generator.Analysis;
+
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-
-using Netor.Cortana.Plugin.Native.Generator.Analysis;
 
 namespace Netor.Cortana.Plugin.Native.Generator.Emitters;
 
@@ -152,7 +152,7 @@ internal static class StartupEmitter
         sb.AppendLine();
         sb.AppendLine("            // 1. 创建 ServiceCollection 并注册内置服务");
         sb.AppendLine("            var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection();");
-        sb.AppendLine("            var settings = global::Netor.Cortana.Plugin.PluginSettings.FromJson(configJson);");
+        sb.AppendLine("            var settings = global::Netor.Cortana.Plugin.Native.PluginSettings.FromJson(configJson);");
         sb.AppendLine("            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, settings);");
         sb.AppendLine();
         sb.AppendLine("            // 2. Generator 自动注册所有 [Tool] 标记的类");

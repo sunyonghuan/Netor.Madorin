@@ -1,7 +1,3 @@
-using Netor.Cortana.Plugin.Native;
-
-using System;
-using System.Linq;
 using System.Reflection;
 
 namespace Netor.Cortana.Plugin.Native.Debugger.Discovery;

@@ -9,7 +9,9 @@
     <!-- NuGet 包元数据 -->
     <PackageId>Netor.Cortana.Plugin.Native.Debugger</PackageId>
     <Company>Netor.me</Company>
-    <Description>Netor Cortana 原生插件调试器模块。提供插件运行时调试、日志追踪、性能诊断等开发者工具支持，基于 Microsoft.Extensions.Logging 构建结构化日志系统。</Description>
+    <Description>
+		Netor Cortana 原生插件调试器模块。提供插件运行时调试、日志追踪、性能诊断等开发者工具支持，基于 Microsoft.Extensions.Logging 构建结构化日志系统。
+	</Description>
     <PackageTags>cortana;plugin;debugger;diagnostics;logging;dotnet</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
@@ -27,7 +29,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Netor.Cortana.Plugin\Netor.Cortana.Plugin.csproj" />
     <ProjectReference Include="..\Netor.Cortana.Plugin.Native\Netor.Cortana.Plugin.Native.csproj" />
   </ItemGroup>
 

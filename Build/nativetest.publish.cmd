@@ -6,6 +6,6 @@ echo ============================================
 echo   NativeTestPlugin AOT Publish
 echo ============================================
 echo.
-pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0nativetest.publish.ps1" %*
+pwsh -NoProfile -ExecutionPolicy Bypass -Command "Set-Location -Path '%~dp0..'; & '.\nativetest.publish.ps1'" %*
 echo.
 pause

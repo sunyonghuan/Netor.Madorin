@@ -24,9 +24,9 @@ public sealed class McpServerHost : IAsyncDisposable
     private bool _disposed;
 
     /// <summary>
-    /// 重连退避间隔（秒）。依次为 10s、20s、30s、60s，之后固定 60s 循环。
+    /// 重连退避间隔（秒）。依次为 2s、5s、10s、30s、60s，之后固定 60s 循环。
     /// </summary>
-    private static readonly int[] ReconnectDelaysSec = [10, 20, 30, 60];
+    private static readonly int[] ReconnectDelaysSec = [2, 5, 10, 30, 60];
 
     /// <summary>
     /// MCP 服务器的数据库 ID。
@@ -118,7 +118,7 @@ public sealed class McpServerHost : IAsyncDisposable
             _logger.LogInformation(
                 "MCP Server [{Name}] 连接成功，获取到 {Count} 个工具",
                 _config.Name, _tools.Count);
-
+            ConnectionStateChanged?.Invoke(this);
             _ = MonitorConnectionAsync(_client);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -189,6 +189,11 @@ public sealed class McpServerHost : IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "MCP Server [{Name}] 连接监听异常", _config.Name);
+            if (!_disposed && _client is null)
+            {
+                // 监听异常退出且非主动释放 → 触发重连
+                StartReconnecting();
+            }
         }
     }
 
@@ -231,6 +236,9 @@ public sealed class McpServerHost : IAsyncDisposable
                 _logger.LogWarning(
                     "MCP [{Name}] 第 {Attempt} 次重连失败：{Error}",
                     _config.Name, attempt, ex.Message);
+
+                // 重连成功后，下次断开从头开始退避（attempt 归零）
+                // 重连失败则不归零，继续递增间隔
             }
         }
     }

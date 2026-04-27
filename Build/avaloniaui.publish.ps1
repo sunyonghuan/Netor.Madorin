@@ -5,9 +5,9 @@
 $ErrorActionPreference = 'Stop'
 
 $SolutionDir = $PSScriptRoot
-$ProjectFile = Join-Path $SolutionDir 'Src\Netor.Cortana.AvaloniaUI\Netor.Cortana.AvaloniaUI.csproj'
-$NativeHostProjectFile = Join-Path $SolutionDir 'Src\Plugins\Netor.Cortana.NativeHost\Netor.Cortana.NativeHost.csproj'
-$OutputDir = Join-Path $SolutionDir 'Realases\Cortana'
+$ProjectFile = Join-Path $SolutionDir '..\Src\Netor.Cortana.AvaloniaUI\Netor.Cortana.AvaloniaUI.csproj'
+$NativeHostProjectFile = Join-Path $SolutionDir '..\Src\Plugins\Netor.Cortana.NativeHost\Netor.Cortana.NativeHost.csproj'
+$OutputDir = Join-Path $SolutionDir '..\Realases\Cortana'
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Cortana AvaloniaUI Native AOT Publish" -ForegroundColor Cyan

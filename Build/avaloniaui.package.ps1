@@ -7,8 +7,8 @@
 
 param(
     [string]$Version,
-    [string]$SourceDir = 'Realases\Cortana',
-    [string]$OutputDir = 'Realases',
+    [string]$SourceDir = '..\Realases\Cortana',
+    [string]$OutputDir = '..\Realases',
     [string]$PackageName = 'Netor.Cortana'
 )
 
@@ -22,11 +22,11 @@ function Resolve-WorkspacePath {
         return $Path
     }
 
-    return Join-Path $SolutionDir $Path
+    return Join-Path (Join-Path $SolutionDir '..') $Path
 }
 
 function Get-ProjectVersion {
-    $projectFile = Join-Path $SolutionDir 'Src\Netor.Cortana.AvaloniaUI\Netor.Cortana.AvaloniaUI.csproj'
+    $projectFile = Join-Path (Join-Path $SolutionDir '..') '..\Src\Netor.Cortana.AvaloniaUI\Netor.Cortana.AvaloniaUI.csproj'
     $projectContent = Get-Content -Path $projectFile -Raw
     $versionMatch = [regex]::Match($projectContent, '<Version>([^<]+)</Version>')
     if (-not $versionMatch.Success) {

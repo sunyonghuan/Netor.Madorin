@@ -2,6 +2,8 @@
   <Folder Name="/docs/" />
   <Folder Name="/Samples/">
     <Project Path="Plugins/Samples/KokoroAudition/KokoroAudition.csproj" />
+    <Project Path="Plugins/Samples/NativeTestPlugin/NativeTestPlugin.csproj" />
+    <Project Path="Plugins/Samples/PluginDebugger/PluginDebugger.csproj" Id="7bdcacaa-eb68-4869-8f63-acb2947f004a" />
   </Folder>
   <Folder Name="/Src/">
     <Project Path="Src/Netor.Cortana.AI/Netor.Cortana.AI.csproj" Id="ed55708c-48f3-48a0-912b-5a62e5c0f4fb" />
@@ -16,7 +18,7 @@
     <Project Path="Src/Plugins/Netor.Cortana.Plugin.Native.Debuger/Netor.Cortana.Plugin.Native.Debugger.csproj" Id="1e96f5d4-ee35-4370-9a3b-9a59ede7bad3" />
     <Project Path="Src/Plugins/Netor.Cortana.Plugin.Native.Generator/Netor.Cortana.Plugin.Native.Generator.csproj" />
     <Project Path="Src/Plugins/Netor.Cortana.Plugin.Native/Netor.Cortana.Plugin.Native.csproj" />
-    <Project Path="Src/Plugins/Netor.Cortana.Plugin.Process/Netor.Cortana.Plugin.Process.csproj" />
     <Project Path="Src/Plugins/Netor.Cortana.Plugin.Process.Generator/Netor.Cortana.Plugin.Process.Generator.csproj" />
+    <Project Path="Src/Plugins/Netor.Cortana.Plugin.Process/Netor.Cortana.Plugin.Process.csproj" />
   </Folder>
 </Solution>

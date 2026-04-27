@@ -22,9 +22,11 @@ namespace Netor.Cortana.AvaloniaUI.Views;
 public partial class MainWindow
 {
     private static readonly Bitmap AiAvatarBitmap = LoadAiAvatarBitmap();
+    private static readonly Bitmap UserAvatarBitmap = LoadUserAvatarBitmap();
 
     // AI 对话进行中标志 & 取消令牌
     private bool _isSending;
+
     private CancellationTokenSource? _sendCts;
     private Animation? _spinnerAnimation;
 
@@ -231,7 +233,6 @@ public partial class MainWindow
             }
             finally
             {
-
             }
         });
     }
@@ -258,33 +259,21 @@ public partial class MainWindow
         return new Bitmap(stream);
     }
 
+    private static Bitmap LoadUserAvatarBitmap()
+    {
+        using var stream = AssetLoader.Open(new Uri("avares://Cortana/Assets/mk.png"));
+        return new Bitmap(stream);
+    }
+
     private static Control BuildUserAvatarGlyph(IBrush glyphBrush)
     {
-        return new Grid
+        return new Image
         {
-            Children =
-            {
-                new Border
-                {
-                    Width = 10,
-                    Height = 10,
-                    CornerRadius = new CornerRadius(5),
-                    Background = glyphBrush,
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
-                    Margin = new Thickness(0, 6, 0, 0),
-                },
-                new Border
-                {
-                    Width = 18,
-                    Height = 10,
-                    CornerRadius = new CornerRadius(9, 9, 6, 6),
-                    Background = glyphBrush,
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Bottom,
-                    Margin = new Thickness(0, 0, 0, 5),
-                }
-            }
+            Source = UserAvatarBitmap,
+            Width = 32,
+            Height = 32,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
         };
     }
 
@@ -306,7 +295,7 @@ public partial class MainWindow
             var userBubbleBorderBrush = (IBrush)this.FindResource("UserBubbleBorderBrush")!;
             var aiBubbleBrush = (IBrush)this.FindResource("AiBubbleBrush")!;
             var aiBubbleBorderBrush = (IBrush)this.FindResource("AiBubbleBorderBrush")!;
-
+            var aiAvatarBorderBrush = (IBrush)this.FindResource("AiAvatarBorderBrush")!;
             var avatar = new Border
             {
                 Width = 40,
@@ -317,7 +306,7 @@ public partial class MainWindow
                 Margin = isUser ? new Thickness(10, 0, 0, 0) : new Thickness(0, 0, 10, 0),
                 Padding = isUser ? new Thickness(0) : new Thickness(1),
                 Background = isUser ? userAvatarBrush : Brushes.Transparent,
-                BorderBrush = isUser ? userAvatarBorderBrush : aiBubbleBorderBrush,
+                BorderBrush = isUser ? userAvatarBorderBrush : aiAvatarBorderBrush,
                 BorderThickness = new Thickness(1),
                 Child = isUser
                     ? BuildUserAvatarGlyph(userAvatarGlyphBrush)
@@ -332,7 +321,7 @@ public partial class MainWindow
 
             // ── 气泡头部：作者名 + 时间 ──
             var displayName = authorName
-                ?? (isUser ? "我" : (ToolbarAgentLabel.Text ?? "助手"));
+                ?? (isUser ? "用户" : (ToolbarAgentLabel.Text ?? "助手"));
             var displayTime = (timestamp ?? DateTimeOffset.Now).ToLocalTime().ToString("HH:mm");
 
             var headerPanel = new DockPanel

@@ -33,7 +33,7 @@ public sealed class FileMemoryProvider(IAppPaths appPaths, ILogger<FileMemoryPro
         "memory.md");
 
     private const string SystemInstructionPrefix =
-        "### Please strictly follow the following rules when processing content\n\n";
+        "--momery--\n\n  ### Please strictly follow the following rules when processing content\n\n";
 
     private const string SystemInstructionSuffix =
         "\n\n> Every processing task must carry the above memory content to ensure the output results comply with specification requirements";

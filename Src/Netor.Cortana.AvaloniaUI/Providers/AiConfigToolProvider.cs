@@ -1,6 +1,6 @@
-using System.Text;
-
 using Netor.Cortana.Plugin;
+
+using System.Text;
 
 namespace Netor.Cortana.AvaloniaUI.Providers;
 
@@ -729,51 +729,48 @@ internal sealed class AiConfigToolProvider(
     // ──────── 指令 ────────
 
     private static string BuildInstructions() => """
-        ### AI 配置管理工具使用规范
+        ### AI Config Management
 
-        这些工具用于已具备可用 AI 厂商和模型后的软件配置与操作管理。
+        These tools manage software configuration after AI providers and models are available.
 
-        **术语说明：** 用户提到「智能体」「助理」「代理」「Agent」时，均指同一概念。
-        **术语说明：** 用户提到「MCP」「MCP 服务」「MCP 服务器」「MCP 工具服务」时，均指同一概念。
+        **Terms:** "Agent", "Assistant", "Proxy" all refer to the same concept.
+        **Terms:** "MCP", "MCP Service", "MCP Server" all refer to the same concept.
 
-        #### 序号交互模式
-        当用户想要查看或切换厂商/智能体/模型时：
-        1. 先调用对应的 sys_list_* 工具获取列表，向用户展示带序号的列表
-        2. 等待用户说出序号
-        3. 再调用 sys_set_default_* 传入序号完成切换
+        #### Selection Mode
+        When user wants to view/switch provider/agent/model:
+        1. Call sys_list_* to get numbered list
+        2. Wait for user to specify number
+        3. Call sys_set_default_* with number
 
-        - 不要猜测序号，必须先列出列表
-        - 如果用户直接说了名称而非序号，先 sys_list 找到匹配项的序号，再 set
-        - 切换厂商后，模型列表会随之变化，需要重新 sys_list_models
-        - list 返回的 [id=xxx] 是内部标识，展示给用户时省略
+        - Always list first, never guess numbers
+        - If user provides name instead of number, find matching item's number via sys_list first
+        - Switching providers requires re-listing models (sys_list_models)
 
-        #### 新增操作
-        - 新增厂商：逐步引导用户提供 name → url → key → providerType（默认 OpenAI）
-        - 新增模型：先 sys_list_providers，用户选厂商序号，再引导提供 name、displayName
-        - 新增智能体：引导用户提供 name → instructions（系统提示词）
-        - 默认智能体用于软件配置与操作辅助；当用户忘记创建智能体时，可以引导其查看、切换或新增智能体
+        #### Add Operations
+        - Add provider: guide user for name → url → key → providerType (default: OpenAI)
+        - Add model: sys_list_providers first, then name, displayName
+        - Add agent: guide user for name → instructions (system prompt)
 
-        #### 软件配置范围
-        - 这些工具主要处理软件内部的配置、切换、查看和接入工作
-        - 可以帮助用户管理厂商、模型、智能体、MCP 服务以及与智能体绑定的工具能力
-        - 不要把外部服务本身的开通、授权、采购或部署问题伪装成软件内部操作
+        #### Scope
+        - Tools handle internal config, switching, viewing, and integration
+        - Can manage providers, models, agents, MCP services, and bound tools
+        - Do not confuse external service issues (subscription, auth, deployment) with internal config
 
-        #### MCP 配置
-        - 用户说「配置 MCP」「添加 MCP 服务」「接入 MCP」「连接 MCP」时，进入 MCP 配置流程
-        - 先根据 transportType 区分参数
-        - stdio：name → command → arguments → environmentVariables → description
-        - sse / streamable-http：name → url → apiKey → description
-        - 优先调用 sys_test_mcp_server 测试临时配置是否可连通
-        - 测试成功后，再调用 sys_add_mcp_server 写入数据库并接入当前运行环境
-        - 如果测试失败，要明确告诉用户当前无法连通，并说明未保存
-        - 用户说「测试 MCP」「检查 MCP 能不能连」时，只调用 sys_test_mcp_server，不要写入数据库
-        - 用户说「列出 MCP」「看看有哪些 MCP」时，调用 sys_list_mcp_servers
-        - 用户说「给当前智能体启用这个 MCP」「让小月用这个 MCP」时，先 sys_list_mcp_servers 确认序号，再调用 sys_enable_mcp_for_agent
-        - MCP 配置属于软件增强能力，不替代 AI 厂商和模型本身的服务接入
+        #### MCP Config
+        - "Configure MCP" → follow MCP config flow
+        - Parameters by transportType:
+          - stdio: name → command → arguments → environmentVariables → description
+          - sse/streamable-http: name → url → apiKey → description
+        - Always sys_test_mcp_server before saving
+        - Save via sys_add_mcp_server only after successful test
+        - On failure, inform user and do not save
+        - "Test MCP" → sys_test_mcp_server only (no save)
+        - "List MCP" → sys_list_mcp_servers
+        - "Enable MCP for agent" → sys_list_mcp_servers first, then sys_enable_mcp_for_agent
 
-        #### 智能体提示词
-        - 用户说"看看你的提示词""你的 prompt 是什么"等，调用 sys_get_agent_instructions(0) 获取默认智能体的提示词
-        - 用户指定了序号或名称，先 sys_list_agents 确定序号，再 sys_get_agent_instructions(序号)
-        - 修改提示词：先 sys_list_agents → 用户选序号 → 用户提供新提示词 → sys_update_agent_instructions
+        #### Agent Instructions
+        - "Show prompt" → sys_get_agent_instructions(0)
+        - "Show prompt for [name]" → sys_list_agents first, then sys_get_agent_instructions(number)
+        - "Update prompt" → sys_list_agents → user selects → user provides new prompt → sys_update_agent_instructions
         """;
 }
