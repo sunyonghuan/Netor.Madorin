@@ -1,0 +1,152 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:proxy="clr-namespace:Netor.Cortana.AvaloniaUI.Views.Proxy"
+        x:Class="Netor.Cortana.AvaloniaUI.Views.Proxy.ProxyWindow"
+        x:DataType="proxy:ProxyViewModel"
+        x:CompileBindings="True"
+        Title="AI 代理"
+        Width="340" Height="480"
+        MinWidth="300" MinHeight="420"
+        CanResize="False"
+        WindowStartupLocation="Manual"
+        Background="{StaticResource BaseBrush}">
+	<Window.Styles>
+		<Style Selector="TextBlock.lbl">
+			<Setter Property="Foreground" Value="{StaticResource SubtextBrush}" />
+			<Setter Property="FontSize" Value="11" />
+		</Style>
+		<Style Selector="TextBlock.val">
+			<Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+			<Setter Property="FontSize" Value="12" />
+		</Style>
+		<Style Selector="TextBox.f">
+			<Setter Property="Background" Value="{StaticResource Surface0Brush}" />
+			<Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+			<Setter Property="BorderBrush" Value="{StaticResource Surface1Brush}" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="Padding" Value="6,4" />
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="MinHeight" Value="28" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+		</Style>
+		<Style Selector="NumericUpDown.f">
+			<Setter Property="Background" Value="{StaticResource Surface0Brush}" />
+			<Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+			<Setter Property="BorderBrush" Value="{StaticResource Surface1Brush}" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="Padding" Value="4,2" />
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="MinHeight" Value="28" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+		</Style>
+		<Style Selector="ComboBox.f">
+			<Setter Property="Background" Value="{StaticResource Surface0Brush}" />
+			<Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+			<Setter Property="BorderBrush" Value="{StaticResource Surface1Brush}" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="Padding" Value="6,4" />
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="MinHeight" Value="28" />
+		</Style>
+		<Style Selector="Button.act">
+			<Setter Property="Background" Value="{StaticResource BlueBrush}" />
+			<Setter Property="Foreground" Value="#ffffff" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="Padding" Value="12,5" />
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="HorizontalContentAlignment" Value="Center" />
+		</Style>
+	</Window.Styles>
+	<ScrollViewer Padding="12,10">
+		<StackPanel Spacing="8">
+			<!-- 状态卡片：地址 + 状态 + 开关 -->
+			<Border Background="{StaticResource Surface0Brush}" CornerRadius="6" Padding="10,8">
+				<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="4" ColumnSpacing="10">
+					<TextBlock Text="{Binding Url}" Classes="val" FontWeight="SemiBold" FontSize="14" />
+					<ToggleSwitch Grid.Column="1" Grid.RowSpan="2"
+                                  IsChecked="{Binding Enabled}"
+                                  OnContent="" OffContent=""
+                                  IsCheckedChanged="OnEnabledToggled"
+                                  VerticalAlignment="Center" />
+					<StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
+						<Border Background="{StaticResource Surface1Brush}" CornerRadius="8" Padding="6,1">
+							<TextBlock Text="{Binding StatusText}" Foreground="{StaticResource BlueBrush}" FontSize="10" />
+						</Border>
+						<TextBlock Classes="lbl" VerticalAlignment="Center"
+                                   Text="{Binding ActiveRequests, StringFormat='活跃 {0}'}" />
+					</StackPanel>
+				</Grid>
+			</Border>
+			<!-- 网络配置 -->
+			<Border Background="{StaticResource Surface0Brush}" CornerRadius="6" Padding="10,8">
+				<StackPanel Spacing="6">
+					<StackPanel Spacing="2">
+						<TextBlock Text="主机" Classes="lbl" />
+						<TextBox Classes="f" Text="{Binding Host}" />
+					</StackPanel>
+					<StackPanel Spacing="2">
+						<TextBlock Text="端口" Classes="lbl" />
+						<NumericUpDown Classes="f" Minimum="1" Maximum="65535" Value="{Binding Port}" />
+					</StackPanel>
+					<StackPanel Spacing="2">
+						<TextBlock Text="暴露厂商" Classes="lbl" />
+						<ComboBox x:Name="ProviderBox" Classes="f" HorizontalAlignment="Stretch" />
+					</StackPanel>
+					<StackPanel Spacing="2">
+						<TextBlock Text="协议版本" Classes="lbl" />
+						<TextBox Classes="f" Text="{Binding Version}" PlaceholderText="0.5.7" />
+					</StackPanel>
+					<Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+						<CheckBox Content="局域网" IsChecked="{Binding AllowLan}"
+                                  Foreground="{StaticResource TextBrush}" FontSize="11" />
+						<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+							<TextBlock Text="并发" Classes="lbl" VerticalAlignment="Center" />
+							<NumericUpDown Classes="f" Minimum="1" Maximum="32"
+                                           Value="{Binding MaxConcurrentRequests}" Width="100" />
+						</StackPanel>
+					</Grid>
+				</StackPanel>
+			</Border>
+			<!-- 监控面板 -->
+			<Border Background="{StaticResource Surface0Brush}" CornerRadius="6" Padding="10,8">
+				<StackPanel Spacing="5">
+					<Grid ColumnDefinitions="*,Auto">
+						<TextBlock Text="上下文" Classes="lbl" />
+						<TextBlock Grid.Column="1" Classes="val"
+                                   Text="{Binding ContextUsagePercent, StringFormat='{}{0}%'}" />
+					</Grid>
+					<ProgressBar Minimum="0" Maximum="100" Value="{Binding ContextUsagePercent}" Height="4" />
+					<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="2">
+						<TextBlock Text="输入 / 上限" Classes="lbl" />
+						<TextBlock Grid.Column="1" Classes="val">
+							<Run Text="{Binding LastInputTokens}" />
+							<Run Text=" / " Foreground="{StaticResource SubtextBrush}" />
+							<Run Text="{Binding MaxContextTokens}" />
+						</TextBlock>
+						<TextBlock Grid.Row="1" Text="请求 总/成功/失败" Classes="lbl" />
+						<TextBlock Grid.Row="1" Grid.Column="1" Classes="val">
+							<Run Text="{Binding TotalRequests}" />
+							<Run Text=" / " Foreground="{StaticResource SubtextBrush}" />
+							<Run Text="{Binding SucceededRequests}" Foreground="{StaticResource GreenBrush}" />
+							<Run Text=" / " Foreground="{StaticResource SubtextBrush}" />
+							<Run Text="{Binding FailedRequests}" Foreground="{StaticResource RedBrush}" />
+						</TextBlock>
+						<TextBlock Grid.Row="2" Grid.ColumnSpan="2"
+                                   Text="{Binding LastError}"
+                                   Foreground="{StaticResource RedBrush}"
+                                   FontSize="10" TextWrapping="Wrap" />
+					</Grid>
+				</StackPanel>
+			</Border>
+			<!-- 保存 -->
+			<Button Classes="act" Content="保存配置"
+                    Click="OnSaveClick"
+                    HorizontalAlignment="Stretch" />
+		</StackPanel>
+	</ScrollViewer>
+</Window>

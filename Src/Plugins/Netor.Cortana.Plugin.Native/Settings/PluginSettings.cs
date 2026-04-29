@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Netor.Cortana.Plugin;
+namespace Netor.Cortana.Plugin.Native;
 
 /// <summary>
 /// 插件运行时配置，由宿主在 init 阶段注入。

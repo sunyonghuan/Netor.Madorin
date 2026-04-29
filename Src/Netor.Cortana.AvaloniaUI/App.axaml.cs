@@ -5,6 +5,7 @@ using Avalonia.Platform.Storage;
 using Microsoft.Extensions.Hosting;
 
 using Netor.Cortana.AvaloniaUI.Views;
+using Netor.Cortana.AvaloniaUI.Views.Proxy;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.Cortana.Networks;
@@ -187,6 +188,8 @@ public partial class App : Application
             .AddSingleton<FloatWindow>()
             .AddSingleton<BubbleWindow>()
             .AddSingleton<SettingsWindow>()
+            .AddSingleton<ProxyViewModel>()
+            .AddSingleton<ProxyWindow>()
             // 数据库
             .AddSingleton<CortanaDbContext>()
             .AddTransient<SystemSettingsService>()
@@ -308,6 +311,8 @@ public partial class App : Application
             description: "插件申请 LLM 用于记忆提取/更新/检索时所使用的模型。留空则回退到当前对话模型。",
             defaultValue: "", valueType: "model", sortOrder: 0);
 
+        // v1.3: Ollama 兼容代理配置，供 ProxyWindow 设置页和网络代理服务读取。
+        sysSettings.EnsureOllamaProxySettings();
         // 版本迁移：移除已废弃的旧压缩配置项
         sysSettings.DeleteSetting("ChatHistory.MaxContentLength");
         sysSettings.DeleteSetting("ChatHistory.MaxContentCount");
@@ -348,7 +353,20 @@ public partial class App : Application
             settings.Show();
             settings.Activate();
         };
-
+        var proxyItem = new NativeMenuItem("AI代理");
+        proxyItem.Click += (_, _) =>
+        {
+            var proxy = Services.GetRequiredService<ProxyWindow>();
+            proxy.Show();
+            proxy.Activate();
+        };
+        var voiceItem = new NativeMenuItem("语音开关");
+        voiceItem.Click += (_, _) =>
+        {
+            //var settings = Services.GetRequiredService<SettingsWindow>();
+            //settings.Show();
+            //settings.Activate();
+        };
         var exitItem = new NativeMenuItem("退出助理");
         exitItem.Click += (_, _) =>
         {
@@ -357,6 +375,8 @@ public partial class App : Application
 
         var menu = new NativeMenu();
         menu.Items.Add(showItem);
+        menu.Items.Add(voiceItem);
+        menu.Items.Add(proxyItem);
         menu.Items.Add(settingsItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(exitItem);
@@ -534,45 +554,3 @@ public partial class App : Application
         }
     }
 }
-
-//internal sealed class HttpLoggingHandler(ILogger<HttpLoggingHandler> logger) : DelegatingHandler
-//{
-//    private readonly ILogger<HttpLoggingHandler> _logger = logger;
-
-//    protected override async Task<HttpResponseMessage> SendAsync(
-//        HttpRequestMessage request,
-//        CancellationToken cancellationToken)
-//    {
-//        string? requestBody = null;
-//        if (request.Content is not null)
-//        {
-//            requestBody = await request.Content.ReadAsStringAsync(cancellationToken);
-//        }
-
-//        _logger.LogWarning(
-//            "HTTP 请求: {Method} {Url}\nHeaders: {Headers}\nBody: {Body}",
-//            request.Method,
-//            request.RequestUri,
-//            request.Headers.ToString(),
-//            requestBody);
-
-//        var response = await base.SendAsync(request, cancellationToken);
-
-//        string? responseBody = null;
-//        if (response.Content is not null)
-//        {
-//            responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-
-//            var mediaType = response.Content.Headers.ContentType?.MediaType ?? "application/json";
-//            response.Content = new StringContent(responseBody, Encoding.UTF8, mediaType);
-//        }
-
-//        _logger.LogWarning(
-//            "HTTP 响应: {StatusCode}\nHeaders: {Headers}\nBody: {Body}",
-//            (int)response.StatusCode,
-//            response.Headers.ToString(),
-//            responseBody);
-
-//        return response;
-//    }
-//}

@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using Netor.Cortana.Entitys;
+using Netor.Cortana.Networks.Proxy;
 
 namespace Netor.Cortana.Networks;
 
@@ -33,6 +34,15 @@ public static class NetworkServiceExtensions
         services.AddSingleton<WebSocketInputChannel>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketInputChannel>());
         services.AddSingleton<IAiInputChannel>(sp => sp.GetRequiredService<WebSocketInputChannel>());
+
+        services.AddSingleton<OllamaProxyOptionsReader>();
+        services.AddSingleton<ProxyModelEndpoints>();
+        services.AddSingleton<ProxyChatEndpoints>();
+        services.AddSingleton<OpenAiCompatibleRawProxy>();
+        services.AddSingleton<OpenAiCompatibleEndpoints>();
+        services.AddSingleton<ProxyRouteDispatcher>();
+        services.AddSingleton<OllamaProxyServerService>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<OllamaProxyServerService>());
 
         return services;
     }

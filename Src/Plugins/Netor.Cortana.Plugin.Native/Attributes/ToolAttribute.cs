@@ -1,4 +1,4 @@
-namespace Netor.Cortana.Plugin;
+namespace Netor.Cortana.Plugin.Native;
 
 /// <summary>
 /// 统一标记工具类和工具方法。

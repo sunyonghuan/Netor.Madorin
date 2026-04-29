@@ -1,4 +1,4 @@
-namespace Netor.Cortana.Plugin;
+namespace Netor.Cortana.Plugin.Native;
 
 /// <summary>
 /// 标记原生插件入口类。
@@ -7,10 +7,10 @@ namespace Netor.Cortana.Plugin;
 public sealed class PluginAttribute : Attribute
 {
     /// <summary>插件唯一标识。</summary>
-    public required string Id { get; init; }
+    public string Id { get; init; }
 
     /// <summary>插件名称。</summary>
-    public required string Name { get; init; }
+    public string Name { get; init; }
 
     /// <summary>插件版本。</summary>
     public string Version { get; init; } = "1.0.0";

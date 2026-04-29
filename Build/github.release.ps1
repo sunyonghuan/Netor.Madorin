@@ -29,7 +29,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$SolutionDir = $PSScriptRoot
+$BuildDir = $PSScriptRoot
+$SolutionDir = (Resolve-Path (Join-Path $BuildDir '..')).Path
+Set-Location $SolutionDir
 
 if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
     $PSNativeCommandUseErrorActionPreference = $false

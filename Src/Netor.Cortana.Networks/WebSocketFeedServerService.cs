@@ -53,7 +53,8 @@ public sealed class WebSocketFeedServerService(
 
             logger.LogInformation("Conversation Feed 服务器已启动，端口：{Port}", Port);
             AcceptLoopAsync(_cts.Token).GetAwaiter().GetResult();
-        }) { IsBackground = true, Name = "ConversationFeedServer" };
+        })
+        { IsBackground = true, Name = "ConversationFeedServer" };
         thread.Start();
         return Task.CompletedTask;
     }

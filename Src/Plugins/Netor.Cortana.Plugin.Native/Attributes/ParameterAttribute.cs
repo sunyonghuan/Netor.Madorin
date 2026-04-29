@@ -1,4 +1,4 @@
-namespace Netor.Cortana.Plugin;
+namespace Netor.Cortana.Plugin.Native;
 
 /// <summary>
 /// 标记工具方法参数的描述信息。

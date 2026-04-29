@@ -39,6 +39,9 @@ public partial class SystemSettingsPage : UserControl
 
         foreach (var group in groups)
         {
+            if (string.IsNullOrWhiteSpace(group.Key))
+                continue;
+
             // 分组标题
             var header = new TextBlock
             {

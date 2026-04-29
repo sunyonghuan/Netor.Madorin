@@ -352,6 +352,27 @@ namespace Netor.Cortana.Entitys.Services
         }
 
         /// <summary>
+        /// 确保 Ollama 兼容代理设置项存在。
+        /// 这些配置只供 Proxy 小窗口和代理服务使用，不进入系统设置通用页面。
+        /// </summary>
+        public void EnsureOllamaProxySettings()
+        {
+            EnsureSetting("Proxy.Ollama.Enabled", string.Empty, string.Empty, string.Empty, "false", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.Host", string.Empty, string.Empty, string.Empty, "localhost", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.Port", string.Empty, string.Empty, string.Empty, "11434", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.Mode", string.Empty, string.Empty, string.Empty, "ModelOnly", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.ProviderId", string.Empty, string.Empty, string.Empty, "", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.ModelId", string.Empty, string.Empty, string.Empty, "", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.AgentId", string.Empty, string.Empty, string.Empty, "", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.ExposeDefaultModel", string.Empty, string.Empty, string.Empty, "true", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.AllowLan", string.Empty, string.Empty, string.Empty, "false", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.RequireApiKey", string.Empty, string.Empty, string.Empty, "false", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.ApiKey", string.Empty, string.Empty, string.Empty, "", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.MaxConcurrentRequests", string.Empty, string.Empty, string.Empty, "2", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.Version", string.Empty, string.Empty, string.Empty, "0.5.7", "hidden", 0);
+        }
+
+        /// <summary>
         /// 删除指定键的设置项（用于版本升级时移除废弃配置）。
         /// </summary>
         public void DeleteSetting(string key)
