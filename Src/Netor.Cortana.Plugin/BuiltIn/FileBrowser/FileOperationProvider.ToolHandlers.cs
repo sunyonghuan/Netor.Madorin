@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
 namespace Netor.Cortana.Plugin.BuiltIn.FileBrowser;
@@ -90,66 +89,28 @@ public sealed partial class FileOperationProvider
     }
 
     private Task<string> WriteFilesBatchAsync(
-        JsonElement files,
+        List<FileOperator.BatchWriteFile> files,
         bool backup = true,
         bool stopOnError = false)
     {
         try
         {
-            if (files.ValueKind is not JsonValueKind.Array)
-                return Task.FromResult(BuildErrorJson("write_files_batch", string.Empty, "files 必须是数组"));
+            if (files.Count == 0)
+                return Task.FromResult(BuildErrorJson("write_files_batch", string.Empty, "files 不能为空"));
 
             var parsedFiles = new List<FileOperator.BatchWriteFile>();
-            foreach (var item in files.EnumerateArray())
+            foreach (var item in files)
             {
-                if (item.ValueKind is not JsonValueKind.Object)
-                    return Task.FromResult(BuildErrorJson("write_files_batch", string.Empty, "files 中每一项都必须是对象"));
-
-                if (!item.TryGetProperty("path", out var pathElement)
-                    || pathElement.ValueKind is not JsonValueKind.String)
+                if (string.IsNullOrWhiteSpace(item.Path))
                 {
                     return Task.FromResult(BuildErrorJson("write_files_batch", string.Empty, "files[*].path 必须是字符串"));
                 }
 
-                string? itemContent = string.Empty;
-                if (item.TryGetProperty("content", out var contentElement))
-                {
-                    if (contentElement.ValueKind is not JsonValueKind.String and not JsonValueKind.Null)
-                    {
-                        return Task.FromResult(BuildErrorJson(
-                            "write_files_batch",
-                            pathElement.GetString() ?? string.Empty,
-                            "files[*].content 必须是字符串或 null"));
-                    }
-
-                    itemContent = contentElement.ValueKind == JsonValueKind.Null
-                        ? string.Empty
-                        : contentElement.GetString();
-                }
-
-                bool? overwrite = true;
-                if (item.TryGetProperty("overwrite", out var overwriteElement))
-                {
-                    if (overwriteElement.ValueKind is JsonValueKind.True)
-                        overwrite = true;
-                    else if (overwriteElement.ValueKind is JsonValueKind.False)
-                        overwrite = false;
-                    else if (overwriteElement.ValueKind is JsonValueKind.Null)
-                        overwrite = true;
-                    else
-                    {
-                        return Task.FromResult(BuildErrorJson(
-                            "write_files_batch",
-                            pathElement.GetString() ?? string.Empty,
-                            "files[*].overwrite 必须是布尔值或 null"));
-                    }
-                }
-
                 parsedFiles.Add(new FileOperator.BatchWriteFile
                 {
-                    Path = pathElement.GetString() ?? string.Empty,
-                    Content = itemContent ?? string.Empty,
-                    Overwrite = overwrite
+                    Path = item.Path,
+                    Content = item.Content ?? string.Empty,
+                    Overwrite = item.Overwrite ?? true
                 });
             }
 

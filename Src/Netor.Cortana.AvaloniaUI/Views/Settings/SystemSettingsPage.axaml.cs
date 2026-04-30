@@ -217,6 +217,7 @@ public partial class SystemSettingsPage : UserControl
 
     private async void OnSaveClick(object? sender, RoutedEventArgs e)
     {
+        var oldWakeWordEnabled = SettingsService.GetValue("Voice.WakeWordEnabled", true);
         var updates = new List<(string Key, string Value)>();
         foreach (var (key, control) in _editors)
         {
@@ -271,6 +272,20 @@ public partial class SystemSettingsPage : UserControl
 
                 await ShowDialogAsync("端口已修改",
                     $"WebSocket 端口已从 {oldPort} 切换到 {currentServer.Port}，已立即生效。\n已加载的插件可能仍使用旧端口，建议重启软件。");
+            }
+        }
+
+        var wakeWordEntry = updates.FirstOrDefault(u => u.Key == "Voice.WakeWordEnabled");
+        if (wakeWordEntry != default && bool.TryParse(wakeWordEntry.Value, out var wakeWordEnabled) && wakeWordEnabled != oldWakeWordEnabled)
+        {
+            var wakeWordService = App.Services.GetRequiredService<WakeWordService>();
+            if (wakeWordEnabled)
+            {
+                await wakeWordService.StartAsync(CancellationToken.None);
+            }
+            else
+            {
+                await wakeWordService.StopAsync(CancellationToken.None);
             }
         }
     }

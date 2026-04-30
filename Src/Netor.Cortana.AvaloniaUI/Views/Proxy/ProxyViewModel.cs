@@ -25,13 +25,13 @@ public sealed class ProxyViewModel : INotifyPropertyChanged, IDisposable
     private string _host = "localhost";
     private int _port = 11434;
     private string _providerId = string.Empty;
-    private string _version = "0.5.7";
+    private string _version = "0.21.2";
     private bool _allowLan;
     private int _maxConcurrentRequests = 2;
     private string _statusText = "未启动";
     private string _url = "http://localhost:11434";
     private string _lastError = string.Empty;
-    private AiProxyUsageSnapshot _usage = new(0, 0, 128000, 0, 0, 0, 0, 0, string.Empty);
+    private AiProxyUsageSnapshot _usage = new(0, 0, 128000, 0, 0, 0, 0, 0, string.Empty, string.Empty);
 
     public ProxyViewModel(
         SystemSettingsService settings,
@@ -92,7 +92,7 @@ public sealed class ProxyViewModel : INotifyPropertyChanged, IDisposable
     public string Version
     {
         get => _version;
-        set => SetField(ref _version, string.IsNullOrWhiteSpace(value) ? "0.5.7" : value.Trim());
+        set => SetField(ref _version, string.IsNullOrWhiteSpace(value) ? "0.21.2" : value.Trim());
     }
 
     public bool AllowLan
@@ -132,6 +132,7 @@ public sealed class ProxyViewModel : INotifyPropertyChanged, IDisposable
     public long ActiveRequests => _usage.ActiveRequests;
     public long SucceededRequests => _usage.SucceededRequests;
     public long FailedRequests => _usage.FailedRequests;
+    public string LastModelName => string.IsNullOrWhiteSpace(_usage.LastModelName) ? "等待请求" : _usage.LastModelName;
 
     public void Load()
     {
@@ -144,7 +145,7 @@ public sealed class ProxyViewModel : INotifyPropertyChanged, IDisposable
         _host = _settings.GetValue("Proxy.Ollama.Host", "localhost");
         _port = _settings.GetValue<int>("Proxy.Ollama.Port", 11434);
         _providerId = _settings.GetValue("Proxy.Ollama.ProviderId", string.Empty);
-        _version = _settings.GetValue("Proxy.Ollama.Version", "0.5.7");
+        _version = _settings.GetValue("Proxy.Ollama.Version", "0.21.2");
         _allowLan = _settings.GetValue("Proxy.Ollama.AllowLan", false);
         _maxConcurrentRequests = _settings.GetValue<int>("Proxy.Ollama.MaxConcurrentRequests", 2);
 
@@ -216,6 +217,7 @@ public sealed class ProxyViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(ActiveRequests));
         OnPropertyChanged(nameof(SucceededRequests));
         OnPropertyChanged(nameof(FailedRequests));
+        OnPropertyChanged(nameof(LastModelName));
         if (!string.IsNullOrWhiteSpace(_usage.LastError)) LastError = _usage.LastError;
     }
 

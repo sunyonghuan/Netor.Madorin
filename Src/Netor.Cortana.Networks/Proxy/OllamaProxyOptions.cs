@@ -29,8 +29,8 @@ public sealed class OllamaProxyOptionsReader(SystemSettingsService settingsServi
         var maxConcurrent = settingsService.GetValue<int>(Prefix + "MaxConcurrentRequests", 2);
         if (maxConcurrent <= 0) maxConcurrent = 2;
 
-        var version = settingsService.GetValue(Prefix + "Version", "0.5.7").Trim();
-        if (string.IsNullOrWhiteSpace(version)) version = "0.5.7";
+        var version = settingsService.GetValue(Prefix + "Version", "0.21.2").Trim();
+        if (string.IsNullOrWhiteSpace(version)) version = "0.21.2";
 
         return new AiProxyOptionsSnapshot(
             Enabled: settingsService.GetValue(Prefix + "Enabled", false),

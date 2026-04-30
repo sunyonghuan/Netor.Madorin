@@ -5,7 +5,7 @@
         x:DataType="proxy:ProxyViewModel"
         x:CompileBindings="True"
         Title="AI 代理"
-        Width="340" Height="480"
+        Width="340" Height="500"
         MinWidth="300" MinHeight="420"
         CanResize="False"
         WindowStartupLocation="Manual"
@@ -99,7 +99,7 @@
 					</StackPanel>
 					<StackPanel Spacing="2">
 						<TextBlock Text="协议版本" Classes="lbl" />
-						<TextBox Classes="f" Text="{Binding Version}" PlaceholderText="0.5.7" />
+						<TextBox Classes="f" Text="{Binding Version}" PlaceholderText="0.21.2" />
 					</StackPanel>
 					<Grid ColumnDefinitions="*,*" ColumnSpacing="8">
 						<CheckBox Content="局域网" IsChecked="{Binding AllowLan}"
@@ -121,7 +121,7 @@
                                    Text="{Binding ContextUsagePercent, StringFormat='{}{0}%'}" />
 					</Grid>
 					<ProgressBar Minimum="0" Maximum="100" Value="{Binding ContextUsagePercent}" Height="4" />
-					<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="2">
+					<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="2">
 						<TextBlock Text="输入 / 上限" Classes="lbl" />
 						<TextBlock Grid.Column="1" Classes="val">
 							<Run Text="{Binding LastInputTokens}" />
@@ -136,7 +136,10 @@
 							<Run Text=" / " Foreground="{StaticResource SubtextBrush}" />
 							<Run Text="{Binding FailedRequests}" Foreground="{StaticResource RedBrush}" />
 						</TextBlock>
-						<TextBlock Grid.Row="2" Grid.ColumnSpan="2"
+						<TextBlock Grid.Row="2" Text="当前模型" Classes="lbl" />
+						<TextBlock Grid.Row="2" Grid.Column="1" Classes="val"
+                                   Text="{Binding LastModelName}" />
+						<TextBlock Grid.Row="3" Grid.ColumnSpan="2"
                                    Text="{Binding LastError}"
                                    Foreground="{StaticResource RedBrush}"
                                    FontSize="10" TextWrapping="Wrap" />

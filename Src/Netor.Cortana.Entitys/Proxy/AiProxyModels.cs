@@ -156,7 +156,7 @@ public sealed record AiProxyOptionsSnapshot(
     bool AllowLan,
     bool RequireApiKey,
     int MaxConcurrentRequests,
-    string Version = "0.5.7");
+    string Version = "0.21.2");
 
 /// <summary>
 /// AI 代理用量快照。
@@ -170,4 +170,5 @@ public sealed record AiProxyUsageSnapshot(
     long ActiveRequests,
     long SucceededRequests,
     long FailedRequests,
-    string LastError);
+    string LastError,
+    string LastModelName = "");

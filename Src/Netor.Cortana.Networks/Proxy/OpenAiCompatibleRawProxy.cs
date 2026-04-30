@@ -6,6 +6,7 @@
 // =====================================================================
 
 using Netor.Cortana.Entitys;
+using Netor.Cortana.Entitys.Proxy;
 using Netor.Cortana.Entitys.Services;
 
 using System.Net.Http;
@@ -38,7 +39,8 @@ namespace Netor.Cortana.Networks.Proxy;
 public sealed class OpenAiCompatibleRawProxy(
     AiProviderService providerService,
     AiModelService modelService,
-    SystemSettingsService settingsService)
+    SystemSettingsService settingsService,
+    ProxyUsageTracker usageTracker)
 {
     /// <summary>
     /// 共享的 HTTP 客户端实例。
@@ -68,51 +70,175 @@ public sealed class OpenAiCompatibleRawProxy(
         Func<string, string> toInternalModelName,
         CancellationToken cancellationToken)
     {
-        // Step 1: 解析配置的服务提供商
-        var provider = ResolveConfiguredProvider()
-            ?? throw new InvalidOperationException("没有可用的 Ollama Proxy 目标厂商。请先在代理设置中选择厂商，或设置系统默认厂商。");
+        usageTracker.MarkRequestStarted();
+        var succeeded = false;
+        string? error = null;
 
-        // Step 2: 解析请求体 JSON，获取请求参数
-        using var document = await JsonDocument.ParseAsync(requestBody, cancellationToken: cancellationToken);
-        var root = JsonNode.Parse(document.RootElement.GetRawText())?.AsObject()
-            ?? throw new InvalidOperationException("invalid chat completions request");
-
-        // Step 3: 获取并验证请求中的模型名
-        var exposedModel = root["model"]?.GetValue<string>() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(exposedModel))
+        try
         {
-            throw new InvalidOperationException("invalid chat completions request: missing model");
+            // Step 1: 解析配置的服务提供商
+            var provider = ResolveConfiguredProvider()
+                ?? throw new InvalidOperationException("没有可用的 Ollama Proxy 目标厂商。请先在代理设置中选择厂商，或设置系统默认厂商。");
+
+            // Step 2: 解析请求体 JSON，获取请求参数
+            using var document = await JsonDocument.ParseAsync(requestBody, cancellationToken: cancellationToken);
+            var root = JsonNode.Parse(document.RootElement.GetRawText())?.AsObject()
+                ?? throw new InvalidOperationException("invalid chat completions request");
+
+            // Step 3: 获取并验证请求中的模型名
+            var exposedModel = root["model"]?.GetValue<string>() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(exposedModel))
+            {
+                throw new InvalidOperationException("invalid chat completions request: missing model");
+            }
+
+            // Step 4: 将外部模型名转换为内部模型名，并验证模型是否存在
+            var internalModel = toInternalModelName(exposedModel);
+            var model = ResolveModelInProvider(provider, internalModel)
+                ?? throw new InvalidOperationException($"厂商 {provider.Name} 下找不到模型：{internalModel}");
+            usageTracker.RecordModel(model.Name, model.ContextLength);
+
+            // Step 5: 替换请求体中的模型名为内部实际模型名
+            root["model"] = model.Name;
+
+            // Step 6: 构建上游请求 URL 并发送请求
+            var upstreamUrl = BuildChatCompletionsUrl(provider.Url);
+            using var request = new HttpRequestMessage(HttpMethod.Post, upstreamUrl);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", provider.Key);
+            request.Content = new StringContent(root.ToJsonString(), Encoding.UTF8, "application/json");
+
+            // Step 7: 发送请求并读取响应
+            var response = await SharedHttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            var contentType = response.Content.Headers.ContentType?.ToString() ?? "application/json; charset=utf-8";
+
+            RecordUsageFromRawResponse(usageTracker, (int)response.StatusCode, contentType, bytes);
+            succeeded = response.IsSuccessStatusCode;
+            if (!succeeded)
+            {
+                error = $"OpenAI proxy upstream returned HTTP {(int)response.StatusCode}.";
+            }
+
+            // Step 8: 将上游响应里的内部模型名替换回暴露给 VSCode 的 cortana-* 名称
+            // 仅对 JSON 响应且非空响应体进行重写
+            if (contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase)
+                && bytes.Length > 0)
+            {
+                bytes = RewriteResponseModel(bytes, exposedModel);
+            }
+
+            // Step 9: 返回代理结果
+            return new RawProxyResult((int)response.StatusCode, contentType, bytes);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            throw;
+        }
+        finally
+        {
+            usageTracker.MarkRequestCompleted(succeeded, error);
+        }
+    }
+
+    public static void RecordUsageFromRawResponseForTesting(
+        ProxyUsageTracker tracker,
+        int statusCode,
+        string contentType,
+        byte[] responseBody)
+    {
+        RecordUsageFromRawResponse(tracker, statusCode, contentType, responseBody);
+    }
+
+    private static void RecordUsageFromRawResponse(
+        ProxyUsageTracker tracker,
+        int statusCode,
+        string contentType,
+        byte[] responseBody)
+    {
+        if (statusCode is < 200 or >= 300 || responseBody.Length == 0)
+        {
+            return;
         }
 
-        // Step 4: 将外部模型名转换为内部模型名，并验证模型是否存在
-        var internalModel = toInternalModelName(exposedModel);
-        var model = ResolveModelInProvider(provider, internalModel)
-            ?? throw new InvalidOperationException($"厂商 {provider.Name} 下找不到模型：{internalModel}");
-
-        // Step 5: 替换请求体中的模型名为内部实际模型名
-        root["model"] = model.Name;
-
-        // Step 6: 构建上游请求 URL 并发送请求
-        var upstreamUrl = BuildChatCompletionsUrl(provider.Url);
-        using var request = new HttpRequestMessage(HttpMethod.Post, upstreamUrl);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", provider.Key);
-        request.Content = new StringContent(root.ToJsonString(), Encoding.UTF8, "application/json");
-
-        // Step 7: 发送请求并读取响应
-        var response = await SharedHttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-        var contentType = response.Content.Headers.ContentType?.ToString() ?? "application/json; charset=utf-8";
-
-        // Step 8: 将上游响应里的内部模型名替换回暴露给 VSCode 的 cortana-* 名称
-        // 仅对 JSON 响应且非空响应体进行重写
-        if (contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase)
-            && bytes.Length > 0)
+        if (contentType.Contains("text/event-stream", StringComparison.OrdinalIgnoreCase))
         {
-            bytes = RewriteResponseModel(bytes, exposedModel);
+            RecordStreamingUsage(tracker, responseBody);
+            return;
         }
 
-        // Step 9: 返回代理结果
-        return new RawProxyResult((int)response.StatusCode, contentType, bytes);
+        if (contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase))
+        {
+            RecordJsonUsage(tracker, responseBody);
+        }
+    }
+
+    private static void RecordJsonUsage(ProxyUsageTracker tracker, byte[] responseBody)
+    {
+        try
+        {
+            var node = JsonNode.Parse(responseBody)?.AsObject();
+            if (node is null) return;
+            RecordUsageNode(tracker, node["usage"]);
+        }
+        catch
+        {
+            // 上游响应格式不可控，统计解析失败不影响透传主流程。
+        }
+    }
+
+    private static void RecordStreamingUsage(ProxyUsageTracker tracker, byte[] responseBody)
+    {
+        var text = Encoding.UTF8.GetString(responseBody);
+        foreach (var rawLine in text.Split('\n'))
+        {
+            var line = rawLine.Trim();
+            if (!line.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var payload = line["data:".Length..].Trim();
+            if (payload.Length == 0 || string.Equals(payload, "[DONE]", StringComparison.OrdinalIgnoreCase)) continue;
+
+            try
+            {
+                var node = JsonNode.Parse(payload)?.AsObject();
+                if (node is null) continue;
+                RecordUsageNode(tracker, node["usage"]);
+            }
+            catch
+            {
+                // 忽略单个 SSE chunk 的解析失败，避免影响其他 chunk 的统计。
+            }
+        }
+    }
+
+    private static void RecordUsageNode(ProxyUsageTracker tracker, JsonNode? usageNode)
+    {
+        if (usageNode is not JsonObject usage) return;
+
+        var inputTokens = TryGetLong(usage["prompt_tokens"]);
+        var outputTokens = TryGetLong(usage["completion_tokens"]);
+        tracker.RecordUsage(inputTokens, outputTokens);
+    }
+
+    private static long? TryGetLong(JsonNode? node)
+    {
+        if (node is null) return null;
+
+        try
+        {
+            return node.GetValue<long>();
+        }
+        catch
+        {
+            try
+            {
+                return node.GetValue<int>();
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 
     /// <summary>

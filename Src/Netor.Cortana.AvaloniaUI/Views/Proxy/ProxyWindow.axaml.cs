@@ -13,7 +13,6 @@ namespace Netor.Cortana.AvaloniaUI.Views.Proxy;
 public partial class ProxyWindow : Window
 {
     private readonly ProxyViewModel _viewModel;
-    private bool _initialized;
 
     public ProxyWindow()
     {
@@ -61,7 +60,6 @@ public partial class ProxyWindow : Window
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
         PositionAtBottomRight();
-        _initialized = true;
     }
 
     private void OnClosing(object? sender, WindowClosingEventArgs e)

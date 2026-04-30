@@ -21,6 +21,7 @@ public sealed class WakeWordService(
     IPublisher publisher) : IHostedService, IDisposable
 {
     private const int SampleRate = 16000;
+    private readonly object _syncRoot = new();
     private CancellationTokenSource? _cts;
     private Thread? _listenThread;
     private KeywordSpotter? _kws;
@@ -35,14 +36,27 @@ public sealed class WakeWordService(
     /// </summary>
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _listenThread = new Thread(ListenLoop)
+        lock (_syncRoot)
         {
-            IsBackground = true,
-            Name = "WakeWordListener"
-        };
-        _listenThread.Start();
-        logger.LogInformation("语音唤醒服务已启动");
+            if (!systemSettings.GetValue("Voice.WakeWordEnabled", true))
+            {
+                logger.LogInformation("语音唤醒开关已关闭，跳过唤醒服务启动");
+                return Task.CompletedTask;
+            }
+
+            if (_listenThread?.IsAlive == true)
+                return Task.CompletedTask;
+
+            _cts?.Dispose();
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _listenThread = new Thread(ListenLoop)
+            {
+                IsBackground = true,
+                Name = "WakeWordListener"
+            };
+            _listenThread.Start();
+            logger.LogInformation("语音唤醒服务已启动");
+        }
 
         return Task.CompletedTask;
     }
@@ -52,9 +66,20 @@ public sealed class WakeWordService(
     /// </summary>
     public Task StopAsync(CancellationToken cancellationToken)
     {
-        _cts?.Cancel();
-        _listenThread?.Join(TimeSpan.FromSeconds(3));
-        logger.LogInformation("语音唤醒服务已停止");
+        lock (_syncRoot)
+        {
+            if (_listenThread is null)
+                return Task.CompletedTask;
+
+            _cts?.Cancel();
+            _listenThread.Join(TimeSpan.FromSeconds(3));
+            _listenThread = null;
+            _cts?.Dispose();
+            _cts = null;
+            _kws?.Dispose();
+            _kws = null;
+            logger.LogInformation("语音唤醒服务已停止");
+        }
 
         return Task.CompletedTask;
     }
@@ -153,8 +178,6 @@ public sealed class WakeWordService(
 
     public void Dispose()
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _kws?.Dispose();
+        StopAsync(CancellationToken.None).GetAwaiter().GetResult();
     }
 }

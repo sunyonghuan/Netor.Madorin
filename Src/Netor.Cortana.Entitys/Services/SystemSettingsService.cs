@@ -222,23 +222,28 @@ namespace Netor.Cortana.Entitys.Services
                     value: workspaceDirectory, valueType: "string", sortOrder: 0),
 
                 // ── 语音唤醒 (KWS) ────────────────────
+                Seed("Voice.WakeWordEnabled",
+                    group: "语音唤醒", displayName: "语音唤醒开关",
+                    description: "开启后启动麦克风唤醒词监听；关闭后不启动语音唤醒服务。",
+                    value: "true", valueType: "bool", sortOrder: 0),
+
                 Seed("SherpaOnnx.KeywordsThreshold",
                     group: "语音唤醒", displayName: "唤醒词灵敏度阈值",
                     description: "值越小越灵敏，建议范围 0.01~0.5。",
                     value: sherpaOnnx.KeywordsThreshold.ToString(CultureInfo.InvariantCulture),
-                    valueType: "float", sortOrder: 0),
+                    valueType: "float", sortOrder: 1),
 
                 Seed("SherpaOnnx.KeywordsScore",
                     group: "语音唤醒", displayName: "唤醒词增强分数",
                     description: "值越大越容易触发唤醒，建议范围 1.0~20.0。",
                     value: sherpaOnnx.KeywordsScore.ToString(CultureInfo.InvariantCulture),
-                    valueType: "float", sortOrder: 1),
+                    valueType: "float", sortOrder: 2),
 
                 Seed("SherpaOnnx.NumTrailingBlanks",
                     group: "语音唤醒", displayName: "尾部空白帧数",
                     description: "唤醒确认所需的静默帧数，值越小响应越快。",
                     value: sherpaOnnx.NumTrailingBlanks.ToString(CultureInfo.InvariantCulture),
-                    valueType: "int", sortOrder: 2),
+                    valueType: "int", sortOrder: 3),
 
                 // ── 语音识别 (STT) ────────────────────
                 Seed("SherpaOnnx.Rule1MinTrailingSilence",
@@ -369,7 +374,7 @@ namespace Netor.Cortana.Entitys.Services
             EnsureSetting("Proxy.Ollama.RequireApiKey", string.Empty, string.Empty, string.Empty, "false", "hidden", 0);
             EnsureSetting("Proxy.Ollama.ApiKey", string.Empty, string.Empty, string.Empty, "", "hidden", 0);
             EnsureSetting("Proxy.Ollama.MaxConcurrentRequests", string.Empty, string.Empty, string.Empty, "2", "hidden", 0);
-            EnsureSetting("Proxy.Ollama.Version", string.Empty, string.Empty, string.Empty, "0.5.7", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.Version", string.Empty, string.Empty, string.Empty, "0.21.2", "hidden", 0);
         }
 
         /// <summary>

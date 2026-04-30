@@ -280,6 +280,11 @@ public partial class App : Application
             description: "WebSocket 服务监听端口，修改后立即生效，建议重启软件以确保插件正常工作。",
             defaultValue: "52841", valueType: "int", sortOrder: 0);
 
+        sysSettings.EnsureSetting("Voice.WakeWordEnabled",
+            group: "语音唤醒", displayName: "语音唤醒开关",
+            description: "开启后启动麦克风唤醒词监听；关闭后不启动语音唤醒服务。",
+            defaultValue: "true", valueType: "bool", sortOrder: 0);
+
         sysSettings.EnsureSetting("Tts.WelcomeGreeting",
             group: "语音合成", displayName: "唤醒欢迎语",
             description: "AI 被唤醒时播放的欢迎语，修改后需要重启应用才能生效。",
@@ -360,12 +365,20 @@ public partial class App : Application
             proxy.Show();
             proxy.Activate();
         };
-        var voiceItem = new NativeMenuItem("语音开关");
+        var sysSettings = Services.GetRequiredService<SystemSettingsService>();
+        var voiceItem = new NativeMenuItem();
+        UpdateVoiceMenuItemHeader(voiceItem, sysSettings.GetValue("Voice.WakeWordEnabled", true));
         voiceItem.Click += (_, _) =>
         {
-            //var settings = Services.GetRequiredService<SettingsWindow>();
-            //settings.Show();
-            //settings.Activate();
+            var settings = Services.GetRequiredService<SystemSettingsService>();
+            var wakeWordService = Services.GetRequiredService<WakeWordService>();
+            var enabled = !settings.GetValue("Voice.WakeWordEnabled", true);
+            settings.SetValue("Voice.WakeWordEnabled", enabled.ToString().ToLowerInvariant());
+            UpdateVoiceMenuItemHeader(voiceItem, enabled);
+
+            _ = enabled
+                ? wakeWordService.StartAsync(_cts.Token)
+                : wakeWordService.StopAsync(CancellationToken.None);
         };
         var exitItem = new NativeMenuItem("退出助理");
         exitItem.Click += (_, _) =>
@@ -396,6 +409,11 @@ public partial class App : Application
             desktop.MainWindow?.Show();
             desktop.MainWindow?.Activate();
         };
+    }
+
+    private static void UpdateVoiceMenuItemHeader(NativeMenuItem item, bool enabled)
+    {
+        item.Header = enabled ? "语音唤醒：开" : "语音唤醒：关";
     }
 
     /// <summary>

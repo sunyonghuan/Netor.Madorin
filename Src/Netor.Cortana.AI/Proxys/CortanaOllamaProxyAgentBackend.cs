@@ -50,6 +50,7 @@ public sealed class CortanaOllamaProxyAgentBackend(
 
         var model = ResolveModelInProvider(provider, request.Model)
             ?? throw new InvalidOperationException($"厂商 {provider.Name} 下找不到模型：{request.Model}");
+        UsageTracker.RecordModel(model.Name, model.ContextLength);
 
         logger.LogInformation(
             "Ollama Proxy 转发请求：RequestId={RequestId}, Provider={Provider}, Model={Model}",

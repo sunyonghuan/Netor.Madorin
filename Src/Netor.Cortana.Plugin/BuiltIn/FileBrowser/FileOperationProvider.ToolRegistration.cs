@@ -27,7 +27,8 @@ public sealed partial class FileOperationProvider
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_write_files_batch",
             description: "Write multiple files in a single call. Each file can control overwrite individually. Supports optional backup and stop-on-error behavior.",
-            method: WriteFilesBatchAsync));
+            method: WriteFilesBatchAsync,
+            serializerOptions: FileBrowserToolJsonContext.Default.Options));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_edit_file",

@@ -18,7 +18,10 @@ public sealed class OllamaProviderDriver(IHttpClientFactory httpClientFactory) :
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentNullException.ThrowIfNull(model);
 
-        return new OllamaApiClient(provider.Url, model.Name);
+        var httpClient = _httpClientFactory.CreateClient();
+        httpClient.BaseAddress = new Uri(provider.Url.TrimEnd('/') + "/");
+
+        return new OllamaDelegatingChatClient(new OllamaApiClient(httpClient, model.Name, OllamaJsonSerializerContextProvider.Default));
     }
 
     public override ChatOptions BuildChatOptions(AiProviderEntity provider, AgentEntity agent)
@@ -35,7 +38,7 @@ public sealed class OllamaProviderDriver(IHttpClientFactory httpClientFactory) :
         var httpClient = _httpClientFactory.CreateClient();
         httpClient.BaseAddress = new Uri(provider.Url.TrimEnd('/') + "/");
 
-        var client = new OllamaApiClient(httpClient);
+        var client = new OllamaApiClient(httpClient, jsonSerializerContext: OllamaJsonSerializerContextProvider.Default);
         var models = await client.ListLocalModelsAsync(cancellationToken).ConfigureAwait(false);
 
         return models.Select(model => new RemoteModelDescriptor(

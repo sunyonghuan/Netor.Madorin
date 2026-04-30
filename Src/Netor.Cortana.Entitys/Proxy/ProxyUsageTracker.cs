@@ -14,6 +14,7 @@ public sealed class ProxyUsageTracker
     private long _succeededRequests;
     private long _failedRequests;
     private string _lastError = string.Empty;
+    private string _lastModelName = string.Empty;
 
     /// <summary>
     /// 用量变化事件。UI 可订阅该事件刷新 ProxyWindow。
@@ -44,6 +45,8 @@ public sealed class ProxyUsageTracker
     public long FailedRequests => Volatile.Read(ref _failedRequests);
 
     public string LastError => Volatile.Read(ref _lastError) ?? string.Empty;
+
+    public string LastModelName => Volatile.Read(ref _lastModelName) ?? string.Empty;
 
     /// <summary>
     /// 标记请求开始。
@@ -102,6 +105,24 @@ public sealed class ProxyUsageTracker
     }
 
     /// <summary>
+    /// 记录最近一次实际请求使用的模型，并同步该模型的上下文窗口上限。
+    /// </summary>
+    public void RecordModel(string? modelName, long? maxContextTokens = null)
+    {
+        if (!string.IsNullOrWhiteSpace(modelName))
+        {
+            Volatile.Write(ref _lastModelName, modelName.Trim());
+        }
+
+        if (maxContextTokens is > 0)
+        {
+            Interlocked.Exchange(ref _maxContextTokens, maxContextTokens.Value);
+        }
+
+        RaiseChanged();
+    }
+
+    /// <summary>
     /// 重置统计数据。
     /// </summary>
     public void Reset()
@@ -113,6 +134,7 @@ public sealed class ProxyUsageTracker
         Interlocked.Exchange(ref _succeededRequests, 0);
         Interlocked.Exchange(ref _failedRequests, 0);
         Volatile.Write(ref _lastError, string.Empty);
+        Volatile.Write(ref _lastModelName, string.Empty);
         RaiseChanged();
     }
 
@@ -128,7 +150,8 @@ public sealed class ProxyUsageTracker
         ActiveRequests,
         SucceededRequests,
         FailedRequests,
-        LastError);
+        LastError,
+        LastModelName);
 
     private void RaiseChanged()
     {
