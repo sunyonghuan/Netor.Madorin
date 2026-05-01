@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Cortana.Plugins.Memory.Models;
+using Cortana.Plugins.Memory.Serialization;
 using Cortana.Plugins.Memory.Storage;
 using Microsoft.Extensions.Logging;
 
@@ -58,7 +59,7 @@ public sealed class MemoryProcessingService(
 
             result.State = "completed";
             result.Summary = $"处理观察记录 {result.ProcessedObservationCount} 条，创建长期记忆 {result.CreatedFragmentCount} 条，合并 {result.MergedFragmentCount} 条，失败 {result.FailedObservationCount} 条。";
-            InsertProcessingEvent("processing.completed", request.AgentId ?? "global", result, traceId);
+            InsertProcessingResultEvent("processing.completed", request.AgentId ?? "global", result);
 
             // 触发抽象记忆生成（降级实现或宿主适配后会使用模型）
             try
@@ -82,7 +83,7 @@ public sealed class MemoryProcessingService(
 
             result.State = "failed";
             result.Summary = ex.Message;
-            InsertProcessingEvent("processing.failed", request.AgentId ?? "global", result, traceId);
+            InsertProcessingResultEvent("processing.failed", request.AgentId ?? "global", result);
             return result;
         }
     }
@@ -109,15 +110,23 @@ public sealed class MemoryProcessingService(
                     var fragment = CreateFragment(candidate, traceId);
                     store.UpsertMemoryFragment(fragment);
                     result.CreatedFragmentCount++;
-                    InsertMutation(fragment.AgentId, fragment.Id, "fragment", "create", null, JsonSerializer.Serialize(fragment), "记忆数据处理创建长期记忆。", traceId);
-                    InsertProcessingEvent("fragment.extracted", fragment.AgentId, new { FragmentId = fragment.Id, ObservationId = observation.Id, traceId }, traceId);
+                    InsertMutation(fragment.AgentId, fragment.Id, "fragment", "create", null, JsonSerializer.Serialize(fragment, MemoryInternalJsonContext.Default.MemoryFragment), "记忆数据处理创建长期记忆。", traceId);
+                    InsertFragmentExtractedEvent(fragment.AgentId, fragment.Id, observation.Id, traceId);
                 }
                 else
                 {
                     var merged = MergeFragment(existing, candidate);
                     store.UpsertMemoryFragment(merged);
                     result.MergedFragmentCount++;
-                    InsertMutation(merged.AgentId, merged.Id, "fragment", "merge", JsonSerializer.Serialize(existing), JsonSerializer.Serialize(merged), "记忆数据处理合并相似长期记忆。", traceId);
+                    InsertMutation(
+                        merged.AgentId,
+                        merged.Id,
+                        "fragment",
+                        "merge",
+                        JsonSerializer.Serialize(existing, MemoryInternalJsonContext.Default.MemoryFragment),
+                        JsonSerializer.Serialize(merged, MemoryInternalJsonContext.Default.MemoryFragment),
+                        "记忆数据处理合并相似长期记忆。",
+                        traceId);
                 }
             }
         }
@@ -125,7 +134,7 @@ public sealed class MemoryProcessingService(
         {
             result.FailedObservationCount++;
             logger.LogWarning(ex, "处理观察记录 {ObservationId} 失败，TraceId={TraceId}。", observation.Id, traceId);
-            InsertProcessingEvent("processing.failed", observation.AgentId ?? "global", new { observation.Id, Error = ex.Message, traceId }, traceId);
+            InsertObservationFailedEvent(observation.AgentId ?? "global", observation.Id, ex.Message, traceId);
         }
     }
 
@@ -146,11 +155,11 @@ public sealed class MemoryProcessingService(
             Title = candidate.Title,
             Summary = candidate.Summary,
             Detail = candidate.Detail,
-            KeywordsJson = JsonSerializer.Serialize(candidate.Keywords),
-            TagsJson = JsonSerializer.Serialize(new[] { "memory-processing", $"trace:{traceId}" }),
-            SourceObservationIdsJson = JsonSerializer.Serialize(new[] { observation.Id }),
-            SourceSessionIdsJson = JsonSerializer.Serialize(new[] { observation.SessionId }),
-            SourceTurnIdsJson = string.IsNullOrWhiteSpace(observation.TurnId) ? null : JsonSerializer.Serialize(new[] { observation.TurnId }),
+            KeywordsJson = JsonSerializer.Serialize((IReadOnlyList<string>)candidate.Keywords, MemoryInternalJsonContext.Default.IReadOnlyListString),
+            TagsJson = JsonSerializer.Serialize(new[] { "memory-processing", $"trace:{traceId}" }, MemoryInternalJsonContext.Default.StringArray),
+            SourceObservationIdsJson = JsonSerializer.Serialize(new[] { observation.Id }, MemoryInternalJsonContext.Default.StringArray),
+            SourceSessionIdsJson = JsonSerializer.Serialize(new[] { observation.SessionId }, MemoryInternalJsonContext.Default.StringArray),
+            SourceTurnIdsJson = string.IsNullOrWhiteSpace(observation.TurnId) ? null : JsonSerializer.Serialize(new[] { observation.TurnId }, MemoryInternalJsonContext.Default.StringArray),
             Importance = Clamp(candidate.Importance),
             Confidence = Clamp(candidate.Confidence),
             Novelty = Clamp(candidate.Novelty),
@@ -191,14 +200,50 @@ public sealed class MemoryProcessingService(
         return existing;
     }
 
-    private void InsertProcessingEvent(string eventType, string agentId, object payload, string traceId)
+    private void InsertFragmentExtractedEvent(string agentId, string fragmentId, string observationId, string traceId)
+    {
+        var payload = new FragmentExtractedEventPayload
+        {
+            FragmentId = fragmentId,
+            ObservationId = observationId,
+            TraceId = traceId
+        };
+        store.InsertMemoryEvent(new MemoryEvent
+        {
+            EventId = Guid.NewGuid().ToString("N"),
+            AgentId = string.IsNullOrWhiteSpace(agentId) ? "global" : agentId,
+            EventType = "fragment.extracted",
+            PayloadJson = JsonSerializer.Serialize(payload, MemoryInternalJsonContext.Default.FragmentExtractedEventPayload),
+            ProcessedAt = DateTimeOffset.UtcNow.ToString("O")
+        });
+    }
+
+    private void InsertObservationFailedEvent(string agentId, string observationId, string error, string traceId)
+    {
+        var payload = new ProcessingFailedEventPayload
+        {
+            ObservationId = observationId,
+            Error = error,
+            TraceId = traceId
+        };
+        store.InsertMemoryEvent(new MemoryEvent
+        {
+            EventId = Guid.NewGuid().ToString("N"),
+            AgentId = string.IsNullOrWhiteSpace(agentId) ? "global" : agentId,
+            EventType = "processing.failed",
+            PayloadJson = JsonSerializer.Serialize(payload, MemoryInternalJsonContext.Default.ProcessingFailedEventPayload),
+            ProcessedAt = DateTimeOffset.UtcNow.ToString("O")
+        });
+    }
+
+    private void InsertProcessingResultEvent(string eventType, string agentId, MemoryProcessingResult result)
     {
         store.InsertMemoryEvent(new MemoryEvent
         {
             EventId = Guid.NewGuid().ToString("N"),
             AgentId = string.IsNullOrWhiteSpace(agentId) ? "global" : agentId,
             EventType = eventType,
-            PayloadJson = JsonSerializer.Serialize(payload),
+            PayloadJson = JsonSerializer.Serialize(result, MemoryInternalJsonContext.Default.MemoryProcessingResult),
             ProcessedAt = DateTimeOffset.UtcNow.ToString("O")
         });
     }
@@ -224,10 +269,10 @@ public sealed class MemoryProcessingService(
     {
         var values = string.IsNullOrWhiteSpace(json)
             ? []
-            : JsonSerializer.Deserialize<List<string>>(json) ?? [];
+            : JsonSerializer.Deserialize(json, MemoryInternalJsonContext.Default.ListString) ?? [];
 
         if (!values.Contains(value, StringComparer.Ordinal)) values.Add(value);
-        return JsonSerializer.Serialize(values);
+        return JsonSerializer.Serialize(values, MemoryInternalJsonContext.Default.ListString);
     }
 
     private static double CalculateSalience(double importance, double confidence, double novelty, string role)

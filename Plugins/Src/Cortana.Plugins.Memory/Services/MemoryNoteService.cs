@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Cortana.Plugins.Memory.Models;
+using Cortana.Plugins.Memory.Serialization;
 using Cortana.Plugins.Memory.Storage;
 
 namespace Cortana.Plugins.Memory.Services;
@@ -9,7 +10,6 @@ namespace Cortana.Plugins.Memory.Services;
 /// </summary>
 public sealed class MemoryNoteService(IMemoryStore store) : IMemoryNoteService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly HashSet<string> AllowedMemoryTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "fact",
@@ -46,7 +46,7 @@ public sealed class MemoryNoteService(IMemoryStore store) : IMemoryNoteService
             Summary = content,
             Detail = content,
             KeywordsJson = "[]",
-            TagsJson = JsonSerializer.Serialize(new[] { "manual", "tool" }, JsonOptions),
+            TagsJson = JsonSerializer.Serialize(new[] { "manual", "tool" }, MemoryInternalJsonContext.Default.StringArray),
             EntitiesJson = "[]",
             SourceObservationIdsJson = "[]",
             SourceSessionIdsJson = "[]",
@@ -61,7 +61,7 @@ public sealed class MemoryNoteService(IMemoryStore store) : IMemoryNoteService
             ClarityLevel = "clear",
             ConfirmationState = "pending",
             LifecycleState = "candidate",
-            CompatibilityTagsJson = JsonSerializer.Serialize(new[] { "manual-note-v1" }, JsonOptions),
+            CompatibilityTagsJson = JsonSerializer.Serialize(new[] { "manual-note-v1" }, MemoryInternalJsonContext.Default.StringArray),
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -74,7 +74,7 @@ public sealed class MemoryNoteService(IMemoryStore store) : IMemoryNoteService
             MemoryKind = "fragment",
             MutationType = "manual_create",
             BeforeJson = null,
-            AfterJson = JsonSerializer.Serialize(fragment, JsonOptions),
+            AfterJson = JsonSerializer.Serialize(fragment, MemoryInternalJsonContext.Default.MemoryFragment),
             Reason = request.Reason.Trim(),
             TraceId = traceId,
             CreatedAt = now

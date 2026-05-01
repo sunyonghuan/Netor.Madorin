@@ -1,4 +1,5 @@
 using Cortana.Plugins.Memory.Models;
+using Cortana.Plugins.Memory.Serialization;
 using Cortana.Plugins.Memory.Storage;
 
 using Microsoft.Extensions.Hosting;
@@ -78,14 +79,14 @@ public sealed class MemoryIngestService(PluginSettings settings, ILogger<MemoryI
         }
 
         // 2) 发送 subscribe
-        var sub = new
+        var sub = new ConversationFeedSubscribeFrame
         {
-            type = "subscribe",
-            topics = new[] { "conversation" },
-            protocol = "conversation-feed",
-            version = "1.0.0"
+            Type = "subscribe",
+            Topics = ["conversation"],
+            Protocol = "conversation-feed",
+            Version = "1.0.0"
         };
-        var json = JsonSerializer.Serialize(sub);
+        var json = JsonSerializer.Serialize(sub, MemoryInternalJsonContext.Default.ConversationFeedSubscribeFrame);
         await ws.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, ct).ConfigureAwait(false);
 
         // 3) 等 subscribed
@@ -97,8 +98,10 @@ public sealed class MemoryIngestService(PluginSettings settings, ILogger<MemoryI
         }
 
         // 3.5) 触发历史回放（since=0）
-        var replay = new { type = "replay", sinceTimestamp = 0, batchSize = 500 };
-        await ws.SendAsync(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(replay)), WebSocketMessageType.Text, true, ct).ConfigureAwait(false);
+        var replay = new ConversationFeedReplayFrame { Type = "replay", SinceTimestamp = 0, BatchSize = 500 };
+        await ws.SendAsync(
+            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(replay, MemoryInternalJsonContext.Default.ConversationFeedReplayFrame)),
+            WebSocketMessageType.Text, true, ct).ConfigureAwait(false);
 
         // 4) 主接收循环：batch 入库 + 实时事件最小入库
         var buffer = new byte[16 * 1024];

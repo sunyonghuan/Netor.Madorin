@@ -120,7 +120,8 @@
 						<TextBlock Grid.Column="1" Classes="val"
                                    Text="{Binding ContextUsagePercent, StringFormat='{}{0}%'}" />
 					</Grid>
-					<ProgressBar Minimum="0" Maximum="100" Value="{Binding ContextUsagePercent}" Height="4" />
+					<ProgressBar Minimum="0" Maximum="100" Value="{Binding ContextUsagePercent}" Height="4"
+                                 Foreground="{StaticResource GreenBrush}" />
 					<Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="2">
 						<TextBlock Text="输入 / 上限" Classes="lbl" />
 						<TextBlock Grid.Column="1" Classes="val">

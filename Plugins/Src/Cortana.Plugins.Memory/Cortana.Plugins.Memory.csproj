@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -6,13 +6,32 @@
     <Nullable>enable</Nullable>
     <AssemblyName>memory</AssemblyName>
     <Version>1.0.0</Version>
+    <!--
+      默认作为插件 DLL 构建。MCP 控制台模式发布时通过命令行覆盖：
+        dotnet publish ... -p:OutputType=Exe
+      Mcp/ 与 Program.cs 仅在 Exe 模式下编译，保持插件分发体积。
+    -->
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.5" />
     <PackageReference Include="Netor.Cortana.Plugin.Native" Version="1.0.21" />
+    <!--
+      MCP SDK 始终引用，使 Mcp/ 适配层可作为标准类型暴露并支持单元测试。
+      插件库模式下 SDK 程序集会与插件一同分发，但宿主不会扫描 [McpServerTool]，运行时无副作用。
+    -->
+    <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
   </ItemGroup>
 
+  <!-- MCP 控制台模式专用：仅在 OutputType=Exe 时引入 Hosting，并参与 Program.cs 编译 -->
+  <ItemGroup Condition="'$(OutputType)' == 'Exe'">
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+  </ItemGroup>
+
+  <!-- 插件库模式不包含 MCP 控制台入口 -->
+  <ItemGroup Condition="'$(OutputType)' != 'Exe'">
+    <Compile Remove="Program.cs" />
+  </ItemGroup>
 
 </Project>

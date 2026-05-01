@@ -1,4 +1,5 @@
 using Cortana.Plugins.Memory.Models;
+using Cortana.Plugins.Memory.Serialization;
 using System.Text.Json;
 
 namespace Cortana.Plugins.Memory.Processing;
@@ -31,8 +32,8 @@ public sealed class FallbackMemoryAbstractionGenerator : IMemoryAbstractionGener
             Title = topic,
             Statement = statement,
             Summary = summary,
-            SupportingMemoryIdsJson = JsonSerializer.Serialize(supportingIds),
-            KeywordsJson = JsonSerializer.Serialize(new[] { topic }),
+            SupportingMemoryIdsJson = JsonSerializer.Serialize(supportingIds, MemoryInternalJsonContext.Default.StringArray),
+            KeywordsJson = JsonSerializer.Serialize(new[] { topic }, MemoryInternalJsonContext.Default.StringArray),
             Importance = top.Average(f => f.Importance),
             Confidence = Math.Min(1.0, top.Average(f => f.Confidence) + 0.05),
             StabilityScore = top.Average(f => f.Confidence),

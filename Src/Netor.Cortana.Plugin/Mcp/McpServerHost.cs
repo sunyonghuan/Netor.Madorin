@@ -163,6 +163,7 @@ public sealed class McpServerHost : IAsyncDisposable
 
     /// <summary>
     /// 监听 McpClient.Completion，当连接断开时自动触发重连。
+    /// 无论 Completion 是正常完成还是以异常结束，统一走断线处理流程。
     /// </summary>
     private async Task MonitorConnectionAsync(McpClient client)
     {
@@ -178,67 +179,98 @@ public sealed class McpServerHost : IAsyncDisposable
                     "MCP Server [{Name}] 连接异常断开", _config.Name);
             else
                 _logger.LogInformation("MCP Server [{Name}] 连接已关闭", _config.Name);
-
-            // 清理旧连接
-            await CleanupConnectionAsync(null);
-            ConnectionStateChanged?.Invoke(this);
-
-            // 启动自动重连
-            await ReconnectWithBackoffAsync();
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+            // 主动释放，无需重连
+            return;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "MCP Server [{Name}] 连接监听异常", _config.Name);
-            if (!_disposed && _client is null)
-            {
-                // 监听异常退出且非主动释放 → 触发重连
-                StartReconnecting();
-            }
+            // Completion 以异常结束（faulted task），同样视为断线
+            if (_disposed || _client != client) return;
+            _logger.LogWarning(ex, "MCP Server [{Name}] 连接异常断开", _config.Name);
         }
+
+        // 已被主动 Dispose 或已启动新连接，无需重连
+        if (_disposed || _client != client) return;
+
+        // 清理旧连接并通知 UI
+        await CleanupConnectionAsync(null);
+        ConnectionStateChanged?.Invoke(this);
+
+        // 启动自动重连（无 await，避免长时间占用监听任务）
+        StartReconnecting();
     }
 
     /// <summary>
-    /// 无限重连，递增退避（10s → 20s → 30s → 60s 循环）。
+    /// 无限重连，递增退避（2s → 5s → 10s → 30s → 60s 循环）。
     /// 仅通过 <see cref="StopReconnecting"/> 或 Dispose 终止。
     /// </summary>
     private async Task ReconnectWithBackoffAsync()
     {
         if (_disposed) return;
 
-        _reconnectCts = new CancellationTokenSource();
-        var ct = _reconnectCts.Token;
-
-        for (int attempt = 1; !ct.IsCancellationRequested; attempt++)
+        // 重入保护：若已有重连循环在跑，直接返回，避免并发多个循环
+        if (_reconnectCts is { IsCancellationRequested: false })
         {
-            var delaySec = ReconnectDelaysSec[Math.Min(attempt - 1, ReconnectDelaysSec.Length - 1)];
+            _logger.LogDebug("MCP [{Name}] 已有重连循环在运行，跳过重复启动", _config.Name);
+            return;
+        }
 
-            _logger.LogInformation(
-                "MCP [{Name}] 第 {Attempt} 次重连，{Delay}s 后开始",
-                _config.Name, attempt, delaySec);
+        var cts = new CancellationTokenSource();
+        _reconnectCts = cts;
+        var ct = cts.Token;
 
-            try
+        try
+        {
+            for (int attempt = 1; !ct.IsCancellationRequested; attempt++)
             {
-                await Task.Delay(delaySec * 1000, ct);
-                await ConnectCoreAsync(ct);
+                var delaySec = ReconnectDelaysSec[Math.Min(attempt - 1, ReconnectDelaysSec.Length - 1)];
 
-                _logger.LogInformation("MCP [{Name}] 重连成功", _config.Name);
+                _logger.LogInformation(
+                    "MCP [{Name}] 第 {Attempt} 次重连，{Delay}s 后开始",
+                    _config.Name, attempt, delaySec);
+
+                try
+                {
+                    await Task.Delay(delaySec * 1000, ct);
+                    await ConnectCoreAsync(ct);
+
+                    _logger.LogInformation("MCP [{Name}] 重连成功", _config.Name);
+                    // 重连成功后再次刷新 UI 状态（ConnectCoreAsync 已通知一次，这里确保 IsReconnecting 归位后再通知）
+                    return; // MonitorConnectionAsync 已在 ConnectCoreAsync 内启动
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogDebug("MCP [{Name}] 重连已取消", _config.Name);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    // 仅记录简要信息，不记录完整堆栈，避免日志膨胀
+                    _logger.LogWarning(
+                        "MCP [{Name}] 第 {Attempt} 次重连失败：{Error}",
+                        _config.Name, attempt, ex.Message);
+
+                    // 重连失败则不归零，继续递增间隔
+                }
+            }
+        }
+        finally
+        {
+            // 退出循环时清理 CTS，使 IsReconnecting 正确归位
+            // 仅当当前 CTS 仍是自己持有的那个时才清理（防止被 StopReconnecting 已替换）
+            if (ReferenceEquals(_reconnectCts, cts))
+            {
+                _reconnectCts = null;
+            }
+            try { cts.Dispose(); } catch { }
+
+            // 通知 UI 重连状态结束（连上→刷新为已连接，未连上但取消→刷新为已断开）
+            if (!_disposed)
+            {
                 ConnectionStateChanged?.Invoke(this);
-                return; // MonitorConnectionAsync 已在 ConnectCoreAsync 内启动
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogDebug("MCP [{Name}] 重连已取消", _config.Name);
-                return;
-            }
-            catch (Exception ex)
-            {
-                // 仅记录简要信息，不记录完整堆栈，避免日志膨胀
-                _logger.LogWarning(
-                    "MCP [{Name}] 第 {Attempt} 次重连失败：{Error}",
-                    _config.Name, attempt, ex.Message);
-
-                // 重连成功后，下次断开从头开始退避（attempt 归零）
-                // 重连失败则不归零，继续递增间隔
             }
         }
     }

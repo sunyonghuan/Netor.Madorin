@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Cortana.Plugins.Memory.Models;
+using Cortana.Plugins.Memory.Serialization;
 using Cortana.Plugins.Memory.Storage;
 
 namespace Cortana.Plugins.Memory.Services;
@@ -53,6 +54,8 @@ public sealed class MemoryRecallService(IMemoryStore store, IMemorySettingsServi
         var confidence = windowItems.Count == 0 ? 0 : Math.Round(windowItems.Average(static item => item.Confidence), 4);
         var summary = BuildSummary(windowItems, windows);
 
+        var hitMemoryIds = windowItems.Select(static item => item.Id).ToArray();
+        var hitMemoryIdsJson = JsonSerializer.Serialize(hitMemoryIds, MemoryInternalJsonContext.Default.StringArray);
         store.InsertRecallLog(new RecallLog
         {
             Id = Guid.NewGuid().ToString("N"),
@@ -62,24 +65,28 @@ public sealed class MemoryRecallService(IMemoryStore store, IMemorySettingsServi
             QueryText = request.QueryText,
             QueryIntent = request.QueryIntent,
             TriggerSource = request.TriggerSource,
-            HitMemoryIdsJson = JsonSerializer.Serialize(windowItems.Select(static item => item.Id)),
-            SupportingMemoryIdsJson = JsonSerializer.Serialize(windowItems.Select(static item => item.Id)),
+            HitMemoryIdsJson = hitMemoryIdsJson,
+            SupportingMemoryIdsJson = hitMemoryIdsJson,
             SuppressedMemoryIdsJson = "[]",
             RecallSummary = summary,
             Confidence = confidence,
-            BudgetJson = JsonSerializer.Serialize(new
-            {
-                options.MaxWindowCount,
-                options.MaxMemoryCount,
-                options.MinimumConfidence
-            }),
-            AppliedPolicyJson = JsonSerializer.Serialize(new
-            {
-                options.IncludeCandidateMemories,
-                Ranking = "confidence/salience/retention/access/text-match",
-                Source = "memory-store-keyword",
-                SupportsPendingCandidateOnQueryMatch = true
-            }),
+            BudgetJson = JsonSerializer.Serialize(
+                new RecallBudgetSnapshot
+                {
+                    MaxWindowCount = options.MaxWindowCount,
+                    MaxMemoryCount = options.MaxMemoryCount,
+                    MinimumConfidence = options.MinimumConfidence
+                },
+                MemoryInternalJsonContext.Default.RecallBudgetSnapshot),
+            AppliedPolicyJson = JsonSerializer.Serialize(
+                new RecallPolicySnapshot
+                {
+                    IncludeCandidateMemories = options.IncludeCandidateMemories,
+                    Ranking = "confidence/salience/retention/access/text-match",
+                    Source = "memory-store-keyword",
+                    SupportsPendingCandidateOnQueryMatch = true
+                },
+                MemoryInternalJsonContext.Default.RecallPolicySnapshot),
             TraceId = request.TraceId,
             CreatedAt = accessedAt
         });

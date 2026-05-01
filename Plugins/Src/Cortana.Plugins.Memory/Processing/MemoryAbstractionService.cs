@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Cortana.Plugins.Memory.Models;
+using Cortana.Plugins.Memory.Serialization;
 using Cortana.Plugins.Memory.Storage;
 using Microsoft.Extensions.Logging;
 
@@ -26,20 +27,25 @@ public sealed class MemoryAbstractionService(
 
                 var abstraction = generator.GenerateAbstraction(ag, workspaceId, topic, list, Guid.NewGuid().ToString("N"));
                 store.UpsertMemoryAbstraction(abstraction);
-                InsertMutation(ag, abstraction.Id, "abstraction", "create", null, JsonSerializer.Serialize(abstraction), "抽象记忆批处理生成。", null!);
-                InsertProcessingEvent("abstraction.created", ag, new { AbstractionId = abstraction.Id, Supporting = abstraction.SupportingMemoryIdsJson }, null!);
+                InsertMutation(ag, abstraction.Id, "abstraction", "create", null, JsonSerializer.Serialize(abstraction, MemoryInternalJsonContext.Default.MemoryAbstraction), "抽象记忆批处理生成。", null!);
+                InsertAbstractionCreatedEvent(ag, abstraction.Id, abstraction.SupportingMemoryIdsJson);
             }
         }
     }
 
-    private void InsertProcessingEvent(string eventType, string agentId, object payload, string traceId)
+    private void InsertAbstractionCreatedEvent(string agentId, string abstractionId, string supportingMemoryIdsJson)
     {
+        var payload = new AbstractionCreatedEventPayload
+        {
+            AbstractionId = abstractionId,
+            SupportingMemoryIdsJson = supportingMemoryIdsJson
+        };
         store.InsertMemoryEvent(new MemoryEvent
         {
             EventId = Guid.NewGuid().ToString("N"),
             AgentId = string.IsNullOrWhiteSpace(agentId) ? "global" : agentId,
-            EventType = eventType,
-            PayloadJson = JsonSerializer.Serialize(payload),
+            EventType = "abstraction.created",
+            PayloadJson = JsonSerializer.Serialize(payload, MemoryInternalJsonContext.Default.AbstractionCreatedEventPayload),
             ProcessedAt = DateTimeOffset.UtcNow.ToString("O")
         });
     }

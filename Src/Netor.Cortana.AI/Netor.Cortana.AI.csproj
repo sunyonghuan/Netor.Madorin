@@ -7,6 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Services\**" />
+    <EmbeddedResource Remove="Services\**" />
+    <None Remove="Services\**" />
+  </ItemGroup>
+
+  <ItemGroup>
 	<PackageReference Include="Microsoft.Agents.AI" Version="1.3.0" />
 	<PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.3.0" />
 	<PackageReference Include="Microsoft.Agents.AI.Workflows" Version="1.3.0" />
@@ -22,10 +28,6 @@
   <ItemGroup>
 	<ProjectReference Include="..\Netor.Cortana.Entitys\Netor.Cortana.Entitys.csproj" />
 	<ProjectReference Include="..\Netor.Cortana.Plugin\Netor.Cortana.Plugin.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Services\" />
   </ItemGroup>
 
 </Project>
