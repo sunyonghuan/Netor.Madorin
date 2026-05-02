@@ -96,14 +96,24 @@ internal sealed record ConversationExportBatch
 }
 
 /// <summary>
-/// 导出消息最小列集。
+/// 历史导出消息记录。
 /// </summary>
 internal sealed record ConversationExportRecord
 {
     [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
+    [JsonPropertyName("agentId")] public string? AgentId { get; init; }
+    [JsonPropertyName("workspaceId")] public string? WorkspaceId { get; init; }
     [JsonPropertyName("sessionId")] public string SessionId { get; init; } = string.Empty;
+    [JsonPropertyName("turnId")] public string? TurnId { get; init; }
+    [JsonPropertyName("messageId")] public string? MessageId { get; init; }
+    [JsonPropertyName("eventType")] public string? EventType { get; init; }
     [JsonPropertyName("role")] public string Role { get; init; } = string.Empty;
     [JsonPropertyName("content")] public string? Content { get; init; }
     [JsonPropertyName("createdTimestamp")] public long CreatedTimestamp { get; init; }
+    [JsonPropertyName("providerId")] public string? ProviderId { get; init; }
+    [JsonPropertyName("providerName")] public string? ProviderName { get; init; }
+    [JsonPropertyName("agentName")] public string? AgentName { get; init; }
+    [JsonPropertyName("modelId")] public string? ModelId { get; init; }
     [JsonPropertyName("modelName")] public string? ModelName { get; init; }
+    [JsonPropertyName("traceId")] public string? TraceId { get; init; }
 }

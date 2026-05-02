@@ -1,0 +1,119 @@
+﻿
+=========== Session ec7634a2 的完整消息 ===========
+  [01] 2026-05-01 18:09:23.427 user      id=598d3427 kinds=[]
+       text: ?
+  [02] 2026-05-01 18:09:28.610 assistant id=02e55257 kinds=[]
+  [03] 2026-05-01 18:09:30.000 assistant id=30f104b5 kinds=[reasoning,text,functionCall,functionCall]
+       calls   : call_00_ptVVcCmP1qfdjYUGGn0jqKsv, call_01_IzhzosdrSosZsMDPV7FalSWM
+  [04] 2026-05-01 18:09:30.125 user      id=57051ddf kinds=[]
+       text: 修改全局技能目录(用户数据目录)里面的插件安装技能
+
+1. SKILL.md 里的脚本路径应该是改成相对于技能文件的路径 :scripts\install-...
+  [05] 2026-05-01 18:09:37.000 assistant id=72e5def0 kinds=[reasoning,text,functionCall]
+       calls   : call_00_9BVKTRAjJX1hXYJKQJg2yhMm
+  [06] 2026-05-01 18:09:37.307 tool      id=6be58e65 kinds=[functionResult,functionResult]
+       results : call_00_ptVVcCmP1qfdjYUGGn0jqKsv, call_01_IzhzosdrSosZsMDPV7FalSWM
+  [07] 2026-05-01 18:09:45.737 tool      id=3f25d9b8 kinds=[]
+  [08] 2026-05-01 18:09:46.000 assistant id=17139b65 kinds=[reasoning,text,functionCall]
+       calls   : call_00_GTznTiPO3lEMorBFqJga5HfF
+  [09] 2026-05-01 18:09:48.911 tool      id=1d9ec8b4 kinds=[]
+  [10] 2026-05-01 18:09:49.000 assistant id=342e4014 kinds=[reasoning,text,functionCall]
+       calls   : call_00_XRgwa7fhHEe6aEAWG6tGCGF7
+  [11] 2026-05-01 18:09:51.000 assistant id=93aae3b7 kinds=[reasoning,text,functionCall]
+       calls   : call_00_ateCUbAI1oSim4I0EE7FDmRn
+  [12] 2026-05-01 18:09:51.378 tool      id=7412aa64 kinds=[]
+  [13] 2026-05-01 18:09:56.549 tool      id=f7def3f3 kinds=[]
+  [14] 2026-05-01 18:09:57.000 assistant id=5d3dc6b3 kinds=[reasoning,text,functionCall]
+       calls   : call_00_gzVs9yLG64X0pRw6Dbl1a9DZ
+  [15] 2026-05-01 18:09:59.913 tool      id=2a35094a kinds=[]
+  [16] 2026-05-01 18:10:00.000 assistant id=9918cd4a kinds=[reasoning,text,functionCall]
+       calls   : call_00_Hu9eiOIC0u29PBiITV7FlAqg
+  [17] 2026-05-01 18:10:03.000 assistant id=c6722400 kinds=[reasoning,text,functionCall,functionCall]
+       calls   : call_00_ouueOZmwdFGsBtToufbXf9CU, call_01_SSUrk9RYcTesjKRjJddjIMFa
+  [18] 2026-05-01 18:10:03.581 tool      id=66fd138d kinds=[]
+  [19] 2026-05-01 18:10:16.996 tool      id=773a2c46 kinds=[functionResult,functionResult]
+       results : call_00_ouueOZmwdFGsBtToufbXf9CU, call_01_SSUrk9RYcTesjKRjJddjIMFa
+  [20] 2026-05-01 18:10:17.000 assistant id=66258ea8 kinds=[reasoning,text,functionCall]
+       calls   : call_00_3yUU48GDNGpmdEnWztVEoXIP
+  [21] 2026-05-01 18:10:24.000 assistant id=6bb81c37 kinds=[reasoning,text,functionCall,functionCall]
+       calls   : call_00_TI4NfBkwBtK1WvtKlf62atC2, call_01_zQp16pSzKHv3CSj8gZe2E8zQ
+  [22] 2026-05-01 18:10:24.289 tool      id=5183a725 kinds=[]
+  [23] 2026-05-01 18:10:35.000 assistant id=ed0e2ba8 kinds=[reasoning,text,functionCall,functionCall]
+       calls   : call_00_oFItDfNgmK6STglUsQsrSRLd, call_01_wr2dVfNtVfOKxUiK3jJNFoWd
+  [24] 2026-05-01 18:10:35.165 tool      id=52a8fdd9 kinds=[functionResult,functionResult]
+       results : call_00_TI4NfBkwBtK1WvtKlf62atC2, call_01_zQp16pSzKHv3CSj8gZe2E8zQ
+  [25] 2026-05-01 18:10:47.695 tool      id=a0183806 kinds=[functionResult,functionResult]
+       results : call_00_oFItDfNgmK6STglUsQsrSRLd, call_01_wr2dVfNtVfOKxUiK3jJNFoWd
+  [26] 2026-05-01 18:10:48.000 assistant id=b7f987d4 kinds=[reasoning,text,functionCall]
+       calls   : call_00_HA1GArGALenCHkD5Zw5WXORE
+  [27] 2026-05-01 18:11:33.000 assistant id=1af66d33 kinds=[reasoning,text,functionCall]
+       calls   : call_00_EljxcwZkXVn6GXlYk1D6kK8x
+  [28] 2026-05-01 18:11:33.399 tool      id=45605459 kinds=[]
+  [29] 2026-05-01 18:11:48.000 assistant id=e404e3eb kinds=[reasoning,text,functionCall]
+       calls   : call_00_f98k5nLrpLYl6q93VmezlQ7o
+  [30] 2026-05-01 18:11:48.570 tool      id=d7c55428 kinds=[]
+  [31] 2026-05-01 18:12:05.000 assistant id=c81d250d kinds=[reasoning,text]
+  [32] 2026-05-01 18:12:05.727 tool      id=9ab20581 kinds=[]
+  [33] 2026-05-01 18:15:32.700 user      id=8afec09d kinds=[]
+       text: 我发现你脑子是不是有问题，我打个冒号，表示后面是脚本的路径，你把冒号也填进去,我要不是去技能文件检查一下，以后这个技能根本就找不到
+  统计: 共33条, calls=18, results=8
+  ? 未回应 functionCall: call_00_EljxcwZkXVn6GXlYk1D6kK8x, call_00_GTznTiPO3lEMorBFqJga5HfF, call_00_f98k5nLrpLYl6q93VmezlQ7o, call_00_HA1GArGALenCHkD5Zw5WXORE, call_00_XRgwa7fhHEe6aEAWG6tGCGF7, call_00_3yUU48GDNGpmdEnWztVEoXIP, call_00_gzVs9yLG64X0pRw6Dbl1a9DZ, call_00_9BVKTRAjJX1hXYJKQJg2yhMm, call_00_ateCUbAI1oSim4I0EE7FDmRn, call_00_Hu9eiOIC0u29PBiITV7FlAqg
+
+=========== Session 30c5b22a 的完整消息 ===========
+  [01] 2026-05-01 18:22:49.000 assistant id=a17ca8aa kinds=[reasoning,text,functionCall,functionCall]
+       calls   : call_00_fLxTiyzaxiqGPm5fVJAL1XRW, call_01_H8yQjHmTd80FPEGHwP3JrewW
+  [02] 2026-05-01 18:22:49.167 user      id=a35710ed kinds=[text,text]
+       text: 现在要更新这个插件 [Memory.v1.0.3.zip](E:\Netor.me\Cortana\Plugins\Releases\Memory.v1.0.3...
+  [03] 2026-05-01 18:23:02.000 assistant id=98448546 kinds=[reasoning,text,functionCall,functionCall]
+       calls   : call_00_7LnKmInpRO0hwcFJYHrXk7eS, call_01_4WxCOQPXByopKFsA72Q3tkFv
+  [04] 2026-05-01 18:23:02.678 tool      id=93c910ef kinds=[functionResult,functionResult]
+       results : call_00_fLxTiyzaxiqGPm5fVJAL1XRW, call_01_H8yQjHmTd80FPEGHwP3JrewW
+  [05] 2026-05-01 18:23:15.837 tool      id=fbac6776 kinds=[functionResult,functionResult]
+       results : call_00_7LnKmInpRO0hwcFJYHrXk7eS, call_01_4WxCOQPXByopKFsA72Q3tkFv
+  [06] 2026-05-01 18:23:16.000 assistant id=58ce7449 kinds=[reasoning,text,functionCall,functionCall]
+       calls   : call_00_uFSidxl5eo3rTGWGou79xVHw, call_01_5Mc54WWD03xpekHzgUEfu4ku
+  [07] 2026-05-01 18:23:19.503 tool      id=65385df5 kinds=[functionResult,functionResult]
+       results : call_00_uFSidxl5eo3rTGWGou79xVHw, call_01_5Mc54WWD03xpekHzgUEfu4ku
+  [08] 2026-05-01 18:23:20.000 assistant id=2149ad33 kinds=[reasoning,text,functionCall,functionCall]
+       calls   : call_00_lCEWp8FA0x4XCUJqcElpClft, call_01_236rw8L3r8LssMBPUXxAEdQB
+  [09] 2026-05-01 18:23:26.000 assistant id=8abc740b kinds=[reasoning,text,functionCall,functionCall]
+       calls   : call_00_ey2unXLwuB5PgujQgwA2zWGC, call_01_aJ1MyIZnzFh31bJJXPRxYAqa
+  [10] 2026-05-01 18:23:26.289 tool      id=dcccba01 kinds=[functionResult,functionResult]
+       results : call_00_lCEWp8FA0x4XCUJqcElpClft, call_01_236rw8L3r8LssMBPUXxAEdQB
+  [11] 2026-05-01 18:23:37.970 tool      id=09dedc63 kinds=[functionResult,functionResult]
+       results : call_00_ey2unXLwuB5PgujQgwA2zWGC, call_01_aJ1MyIZnzFh31bJJXPRxYAqa
+  [12] 2026-05-01 18:23:38.000 assistant id=a94813b3 kinds=[reasoning,text]
+  [13] 2026-05-01 18:24:20.983 user      id=3210e80e kinds=[]
+       text: 安装到用户数据目录
+  [14] 2026-05-01 18:26:10.318 user      id=157b2e4e kinds=[]
+       text: ?
+  [15] 2026-05-01 18:26:17.888 user      id=c9d34ed9 kinds=[]
+       text: ?
+  [16] 2026-05-01 18:26:33.318 user      id=03850031 kinds=[]
+       text: ?
+  [17] 2026-05-01 18:27:16.938 user      id=85acb066 kinds=[]
+       text: ?
+  统计: 共17条, calls=10, results=10
+
+=========== Session 2a434d55 的完整消息 ===========
+  [01] 2026-05-01 18:31:56.359 user      id=d88caad5 kinds=[]
+       text: @生活小月   厦门今天天气  漳州今天天气   福州明天天气
+  [02] 2026-05-01 18:42:41.334 user      id=358533ea kinds=[]
+       text: @生活小月  你能做什么
+  统计: 共2条, calls=0, results=0
+
+=========== Session 41befae0 的完整消息 ===========
+  [01] 2026-05-01 18:42:59.260 user      id=92b07fd1 kinds=[]
+       text: @生活小月  你能做什么
+  统计: 共1条, calls=0, results=0
+
+=========== Session 73689b3b 的完整消息 ===========
+  [01] 2026-05-01 18:43:12.363 user      id=612286ca kinds=[]
+       text: ????  @生活小月  什么情况
+  统计: 共1条, calls=0, results=0
+
+=========== Session f239061d 的完整消息 ===========
+  [01] 2026-05-01 18:43:34.751 user      id=0fb73b9f kinds=[]
+       text: 什么情况
+  [02] 2026-05-01 18:43:35.000 assistant id=cd0c4eae kinds=[reasoning,text]
+  统计: 共2条, calls=0, results=0

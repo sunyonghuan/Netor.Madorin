@@ -17,7 +17,8 @@ public sealed class MemoryP1ToolTests
     {
         var noteService = new FakeMemoryNoteService();
         var recentService = new FakeMemoryRecentService();
-        var handler = new MemoryWriteToolHandler(noteService, recentService, NullLogger<MemoryWriteToolHandler>.Instance);
+        var runtimeContext = new MemoryRuntimeContext("default", null, "tool-test");
+        var handler = new MemoryWriteToolHandler(noteService, recentService, runtimeContext, NullLogger<MemoryWriteToolHandler>.Instance);
         var tools = new MemoryWriteTools(handler);
 
         var json = tools.AddNote(
@@ -39,7 +40,8 @@ public sealed class MemoryP1ToolTests
     {
         var noteService = new FakeMemoryNoteService();
         var recentService = new FakeMemoryRecentService();
-        var handler = new MemoryWriteToolHandler(noteService, recentService, NullLogger<MemoryWriteToolHandler>.Instance);
+        var runtimeContext = new MemoryRuntimeContext("default", null, "tool-test");
+        var handler = new MemoryWriteToolHandler(noteService, recentService, runtimeContext, NullLogger<MemoryWriteToolHandler>.Instance);
         var tools = new MemoryWriteTools(handler);
 
         var json = tools.AddNote(
@@ -68,7 +70,8 @@ public sealed class MemoryP1ToolTests
     {
         var noteService = new FakeMemoryNoteService();
         var recentService = new FakeMemoryRecentService();
-        var handler = new MemoryWriteToolHandler(noteService, recentService, NullLogger<MemoryWriteToolHandler>.Instance);
+        var runtimeContext = new MemoryRuntimeContext("default", null, "tool-test");
+        var handler = new MemoryWriteToolHandler(noteService, recentService, runtimeContext, NullLogger<MemoryWriteToolHandler>.Instance);
         var tools = new MemoryWriteTools(handler);
 
         var json = tools.ListRecent(5, "fragment", MemoryTestData.WorkspaceId);

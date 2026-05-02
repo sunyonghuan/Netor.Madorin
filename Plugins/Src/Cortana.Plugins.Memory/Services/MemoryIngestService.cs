@@ -21,6 +21,7 @@ namespace Cortana.Plugins.Memory.Services;
 public sealed class MemoryIngestService(PluginSettings settings, ILogger<MemoryIngestService> logger, IMemoryStore store) : IHostedService
 {
     private readonly CancellationTokenSource _cts = new();
+    private readonly Dictionary<string, AssistantStreamBuffer> _assistantStreams = new(StringComparer.Ordinal);
     private Task? _loopTask;
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -104,14 +105,12 @@ public sealed class MemoryIngestService(PluginSettings settings, ILogger<MemoryI
             WebSocketMessageType.Text, true, ct).ConfigureAwait(false);
 
         // 4) 主接收循环：batch 入库 + 实时事件最小入库
-        var buffer = new byte[16 * 1024];
         try
         {
             while (!ct.IsCancellationRequested && ws.State == WebSocketState.Open)
             {
-                var result = await ws.ReceiveAsync(buffer, ct).ConfigureAwait(false);
-                if (result.MessageType == WebSocketMessageType.Close) break;
-                var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                var text = await ReadTextMessageAsync(ws, ct).ConfigureAwait(false);
+                if (text is null) break;
                 // 期待 { type: "event", topic: "conversation", eventType, payload }
                 try
                 {
@@ -133,7 +132,7 @@ public sealed class MemoryIngestService(PluginSettings settings, ILogger<MemoryI
                         continue;
                     }
 
-                    // 简化：对实时事件，我们只在 user.message/assistant.delta/turn.completed 场景尝试最小入库
+                    // 实时事件中 assistant.delta 是流式片段，只参与内存聚合；turn.completed 才落库完整助手输出。
                     if (root.TryGetProperty("payload", out var live) && live.ValueKind == JsonValueKind.Object)
                     {
                         TryIngestLiveEvent(eventType, live);
@@ -170,6 +169,7 @@ public sealed class MemoryIngestService(PluginSettings settings, ILogger<MemoryI
             {
                 Id = it.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? string.Empty : string.Empty,
                 AgentId = it.TryGetProperty("agentId", out var agEl) ? agEl.GetString() : null,
+                AgentName = GetString(it, "agentName", "AgentName"),
                 WorkspaceId = ResolveWorkspaceId(it),
                 SessionId = it.TryGetProperty("sessionId", out var sidEl) ? sidEl.GetString() ?? string.Empty : string.Empty,
                 TurnId = it.TryGetProperty("turnId", out var tEl) ? tEl.GetString() : null,
@@ -191,53 +191,59 @@ public sealed class MemoryIngestService(PluginSettings settings, ILogger<MemoryI
         logger.LogInformation("导入历史批次 {Count} 条", count);
     }
 
-    private void TryIngestLiveEvent(string? eventType, JsonElement live)
+    internal void TryIngestLiveEvent(string? eventType, JsonElement live)
     {
-        // 只处理最小列：为实时消息生成一个临时 id，用 turnId+seq 或 messageId 组合。
         string id;
-        string sessionId = live.TryGetProperty("SessionId", out var s) ? s.GetString() ?? string.Empty : string.Empty;
+        string sessionId = GetString(live, "sessionId", "SessionId") ?? string.Empty;
         string role;
         string? content = null;
         long ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        string? model = live.TryGetProperty("ModelName", out var mn) ? mn.GetString() : null;
+        string? model = GetString(live, "modelName", "ModelName", "modelId", "ModelId");
 
         if (string.Equals(eventType, "conversation.user.message", StringComparison.Ordinal))
         {
             role = "user";
-            id = live.TryGetProperty("UserMessageId", out var um) ? (um.GetString() ?? Guid.NewGuid().ToString("N")) : Guid.NewGuid().ToString("N");
-            content = live.TryGetProperty("Content", out var c) ? c.GetString() : null;
+            id = GetString(live, "userMessageId", "UserMessageId") ?? Guid.NewGuid().ToString("N");
+            content = GetString(live, "content", "Content");
         }
         else if (string.Equals(eventType, "conversation.assistant.delta", StringComparison.Ordinal))
         {
-            role = "assistant";
-            var aid = live.TryGetProperty("AssistantMessageId", out var am) ? (am.GetString() ?? Guid.NewGuid().ToString("N")) : Guid.NewGuid().ToString("N");
-            var seq = live.TryGetProperty("Sequence", out var q) ? q.GetInt32() : 0;
-            id = $"{aid}_{seq:000000}";
-            content = live.TryGetProperty("Delta", out var d) ? d.GetString() : null;
+            BufferAssistantDelta(live);
+            return;
         }
         else if (string.Equals(eventType, "conversation.turn.completed", StringComparison.Ordinal))
         {
             role = "assistant";
-            id = live.TryGetProperty("AssistantMessageId", out var am) ? (am.GetString() ?? Guid.NewGuid().ToString("N")) : Guid.NewGuid().ToString("N");
-            content = live.TryGetProperty("AssistantResponse", out var ar) ? ar.GetString() : null;
+            id = GetString(live, "assistantMessageId", "AssistantMessageId") ?? Guid.NewGuid().ToString("N");
+            if (!IsSuccessfulTurnCompletion(live))
+            {
+                CompleteAssistantStream(live);
+                return;
+            }
+
+            content = GetString(live, "assistantResponse", "AssistantResponse", "content", "Content") ?? CompleteAssistantStream(live);
+            if (string.IsNullOrWhiteSpace(content)) return;
         }
         else
         {
             return;
         }
 
-        string? agentId = live.TryGetProperty("AgentId", out var ag) ? ag.GetString() : (live.TryGetProperty("agentId", out ag) ? ag.GetString() : null);
-        string? turnId = live.TryGetProperty("TurnId", out var tn) ? tn.GetString() : (live.TryGetProperty("turnId", out tn) ? tn.GetString() : null);
+        string? agentId = GetString(live, "agentId", "AgentId");
+        string? agentName = GetString(live, "agentName", "AgentName");
+        string? turnId = GetString(live, "turnId", "TurnId");
         string? messageId = null;
         if (string.Equals(eventType, "conversation.user.message", StringComparison.Ordinal))
-            messageId = live.TryGetProperty("UserMessageId", out var um2) ? um2.GetString() : null;
-        else if (string.Equals(eventType, "conversation.assistant.delta", StringComparison.Ordinal) || string.Equals(eventType, "conversation.turn.completed", StringComparison.Ordinal))
-            messageId = live.TryGetProperty("AssistantMessageId", out var am2) ? am2.GetString() : null;
+            messageId = GetString(live, "userMessageId", "UserMessageId");
+        else if (string.Equals(eventType, "conversation.turn.completed", StringComparison.Ordinal))
+            messageId = GetString(live, "assistantMessageId", "AssistantMessageId");
 
+        var createdTimestamp = GetInt64(live, "occurredAt", "createdTimestamp", "timestamp") ?? ts;
         var record = new ObservationRecord
         {
             Id = id,
             AgentId = agentId,
+            AgentName = agentName,
             WorkspaceId = ResolveWorkspaceId(live),
             SessionId = sessionId,
             TurnId = turnId,
@@ -246,14 +252,50 @@ public sealed class MemoryIngestService(PluginSettings settings, ILogger<MemoryI
             Role = role,
             Content = content,
             AttachmentsJson = ResolveAttachments(live),
-            CreatedTimestamp = live.TryGetProperty("createdTimestamp", out var tsLive) && tsLive.ValueKind == JsonValueKind.Number ? tsLive.GetInt64() : (live.TryGetProperty("timestamp", out tsLive) && tsLive.ValueKind == JsonValueKind.Number ? tsLive.GetInt64() : ts),
+            CreatedTimestamp = createdTimestamp,
             ModelName = model,
-            TraceId = live.TryGetProperty("TraceId", out var tr) ? tr.GetString() : (live.TryGetProperty("traceId", out tr) ? tr.GetString() : null),
+            TraceId = GetString(live, "traceId", "TraceId"),
             SourceFactsJson = live.GetRawText(),
-            CreatedAt = ToIsoTime(ts)
+            CreatedAt = ToIsoTime(createdTimestamp)
         };
 
         store.InsertObservation(record);
+    }
+
+    private void BufferAssistantDelta(JsonElement live)
+    {
+        var messageId = GetString(live, "assistantMessageId", "AssistantMessageId");
+        var delta = GetString(live, "delta", "Delta", "content", "Content");
+        if (string.IsNullOrEmpty(messageId) || string.IsNullOrEmpty(delta)) return;
+
+        var buffer = GetOrCreateAssistantStream(messageId);
+        buffer.Append(delta);
+    }
+
+    private string? CompleteAssistantStream(JsonElement live)
+    {
+        var messageId = GetString(live, "assistantMessageId", "AssistantMessageId");
+        if (string.IsNullOrEmpty(messageId)) return null;
+        if (!_assistantStreams.Remove(messageId, out var buffer)) return null;
+        return buffer.ToString();
+    }
+
+    private AssistantStreamBuffer GetOrCreateAssistantStream(string messageId)
+    {
+        if (_assistantStreams.TryGetValue(messageId, out var buffer)) return buffer;
+
+        buffer = new AssistantStreamBuffer();
+        _assistantStreams[messageId] = buffer;
+        return buffer;
+    }
+
+    private static bool IsSuccessfulTurnCompletion(JsonElement live)
+    {
+        var status = GetString(live, "status", "Status");
+        return string.IsNullOrWhiteSpace(status)
+            || string.Equals(status, "succeeded", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, "success", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase);
     }
 
     private string? ResolveWorkspaceId(JsonElement el)
@@ -283,9 +325,49 @@ public sealed class MemoryIngestService(PluginSettings settings, ILogger<MemoryI
         return "[]";
     }
 
+    private static string? GetString(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (element.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null)
+            {
+                return value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
+            }
+        }
+
+        return null;
+    }
+
+    private static long? GetInt64(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (!element.TryGetProperty(name, out var value)) continue;
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number)) return number;
+            if (value.ValueKind == JsonValueKind.String && long.TryParse(value.GetString(), out number)) return number;
+        }
+
+        return null;
+    }
+
+    private static async Task<string?> ReadTextMessageAsync(ClientWebSocket ws, CancellationToken ct)
+    {
+        var buffer = new byte[16 * 1024];
+        using var message = new MemoryStream();
+
+        while (true)
+        {
+            var result = await ws.ReceiveAsync(buffer, ct).ConfigureAwait(false);
+            if (result.MessageType == WebSocketMessageType.Close) return null;
+            if (result.Count > 0) message.Write(buffer, 0, result.Count);
+            if (result.EndOfMessage) break;
+        }
+
+        return Encoding.UTF8.GetString(message.ToArray());
+    }
+
     private static async Task<bool> ReadUntilTypeAsync(ClientWebSocket ws, string targetType, CancellationToken ct)
     {
-        var buffer = new byte[8 * 1024];
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(TimeSpan.FromSeconds(15));
 
@@ -293,9 +375,8 @@ public sealed class MemoryIngestService(PluginSettings settings, ILogger<MemoryI
         {
             while (true)
             {
-                var result = await ws.ReceiveAsync(buffer, timeoutCts.Token).ConfigureAwait(false);
-                if (result.MessageType == WebSocketMessageType.Close) return false;
-                var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                var text = await ReadTextMessageAsync(ws, timeoutCts.Token).ConfigureAwait(false);
+                if (text is null) return false;
                 var ok = TryGetType(text, out var type) && string.Equals(type, targetType, StringComparison.Ordinal);
                 if (ok) return true;
             }
@@ -328,5 +409,14 @@ public sealed class MemoryIngestService(PluginSettings settings, ILogger<MemoryI
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None).ConfigureAwait(false);
         }
         catch { /* ignore */ }
+    }
+
+    private sealed class AssistantStreamBuffer
+    {
+        private readonly StringBuilder _content = new();
+
+        public void Append(string delta) => _content.Append(delta);
+
+        public override string ToString() => _content.ToString();
     }
 }

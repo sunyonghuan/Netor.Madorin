@@ -11,8 +11,36 @@ namespace Cortana.Plugins.Memory.Mcp;
 [McpServerToolType]
 public sealed class MemoryMcpTools(
     IMemoryReadToolHandler readHandler,
-    IMemoryWriteToolHandler writeHandler)
+    IMemoryWriteToolHandler writeHandler,
+    IMemoryMcpToolHandler mcpHandler)
 {
+    [McpServerTool(Name = "memory_record_turn")]
+    [Description("记录一条 MCP 客户端提供的对话消息，进入 observation 和后续长期记忆处理链路。")]
+    public string RecordTurn(
+        [Description("消息角色，支持 user、assistant、system、tool")] string role,
+        [Description("消息内容")] string content,
+        [Description("智能体标识，空字符串表示使用当前默认作用域")] string agentId = "",
+        [Description("工作区标识，空字符串表示使用当前默认作用域")] string workspaceId = "",
+        [Description("会话标识，空字符串表示自动生成")] string sessionId = "",
+        [Description("轮次标识，空字符串表示自动生成")] string turnId = "",
+        [Description("消息标识，空字符串表示自动生成")] string messageId = "",
+        [Description("来源，空字符串表示使用当前默认来源")] string source = "",
+        [Description("Unix 毫秒时间戳，0 表示当前时间")] long createdTimestamp = 0)
+        => mcpHandler.RecordTurn(role, content, agentId, workspaceId, sessionId, turnId, messageId, source, createdTimestamp);
+
+    [McpServerTool(Name = "memory_set_scope")]
+    [Description("设置当前 MCP 进程默认记忆作用域。空参数保持原值不变。")]
+    public string SetScope(
+        [Description("默认智能体标识，空字符串表示保持不变")] string agentId = "",
+        [Description("默认工作区标识，空字符串表示保持不变")] string workspaceId = "",
+        [Description("默认来源，空字符串表示保持不变")] string source = "")
+        => mcpHandler.SetScope(agentId, workspaceId, source);
+
+    [McpServerTool(Name = "memory_get_scope")]
+    [Description("查看当前 MCP 进程默认记忆作用域。")]
+    public string GetScope()
+        => mcpHandler.GetScope();
+
     [McpServerTool(Name = "memory_recall")]
     [Description("根据查询文本召回相关长期记忆。只调用记忆召回服务，不暴露数据库路径、SQL 或内部表结构。")]
     public string Recall(

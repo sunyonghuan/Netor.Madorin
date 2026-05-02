@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Cortana.Plugins.Memory.Storage;
 
@@ -14,6 +15,7 @@ public static class MemoryStorageServiceCollectionExtensions
     /// <returns>注册完成后的服务集合。</returns>
     public static IServiceCollection AddMemoryStorage(this IServiceCollection services)
     {
+        services.TryAddSingleton<IMemoryDatabaseOptions, PluginMemoryDatabaseOptions>();
         services.AddSingleton<IMemoryDatabase, SqliteMemoryDatabase>();
         services.AddSingleton<ObservationRecordsTable>();
         services.AddSingleton<MemoryFragmentsTable>();

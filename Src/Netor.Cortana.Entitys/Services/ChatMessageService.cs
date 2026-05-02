@@ -45,7 +45,9 @@ namespace Netor.Cortana.Entitys.Services
                 + "           AND ContentsJson NOT LIKE '%\"text\"%'\n"
                 + "           AND ContentsJson NOT LIKE '%\"functionResult\"%'\n"
                 + "           AND ContentsJson NOT LIKE '%\"toolResult\"%')\n"
-                + "ORDER BY CreatedTimestamp",
+                // 加入 rowid 作为 tie-breaker，确保同一时间戳的多条消息按入库顺序返回，
+                // 避免工具调用链条因时间戳精度不足而错乱。
+                + "ORDER BY CreatedTimestamp ASC, rowid ASC",
                 ReadEntity,
                 cmd => cmd.Parameters.AddWithValue("@SessionId", sessionId));
         }
@@ -66,6 +68,22 @@ namespace Netor.Cortana.Entitys.Services
                 // 未迁移的老库，忽略
             }
 
+            // AgentId / AgentName 在更老的数据库中可能不存在，迁移前兼容读取。
+            string agentId = string.Empty;
+            string agentName = string.Empty;
+            try
+            {
+                var idx = r.GetOrdinal("AgentId");
+                if (!r.IsDBNull(idx)) agentId = r.GetString(idx);
+            }
+            catch (IndexOutOfRangeException) { /* 老库未迁移 */ }
+            try
+            {
+                var idx = r.GetOrdinal("AgentName");
+                if (!r.IsDBNull(idx)) agentName = r.GetString(idx);
+            }
+            catch (IndexOutOfRangeException) { /* 老库未迁移 */ }
+
             return new ChatMessageEntity
             {
                 Id = r.GetString(r.GetOrdinal("Id")),
@@ -78,7 +96,9 @@ namespace Netor.Cortana.Entitys.Services
                 ContentsJson = contentsJson,
                 TokenCount = r.GetInt32(r.GetOrdinal("TokenCount")),
                 ModelName = r.GetString(r.GetOrdinal("ModelName")),
-                CreatedAt = r.IsDBNull(createdAtOrdinal) ? null : DateTimeOffset.Parse(r.GetString(createdAtOrdinal))
+                CreatedAt = r.IsDBNull(createdAtOrdinal) ? null : DateTimeOffset.Parse(r.GetString(createdAtOrdinal)),
+                AgentId = agentId,
+                AgentName = agentName
             };
         }
 
@@ -95,6 +115,8 @@ namespace Netor.Cortana.Entitys.Services
             cmd.Parameters.AddWithValue("@TokenCount", e.TokenCount);
             cmd.Parameters.AddWithValue("@ModelName", e.ModelName);
             cmd.Parameters.AddWithValue("@CreatedAt", (object?)e.CreatedAt?.ToString("O") ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@AgentId", e.AgentId ?? string.Empty);
+            cmd.Parameters.AddWithValue("@AgentName", e.AgentName ?? string.Empty);
         }
     }
 }

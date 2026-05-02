@@ -20,6 +20,7 @@ namespace Cortana.Plugins.Memory.Serialization;
 [JsonSerializable(typeof(RecallPolicySnapshot))]
 [JsonSerializable(typeof(ConversationFeedSubscribeFrame))]
 [JsonSerializable(typeof(ConversationFeedReplayFrame))]
+[JsonSerializable(typeof(McpObservationSourceFacts))]
 [JsonSerializable(typeof(FragmentExtractedEventPayload))]
 [JsonSerializable(typeof(ProcessingFailedEventPayload))]
 [JsonSerializable(typeof(AbstractionCreatedEventPayload))]
@@ -59,6 +60,20 @@ internal sealed class ConversationFeedReplayFrame
     [JsonPropertyName("type")] public string Type { get; init; } = "replay";
     [JsonPropertyName("sinceTimestamp")] public long SinceTimestamp { get; init; }
     [JsonPropertyName("batchSize")] public int BatchSize { get; init; }
+}
+
+/// <summary>MCP 显式写入 observation 时记录的来源快照。</summary>
+internal sealed class McpObservationSourceFacts
+{
+    public string Source { get; init; } = string.Empty;
+    public string AgentId { get; init; } = string.Empty;
+    public string? WorkspaceId { get; init; }
+    public string SessionId { get; init; } = string.Empty;
+    public string TurnId { get; init; } = string.Empty;
+    public string MessageId { get; init; } = string.Empty;
+    public string Role { get; init; } = string.Empty;
+    public string Content { get; init; } = string.Empty;
+    public long CreatedTimestamp { get; init; }
 }
 
 /// <summary>记忆数据处理时记录的"长期记忆抽取完成"事件载荷。</summary>

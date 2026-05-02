@@ -1,5 +1,7 @@
 # MCP 双入口与工具抽离方案
 
+> 2026-05-01 修订说明：本方案完成了早期“双入口、工具抽离、核心复用”的基础规划，但后续确认 MCP 模式不应继续依赖宿主插件初始化参数或 Cortana conversation-feed。MCP 模式的定位已调整为“通用独立运行模式”，用于接入其他软件。新的实例化、配置、上下文摄取和作用域策略见 [MCP通用独立运行模式方案.md](MCP通用独立运行模式方案.md)。
+
 ## 目标
 
 当前 Memory 插件优先保持插件模式可用，同时为 MCP 模式预留独立宿主入口。整体采用单项目、双入口、双适配、单核心实现、分发布命令的结构。
@@ -19,16 +21,16 @@
 
 ```plaintext
 插件 Tool Attribute 适配器
-		│
-		├── ToolHandlers
-		│       │
+        │
+        ├── ToolHandlers
+        │       │
 MCP Tool 适配器 ┘
-				│
-			Services
-				│
-			IMemoryStore
-				│
-			SQLite 内部实现
+                │
+            Services
+                │
+            IMemoryStore
+                │
+            SQLite 内部实现
 ```
 
 ## 目录规划

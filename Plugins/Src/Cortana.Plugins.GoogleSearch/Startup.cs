@@ -11,7 +11,7 @@ namespace Cortana.Plugins.GoogleSearch;
 [Plugin(
     Id = "google_search",
     Name = "谷歌搜索插件",
-    Version = "1.0.11",
+    Version = "1.0.15",
     Description = "提供 Google 搜索能力，支持网页搜索、站内搜索和图片搜索。",
     Tags = ["搜索", "Google", "网页搜索", "图片搜索"],
     Instructions = """

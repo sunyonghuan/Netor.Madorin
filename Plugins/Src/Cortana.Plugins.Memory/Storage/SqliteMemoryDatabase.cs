@@ -1,6 +1,5 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
-using Netor.Cortana.Plugin;
 
 namespace Cortana.Plugins.Memory.Storage;
 
@@ -11,7 +10,7 @@ namespace Cortana.Plugins.Memory.Storage;
 /// 该类型只负责数据库路径解析、连接创建、命令执行和事务提交/回滚，
 /// 不承载任何具体表结构或业务查询语义。
 /// </remarks>
-public sealed class SqliteMemoryDatabase(PluginSettings settings, ILogger<SqliteMemoryDatabase> logger) : IMemoryDatabase
+public sealed class SqliteMemoryDatabase(IMemoryDatabaseOptions options, ILogger<SqliteMemoryDatabase> logger) : IMemoryDatabase
 {
     private string? _databasePath;
 
@@ -24,10 +23,10 @@ public sealed class SqliteMemoryDatabase(PluginSettings settings, ILogger<Sqlite
         {
             if (_databasePath is not null) return _databasePath;
 
-            var directory = settings.DataDirectory;
+            var directory = options.DataDirectory;
             if (string.IsNullOrWhiteSpace(directory)) directory = AppContext.BaseDirectory;
             Directory.CreateDirectory(directory);
-            _databasePath = Path.Combine(directory, "memory.db");
+            _databasePath = Path.Combine(directory, options.DatabaseFileName);
             return _databasePath;
         }
     }

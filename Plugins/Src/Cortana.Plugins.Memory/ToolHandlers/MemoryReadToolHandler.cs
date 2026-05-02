@@ -13,9 +13,9 @@ public sealed class MemoryReadToolHandler(
     IMemoryRecallService recallService,
     IMemorySupplyService supplyService,
     IMemoryStatusService statusService,
+    IMemoryRuntimeContext runtimeContext,
     ILogger<MemoryReadToolHandler> logger) : IMemoryReadToolHandler
 {
-    private const string DefaultAgentId = "default";
     private const int MaximumRecallMemoryCount = 50;
     private const int MaximumSupplyMemoryCount = 50;
 
@@ -29,8 +29,8 @@ public sealed class MemoryReadToolHandler(
         {
             var result = recallService.Recall(new MemoryRecallRequest
             {
-                AgentId = DefaultAgentId,
-                WorkspaceId = NormalizeOptional(workspaceId),
+                AgentId = runtimeContext.ResolveAgentId(null),
+                WorkspaceId = runtimeContext.ResolveWorkspaceId(workspaceId),
                 QueryText = queryText,
                 QueryIntent = NormalizeOptional(queryIntent),
                 TriggerSource = "memory_recall_tool",
@@ -60,8 +60,8 @@ public sealed class MemoryReadToolHandler(
         {
             var result = supplyService.Supply(new MemorySupplyRequest
             {
-                AgentId = DefaultAgentId,
-                WorkspaceId = NormalizeOptional(workspaceId),
+                AgentId = runtimeContext.ResolveAgentId(null),
+                WorkspaceId = runtimeContext.ResolveWorkspaceId(workspaceId),
                 Scenario = NormalizeOptional(scenario),
                 CurrentTask = NormalizeOptional(currentTask),
                 RecentMessages = SplitMessages(recentMessages),
@@ -93,8 +93,8 @@ public sealed class MemoryReadToolHandler(
         {
             var result = statusService.GetStatus(new MemoryStatusRequest
             {
-                AgentId = DefaultAgentId,
-                WorkspaceId = NormalizeOptional(workspaceId)
+                AgentId = runtimeContext.ResolveAgentId(null),
+                WorkspaceId = runtimeContext.ResolveWorkspaceId(workspaceId)
             });
 
             return MemoryToolResult.Ok("记忆系统状态读取成功。",

@@ -531,16 +531,26 @@ public sealed class WebSocketServerService(
             while (true)
             {
                 var rows = db.Query(
-                    $"SELECT Id, SessionId, Role, Content, CreatedTimestamp, ModelName FROM ChatMessages WHERE CreatedTimestamp >= @Since ORDER BY CreatedTimestamp LIMIT {batchSize}",
-                    r => new ConversationExportRecord
-                    {
-                        Id = r.GetString(r.GetOrdinal("Id")),
-                        SessionId = r.GetString(r.GetOrdinal("SessionId")),
-                        Role = r.GetString(r.GetOrdinal("Role")),
-                        Content = r.IsDBNull(r.GetOrdinal("Content")) ? null : r.GetString(r.GetOrdinal("Content")),
-                        CreatedTimestamp = r.GetInt64(r.GetOrdinal("CreatedTimestamp")),
-                        ModelName = r.IsDBNull(r.GetOrdinal("ModelName")) ? null : r.GetString(r.GetOrdinal("ModelName"))
-                    },
+                    $"""
+                    SELECT
+                        m.Id,
+                        m.SessionId,
+                        m.Role,
+                        m.Content,
+                        m.CreatedTimestamp,
+                        m.ModelName,
+                        m.AgentId AS MessageAgentId,
+                        m.AgentName AS MessageAgentName,
+                        s.Categorize AS WorkspaceId,
+                        s.AgentId AS SessionAgentId,
+                        s.RawDiscription
+                    FROM ChatMessages m
+                    LEFT JOIN ChatSessions s ON s.Id = m.SessionId
+                    WHERE m.CreatedTimestamp >= @Since
+                    ORDER BY m.CreatedTimestamp
+                    LIMIT {batchSize}
+                    """,
+                    ConversationExportRecordMapper.Read,
                     cmd => cmd.Parameters.AddWithValue("@Since", lastTimestamp));
 
                 if (rows.Count == 0)

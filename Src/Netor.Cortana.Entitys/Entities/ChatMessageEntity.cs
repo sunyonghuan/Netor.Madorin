@@ -66,5 +66,22 @@ namespace Netor.Cortana.Entitys
         /// 若为 null 表示时间未知或不适用。
         /// </summary>
         public DateTimeOffset? CreatedAt { get; set; }
+
+        /// <summary>
+        /// 该消息所属智能体的 ID（关联 <see cref="AgentEntity.Id"/>）。
+        /// 与 <see cref="ChatSessionEntity.AgentId"/> 通常一致，用于在消息层级直接区分主智能体与子智能体回复，
+        /// 也便于在跨会话审计/统计时不必再 JOIN ChatSessions。
+        /// 老数据未回填时为空字符串。
+        /// </summary>
+        [MaxLength(64)]
+        public string AgentId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 该消息所属智能体的显示名称（冗余存储 <see cref="AgentEntity.Name"/> 的当时快照）。
+        /// 用于消息回放/历史检索时即便智能体已被改名/删除也能保留原始来源信息。
+        /// 老数据未回填时为空字符串。
+        /// </summary>
+        [MaxLength(128)]
+        public string AgentName { get; set; } = string.Empty;
     }
 }

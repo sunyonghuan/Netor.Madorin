@@ -63,6 +63,25 @@ public sealed class ChatHistoryDataProvider(
         var firstText = context.RequestMessages?.FirstOrDefault(m => m.Role == ChatRole.User)?.Text ?? "";
         var sessionId = await AddOrUpdateSessionAsync(context.Session, firstText.Truncate(32), context.Agent, accumulateInputTokens: true);
 
+        // ── 关键修复：归一化时间戳 ──
+        // OpenAI 协议要求 assistant(tool_calls) 必须紧邻 tool 消息，但不同消息的时间戳来源精度不一致：
+        //   - assistant 消息的 CreatedAt 来自 LLM（精度通常仅秒级，毫秒固定为 .000）
+        //   - tool 消息的 CreatedAt 是工具执行完成时间（毫秒级）
+        //   - user 消息可能在工具执行期间插入
+        // 同秒不同来源的消息按 ORDER BY CreatedTimestamp 排序后顺序不稳定，会破坏 OpenAI 协议邻接性。
+        // 这里以"同 session 已存在的最大 CreatedTimestamp + 1ms"为基准，按 ResponseMessages 的原始顺序
+        // 强制单调递增，确保入库后再读出仍能恢复出正确的工具链顺序。
+        var existingMaxTs = dbContext.ExecuteScalar<long>(
+            "SELECT IFNULL(MAX(CreatedTimestamp), 0) FROM ChatMessages WHERE SessionId = @SessionId",
+            cmd => cmd.Parameters.AddWithValue("@SessionId", sessionId));
+        var nowTs = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+        var baseTs = Math.Max(existingMaxTs, nowTs) + 1;
+
+        // 从 Session.StateBag 取当前主智能体的 ID（AgentSession 携带）；
+        // 若取不到则回退到 context.Agent.Id（部分代码路径以 Agent.Id 入栈）。
+        var agentIdForMessages = context.Session?.StateBag.GetValue<string>("agentid") ?? context.Agent?.Id ?? string.Empty;
+        var agentNameForMessages = context.Agent?.Name ?? string.Empty;
+
         // ──── 完整工具链条落库：保证消息顺序，每条消息独立 ID ────
         var messages = (context.ResponseMessages ?? [])
             .Select((t, index) => new ChatMessageEntity
@@ -72,14 +91,18 @@ public sealed class ChatHistoryDataProvider(
                 ContentsJson = ChatMessageExtensions.BuildContentsJson(t.Contents),
                 AuthorName = GetChatRoleText(t.Role, context.Agent.Name ?? "未知"),
                 CreatedAt = t.CreatedAt ?? DateTimeOffset.UtcNow,
-                CreatedTimestamp = t.CreatedAt?.ToLocalTime().ToUnixTimeMilliseconds() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                // CreatedTimestamp 用归一化后的单调递增值，保证入库 / 读取 / 排序顺序与 ResponseMessages 一致；
+                // 真实业务时间继续保留在 CreatedAt 列，UI 展示时间应优先取 CreatedAt。
+                CreatedTimestamp = baseTs + index,
                 // ── 关键修复 1：每条消息独立 ID，不覆盖 ──
                 // 优先 t.MessageId（OpenAI 兼容接口返回的真实消息 ID），兜底才生成新 Guid
                 // 不再把 assistant 消息强行统一为同一个 assistantMessageId，避免链条断裂
                 Id = Guid.NewGuid().ToString("N"),
                 SessionId = sessionId,
                 UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                ModelName = modelName
+                ModelName = modelName,
+                AgentId = agentIdForMessages,
+                AgentName = agentNameForMessages
             })
             .ToList(); // 立即物化，确保顺序固定且能多次遍历
 
@@ -93,9 +116,9 @@ public sealed class ChatHistoryDataProvider(
                     using var cmd = conn.CreateCommand();
                     cmd.CommandText = """
                         INSERT OR REPLACE INTO ChatMessages
-                            (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, ContentsJson, TokenCount, ModelName, CreatedAt)
+                            (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, ContentsJson, TokenCount, ModelName, CreatedAt, AgentId, AgentName)
                         VALUES
-                            (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @ContentsJson, @TokenCount, @ModelName, @CreatedAt)
+                            (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @ContentsJson, @TokenCount, @ModelName, @CreatedAt, @AgentId, @AgentName)
                         """;
                     ChatMessageService.BindEntity(cmd, message);
                     cmd.ExecuteNonQuery();
@@ -185,6 +208,8 @@ public sealed class ChatHistoryDataProvider(
 
             // 创建部分响应消息
             var partialContents = new List<AIContent> { new TextContent(partialResponse) };
+            var partialAgentId = session?.StateBag.GetValue<string>("agentid") ?? agent?.Id ?? string.Empty;
+            var partialAgentName = agent?.Name ?? string.Empty;
             var message = new ChatMessageEntity
             {
                 Role = ChatRole.Assistant.ToString(),
@@ -196,7 +221,9 @@ public sealed class ChatHistoryDataProvider(
                 Id = messageId ?? Guid.NewGuid().ToString("N"),
                 SessionId = sessionId,
                 UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                ModelName = modelName
+                ModelName = modelName,
+                AgentId = partialAgentId,
+                AgentName = partialAgentName
             };
 
             // 保存到数据库
@@ -205,9 +232,9 @@ public sealed class ChatHistoryDataProvider(
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = """
                     INSERT OR REPLACE INTO ChatMessages
-                        (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, ContentsJson, TokenCount, ModelName, CreatedAt)
+                        (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, ContentsJson, TokenCount, ModelName, CreatedAt, AgentId, AgentName)
                     VALUES
-                        (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @ContentsJson, @TokenCount, @ModelName, @CreatedAt)
+                        (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @ContentsJson, @TokenCount, @ModelName, @CreatedAt, @AgentId, @AgentName)
                     """;
                 ChatMessageService.BindEntity(cmd, message);
                 cmd.ExecuteNonQuery();
@@ -283,7 +310,7 @@ public sealed class ChatHistoryDataProvider(
                     Contents = BuildContentsWithAssets(t)
                 }));
 
-                return result;
+                return ReorderForToolCallProtocol(result);
             }
 
             // ── 老版兼容：CompactedContext 缓存（只读回退） ──
@@ -329,7 +356,7 @@ public sealed class ChatHistoryDataProvider(
                         Contents = BuildContentsWithAssets(t)
                     }));
 
-                    return result;
+                    return ReorderForToolCallProtocol(result);
                 }
 
                 // 摘要无效 → 跳过老版缓存，回退到加载全部消息
@@ -352,7 +379,7 @@ public sealed class ChatHistoryDataProvider(
                     CreatedAt = t.CreatedAt?.ToLocalTime(),
                     Contents = BuildContentsWithAssets(t)
                 });
-            return messages;
+            return ReorderForToolCallProtocol(messages);
         }
         catch (Exception ex)
         {
@@ -368,7 +395,7 @@ public sealed class ChatHistoryDataProvider(
                 builder.Append(" AND Id <> @ExcludedMessageId").Append(index);
             }
 
-            builder.Append(" ORDER BY CreatedTimestamp ASC");
+            builder.Append(" ORDER BY CreatedTimestamp ASC, rowid ASC");
             if (!string.IsNullOrWhiteSpace(suffix))
             {
                 builder.Append(' ').Append(suffix);
@@ -432,6 +459,12 @@ public sealed class ChatHistoryDataProvider(
             if (sessionJson is not null)
             {
                 sessionEntity.RawDiscription = sessionJson.Value.ToString();
+            }
+
+            var agentId = session?.StateBag.GetValue<string>("agentid");
+            if (!string.IsNullOrWhiteSpace(agentId))
+            {
+                sessionEntity.AgentId = agentId;
             }
 
             sessionEntity.UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
@@ -730,6 +763,111 @@ public sealed class ChatHistoryDataProvider(
             logger.LogWarning(ex, "加载消息 {MessageId} 的历史资源失败。", entity.Id);
         }
         return contents;
+    }
+
+    /// <summary>
+    /// 协议级重排：保证 OpenAI 协议的"assistant(tool_calls) 必须紧邻对应 tool 消息"约束。
+    /// </summary>
+    /// <remarks>
+    /// 由于历史数据中（以及个别异常路径下）可能出现：
+    ///   1) assistant(tool_calls) 后被 user/assistant 消息插入，未紧邻 tool；
+    ///   2) tool 消息散落在其他位置；
+    ///   3) tool_call 缺少对应 tool 结果；
+    /// 这些都会导致 OpenAI 返回 400 (insufficient tool messages following tool_calls message)。
+    /// 本方法在不改变业务语义的前提下做以下修复：
+    ///   - 第一遍按 CallId 建立 FunctionResultContent 的索引；
+    ///   - 第二遍按原始顺序输出消息：遇到 assistant(tool_calls) 时立刻把对应 tool 消息紧随其后输出，
+    ///     并把这些 tool 消息从待输出池中标记为已消费；
+    ///   - 缺失对应 tool 的 functionCall 降级为可读文本（保留信息但避免破坏协议）；
+    ///   - 孤立的 tool 消息（找不到归属的 assistant）丢弃，避免 "messages with role 'tool' must be a response to a preceding message with 'tool_calls'" 错误。
+    /// </remarks>
+    private List<AIChatMessage> ReorderForToolCallProtocol(IEnumerable<AIChatMessage> source)
+    {
+        var input = source.ToList();
+        if (input.Count == 0) return input;
+
+        // CallId -> tool 消息索引（在 input 中的位置）
+        var toolByCallId = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < input.Count; i++)
+        {
+            var msg = input[i];
+            if (msg.Role != ChatRole.Tool) continue;
+            foreach (var c in msg.Contents)
+            {
+                if (c is FunctionResultContent fr && !string.IsNullOrWhiteSpace(fr.CallId))
+                {
+                    // 同 CallId 多次结果取首次（理论上不应发生）
+                    toolByCallId.TryAdd(fr.CallId, i);
+                }
+            }
+        }
+
+        var consumedToolIndexes = new HashSet<int>();
+        var output = new List<AIChatMessage>(input.Count);
+        var droppedOrphanTools = 0;
+        var degradedCalls = 0;
+
+        for (var i = 0; i < input.Count; i++)
+        {
+            if (consumedToolIndexes.Contains(i)) continue; // 已经在某个 assistant 后输出过
+            var msg = input[i];
+
+            if (msg.Role == ChatRole.Tool)
+            {
+                // 走到这里说明该 tool 消息没有被任何 assistant(tool_calls) 紧邻消费
+                // 如果它有对应的 assistant 在前面但顺序错乱 —— 在第二遍 assistant 处理时已经会把它拉过去；
+                // 如果到这里仍未被消费 —— 说明它是孤立的 tool 消息，丢弃以避免 OpenAI 协议错误。
+                droppedOrphanTools++;
+                continue;
+            }
+
+            if (msg.Role == ChatRole.Assistant && msg.Contents.OfType<FunctionCallContent>().Any())
+            {
+                var callIds = msg.Contents.OfType<FunctionCallContent>()
+                    .Select(c => c.CallId)
+                    .Where(static id => !string.IsNullOrWhiteSpace(id))
+                    .ToList();
+
+                // 检查是否所有 CallId 都能找到对应 tool 消息
+                var missingCallIds = callIds.Where(id => !toolByCallId.ContainsKey(id) || consumedToolIndexes.Contains(toolByCallId[id])).ToList();
+
+                if (missingCallIds.Count == 0)
+                {
+                    output.Add(msg);
+                    foreach (var id in callIds)
+                    {
+                        var idx = toolByCallId[id];
+                        output.Add(input[idx]);
+                        consumedToolIndexes.Add(idx);
+                    }
+                }
+                else
+                {
+                    // 缺失 tool 结果：把整条 assistant 消息降级为文本，避免协议错误
+                    degradedCalls++;
+                    var degraded = new AIChatMessage
+                    {
+                        Role = ChatRole.Assistant,
+                        AuthorName = msg.AuthorName,
+                        MessageId = msg.MessageId,
+                        CreatedAt = msg.CreatedAt,
+                        Contents = [new TextContent(ChatMessageExtensions.BuildPersistedContent(msg.Text, msg.Contents))]
+                    };
+                    output.Add(degraded);
+                }
+                continue;
+            }
+
+            output.Add(msg);
+        }
+
+        if (droppedOrphanTools > 0 || degradedCalls > 0)
+        {
+            logger.LogWarning("聊天历史协议级重排：丢弃孤立 tool 消息 {Orphan} 条，降级缺失结果的 assistant tool_calls {Degraded} 条。",
+                droppedOrphanTools, degradedCalls);
+        }
+
+        return output;
     }
 
     /// <summary>

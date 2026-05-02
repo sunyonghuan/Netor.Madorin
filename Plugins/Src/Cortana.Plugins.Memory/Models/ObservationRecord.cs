@@ -16,6 +16,11 @@ public sealed class ObservationRecord
     public string? AgentId { get; set; }
 
     /// <summary>
+    /// 产生该观察记录的智能体显示名称。
+    /// </summary>
+    public string? AgentName { get; set; }
+
+    /// <summary>
     /// 观察记录所属工作区标识。
     /// </summary>
     public string? WorkspaceId { get; set; }

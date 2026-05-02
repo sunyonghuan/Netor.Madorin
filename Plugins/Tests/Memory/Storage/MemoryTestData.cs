@@ -6,6 +6,7 @@ namespace Memory.Test.Storage;
 internal static class MemoryTestData
 {
     public const string AgentId = "agent-test";
+    public const string AgentName = "测试智能体";
     public const string WorkspaceId = "workspace-test";
     public const string OtherAgentId = "agent-other";
     public const string OtherWorkspaceId = "workspace-other";
@@ -16,6 +17,7 @@ internal static class MemoryTestData
         {
             Id = id,
             AgentId = agentId,
+            AgentName = agentId is null ? null : AgentName,
             WorkspaceId = workspaceId,
             SessionId = $"session-{id}",
             TurnId = $"turn-{id}",

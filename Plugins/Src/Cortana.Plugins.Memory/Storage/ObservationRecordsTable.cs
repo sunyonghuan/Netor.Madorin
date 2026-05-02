@@ -11,9 +11,33 @@ namespace Cortana.Plugins.Memory.Storage;
 /// </remarks>
 public sealed class ObservationRecordsTable(IMemoryDatabase database)
 {
-    private const string Columns = "id, agentId, workspaceId, sessionId, turnId, messageId, eventType, role, content, attachments, createdTimestamp, modelName, traceId, sourceFacts, schemaVersion, recordVersion, createdAt";
+    private const string Columns = "id, agentId, agentName, workspaceId, sessionId, turnId, messageId, eventType, role, content, attachments, createdTimestamp, modelName, traceId, sourceFacts, schemaVersion, recordVersion, createdAt";
 
-    private const string InsertSql = "INSERT OR IGNORE INTO observation_records (" + Columns + ") VALUES (@id,@agent,@workspace,@sid,@turn,@mid,@etype,@role,@content,@atts,@ts,@model,@trace,@facts,@schema,@record,@created)";
+    private const string InsertSql = "INSERT OR IGNORE INTO observation_records (" + Columns + ") VALUES (@id,@agent,@agentName,@workspace,@sid,@turn,@mid,@etype,@role,@content,@atts,@ts,@model,@trace,@facts,@schema,@record,@created)";
+
+    private const string BulkUpsertSql = """
+        INSERT INTO observation_records (id, agentId, agentName, workspaceId, sessionId, turnId, messageId, eventType, role, content, attachments, createdTimestamp, modelName, traceId, sourceFacts, schemaVersion, recordVersion, createdAt)
+        VALUES (@id,@agent,@agentName,@workspace,@sid,@turn,@mid,@etype,@role,@content,@atts,@ts,@model,@trace,@facts,@schema,@record,@created)
+        ON CONFLICT(id) DO UPDATE SET
+            agentId = CASE
+                WHEN excluded.agentId IS NULL OR excluded.agentId = '' THEN observation_records.agentId
+                WHEN observation_records.agentId IS NULL OR observation_records.agentId = '' OR observation_records.agentId = 'global' THEN excluded.agentId
+                WHEN excluded.agentId <> 'global' THEN excluded.agentId
+                ELSE observation_records.agentId
+            END,
+            agentName = COALESCE(NULLIF(excluded.agentName, ''), observation_records.agentName),
+            workspaceId = COALESCE(NULLIF(excluded.workspaceId, ''), observation_records.workspaceId),
+            turnId = COALESCE(NULLIF(excluded.turnId, ''), observation_records.turnId),
+            messageId = COALESCE(NULLIF(excluded.messageId, ''), observation_records.messageId),
+            eventType = COALESCE(NULLIF(excluded.eventType, ''), observation_records.eventType),
+            modelName = COALESCE(NULLIF(excluded.modelName, ''), observation_records.modelName),
+            traceId = COALESCE(NULLIF(excluded.traceId, ''), observation_records.traceId),
+            sourceFacts = CASE
+                WHEN observation_records.sourceFacts IS NULL OR observation_records.sourceFacts = '' OR observation_records.sourceFacts = '{}' THEN excluded.sourceFacts
+                ELSE observation_records.sourceFacts
+            END,
+            recordVersion = observation_records.recordVersion + 1
+        """;
 
     /// <summary>
     /// 插入一条观察记录；当记录标识已存在时忽略本次写入。
@@ -40,7 +64,7 @@ public sealed class ObservationRecordsTable(IMemoryDatabase database)
 
         using var connection = database.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = "INSERT OR REPLACE INTO observation_records (" + Columns + ") VALUES (@id,@agent,@workspace,@sid,@turn,@mid,@etype,@role,@content,@atts,@ts,@model,@trace,@facts,@schema,@record,@created)";
+        command.CommandText = "INSERT OR REPLACE INTO observation_records (" + Columns + ") VALUES (@id,@agent,@agentName,@workspace,@sid,@turn,@mid,@etype,@role,@content,@atts,@ts,@model,@trace,@facts,@schema,@record,@created)";
         Bind(command, record);
         command.ExecuteNonQuery();
     }
@@ -60,7 +84,7 @@ public sealed class ObservationRecordsTable(IMemoryDatabase database)
         {
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
-            command.CommandText = InsertSql;
+            command.CommandText = BulkUpsertSql;
 
             foreach (var record in list)
             {
@@ -185,6 +209,7 @@ LIMIT @limit";
         command.Parameters.Clear();
         command.AddParameter("@id", record.Id);
         command.AddParameter("@agent", record.AgentId);
+        command.AddParameter("@agentName", record.AgentName);
         command.AddParameter("@workspace", record.WorkspaceId);
         command.AddParameter("@sid", record.SessionId);
         command.AddParameter("@turn", record.TurnId);
@@ -213,21 +238,22 @@ LIMIT @limit";
         {
             Id = reader.GetString(0),
             AgentId = reader.GetNullableString(1),
-            WorkspaceId = reader.GetNullableString(2),
-            SessionId = reader.GetString(3),
-            TurnId = reader.GetNullableString(4),
-            MessageId = reader.GetNullableString(5),
-            EventType = reader.GetNullableString(6),
-            Role = reader.GetString(7),
-            Content = reader.GetNullableString(8),
-            AttachmentsJson = reader.GetString(9),
-            CreatedTimestamp = reader.GetInt64(10),
-            ModelName = reader.GetNullableString(11),
-            TraceId = reader.GetNullableString(12),
-            SourceFactsJson = reader.GetString(13),
-            SchemaVersion = reader.GetInt32(14),
-            RecordVersion = reader.GetInt32(15),
-            CreatedAt = reader.GetString(16)
+            AgentName = reader.GetNullableString(2),
+            WorkspaceId = reader.GetNullableString(3),
+            SessionId = reader.GetString(4),
+            TurnId = reader.GetNullableString(5),
+            MessageId = reader.GetNullableString(6),
+            EventType = reader.GetNullableString(7),
+            Role = reader.GetString(8),
+            Content = reader.GetNullableString(9),
+            AttachmentsJson = reader.GetString(10),
+            CreatedTimestamp = reader.GetInt64(11),
+            ModelName = reader.GetNullableString(12),
+            TraceId = reader.GetNullableString(13),
+            SourceFactsJson = reader.GetString(14),
+            SchemaVersion = reader.GetInt32(15),
+            RecordVersion = reader.GetInt32(16),
+            CreatedAt = reader.GetString(17)
         };
     }
 }

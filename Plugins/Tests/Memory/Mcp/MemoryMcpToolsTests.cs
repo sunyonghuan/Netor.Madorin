@@ -23,6 +23,9 @@ public sealed class MemoryMcpToolsTests
 
     [TestMethod]
     [DataRow(nameof(MemoryMcpTools.Recall), "memory_recall")]
+    [DataRow(nameof(MemoryMcpTools.RecordTurn), "memory_record_turn")]
+    [DataRow(nameof(MemoryMcpTools.SetScope), "memory_set_scope")]
+    [DataRow(nameof(MemoryMcpTools.GetScope), "memory_get_scope")]
     [DataRow(nameof(MemoryMcpTools.SupplyContext), "memory_supply_context")]
     [DataRow(nameof(MemoryMcpTools.GetStatus), "memory_get_status")]
     [DataRow(nameof(MemoryMcpTools.AddNote), "memory_add_note")]
@@ -46,7 +49,8 @@ public sealed class MemoryMcpToolsTests
     {
         var read = new RecordingReadHandler { RecallReturn = "recall-result" };
         var write = new RecordingWriteHandler();
-        var tools = new MemoryMcpTools(read, write);
+        var mcp = new RecordingMcpHandler();
+        var tools = new MemoryMcpTools(read, write, mcp);
 
         var result = tools.Recall("查询文本", "intent-x", "ws-1", 12);
 
@@ -60,7 +64,8 @@ public sealed class MemoryMcpToolsTests
     {
         var read = new RecordingReadHandler { SupplyReturn = "supply-result" };
         var write = new RecordingWriteHandler();
-        var tools = new MemoryMcpTools(read, write);
+        var mcp = new RecordingMcpHandler();
+        var tools = new MemoryMcpTools(read, write, mcp);
 
         var result = tools.SupplyContext(
             scenario: "chat",
@@ -81,7 +86,8 @@ public sealed class MemoryMcpToolsTests
     {
         var read = new RecordingReadHandler { StatusReturn = "status-result" };
         var write = new RecordingWriteHandler();
-        var tools = new MemoryMcpTools(read, write);
+        var mcp = new RecordingMcpHandler();
+        var tools = new MemoryMcpTools(read, write, mcp);
 
         var result = tools.GetStatus("ws-3");
 
@@ -95,7 +101,8 @@ public sealed class MemoryMcpToolsTests
     {
         var read = new RecordingReadHandler();
         var write = new RecordingWriteHandler { AddNoteReturn = "add-note-result" };
-        var tools = new MemoryMcpTools(read, write);
+        var mcp = new RecordingMcpHandler();
+        var tools = new MemoryMcpTools(read, write, mcp);
 
         var result = tools.AddNote(
             content: "记忆内容",
@@ -115,7 +122,8 @@ public sealed class MemoryMcpToolsTests
     {
         var read = new RecordingReadHandler();
         var write = new RecordingWriteHandler { AddNoteReturn = "add-note-result" };
-        var tools = new MemoryMcpTools(read, write);
+        var mcp = new RecordingMcpHandler();
+        var tools = new MemoryMcpTools(read, write, mcp);
 
         // MCP 适配层不做规则判断，由 handler 决定是否拒绝。
         tools.AddNote(
@@ -132,7 +140,8 @@ public sealed class MemoryMcpToolsTests
     {
         var read = new RecordingReadHandler();
         var write = new RecordingWriteHandler { ListRecentReturn = "list-recent-result" };
-        var tools = new MemoryMcpTools(read, write);
+        var mcp = new RecordingMcpHandler();
+        var tools = new MemoryMcpTools(read, write, mcp);
 
         var result = tools.ListRecent(limit: 7, kind: "fragment", workspaceId: "ws-5");
 
@@ -142,11 +151,54 @@ public sealed class MemoryMcpToolsTests
     }
 
     [TestMethod]
+    public void RecordTurn_Should_Forward_All_Arguments_To_McpHandler()
+    {
+        var read = new RecordingReadHandler();
+        var write = new RecordingWriteHandler();
+        var mcp = new RecordingMcpHandler { RecordTurnReturn = "record-turn-result" };
+        var tools = new MemoryMcpTools(read, write, mcp);
+
+        var result = tools.RecordTurn(
+            role: "user",
+            content: "hello",
+            agentId: "agent-1",
+            workspaceId: "ws-6",
+            sessionId: "session-1",
+            turnId: "turn-1",
+            messageId: "message-1",
+            source: "cline",
+            createdTimestamp: 123456);
+
+        Assert.AreEqual("record-turn-result", result);
+        Assert.AreEqual(1, mcp.RecordTurnCalls);
+        Assert.AreEqual(("user", "hello", "agent-1", "ws-6", "session-1", "turn-1", "message-1", "cline", 123456), mcp.LastRecordTurnArgs);
+    }
+
+    [TestMethod]
+    public void ScopeTools_Should_Forward_To_McpHandler()
+    {
+        var read = new RecordingReadHandler();
+        var write = new RecordingWriteHandler();
+        var mcp = new RecordingMcpHandler { SetScopeReturn = "set-scope-result", GetScopeReturn = "get-scope-result" };
+        var tools = new MemoryMcpTools(read, write, mcp);
+
+        var setResult = tools.SetScope("agent-x", "ws-x", "client-x");
+        var getResult = tools.GetScope();
+
+        Assert.AreEqual("set-scope-result", setResult);
+        Assert.AreEqual("get-scope-result", getResult);
+        Assert.AreEqual(1, mcp.SetScopeCalls);
+        Assert.AreEqual(1, mcp.GetScopeCalls);
+        Assert.AreEqual(("agent-x", "ws-x", "client-x"), mcp.LastSetScopeArgs);
+    }
+
+    [TestMethod]
     public void Optional_Parameters_Should_Default_To_Empty_Or_Zero()
     {
         var read = new RecordingReadHandler { RecallReturn = "ok", SupplyReturn = "ok", StatusReturn = "ok" };
         var write = new RecordingWriteHandler { AddNoteReturn = "ok", ListRecentReturn = "ok" };
-        var tools = new MemoryMcpTools(read, write);
+        var mcp = new RecordingMcpHandler { RecordTurnReturn = "ok", SetScopeReturn = "ok", GetScopeReturn = "ok" };
+        var tools = new MemoryMcpTools(read, write, mcp);
 
         // 仅传必填参数，验证默认值传递到 handler。
         tools.Recall("查询");
@@ -163,6 +215,12 @@ public sealed class MemoryMcpToolsTests
 
         tools.ListRecent();
         Assert.AreEqual((0, "", ""), write.LastListRecentArgs);
+
+        tools.RecordTurn("user", "内容");
+        Assert.AreEqual(("user", "内容", "", "", "", "", "", "", 0), mcp.LastRecordTurnArgs);
+
+        tools.SetScope();
+        Assert.AreEqual(("", "", ""), mcp.LastSetScopeArgs);
     }
 
     private sealed class RecordingReadHandler : IMemoryReadToolHandler
@@ -220,6 +278,38 @@ public sealed class MemoryMcpToolsTests
             ListRecentCalls++;
             LastListRecentArgs = (limit, kind, workspaceId);
             return ListRecentReturn;
+        }
+    }
+
+    private sealed class RecordingMcpHandler : IMemoryMcpToolHandler
+    {
+        public int RecordTurnCalls { get; private set; }
+        public int SetScopeCalls { get; private set; }
+        public int GetScopeCalls { get; private set; }
+        public (string, string, string, string, string, string, string, string, long) LastRecordTurnArgs { get; private set; }
+        public (string, string, string) LastSetScopeArgs { get; private set; }
+        public string RecordTurnReturn { get; init; } = string.Empty;
+        public string SetScopeReturn { get; init; } = string.Empty;
+        public string GetScopeReturn { get; init; } = string.Empty;
+
+        public string RecordTurn(string role, string content, string agentId, string workspaceId, string sessionId, string turnId, string messageId, string source, long createdTimestamp)
+        {
+            RecordTurnCalls++;
+            LastRecordTurnArgs = (role, content, agentId, workspaceId, sessionId, turnId, messageId, source, createdTimestamp);
+            return RecordTurnReturn;
+        }
+
+        public string SetScope(string agentId, string workspaceId, string source)
+        {
+            SetScopeCalls++;
+            LastSetScopeArgs = (agentId, workspaceId, source);
+            return SetScopeReturn;
+        }
+
+        public string GetScope()
+        {
+            GetScopeCalls++;
+            return GetScopeReturn;
         }
     }
 }

@@ -229,18 +229,28 @@ public sealed class AIAgentFactory(
                 }
 
                 var subAgent = BuildSubAgent(subAgentEntity, subProvider, subModel);
+
+                // OpenAI 协议要求 function.name 仅允许 [a-zA-Z0-9_-]，子智能体显示名常含中文，
+                // 直接拼接会触发 400 invalid_request_error。这里改用 Id 前 8 位作为稳定且安全的后缀，
+                // 可读名称放进 Description 让模型理解用途。
+                var safeIdPart = new string([.. (subAgentEntity.Id ?? string.Empty)
+                    .Where(c => c is >= 'a' and <= 'z'or >= 'A' and <= 'Z'or >= '0' and <= '9')
+                    .Take(8)]);
+                if (string.IsNullOrEmpty(safeIdPart)) safeIdPart = "unknown";
+                var functionName = $"agent_{safeIdPart}";
+
                 var agentFunction = subAgent.AsAIFunction(
                     new AIFunctionFactoryOptions
                     {
-                        Name = $"agent_{subAgentEntity.Name}",
+                        Name = functionName,
                         Description = string.IsNullOrWhiteSpace(subAgentEntity.Description)
                             ? $"调用子智能体「{subAgentEntity.Name}」来处理任务"
-                            : subAgentEntity.Description
+                            : $"[{subAgentEntity.Name}] {subAgentEntity.Description}"
                     });
 
                 subAgentFunctions.Add(agentFunction);
-                logger.LogInformation("已注入子智能体工具：agent_{Name}（{PluginCount} 个插件，{McpCount} 个 MCP）",
-                    subAgentEntity.Name, subAgentEntity.EnabledPluginIds.Count, subAgentEntity.EnabledMcpServerIds.Count);
+                logger.LogInformation("已注入子智能体工具：{FunctionName}（显示名：{DisplayName}，{PluginCount} 个插件，{McpCount} 个 MCP）",
+                    functionName, subAgentEntity.Name, subAgentEntity.EnabledPluginIds.Count, subAgentEntity.EnabledMcpServerIds.Count);
             }
         }
 
@@ -264,6 +274,7 @@ public sealed class AIAgentFactory(
             .BuildAIAgent(new ChatClientAgentOptions
             {
                 Name = mainAgent.Name,
+                Id = mainAgent.Id,
                 AIContextProviders = providers,
                 ChatOptions = driver.BuildChatOptions(mainProvider, mainAgent),
                 ChatHistoryProvider = services.GetRequiredService<ChatHistoryDataProvider>(),

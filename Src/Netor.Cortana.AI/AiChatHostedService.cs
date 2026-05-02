@@ -137,12 +137,7 @@ public sealed class AiChatHostedService(
         _session = await _agent.CreateSessionAsync(CancellationToken.None);
         _sessionId = Guid.NewGuid().ToString("N");
         _session.StateBag.SetValue("sessionid", _sessionId);
-
-        if (_currentModel is not null)
-        {
-            _session.StateBag.SetValue("modelid", _currentModel.Name);
-            _session.StateBag.SetValue("modeldbid", _currentModel.Id);
-        }
+        UpdateSessionSelectionState(_session);
 
         _sessionId = await chatHistoryProvider.CreateNewSessionAsync(_session, _agent);
         publisher.Publish(Events.OnSessionCreated, new SessionCreatedArgs(_sessionId));
@@ -161,12 +156,7 @@ public sealed class AiChatHostedService(
         _session = await _agent.CreateSessionAsync(CancellationToken.None);
         _sessionId = sessionId;
         _session.StateBag.SetValue("sessionid", sessionId);
-
-        if (_currentModel is not null)
-        {
-            _session.StateBag.SetValue("modelid", _currentModel.Name);
-            _session.StateBag.SetValue("modeldbid", _currentModel.Id);
-        }
+        UpdateSessionSelectionState(_session);
 
         // 恢复历史会话时暂无真实 usage，先清阀进度条，等下一轮对话的 API 返回重新填充
         factory.ResetTokenStats();
@@ -523,6 +513,10 @@ public sealed class AiChatHostedService(
         try
         {
             var sessionId = _session?.StateBag.GetValue<string>("sessionid") ?? "";
+            // 用户消息也带上当前主智能体身份，便于在消息层级直接定位归属，
+            // 子智能体调用前后用户消息均归属当前激活的主智能体（_currentAgent）。
+            var userAgentId = _session?.StateBag.GetValue<string>("agentid") ?? _currentAgent?.Id ?? string.Empty;
+            var userAgentName = _currentAgent?.Name ?? string.Empty;
             var entity = new ChatMessageEntity
             {
                 Role = ChatRole.User.ToString(),
@@ -534,15 +528,17 @@ public sealed class AiChatHostedService(
                 Id = message.MessageId ?? Guid.NewGuid().ToString("N"),
                 SessionId = sessionId,
                 UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
-                ModelName = _currentModel?.Name ?? string.Empty
+                ModelName = _currentModel?.Name ?? string.Empty,
+                AgentId = userAgentId,
+                AgentName = userAgentName
             };
 
             dbContext.Execute(
                 """
                 INSERT OR REPLACE INTO ChatMessages
-                    (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, ContentsJson, TokenCount, ModelName, CreatedAt)
+                    (Id, CreatedTimestamp, UpdatedTimestamp, SessionId, Role, AuthorName, Content, ContentsJson, TokenCount, ModelName, CreatedAt, AgentId, AgentName)
                 VALUES
-                    (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @ContentsJson, @TokenCount, @ModelName, @CreatedAt)
+                    (@Id, @CreatedTimestamp, @UpdatedTimestamp, @SessionId, @Role, @AuthorName, @Content, @ContentsJson, @TokenCount, @ModelName, @CreatedAt, @AgentId, @AgentName)
                 """,
                 cmd => ChatMessageService.BindEntity(cmd, entity));
         }
@@ -598,12 +594,7 @@ public sealed class AiChatHostedService(
         }
 
         _session.StateBag.SetValue("sessionid", _sessionId);
-
-        if (_currentModel is not null)
-        {
-            _session.StateBag.SetValue("modelid", _currentModel?.Name ?? string.Empty);
-            _session.StateBag.SetValue("modeldbid", _currentModel?.Id);
-        }
+        UpdateSessionSelectionState(_session);
     }
 
     /// <summary>
@@ -689,6 +680,16 @@ public sealed class AiChatHostedService(
             _currentModel?.Name ?? string.Empty,
             userMessageId,
             assistantMessageId);
+    }
+
+    private void UpdateSessionSelectionState(AgentSession session)
+    {
+        session.StateBag.SetValue("providerid", _currentProvider?.Id ?? string.Empty);
+        session.StateBag.SetValue("providername", _currentProvider?.Name ?? string.Empty);
+        session.StateBag.SetValue("agentid", _currentAgent?.Id ?? string.Empty);
+        session.StateBag.SetValue("agentname", _currentAgent?.Name ?? string.Empty);
+        session.StateBag.SetValue("modelid", _currentModel?.Name ?? string.Empty);
+        session.StateBag.SetValue("modeldbid", _currentModel?.Id ?? string.Empty);
     }
 
     private void PublishConversationTurnStarted(

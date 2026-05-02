@@ -5,7 +5,7 @@
     <OutputType>Exe</OutputType>
     <AssemblyName>script-runner</AssemblyName>
     <RootNamespace>Cortana.Plugins.ScriptRunner</RootNamespace>
-    <Version>1.0.10</Version>
+    <Version>1.0.14</Version>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>

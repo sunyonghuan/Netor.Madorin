@@ -13,6 +13,7 @@ public sealed class MemoryAbstractionService(
 {
     public void RunAbstractionPass(string? agentId = null, string? workspaceId = null, int minSupportCount = 3, int topPerTopic = 50)
     {
+        var generatedCount = 0;
         var agents = string.IsNullOrWhiteSpace(agentId) ? store.GetDistinctAgentIds() : new[] { agentId };
         foreach (var ag in agents)
         {
@@ -29,8 +30,11 @@ public sealed class MemoryAbstractionService(
                 store.UpsertMemoryAbstraction(abstraction);
                 InsertMutation(ag, abstraction.Id, "abstraction", "create", null, JsonSerializer.Serialize(abstraction, MemoryInternalJsonContext.Default.MemoryAbstraction), "抽象记忆批处理生成。", null!);
                 InsertAbstractionCreatedEvent(ag, abstraction.Id, abstraction.SupportingMemoryIdsJson);
+                generatedCount++;
             }
         }
+
+        logger.LogInformation("抽象记忆批处理完成。AgentId={AgentId}, WorkspaceId={WorkspaceId}, GeneratedCount={GeneratedCount}", agentId, workspaceId, generatedCount);
     }
 
     private void InsertAbstractionCreatedEvent(string agentId, string abstractionId, string supportingMemoryIdsJson)

@@ -1,6 +1,5 @@
 using Cortana.Plugins.Memory.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
-using Netor.Cortana.Plugin;
 
 namespace Memory.Test.Storage;
 
@@ -13,17 +12,7 @@ internal sealed class MemoryStorageTestFixture : IDisposable
         _directory = Path.Combine(Path.GetTempPath(), "cortana-memory-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_directory);
 
-        var settings = new PluginSettings(
-            _directory,
-            workspaceDirectory: "workspace-test",
-            pluginDirectory: _directory,
-            wsPort: 0,
-            chatWsEndpoint: string.Empty,
-            conversationFeedEndpoint: string.Empty,
-            conversationFeedProtocol: string.Empty,
-            conversationFeedVersion: string.Empty);
-
-        Database = new SqliteMemoryDatabase(settings, NullLogger<SqliteMemoryDatabase>.Instance);
+        Database = new SqliteMemoryDatabase(new MemoryDatabaseOptions(_directory), NullLogger<SqliteMemoryDatabase>.Instance);
         ObservationRecords = new ObservationRecordsTable(Database);
         MemoryFragments = new MemoryFragmentsTable(Database);
         MemoryAbstractions = new MemoryAbstractionsTable(Database);

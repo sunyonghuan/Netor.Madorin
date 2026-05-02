@@ -12,9 +12,9 @@ namespace Cortana.Plugins.Memory.ToolHandlers;
 public sealed class MemoryWriteToolHandler(
     IMemoryNoteService noteService,
     IMemoryRecentService recentService,
+    IMemoryRuntimeContext runtimeContext,
     ILogger<MemoryWriteToolHandler> logger) : IMemoryWriteToolHandler
 {
-    private const string DefaultAgentId = "default";
     private const int MaximumRecentMemoryCount = 50;
 
     /// <inheritdoc />
@@ -31,8 +31,8 @@ public sealed class MemoryWriteToolHandler(
         {
             var result = noteService.AddNote(new MemoryAddNoteRequest
             {
-                AgentId = DefaultAgentId,
-                WorkspaceId = NormalizeOptional(workspaceId),
+                AgentId = runtimeContext.ResolveAgentId(null),
+                WorkspaceId = runtimeContext.ResolveWorkspaceId(workspaceId),
                 Content = content,
                 MemoryType = memoryType,
                 Topic = NormalizeOptional(topic),
@@ -64,8 +64,8 @@ public sealed class MemoryWriteToolHandler(
         {
             var result = recentService.ListRecent(new MemoryListRecentRequest
             {
-                AgentId = DefaultAgentId,
-                WorkspaceId = NormalizeOptional(workspaceId),
+                AgentId = runtimeContext.ResolveAgentId(null),
+                WorkspaceId = runtimeContext.ResolveWorkspaceId(workspaceId),
                 Limit = limit <= 0 ? null : Math.Min(limit, MaximumRecentMemoryCount),
                 Kind = NormalizeOptional(kind)
             });

@@ -1,13 +1,101 @@
 using Cortana.Plugins.Memory.Models;
 using Cortana.Plugins.Memory.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Memory.Test.Storage;
+using Netor.Cortana.Plugin;
+using System.Text.Json;
 
 namespace Memory.Test.Services;
 
 [TestClass]
 public sealed class MemoryP1ServiceTests
 {
+    [TestMethod]
+    public void IngestLiveEvent_Should_Buffer_Assistant_Deltas_Until_Turn_Completed()
+    {
+        using var fixture = new MemoryStorageTestFixture();
+        var service = CreateIngestService(fixture);
+
+        service.TryIngestLiveEvent("conversation.assistant.delta", ParsePayload("""
+            {
+              "sessionId": "session-stream-test",
+              "turnId": "turn-stream-test",
+              "assistantMessageId": "assistant-stream-test",
+              "agentId": "agent-test",
+              "workspaceId": "workspace-test",
+              "delta": "你好，",
+              "sequence": 1,
+              "occurredAt": 1000
+            }
+            """));
+        service.TryIngestLiveEvent("conversation.assistant.delta", ParsePayload("""
+            {
+              "sessionId": "session-stream-test",
+              "turnId": "turn-stream-test",
+              "assistantMessageId": "assistant-stream-test",
+              "agentId": "agent-test",
+              "workspaceId": "workspace-test",
+              "delta": "这是完整回复。",
+              "sequence": 2,
+              "occurredAt": 1100
+            }
+            """));
+        service.TryIngestLiveEvent("conversation.turn.completed", ParsePayload("""
+            {
+              "sessionId": "session-stream-test",
+              "turnId": "turn-stream-test",
+              "assistantMessageId": "assistant-stream-test",
+              "agentId": "agent-test",
+              "workspaceId": "workspace-test",
+              "status": "succeeded",
+              "occurredAt": 1200
+            }
+            """));
+
+        var observations = fixture.ObservationRecords.List(MemoryTestData.AgentId, MemoryTestData.WorkspaceId, 10);
+
+        Assert.AreEqual(1, observations.Count);
+        Assert.AreEqual("assistant-stream-test", observations[0].Id);
+        Assert.AreEqual("assistant", observations[0].Role);
+        Assert.AreEqual("你好，这是完整回复。", observations[0].Content);
+        Assert.AreEqual("conversation.turn.completed", observations[0].EventType);
+    }
+
+    [TestMethod]
+    public void IngestLiveEvent_Should_Not_Save_Failed_Assistant_Stream()
+    {
+        using var fixture = new MemoryStorageTestFixture();
+        var service = CreateIngestService(fixture);
+
+        service.TryIngestLiveEvent("conversation.assistant.delta", ParsePayload("""
+            {
+              "sessionId": "session-stream-test",
+              "turnId": "turn-stream-test",
+              "assistantMessageId": "assistant-failed-test",
+              "agentId": "agent-test",
+              "workspaceId": "workspace-test",
+              "delta": "半截输出",
+              "occurredAt": 1000
+            }
+            """));
+        service.TryIngestLiveEvent("conversation.turn.completed", ParsePayload("""
+            {
+              "sessionId": "session-stream-test",
+              "turnId": "turn-stream-test",
+              "assistantMessageId": "assistant-failed-test",
+              "agentId": "agent-test",
+              "workspaceId": "workspace-test",
+              "status": "failed",
+              "occurredAt": 1200
+            }
+            """));
+
+        var observations = fixture.ObservationRecords.List(MemoryTestData.AgentId, MemoryTestData.WorkspaceId, 10);
+
+        Assert.AreEqual(0, observations.Count);
+    }
+
     [TestMethod]
     public void AddNote_Should_Write_Candidate_Fragment_And_Mutation()
     {
@@ -123,5 +211,27 @@ public sealed class MemoryP1ServiceTests
             AgentId = MemoryTestData.AgentId,
             Kind = "unknown"
         }));
+    }
+
+    private static MemoryIngestService CreateIngestService(MemoryStorageTestFixture fixture)
+    {
+        var settings = new PluginSettings(
+            Path.GetTempPath(),
+            MemoryTestData.WorkspaceId,
+            AppContext.BaseDirectory,
+            0,
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            0);
+
+        return new MemoryIngestService(settings, NullLogger<MemoryIngestService>.Instance, fixture.Store);
+    }
+
+    private static JsonElement ParsePayload(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
     }
 }

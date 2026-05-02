@@ -234,7 +234,9 @@ namespace Netor.Cortana.Entitys
                     ContentsJson TEXT NOT NULL DEFAULT '',
                     TokenCount INTEGER NOT NULL DEFAULT 0,
                     ModelName TEXT NOT NULL DEFAULT '',
-                    CreatedAt TEXT
+                    CreatedAt TEXT,
+                    AgentId TEXT NOT NULL DEFAULT '',
+                    AgentName TEXT NOT NULL DEFAULT ''
                 );
                 """);
 
@@ -335,6 +337,38 @@ namespace Netor.Cortana.Entitys
 
             // v1.2.x: ChatMessages 结构化内容列，保存工具调用/结果等多态 AIContent 快照
             TryAddColumn("ALTER TABLE ChatMessages ADD COLUMN ContentsJson TEXT NOT NULL DEFAULT ''");
+
+            // v1.3: ChatMessages 增加智能体来源字段，便于在消息层直接定位主/子智能体，
+            // 同时保留智能体名称的历史快照（智能体重命名/删除后仍可追溯）。
+            TryAddColumn("ALTER TABLE ChatMessages ADD COLUMN AgentId TEXT NOT NULL DEFAULT ''");
+            TryAddColumn("ALTER TABLE ChatMessages ADD COLUMN AgentName TEXT NOT NULL DEFAULT ''");
+
+            // 历史数据回填：通过 ChatSessions.AgentId 反查 Agents.Name，把消息上的 AgentId/AgentName
+            // 一次性补齐。仅回填 AgentId 当前为空（IFNULL='')、且 SessionId 能匹配到会话的消息，避免重复覆盖。
+            BackfillChatMessagesAgentInfo();
+        }
+
+        /// <summary>
+        /// 一次性把 ChatMessages.AgentId / AgentName 从 ChatSessions + Agents 反查回填。
+        /// 仅触达 AgentId 为空的旧记录，幂等可重复执行。
+        /// </summary>
+        private void BackfillChatMessagesAgentInfo()
+        {
+            try
+            {
+                Execute("""
+                    UPDATE ChatMessages
+                    SET AgentId = IFNULL((SELECT s.AgentId FROM ChatSessions s WHERE s.Id = ChatMessages.SessionId), ''),
+                        AgentName = IFNULL((SELECT a.Name FROM ChatSessions s
+                                             LEFT JOIN Agents a ON a.Id = s.AgentId
+                                             WHERE s.Id = ChatMessages.SessionId), '')
+                    WHERE IFNULL(AgentId, '') = '';
+                    """);
+            }
+            catch (SqliteException)
+            {
+                // 任何老库结构异常都不阻断启动；后续插入仍可写入新列。
+            }
         }
 
         private void TryAddColumn(string alterSql)
@@ -355,6 +389,7 @@ namespace Netor.Cortana.Entitys
             Execute("CREATE INDEX IF NOT EXISTS IX_ChatSessions_AgentId ON ChatSessions(AgentId);");
             Execute("CREATE INDEX IF NOT EXISTS IX_ChatSessions_LastActive ON ChatSessions(LastActiveTimestamp);");
             Execute("CREATE INDEX IF NOT EXISTS IX_ChatMessages_SessionId ON ChatMessages(SessionId);");
+            Execute("CREATE INDEX IF NOT EXISTS IX_ChatMessages_AgentId ON ChatMessages(AgentId);");
             Execute("CREATE INDEX IF NOT EXISTS IX_McpServers_IsEnabled ON McpServers(IsEnabled);");
             Execute("CREATE INDEX IF NOT EXISTS IX_SystemSettings_Group ON SystemSettings([Group]);");
             Execute("CREATE INDEX IF NOT EXISTS IX_SystemSettings_SortOrder ON SystemSettings(SortOrder);");

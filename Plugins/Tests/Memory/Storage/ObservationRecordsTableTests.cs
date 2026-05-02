@@ -19,6 +19,7 @@ public sealed class ObservationRecordsTableTests
         Assert.IsNotNull(saved);
         Assert.AreEqual(record.Id, saved.Id);
         Assert.AreEqual(record.AgentId, saved.AgentId);
+        Assert.AreEqual(record.AgentName, saved.AgentName);
         Assert.AreEqual(record.WorkspaceId, saved.WorkspaceId);
         Assert.AreEqual(record.Content, saved.Content);
     }
@@ -55,6 +56,34 @@ public sealed class ObservationRecordsTableTests
 
         Assert.AreEqual(2, list.Count);
         CollectionAssert.AreEquivalent(new[] { "obs-3", "obs-4" }, list.Select(static item => item.Id).ToArray());
+    }
+
+    [TestMethod]
+    public void BulkInsert_Should_Backfill_Agent_Identity_For_Existing_Observation()
+    {
+        using var fixture = new MemoryStorageTestFixture();
+        var original = MemoryTestData.Observation("obs-backfill");
+        original.AgentId = null;
+        original.AgentName = null;
+        original.EventType = null;
+        original.MessageId = null;
+        fixture.ObservationRecords.Insert(original);
+
+        var replay = MemoryTestData.Observation("obs-backfill");
+        replay.AgentId = "agent-from-host";
+        replay.AgentName = "宿主智能体";
+        replay.EventType = "conversation.user.message";
+        replay.MessageId = "message-from-host";
+        fixture.ObservationRecords.BulkInsert([replay]);
+
+        var saved = fixture.ObservationRecords.GetById("obs-backfill");
+
+        Assert.IsNotNull(saved);
+        Assert.AreEqual("agent-from-host", saved.AgentId);
+        Assert.AreEqual("宿主智能体", saved.AgentName);
+        Assert.AreEqual("conversation.user.message", saved.EventType);
+        Assert.AreEqual("message-from-host", saved.MessageId);
+        Assert.AreEqual(original.Content, saved.Content);
     }
 
     [TestMethod]

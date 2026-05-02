@@ -27,6 +27,7 @@ public sealed class MemoryStore(
             cmd.CommandText = @"CREATE TABLE IF NOT EXISTS observation_records (
   id TEXT PRIMARY KEY,
   agentId TEXT,
+    agentName TEXT,
   workspaceId TEXT,
   sessionId TEXT NOT NULL,
   turnId TEXT,
@@ -64,6 +65,7 @@ public sealed class MemoryStore(
         }
 
         TryAddColumn("ALTER TABLE observation_records ADD COLUMN agentId TEXT");
+        TryAddColumn("ALTER TABLE observation_records ADD COLUMN agentName TEXT");
         TryAddColumn("ALTER TABLE observation_records ADD COLUMN workspaceId TEXT");
         TryAddColumn("ALTER TABLE observation_records ADD COLUMN turnId TEXT");
         TryAddColumn("ALTER TABLE observation_records ADD COLUMN messageId TEXT");
@@ -695,7 +697,7 @@ LIMIT @limit";
         }
     }
 
-    private const string InsertObservationSql = "INSERT OR IGNORE INTO observation_records (id, agentId, workspaceId, sessionId, turnId, messageId, eventType, role, content, attachments, createdTimestamp, modelName, traceId, sourceFacts, schemaVersion, recordVersion, createdAt) VALUES (@id,@agent,@workspace,@sid,@turn,@mid,@etype,@role,@content,@atts,@ts,@model,@trace,@facts,@schema,@record,@created)";
+    private const string InsertObservationSql = "INSERT OR IGNORE INTO observation_records (id, agentId, agentName, workspaceId, sessionId, turnId, messageId, eventType, role, content, attachments, createdTimestamp, modelName, traceId, sourceFacts, schemaVersion, recordVersion, createdAt) VALUES (@id,@agent,@agentName,@workspace,@sid,@turn,@mid,@etype,@role,@content,@atts,@ts,@model,@trace,@facts,@schema,@record,@created)";
 
     private static int CountRows(SqliteConnection connection, string tableName, string? agentId, string? workspaceId, bool requireAgentFilter)
     {
@@ -715,7 +717,7 @@ WHERE (@agent IS NULL OR agentId = @agent)
         cmd.Parameters.Clear();
         cmd.Parameters.AddRange([
             New(cmd, "@id"), New(cmd, "@agent"), New(cmd, "@workspace"), New(cmd, "@sid"), New(cmd, "@turn"), New(cmd, "@mid"), New(cmd, "@etype"),
-            New(cmd, "@role"), New(cmd, "@content"), New(cmd, "@atts"), New(cmd, "@ts"), New(cmd, "@model"), New(cmd, "@trace"), New(cmd, "@facts"),
+            New(cmd, "@agentName"), New(cmd, "@role"), New(cmd, "@content"), New(cmd, "@atts"), New(cmd, "@ts"), New(cmd, "@model"), New(cmd, "@trace"), New(cmd, "@facts"),
             New(cmd, "@schema"), New(cmd, "@record"), New(cmd, "@created")
         ]);
     }
@@ -729,6 +731,7 @@ WHERE (@agent IS NULL OR agentId = @agent)
     {
         cmd.Parameters["@id"].Value = r.Id;
         cmd.Parameters["@agent"].Value = (object?)r.AgentId ?? DBNull.Value;
+        cmd.Parameters["@agentName"].Value = (object?)r.AgentName ?? DBNull.Value;
         cmd.Parameters["@workspace"].Value = (object?)r.WorkspaceId ?? DBNull.Value;
         cmd.Parameters["@sid"].Value = r.SessionId;
         cmd.Parameters["@turn"].Value = (object?)r.TurnId ?? DBNull.Value;
@@ -772,21 +775,22 @@ WHERE (@agent IS NULL OR agentId = @agent)
         {
             Id = reader.GetString(0),
             AgentId = reader.IsDBNull(1) ? null : reader.GetString(1),
-            WorkspaceId = reader.IsDBNull(2) ? null : reader.GetString(2),
-            SessionId = reader.GetString(3),
-            TurnId = reader.IsDBNull(4) ? null : reader.GetString(4),
-            MessageId = reader.IsDBNull(5) ? null : reader.GetString(5),
-            EventType = reader.IsDBNull(6) ? null : reader.GetString(6),
-            Role = reader.GetString(7),
-            Content = reader.IsDBNull(8) ? null : reader.GetString(8),
-            AttachmentsJson = reader.GetString(9),
-            CreatedTimestamp = reader.GetInt64(10),
-            ModelName = reader.IsDBNull(11) ? null : reader.GetString(11),
-            TraceId = reader.IsDBNull(12) ? null : reader.GetString(12),
-            SourceFactsJson = reader.GetString(13),
-            SchemaVersion = reader.GetInt32(14),
-            RecordVersion = reader.GetInt32(15),
-            CreatedAt = reader.GetString(16)
+            AgentName = reader.IsDBNull(2) ? null : reader.GetString(2),
+            WorkspaceId = reader.IsDBNull(3) ? null : reader.GetString(3),
+            SessionId = reader.GetString(4),
+            TurnId = reader.IsDBNull(5) ? null : reader.GetString(5),
+            MessageId = reader.IsDBNull(6) ? null : reader.GetString(6),
+            EventType = reader.IsDBNull(7) ? null : reader.GetString(7),
+            Role = reader.GetString(8),
+            Content = reader.IsDBNull(9) ? null : reader.GetString(9),
+            AttachmentsJson = reader.GetString(10),
+            CreatedTimestamp = reader.GetInt64(11),
+            ModelName = reader.IsDBNull(12) ? null : reader.GetString(12),
+            TraceId = reader.IsDBNull(13) ? null : reader.GetString(13),
+            SourceFactsJson = reader.GetString(14),
+            SchemaVersion = reader.GetInt32(15),
+            RecordVersion = reader.GetInt32(16),
+            CreatedAt = reader.GetString(17)
         };
     }
 

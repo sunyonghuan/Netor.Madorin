@@ -1,11 +1,13 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>memory</AssemblyName>
-    <Version>1.0.0</Version>
+    <Version>1.0.4</Version>
+    <!-- Netor.Cortana.Plugin.Native 的生成文件未写入 #nullable，但业务源码保持 nullable 启用。 -->
+    <NoWarn>$(NoWarn);CS8669</NoWarn>
     <!--
       默认作为插件 DLL 构建。MCP 控制台模式发布时通过命令行覆盖：
         dotnet publish ... -p:OutputType=Exe
@@ -24,10 +26,21 @@
     <PackageReference Include="ModelContextProtocol" Version="1.2.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Memory.Test</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
   <!-- MCP 控制台模式专用：仅在 OutputType=Exe 时引入 Hosting，并参与 Program.cs 编译 -->
   <ItemGroup Condition="'$(OutputType)' == 'Exe'">
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
   </ItemGroup>
+
+  <!-- Windows 发布默认启用 Native AOT；Linux DLL 便携包保持非 AOT。 -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
 
   <!-- 插件库模式不包含 MCP 控制台入口 -->
   <ItemGroup Condition="'$(OutputType)' != 'Exe'">
