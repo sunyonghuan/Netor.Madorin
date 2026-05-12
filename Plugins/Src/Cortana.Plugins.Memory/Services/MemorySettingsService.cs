@@ -57,7 +57,7 @@ public sealed class MemorySettingsService(IMemoryStore store) : IMemorySettingsS
         return new MemorySupplyOptions
         {
             Enabled = GetBoolean("supply.enabled", true, agentId, workspaceId),
-            MaxMemoryCount = GetInt32("supply.maxMemoryCount", 8, agentId, workspaceId)
+            MaxMemoryCount = GetInt32("supply.maxMemoryCount", 12, agentId, workspaceId)
         };
     }
 

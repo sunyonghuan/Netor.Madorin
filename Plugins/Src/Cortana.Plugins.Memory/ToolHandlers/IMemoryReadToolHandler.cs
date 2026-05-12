@@ -13,10 +13,11 @@ public interface IMemoryReadToolHandler
     /// </summary>
     /// <param name="queryText">用户输入的查询文本，支持自然语言检索。</param>
     /// <param name="queryIntent">查询意图标识，如"recall"、"search"等，用于优化召回策略。</param>
+    /// <param name="agentId">可选智能体标识；空字符串表示不按智能体过滤。</param>
     /// <param name="workspaceId">当前工作区唯一标识，用于限定召回范围。</param>
     /// <param name="maxMemoryCount">最大召回记忆条数，防止结果过多。</param>
     /// <returns>召回的长期记忆结果，通常为 JSON 字符串。</returns>
-    string Recall(string queryText, string queryIntent, string workspaceId, int maxMemoryCount);
+    string Recall(string queryText, string queryIntent, string agentId, string workspaceId, int maxMemoryCount);
 
 
     /// <summary>

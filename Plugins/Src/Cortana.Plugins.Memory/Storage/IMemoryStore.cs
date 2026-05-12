@@ -28,7 +28,8 @@ public interface IMemoryStore
     void UpsertProcessingState(MemoryProcessingState state);
     IReadOnlyList<MemoryFragment> SearchSimilarFragments(string agentId, string? workspaceId, string memoryType, string summary, int limit);
     MemoryFragment? GetFragmentById(string id);
-    IReadOnlyList<MemoryRecallItem> SearchRecallCandidates(string agentId, string? workspaceId, string? queryText, double minimumConfidence, bool includeCandidateMemories, int limit);
+    IReadOnlyList<MemoryRecallItem> SearchRecallCandidates(string? agentId, string? workspaceId, string? queryText, double minimumConfidence, bool includeCandidateMemories, int limit);
+    IReadOnlyList<MemoryRecallItem> SearchRecallCandidatesInScope(string? agentId, bool agentMustBeNull, string? workspaceId, bool workspaceMustBeNull, string? queryText, double minimumConfidence, bool includeCandidateMemories, int limit);
     void RecordMemoryAccesses(IEnumerable<MemoryRecallItem> items, string accessedAt);
     IReadOnlyList<MemoryRecentItem> ListRecentMemories(string? agentId, string? workspaceId, string? kind, int limit);
     IReadOnlyList<MemoryFragment> GetFragmentsForAbstraction(string agentId, string? workspaceId, string? topic, int minSupportCount, int limit);

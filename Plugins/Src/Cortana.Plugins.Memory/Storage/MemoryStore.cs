@@ -301,7 +301,7 @@ VALUES
 ('global.recall.minimumConfidence', NULL, NULL, 'recall.minimumConfidence', '0.35', 'double', 'recall', '允许参与召回的最低记忆可信度。', 1, 3, 1, datetime('now'), datetime('now')),
 ('global.recall.includeCandidateMemories', NULL, NULL, 'recall.includeCandidateMemories', 'false', 'bool', 'recall', '是否允许候选记忆参与召回。', 1, 3, 1, datetime('now'), datetime('now')),
 ('global.supply.enabled', NULL, NULL, 'supply.enabled', 'true', 'bool', 'supply', '是否启用主动记忆供应。', 1, 3, 1, datetime('now'), datetime('now')),
-('global.supply.maxMemoryCount', NULL, NULL, 'supply.maxMemoryCount', '8', 'int', 'supply', '主动供应给上层的最大记忆数量。', 1, 3, 1, datetime('now'), datetime('now')),
+('global.supply.maxMemoryCount', NULL, NULL, 'supply.maxMemoryCount', '12', 'int', 'supply', '主动供应给上层的最大记忆数量。', 1, 3, 1, datetime('now'), datetime('now')),
 ('global.abstraction.enabled', NULL, NULL, 'abstraction.enabled', 'true', 'bool', 'abstraction', '是否启用自动抽象记忆生成。', 1, 3, 1, datetime('now'), datetime('now')),
 ('global.abstraction.minimumSupportCount', NULL, NULL, 'abstraction.minimumSupportCount', '3', 'int', 'abstraction', '生成抽象记忆需要的最小支撑记忆数。', 1, 3, 1, datetime('now'), datetime('now')),
 ('global.abstraction.minimumConfidence', NULL, NULL, 'abstraction.minimumConfidence', '0.55', 'double', 'abstraction', '抽象记忆入库所需的最低可信度。', 1, 3, 1, datetime('now'), datetime('now')),
@@ -549,10 +549,11 @@ VALUES
         }
     }
 
-    public IReadOnlyList<MemoryRecallItem> SearchRecallCandidates(string agentId, string? workspaceId, string? queryText, double minimumConfidence, bool includeCandidateMemories, int limit)
+    public IReadOnlyList<MemoryRecallItem> SearchRecallCandidates(string? agentId, string? workspaceId, string? queryText, double minimumConfidence, bool includeCandidateMemories, int limit)
     {
-        if (string.IsNullOrWhiteSpace(agentId)) throw new ArgumentException("智能体标识不能为空。", nameof(agentId));
         if (limit <= 0) return [];
+        agentId = string.IsNullOrWhiteSpace(agentId) ? null : agentId.Trim();
+        workspaceId = string.IsNullOrWhiteSpace(workspaceId) ? null : workspaceId.Trim();
         var queryTerms = GetQueryTerms(queryText);
         var hasQuery = queryTerms.Count > 0;
         var candidateLimit = hasQuery ? Math.Max(limit * 50, 500) : Math.Max(limit * 5, limit);
@@ -567,7 +568,7 @@ VALUES
   SELECT id, 'fragment' AS kind, agentId, workspaceId, topic, title, summary, detail, confidence, salienceScore, retentionScore, accessCount, lifecycleState, confirmationState, updatedAt,
          (confidence * 0.35 + salienceScore * 0.30 + retentionScore * 0.25 + min(accessCount, 10) * 0.01) AS baseScore
   FROM memory_fragments
-  WHERE agentId = @agent
+    WHERE (@agent IS NULL OR agentId = @agent)
     AND (@workspace IS NULL OR workspaceId IS NULL OR workspaceId = @workspace)
     AND confidence >= @minimumConfidence
     AND lifecycleState <> 'forgotten'
@@ -578,7 +579,7 @@ VALUES
   SELECT id, 'abstraction' AS kind, agentId, workspaceId, abstractionType AS topic, title, summary, statement AS detail, confidence, stabilityScore AS salienceScore, retentionScore, accessCount, lifecycleState, confirmationState, updatedAt,
          (confidence * 0.35 + stabilityScore * 0.30 + retentionScore * 0.25 + min(accessCount, 10) * 0.01) AS baseScore
   FROM memory_abstractions
-  WHERE agentId = @agent
+  WHERE (@agent IS NULL OR agentId = @agent)
     AND (@workspace IS NULL OR workspaceId IS NULL OR workspaceId = @workspace)
     AND confidence >= @minimumConfidence
     AND lifecycleState <> 'forgotten'
@@ -588,7 +589,7 @@ VALUES
 )
 ORDER BY baseScore DESC
 LIMIT @limit";
-            Set(cmd, "@agent", agentId);
+            SetNullable(cmd, "@agent", agentId);
             SetNullable(cmd, "@workspace", workspaceId);
             Set(cmd, "@minimumConfidence", minimumConfidence);
             Set(cmd, "@includeCandidates", includeCandidateMemories ? 1 : 0);
@@ -618,6 +619,92 @@ LIMIT @limit";
         catch (SqliteException ex)
         {
             throw CreateStorageException("检索召回候选记忆", ex);
+        }
+    }
+
+    public IReadOnlyList<MemoryRecallItem> SearchRecallCandidatesInScope(
+        string? agentId,
+        bool agentMustBeNull,
+        string? workspaceId,
+        bool workspaceMustBeNull,
+        string? queryText,
+        double minimumConfidence,
+        bool includeCandidateMemories,
+        int limit)
+    {
+        if (limit <= 0) return [];
+        agentId = string.IsNullOrWhiteSpace(agentId) ? null : agentId.Trim();
+        workspaceId = string.IsNullOrWhiteSpace(workspaceId) ? null : workspaceId.Trim();
+        if (!agentMustBeNull && agentId is null) throw new ArgumentException("严格作用域查询需要提供 agentId，或显式要求 agentId 为空。", nameof(agentId));
+        if (!workspaceMustBeNull && workspaceId is null) throw new ArgumentException("严格作用域查询需要提供 workspaceId，或显式要求 workspaceId 为空。", nameof(workspaceId));
+
+        var queryTerms = GetQueryTerms(queryText);
+        var hasQuery = queryTerms.Count > 0;
+        var candidateLimit = hasQuery ? Math.Max(limit * 50, 500) : Math.Max(limit * 5, limit);
+        var fragmentTextFilter = BuildRecallTextFilter(queryTerms, "topic", "title", "summary", "detail");
+        var abstractionTextFilter = BuildRecallTextFilter(queryTerms, "abstractionType", "title", "summary", "statement");
+        var agentFilter = agentMustBeNull ? "agentId IS NULL" : "agentId = @agent";
+        var workspaceFilter = workspaceMustBeNull ? "workspaceId IS NULL" : "workspaceId = @workspace";
+
+        try
+        {
+            using var conn = database.OpenConnection();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"SELECT * FROM (
+  SELECT id, 'fragment' AS kind, agentId, workspaceId, topic, title, summary, detail, confidence, salienceScore, retentionScore, accessCount, lifecycleState, confirmationState, updatedAt,
+         (confidence * 0.35 + salienceScore * 0.30 + retentionScore * 0.25 + min(accessCount, 10) * 0.01) AS baseScore
+  FROM memory_fragments
+    WHERE " + agentFilter + @"
+    AND " + workspaceFilter + @"
+    AND confidence >= @minimumConfidence
+    AND lifecycleState <> 'forgotten'
+    AND confirmationState <> 'rejected'
+    AND (" + fragmentTextFilter + @")
+    AND (@includeCandidates = 1 OR (lifecycleState = 'active' AND confirmationState = 'confirmed') OR (@hasQuery = 1 AND lifecycleState = 'candidate' AND confirmationState = 'pending'))
+  UNION ALL
+  SELECT id, 'abstraction' AS kind, agentId, workspaceId, abstractionType AS topic, title, summary, statement AS detail, confidence, stabilityScore AS salienceScore, retentionScore, accessCount, lifecycleState, confirmationState, updatedAt,
+         (confidence * 0.35 + stabilityScore * 0.30 + retentionScore * 0.25 + min(accessCount, 10) * 0.01) AS baseScore
+  FROM memory_abstractions
+  WHERE " + agentFilter + @"
+    AND " + workspaceFilter + @"
+    AND confidence >= @minimumConfidence
+    AND lifecycleState <> 'forgotten'
+    AND confirmationState <> 'rejected'
+    AND (" + abstractionTextFilter + @")
+    AND (@includeCandidates = 1 OR (lifecycleState = 'active' AND confirmationState = 'confirmed') OR (@hasQuery = 1 AND lifecycleState = 'candidate' AND confirmationState = 'pending'))
+)
+ORDER BY baseScore DESC
+LIMIT @limit";
+            SetNullable(cmd, "@agent", agentId);
+            SetNullable(cmd, "@workspace", workspaceId);
+            Set(cmd, "@minimumConfidence", minimumConfidence);
+            Set(cmd, "@includeCandidates", includeCandidateMemories ? 1 : 0);
+            Set(cmd, "@hasQuery", hasQuery ? 1 : 0);
+            Set(cmd, "@limit", candidateLimit);
+            for (var i = 0; i < queryTerms.Count; i++)
+            {
+                Set(cmd, $"@term{i}", $"%{EscapeLikeTerm(queryTerms[i])}%");
+            }
+
+            var items = new List<MemoryRecallItem>();
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                items.Add(ReadRecallItem(reader, queryText));
+            }
+
+            var matchedItems = hasQuery
+                ? items.Where(item => HasTextMatch(queryText, item.Topic, item.Title, item.Summary, item.Detail))
+                : items;
+
+            return matchedItems
+                .OrderByDescending(static item => item.RecallScore)
+                .Take(limit)
+                .ToList();
+        }
+        catch (SqliteException ex)
+        {
+            throw CreateStorageException("按严格作用域检索召回候选记忆", ex);
         }
     }
 
@@ -899,7 +986,7 @@ WHERE (@agent IS NULL OR agentId = @agent)
         {
             Id = reader.GetString(0),
             Kind = reader.GetString(1),
-            AgentId = reader.GetString(2),
+            AgentId = reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
             WorkspaceId = reader.IsDBNull(3) ? null : reader.GetString(3),
             Topic = topic,
             Title = title,

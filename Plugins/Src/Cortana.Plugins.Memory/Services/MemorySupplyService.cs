@@ -1,5 +1,6 @@
 using System.Text;
 using Cortana.Plugins.Memory.Models;
+using Cortana.Plugins.Memory.Storage;
 
 namespace Cortana.Plugins.Memory.Services;
 
@@ -8,6 +9,7 @@ namespace Cortana.Plugins.Memory.Services;
 /// </summary>
 public sealed class MemorySupplyService(
     IMemoryRecallService recallService,
+    IMemoryStore store,
     IMemorySettingsService settingsService) : IMemorySupplyService
 {
     private const int MaximumToolMemoryCount = 50;
@@ -30,37 +32,18 @@ public sealed class MemorySupplyService(
         // ── 双路召回 ──
         // 路径 1：用最新用户消息做精确召回（捕捉当前意图）
         var primaryQuery = BuildPrimaryQueryText(request);
-        var primaryRecall = recallService.Recall(new MemoryRecallRequest
-        {
-            RequestId = request.RequestId,
-            AgentId = request.AgentId,
-            WorkspaceId = request.WorkspaceId,
-            QueryText = primaryQuery,
-            QueryIntent = request.Scenario,
-            TriggerSource = request.TriggerSource,
-            TraceId = request.TraceId
-        });
+        var primaryItems = RecallLayered(request, recallOptions, primaryQuery, maxMemoryCount);
 
         // 路径 2：用 session 标题 + 场景做宽泛召回（捕捉全局主题）
         var secondaryQuery = BuildSecondaryQueryText(request);
         IReadOnlyList<MemoryRecallItem> secondaryItems = [];
         if (!string.IsNullOrWhiteSpace(secondaryQuery) && !string.Equals(primaryQuery, secondaryQuery, StringComparison.Ordinal))
         {
-            var secondaryRecall = recallService.Recall(new MemoryRecallRequest
-            {
-                RequestId = request.RequestId,
-                AgentId = request.AgentId,
-                WorkspaceId = request.WorkspaceId,
-                QueryText = secondaryQuery,
-                QueryIntent = "topic-context",
-                TriggerSource = request.TriggerSource,
-                TraceId = request.TraceId
-            });
-            secondaryItems = secondaryRecall.Items;
+            secondaryItems = RecallLayered(request, recallOptions, secondaryQuery, maxMemoryCount);
         }
 
         // ── 合并去重，分层 ──
-        var allItems = primaryRecall.Items
+        var allItems = primaryItems
             .Concat(secondaryItems)
             .GroupBy(static item => item.Id, StringComparer.OrdinalIgnoreCase)
             .Select(static group => group.OrderByDescending(item => item.RecallScore).First())
@@ -130,11 +113,88 @@ public sealed class MemorySupplyService(
                 SupplyEnabled = true,
                 MaxMemoryCount = maxMemoryCount,
                 RecallMinimumConfidence = recallOptions.MinimumConfidence,
-                Ranking = "dual-path/profile-first/recallScore",
+                Ranking = "dual-path/layered-scope/profile-first/recallScore",
                 Grouping = "profile(abstraction)/constraint/preference/task/fact/other"
             },
             TraceId = request.TraceId
         };
+    }
+
+    private IReadOnlyList<MemoryRecallItem> RecallLayered(
+        MemorySupplyRequest request,
+        MemoryRecallOptions recallOptions,
+        string? queryText,
+        int maxMemoryCount)
+    {
+        var workspaceId = NormalizeOptional(request.WorkspaceId);
+        if (workspaceId is null)
+        {
+            return recallService.Recall(new MemoryRecallRequest
+            {
+                RequestId = request.RequestId,
+                AgentId = request.AgentId,
+                WorkspaceId = null,
+                QueryText = queryText,
+                QueryIntent = request.Scenario,
+                TriggerSource = request.TriggerSource,
+                TraceId = request.TraceId
+            }).Items;
+        }
+
+        var scopes = new[]
+        {
+            new RecallScope(request.AgentId, false, workspaceId, false, 0, maxMemoryCount),
+            new RecallScope(request.AgentId, false, null, true, 1, Math.Max(2, maxMemoryCount / 2)),
+            new RecallScope(null, true, workspaceId, false, 2, Math.Max(2, maxMemoryCount / 3)),
+            new RecallScope(null, true, null, true, 3, Math.Min(3, Math.Max(1, maxMemoryCount / 4)))
+        };
+
+        var ranked = new List<ScopedRecallItem>();
+        foreach (var scope in scopes)
+        {
+            var items = store.SearchRecallCandidatesInScope(
+                scope.AgentId,
+                scope.AgentMustBeNull,
+                scope.WorkspaceId,
+                scope.WorkspaceMustBeNull,
+                queryText,
+                recallOptions.MinimumConfidence,
+                recallOptions.IncludeCandidateMemories,
+                scope.Limit);
+
+            ranked.AddRange(items.Select(item => new ScopedRecallItem(item, scope.Priority)));
+        }
+
+        var selected = ranked
+            .GroupBy(static item => item.Item.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(static group => group
+                .OrderBy(static item => item.ScopePriority)
+                .ThenByDescending(static item => item.Item.RecallScore)
+                .First())
+            .OrderBy(static item => item.ScopePriority)
+            .ThenByDescending(static item => item.Item.RecallScore)
+            .Take(maxMemoryCount)
+            .Select(static item => item.Item)
+            .ToList();
+
+        if (selected.Count == 0)
+        {
+            selected = recallService.Recall(new MemoryRecallRequest
+            {
+                RequestId = request.RequestId,
+                AgentId = request.AgentId,
+                WorkspaceId = null,
+                QueryText = queryText,
+                QueryIntent = request.Scenario,
+                TriggerSource = request.TriggerSource,
+                TraceId = request.TraceId
+            }).Items
+                .Take(maxMemoryCount)
+                .ToList();
+        }
+
+        store.RecordMemoryAccesses(selected, DateTimeOffset.UtcNow.ToString("O"));
+        return selected;
     }
 
     private static MemorySupplyResult CreateDisabledResult(
@@ -173,6 +233,15 @@ public sealed class MemorySupplyService(
         if (limit <= 0) return 0;
         return Math.Min(limit, MaximumToolMemoryCount);
     }
+
+    private static string? NormalizeOptional(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private sealed record RecallScope(string? AgentId, bool AgentMustBeNull, string? WorkspaceId, bool WorkspaceMustBeNull, int Priority, int Limit);
+
+    private sealed record ScopedRecallItem(MemoryRecallItem Item, int ScopePriority);
 
     /// <summary>
     /// 路径 1：用最新用户消息构建精确查询文本。

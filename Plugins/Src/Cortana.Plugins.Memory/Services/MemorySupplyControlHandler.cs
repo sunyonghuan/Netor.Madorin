@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Cortana.Plugins.Memory.Models;
 
 namespace Cortana.Plugins.Memory.Services;
@@ -23,7 +25,7 @@ public sealed class MemorySupplyControlHandler(IMemorySupplyService supplyServic
         {
             RequestId = request.RequestId,
             AgentId = request.AgentId,
-            WorkspaceId = Normalize(request.WorkspaceId) ?? Normalize(request.WorkspaceDirectory),
+            WorkspaceId = NormalizeWorkspaceId(request.WorkspaceId) ?? NormalizeWorkspaceId(request.WorkspaceDirectory),
             Scenario = request.Scenario,
             CurrentTask = request.CurrentTask,
             SessionTitle = request.SessionTitle,
@@ -101,5 +103,21 @@ public sealed class MemorySupplyControlHandler(IMemorySupplyService supplyServic
     private static string? Normalize(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static string? NormalizeWorkspaceId(string? value)
+    {
+        var normalized = Normalize(value);
+        if (normalized is null) return null;
+        if (IsHexMd5(normalized)) return normalized.ToLowerInvariant();
+
+        var hash = MD5.HashData(Encoding.UTF8.GetBytes(normalized));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static bool IsHexMd5(string value)
+    {
+        return value.Length == 32 && value.All(static c =>
+            c is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F');
     }
 }

@@ -155,6 +155,58 @@ public sealed class MemoryListRecentResult
 }
 
 /// <summary>
+/// 表示记忆配置列表结果。
+/// </summary>
+public sealed class MemorySettingsResult
+{
+    /// <summary>
+    /// 配置项数量。
+    /// </summary>
+    public int Count { get; init; }
+
+    /// <summary>
+    /// 配置项集合。
+    /// </summary>
+    public IReadOnlyList<MemorySettingItem> Items { get; init; } = [];
+}
+
+/// <summary>
+/// 表示一条可展示的记忆配置项。
+/// </summary>
+public sealed class MemorySettingItem
+{
+    /// <summary>
+    /// 配置键。
+    /// </summary>
+    public string Key { get; init; } = string.Empty;
+
+    /// <summary>
+    /// 展示名称。
+    /// </summary>
+    public string DisplayName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// 配置说明。
+    /// </summary>
+    public string Description { get; init; } = string.Empty;
+
+    /// <summary>
+    /// 当前值。
+    /// </summary>
+    public string CurrentValue { get; init; } = string.Empty;
+
+    /// <summary>
+    /// 默认值。
+    /// </summary>
+    public string DefaultValue { get; init; } = string.Empty;
+
+    /// <summary>
+    /// 值类型和范围说明。
+    /// </summary>
+    public string ValueType { get; init; } = string.Empty;
+}
+
+/// <summary>
 /// 表示一条可展示的最近记忆。
 /// </summary>
 public sealed class MemoryRecentItem

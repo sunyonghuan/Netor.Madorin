@@ -46,9 +46,10 @@ public sealed class MemoryMcpTools(
     public string Recall(
         [Description("查询文本")] string queryText,
         [Description("查询意图，空字符串表示不指定")] string queryIntent = "",
+        [Description("智能体标识，空字符串表示不按智能体过滤")] string agentId = "",
         [Description("工作区标识，空字符串表示不指定")] string workspaceId = "",
         [Description("最大返回记忆数量，0 表示使用系统默认，上限 50")] int maxMemoryCount = 0)
-        => readHandler.Recall(queryText, queryIntent, workspaceId, maxMemoryCount);
+        => readHandler.Recall(queryText, queryIntent, agentId, workspaceId, maxMemoryCount);
 
     [McpServerTool(Name = "memory_supply_context")]
     [Description("根据当前任务和最近消息生成可供上层注入的结构化记忆包。输出分组、条目、预算和策略，不负责最终 prompt 拼接。")]

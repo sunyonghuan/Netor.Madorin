@@ -11,6 +11,7 @@ namespace Cortana.Plugins.Memory.Tools;
 [JsonSerializable(typeof(MemoryStatusResult))]
 [JsonSerializable(typeof(MemoryAddNoteResult))]
 [JsonSerializable(typeof(MemoryListRecentResult))]
+[JsonSerializable(typeof(MemorySettingsResult))]
 [JsonSerializable(typeof(MemoryRecordTurnResult))]
 [JsonSerializable(typeof(MemoryScopeResult))]
 internal sealed partial class MemoryToolJsonContext : JsonSerializerContext

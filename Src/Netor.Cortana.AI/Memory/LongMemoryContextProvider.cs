@@ -59,7 +59,7 @@ public sealed class LongMemoryContextProvider(
                 CurrentTask = Normalize(context.Session?.StateBag.GetValue<string>("currenttask")),
                 RecentMessages = BuildRecentMessages(context),
                 TriggerSource = "before-prompt",
-                MaxMemoryCount = Math.Clamp(systemSettings.GetValue(MaxMemoryCountKey, 8), 1, 50),
+                MaxMemoryCount = Math.Clamp(systemSettings.GetValue(MaxMemoryCountKey, 12), 1, 50),
                 MaxTokenBudget = Math.Clamp(systemSettings.GetValue(MaxTokenBudgetKey, 1200), 128, 8000),
                 TimeoutMs = timeoutMs,
                 TraceId = Normalize(context.Session?.StateBag.GetValue<string>("traceid")) ?? Guid.NewGuid().ToString("N")

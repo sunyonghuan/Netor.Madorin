@@ -112,7 +112,7 @@ public sealed class MemorySupplyOptions
     /// <summary>
     /// 主动供应给上层的最大记忆数量。
     /// </summary>
-    public int MaxMemoryCount { get; init; } = 8;
+    public int MaxMemoryCount { get; init; } = 12;
 }
 
 /// <summary>

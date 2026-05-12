@@ -52,11 +52,11 @@ public sealed class MemoryMcpToolsTests
         var mcp = new RecordingMcpHandler();
         var tools = new MemoryMcpTools(read, write, mcp);
 
-        var result = tools.Recall("查询文本", "intent-x", "ws-1", 12);
+        var result = tools.Recall("查询文本", "intent-x", "agent-1", "ws-1", 12);
 
         Assert.AreEqual("recall-result", result);
         Assert.AreEqual(1, read.RecallCalls);
-        Assert.AreEqual(("查询文本", "intent-x", "ws-1", 12), read.LastRecallArgs);
+        Assert.AreEqual(("查询文本", "intent-x", "agent-1", "ws-1", 12), read.LastRecallArgs);
     }
 
     [TestMethod]
@@ -202,7 +202,7 @@ public sealed class MemoryMcpToolsTests
 
         // 仅传必填参数，验证默认值传递到 handler。
         tools.Recall("查询");
-        Assert.AreEqual(("查询", "", "", 0), read.LastRecallArgs);
+        Assert.AreEqual(("查询", "", "", "", 0), read.LastRecallArgs);
 
         tools.SupplyContext();
         Assert.AreEqual(("", "", "", "", 0, 0, ""), read.LastSupplyArgs);
@@ -228,17 +228,17 @@ public sealed class MemoryMcpToolsTests
         public int RecallCalls { get; private set; }
         public int SupplyCalls { get; private set; }
         public int StatusCalls { get; private set; }
-        public (string, string, string, int) LastRecallArgs { get; private set; }
+        public (string, string, string, string, int) LastRecallArgs { get; private set; }
         public (string, string, string, string, int, int, string) LastSupplyArgs { get; private set; }
         public string LastStatusWorkspaceId { get; private set; } = string.Empty;
         public string RecallReturn { get; init; } = string.Empty;
         public string SupplyReturn { get; init; } = string.Empty;
         public string StatusReturn { get; init; } = string.Empty;
 
-        public string Recall(string queryText, string queryIntent, string workspaceId, int maxMemoryCount)
+        public string Recall(string queryText, string queryIntent, string agentId, string workspaceId, int maxMemoryCount)
         {
             RecallCalls++;
-            LastRecallArgs = (queryText, queryIntent, workspaceId, maxMemoryCount);
+            LastRecallArgs = (queryText, queryIntent, agentId, workspaceId, maxMemoryCount);
             return RecallReturn;
         }
 
@@ -279,6 +279,14 @@ public sealed class MemoryMcpToolsTests
             LastListRecentArgs = (limit, kind, workspaceId);
             return ListRecentReturn;
         }
+
+        public string GetSettings(string workspaceId) => string.Empty;
+
+        public string UpdateSetting(string settingKey, string settingValue, string reason, string workspaceId, bool userConfirmed) => string.Empty;
+
+        public string DeleteMemory(string memoryId, string reason, bool userConfirmed) => string.Empty;
+
+        public string TriggerProcessing(int maxCount) => string.Empty;
     }
 
     private sealed class RecordingMcpHandler : IMemoryMcpToolHandler

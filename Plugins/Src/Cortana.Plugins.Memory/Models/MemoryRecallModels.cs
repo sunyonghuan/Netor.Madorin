@@ -11,9 +11,9 @@ public sealed class MemoryRecallRequest
     public string RequestId { get; init; } = Guid.NewGuid().ToString("N");
 
     /// <summary>
-    /// 发起召回的智能体标识。
+    /// 发起召回的智能体标识；为空表示不按智能体过滤。
     /// </summary>
-    public string AgentId { get; init; } = string.Empty;
+    public string? AgentId { get; init; }
 
     /// <summary>
     /// 召回请求所属工作区标识。

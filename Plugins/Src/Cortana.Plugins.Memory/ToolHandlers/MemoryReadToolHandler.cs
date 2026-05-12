@@ -20,7 +20,7 @@ public sealed class MemoryReadToolHandler(
     private const int MaximumSupplyMemoryCount = 50;
 
     /// <inheritdoc />
-    public string Recall(string queryText, string queryIntent, string workspaceId, int maxMemoryCount)
+    public string Recall(string queryText, string queryIntent, string agentId, string workspaceId, int maxMemoryCount)
     {
         if (string.IsNullOrWhiteSpace(queryText))
             return MemoryToolResult.Fail(MemoryToolErrorCodes.InvalidArgument, "查询文本不能为空。");
@@ -29,8 +29,8 @@ public sealed class MemoryReadToolHandler(
         {
             var result = recallService.Recall(new MemoryRecallRequest
             {
-                AgentId = runtimeContext.ResolveAgentId(null),
-                WorkspaceId = runtimeContext.ResolveWorkspaceId(workspaceId),
+                AgentId = NormalizeOptional(agentId),
+                WorkspaceId = NormalizeOptional(workspaceId),
                 QueryText = queryText,
                 QueryIntent = NormalizeOptional(queryIntent),
                 TriggerSource = "memory_recall_tool",

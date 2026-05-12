@@ -13,12 +13,13 @@ public sealed class MemoryRecallService(IMemoryStore store, IMemorySettingsServi
     public MemoryRecallResult Recall(MemoryRecallRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.AgentId)) throw new ArgumentException("智能体标识不能为空。", nameof(request));
 
-        var options = settingsService.GetRecallOptions(request.AgentId, request.WorkspaceId);
+        var agentId = NormalizeOptional(request.AgentId);
+        var workspaceId = NormalizeOptional(request.WorkspaceId);
+        var options = settingsService.GetRecallOptions(agentId, workspaceId);
         var candidates = store.SearchRecallCandidates(
-            request.AgentId,
-            request.WorkspaceId,
+            agentId,
+            workspaceId,
             request.QueryText,
             options.MinimumConfidence,
             options.IncludeCandidateMemories,
@@ -60,8 +61,8 @@ public sealed class MemoryRecallService(IMemoryStore store, IMemorySettingsServi
         {
             Id = Guid.NewGuid().ToString("N"),
             RequestId = request.RequestId,
-            AgentId = request.AgentId,
-            WorkspaceId = request.WorkspaceId,
+            AgentId = agentId ?? string.Empty,
+            WorkspaceId = workspaceId,
             QueryText = request.QueryText,
             QueryIntent = request.QueryIntent,
             TriggerSource = request.TriggerSource,
@@ -99,6 +100,11 @@ public sealed class MemoryRecallService(IMemoryStore store, IMemorySettingsServi
             Confidence = confidence,
             Summary = summary
         };
+    }
+
+    private static string? NormalizeOptional(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     private static string BuildSummary(IReadOnlyList<MemoryRecallItem> items, IReadOnlyList<MemoryRecallWindow> windows)

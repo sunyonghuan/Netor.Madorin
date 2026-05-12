@@ -15,10 +15,11 @@ public sealed class MemoryReadTools(IMemoryReadToolHandler handler)
     public string Recall(
         [Parameter(Description = "查询文本")] string queryText,
         [Parameter(Description = "查询意图，空字符串表示不指定")] string queryIntent,
+        [Parameter(Description = "智能体标识，空字符串表示不按智能体过滤")] string agentId,
         [Parameter(Description = "工作区标识，空字符串表示不指定")] string workspaceId,
         [Parameter(Description = "最大返回记忆数量，0 表示使用系统默认，上限 50")] int maxMemoryCount)
     {
-        return handler.Recall(queryText, queryIntent, workspaceId, maxMemoryCount);
+        return handler.Recall(queryText, queryIntent, agentId, workspaceId, maxMemoryCount);
     }
 
     /// <summary>根据当前任务和最近消息生成结构化记忆供应包。</summary>

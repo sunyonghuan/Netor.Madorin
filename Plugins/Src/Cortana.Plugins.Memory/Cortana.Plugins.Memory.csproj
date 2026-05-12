@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>memory</AssemblyName>
-    <Version>1.0.19</Version>
+    <Version>1.0.25</Version>
     <!-- Netor.Cortana.Plugin.Native 的生成文件未写入 #nullable，但业务源码保持 nullable 启用。 -->
     <NoWarn>$(NoWarn);CS8669</NoWarn>
     <!--
