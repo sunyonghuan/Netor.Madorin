@@ -30,6 +30,10 @@
                 <strong>@Model.DeveloperName</strong>
             </div>
             <div>
+                <div class="detail-label">归属账号</div>
+                <strong>@(Model.OwnerAccountName ?? "未绑定")</strong>
+            </div>
+            <div>
                 <div class="detail-label">下载次数</div>
                 <strong>@Model.DownloadCount</strong>
             </div>

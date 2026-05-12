@@ -11,7 +11,7 @@ namespace Cortana.Plugins.Office;
 [Plugin(
     Id = "office",
     Name = "办公文档插件",
-    Version = "1.0.29",
+    Version = "1.0.30",
     Description = "提供 Word / Excel / PowerPoint 文档的创建、结构读取、内容编辑和另存操作。",
     Tags = ["办公", "Word", "Excel", "PowerPoint", "文档", "演示文稿", "docx", "xlsx", "pptx"],
     Instructions = """

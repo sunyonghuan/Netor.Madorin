@@ -1,0 +1,45 @@
+@model Netor.Cortana.Platform.Web.Models.Market.MarketIndexViewModel
+@{
+    ViewData["Title"] = "市场";
+}
+
+<div class="page-heading">
+    <span class="eyebrow">Market</span>
+    <h1>Cortana 能力市场</h1>
+    <p>浏览插件、技能、智能体和解决方案。当前先搭场景与路由，视觉后续统一升级。</p>
+</div>
+
+<section class="mb-5">
+    <div class="section-title">
+        <h2>分类导航</h2>
+        <a asp-controller="Market" asp-action="Assets">全部资源</a>
+    </div>
+    <div class="row g-3">
+        @foreach (var category in Model.Categories)
+        {
+            <div class="col-md-6 col-xl-3">
+                <a class="feature-card" asp-controller="Market" asp-action="Assets" asp-route-categoryId="@category.Id">
+                    <div class="feature-icon">@category.AssetCount</div>
+                    <h3>@category.Name</h3>
+                    <p>@category.Description</p>
+                </a>
+            </div>
+        }
+    </div>
+</section>
+
+<section class="mb-5">
+    <div class="section-title">
+        <h2>推荐资源</h2>
+        <a asp-controller="Market" asp-action="Assets" asp-route-sort="featured">更多推荐</a>
+    </div>
+    <partial name="_AssetCards" model="Model.FeaturedAssets" />
+</section>
+
+<section>
+    <div class="section-title">
+        <h2>最新发布</h2>
+        <a asp-controller="Market" asp-action="Assets">查看全部</a>
+    </div>
+    <partial name="_AssetCards" model="Model.LatestAssets" />
+</section>

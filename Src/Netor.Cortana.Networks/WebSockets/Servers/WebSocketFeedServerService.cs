@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -8,8 +10,8 @@ using Netor.Cortana.Entitys.Memory;
 using Netor.Cortana.Entitys.ModelCapability;
 using Netor.Cortana.Entitys.Services;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Net;
-using System.Threading;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -23,16 +25,19 @@ public sealed class WebSocketFeedServerService(
     ILogger<WebSocketFeedServerService> logger,
     SystemSettingsService settingsService,
     CortanaDbContext db,
-    IPluginModelCapabilityService modelCapabilityService) : IHostedService, ILongMemorySupplyClient, IDisposable
+    IPluginModelCapabilityService modelCapabilityService) : KestrelWebSocketHost, IHostedService, IConversationFeedBroadcaster, IDisposable
 {
-    private HttpListener? _listener;
+    private WebApplication? _app;
     private CancellationTokenSource? _cts;
-    private readonly ConcurrentDictionary<string, WebSocket> _clients = new();
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _clientLocks = new();
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+    private readonly WebSocketConnectionManager _feedConnections = new(2048, SendTimeout, TimeSpan.FromSeconds(2), CloseAsync);
     private readonly ConcurrentDictionary<string, byte> _subscriptions = new();
-    private readonly ConcurrentDictionary<string, WebSocket> _modelCapabilityClients = new();
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _modelCapabilityClientLocks = new();
+    private readonly WebSocketConnectionManager _modelCapabilityConnections = new(512, SendTimeout, TimeSpan.FromSeconds(2), CloseAsync);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<MemoryContextSupplyPackage?>> _memorySupplyPendingRequests = new();
+    private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan HeartbeatTimeout = TimeSpan.FromSeconds(90);
+    private int _restartCount;
 
     /// <summary>
     /// 当前 Feed 服务器实际监听的本地端口。
@@ -40,42 +45,72 @@ public sealed class WebSocketFeedServerService(
     public int Port { get; private set; }
 
     /// <summary>
+    /// 指示 Feed Kestrel Host 是否正在运行。
+    /// </summary>
+    public bool IsRunning => _app is not null;
+
+    /// <summary>
+    /// 最近一次启动或重启失败的错误信息。
+    /// </summary>
+    public string LastError { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// 服务已执行的重启次数。
+    /// </summary>
+    public int RestartCount => Volatile.Read(ref _restartCount);
+
+    /// <summary>
     /// 启动独立的 HTTP Listener，并开始接受 conversation-feed 与 model-capability WebSocket 连接。
     /// </summary>
     /// <param name="cancellationToken">宿主停止启动过程时使用的取消令牌。</param>
     /// <returns>表示启动调度已完成的任务。</returns>
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var configured = settingsService.GetValue<int>("ConversationFeed.Port", 0);
-        Port = configured > 0 ? configured : GetRandomPort();
-
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var thread = new Thread(() =>
+        await _lifecycleLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            _listener = new HttpListener();
-            try
-            {
-                _listener.Prefixes.Add($"http://localhost:{Port}{CortanaWsEndpoints.ConversationFeedPath}");
-                _listener.Prefixes.Add($"http://localhost:{Port}{ModelCapabilityProtocol.Path}");
-                _listener.Start();
-            }
-            catch (HttpListenerException ex)
-            {
-                logger.LogWarning(ex, "Feed 端口 {Port} 绑定失败，回退随机端口", Port);
-                _listener.Close();
-                _listener = new HttpListener();
-                Port = GetRandomPort();
-                _listener.Prefixes.Add($"http://localhost:{Port}{CortanaWsEndpoints.ConversationFeedPath}");
-                _listener.Prefixes.Add($"http://localhost:{Port}{ModelCapabilityProtocol.Path}");
-                _listener.Start();
-            }
-
+            await StartCoreAsync(cancellationToken).ConfigureAwait(false);
             logger.LogInformation("Conversation Feed 服务器已启动，端口：{Port}", Port);
-            AcceptLoopAsync(_cts.Token).GetAwaiter().GetResult();
-        })
-        { IsBackground = true, Name = "ConversationFeedServer" };
-        thread.Start();
-        return Task.CompletedTask;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    private async Task StartCoreAsync(CancellationToken cancellationToken)
+    {
+        if (_app is not null)
+        {
+            return;
+        }
+
+        var configured = settingsService.GetValue<int>("ConversationFeed.Port", 0);
+        var preferredPort = configured > 0 ? configured : GetRandomPort();
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        try
+        {
+            _app = BuildApp(preferredPort);
+            await _app.StartAsync(cancellationToken).ConfigureAwait(false);
+            Port = preferredPort;
+            LastError = string.Empty;
+        }
+        catch (IOException ex)
+        {
+            logger.LogWarning(ex, "Feed 端口 {Port} 绑定失败，回退随机端口", preferredPort);
+            await DisposeAppAsync().ConfigureAwait(false);
+            Port = GetRandomPort();
+            _app = BuildApp(Port);
+            await _app.StartAsync(cancellationToken).ConfigureAwait(false);
+            LastError = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            LastError = ex.Message;
+            await DisposeAppAsync().ConfigureAwait(false);
+            throw;
+        }
     }
 
     /// <summary>
@@ -85,25 +120,76 @@ public sealed class WebSocketFeedServerService(
     /// <returns>表示停止过程的任务。</returns>
     public async Task StopAsync(CancellationToken cancellationToken)
     {
+        await _lifecycleLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await StopCoreAsync(cancellationToken).ConfigureAwait(false);
+            logger.LogInformation("Conversation Feed 服务器已停止");
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// 串行重启 Feed 服务器，并返回重启后的实际监听端口。
+    /// </summary>
+    public async Task<int> RestartAsync(CancellationToken cancellationToken = default)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await StopCoreAsync(cancellationToken).ConfigureAwait(false);
+            await StartCoreAsync(cancellationToken).ConfigureAwait(false);
+            Interlocked.Increment(ref _restartCount);
+            logger.LogInformation("Conversation Feed 服务器已重启，端口：{Port}", Port);
+            return Port;
+        }
+        catch (Exception ex)
+        {
+            LastError = ex.Message;
+            logger.LogError(ex, "Conversation Feed 服务器重启失败");
+            throw;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    private async Task StopCoreAsync(CancellationToken cancellationToken)
+    {
         try { _cts?.Cancel(); } catch { }
-        foreach (var (id, ws) in _clients) await CloseAsync(id, ws);
-        foreach (var (id, ws) in _modelCapabilityClients) await CloseAsync(id, ws);
-        _clients.Clear();
-        foreach (var l in _clientLocks.Values) l.Dispose();
-        _clientLocks.Clear();
+        await _feedConnections.CloseAllAsync().ConfigureAwait(false);
+        await _modelCapabilityConnections.CloseAllAsync().ConfigureAwait(false);
         _subscriptions.Clear();
-        _modelCapabilityClients.Clear();
-        foreach (var l in _modelCapabilityClientLocks.Values) l.Dispose();
-        _modelCapabilityClientLocks.Clear();
         foreach (var (requestId, pending) in _memorySupplyPendingRequests)
         {
             pending.TrySetResult(null);
         }
         _memorySupplyPendingRequests.Clear();
-        _listener?.Close();
+        await DisposeAppAsync(cancellationToken).ConfigureAwait(false);
         _cts?.Dispose();
         _cts = null;
-        logger.LogInformation("Conversation Feed 服务器已停止");
+    }
+
+    private WebApplication BuildApp(int port)
+    {
+        return BuildLocalhostApp(port, app =>
+        {
+            app.Map(CortanaWsEndpoints.ConversationFeedPath, context => AcceptClientAsync(context, _cts?.Token ?? CancellationToken.None));
+            app.Map(ModelCapabilityProtocol.Path, context => AcceptModelCapabilityClientAsync(context, _cts?.Token ?? CancellationToken.None));
+        });
+    }
+
+    private Task DisposeAppAsync(CancellationToken cancellationToken = default)
+    {
+        return DisposeAppAsync(
+            _app,
+            () => _app = null,
+            ex => logger.LogDebug(ex, "停止 Conversation Feed Kestrel Host 时出现可忽略异常"),
+            cancellationToken);
     }
 
     /// <summary>
@@ -114,10 +200,10 @@ public sealed class WebSocketFeedServerService(
     /// <returns>表示广播过程的任务。</returns>
     public async Task BroadcastConversationFeedAsync(string message, CancellationToken cancellationToken = default)
     {
-        foreach (var (clientId, _) in _subscriptions)
-        {
-            await SendAsync(clientId, message, cancellationToken);
-        }
+        var tasks = _subscriptions.Keys
+            .Select(clientId => SendAsync(clientId, message, cancellationToken));
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -129,7 +215,7 @@ public sealed class WebSocketFeedServerService(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        if (_clients.IsEmpty)
+        if (_feedConnections.Count == 0)
         {
             logger.LogDebug("长期记忆供应请求跳过：没有已连接的 conversation-feed 客户端。RequestId={RequestId}", request.RequestId);
             return null;
@@ -154,7 +240,7 @@ public sealed class WebSocketFeedServerService(
         {
             var payload = JsonSerializer.Serialize(request, WebSocketJsonContext.Default.MemoryContextSupplyRequest);
             var sent = false;
-            foreach (var clientId in _clients.Keys)
+            foreach (var clientId in _feedConnections.ClientIds)
             {
                 await SendAsync(clientId, payload, cancellationToken).ConfigureAwait(false);
                 sent = true;
@@ -183,47 +269,23 @@ public sealed class WebSocketFeedServerService(
     }
 
     /// <summary>
-    /// 接受进入的 HTTP 请求，并根据路径分派到对应的 WebSocket 协议处理流程。
-    /// </summary>
-    /// <param name="ct">取消监听循环的令牌。</param>
-    /// <returns>表示接入循环的任务。</returns>
-    private async Task AcceptLoopAsync(CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested && _listener is { IsListening: true })
-        {
-            try
-            {
-                var http = await _listener.GetContextAsync().WaitAsync(ct);
-                var path = Normalize(http.Request.Url?.AbsolutePath);
-                if (path == Normalize(CortanaWsEndpoints.ConversationFeedPath) && http.Request.IsWebSocketRequest)
-                {
-                    await AcceptClientAsync(http, ct);
-                    continue;
-                }
-                if (path == Normalize(ModelCapabilityProtocol.Path) && http.Request.IsWebSocketRequest)
-                {
-                    await AcceptModelCapabilityClientAsync(http, ct);
-                    continue;
-                }
-                http.Response.StatusCode = 404; http.Response.Close();
-            }
-            catch (OperationCanceledException) { break; }
-            catch (Exception ex) { logger.LogError(ex, "Feed 接入异常"); }
-        }
-    }
-
-    /// <summary>
     /// 接受 conversation-feed 客户端连接，注册连接状态并发送 connected 控制消息。
     /// </summary>
-    /// <param name="http">当前 HTTP Listener 上下文。</param>
+    /// <param name="http">当前 HTTP 上下文。</param>
     /// <param name="ct">取消握手或发送欢迎消息的令牌。</param>
     /// <returns>表示客户端接入过程的任务。</returns>
-    private async Task AcceptClientAsync(HttpListenerContext http, CancellationToken ct)
+    private async Task AcceptClientAsync(HttpContext http, CancellationToken ct)
     {
-        var wsContext = await http.AcceptWebSocketAsync(null);
+        if (!http.WebSockets.IsWebSocketRequest)
+        {
+            http.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
         var id = Guid.NewGuid().ToString("N");
-        var ws = wsContext.WebSocket;
-        _clients[id] = ws; _clientLocks[id] = new SemaphoreSlim(1, 1);
+        var ws = await http.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
+        var connection = _feedConnections.Add(id, ws, "conversation-feed", ct);
+        _subscriptions[id] = 0;
 
         var welcome = JsonSerializer.Serialize(new ConversationFeedControlMessage
         {
@@ -234,29 +296,57 @@ public sealed class WebSocketFeedServerService(
             Topics = [CortanaWsEndpoints.ConversationTopic]
         }, WebSocketJsonContext.Default.ConversationFeedControlMessage);
         await SendAsync(id, welcome, ct);
-        _ = ReceiveLoopAsync(id, ws, ct);
+        _ = new WebSocketHeartbeatLoop(
+            HeartbeatInterval,
+            HeartbeatTimeout,
+            (clientId, token) => SendAsync(clientId, WebSocketHeartbeatLoop.CreateFeedPingPayload(clientId, WebSocketHeartbeatLoop.CreateTimestamp()), token),
+            clientId => CloseFeedClientAsync(clientId)).StartAsync(connection, ct);
+        await ReceiveLoopAsync(id, ws, ct).ConfigureAwait(false);
     }
 
     /// <summary>
     /// 接受宿主模型能力客户端连接，注册连接状态并发送 connected 消息。
     /// </summary>
-    /// <param name="http">当前 HTTP Listener 上下文。</param>
+    /// <param name="http">当前 HTTP 上下文。</param>
     /// <param name="ct">取消握手或发送欢迎消息的令牌。</param>
     /// <returns>表示客户端接入过程的任务。</returns>
-    private async Task AcceptModelCapabilityClientAsync(HttpListenerContext http, CancellationToken ct)
+    private async Task AcceptModelCapabilityClientAsync(HttpContext http, CancellationToken ct)
     {
-        var wsContext = await http.AcceptWebSocketAsync(null);
+        if (!http.WebSockets.IsWebSocketRequest)
+        {
+            http.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
         var id = Guid.NewGuid().ToString("N");
-        var ws = wsContext.WebSocket;
-        _modelCapabilityClients[id] = ws;
-        _modelCapabilityClientLocks[id] = new SemaphoreSlim(1, 1);
+        var ws = await http.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
+        var connection = _modelCapabilityConnections.Add(id, ws, "model-capability", ct);
 
         var welcome = JsonSerializer.Serialize(new ModelCapabilityConnectedMessage
         {
             ClientId = id
         }, WebSocketJsonContext.Default.ModelCapabilityConnectedMessage);
         await SendModelCapabilityAsync(id, welcome, ct);
-        _ = ReceiveModelCapabilityLoopAsync(id, ws, ct);
+        _ = new WebSocketHeartbeatLoop(
+            HeartbeatInterval,
+            HeartbeatTimeout,
+            (clientId, token) => SendModelCapabilityAsync(clientId, WebSocketHeartbeatLoop.CreateModelCapabilityPingPayload(clientId, WebSocketHeartbeatLoop.CreateTimestamp()), token),
+            clientId => CloseModelCapabilityAsync(clientId)).StartAsync(connection, ct);
+
+        await ReceiveModelCapabilityLoopAsync(id, ws, ct).ConfigureAwait(false);
+    }
+
+    private void MarkPongReceived(string id, string channel)
+    {
+        switch (channel)
+        {
+            case "conversation-feed":
+                _feedConnections.MarkPongReceived(id);
+                break;
+            case "model-capability":
+                _modelCapabilityConnections.MarkPongReceived(id);
+                break;
+        }
     }
 
     /// <summary>
@@ -284,7 +374,7 @@ public sealed class WebSocketFeedServerService(
             logger.LogDebug("Feed 客户端未完成关闭握手即断开：{Client}", id);
         }
         catch (WebSocketException ex) { logger.LogWarning(ex, "Feed 通信异常 {Client}", id); }
-        finally { await CloseAsync(id, ws); }
+        finally { await CloseFeedClientAsync(id); }
     }
 
     /// <summary>
@@ -312,7 +402,7 @@ public sealed class WebSocketFeedServerService(
             logger.LogDebug("Model capability 客户端未完成关闭握手即断开：{Client}", id);
         }
         catch (WebSocketException ex) { logger.LogWarning(ex, "Model capability 通信异常 {Client}", id); }
-        finally { await CloseModelCapabilityAsync(id, ws); }
+        finally { await CloseModelCapabilityAsync(id).ConfigureAwait(false); }
     }
 
     /// <summary>
@@ -327,6 +417,16 @@ public sealed class WebSocketFeedServerService(
         ModelCapabilityRequest? request = null;
         try
         {
+            using (var doc = JsonDocument.Parse(json))
+            {
+                if (doc.RootElement.TryGetProperty("type", out var typeElement)
+                    && string.Equals(typeElement.GetString(), "pong", StringComparison.Ordinal))
+                {
+                    MarkPongReceived(id, "model-capability");
+                    return;
+                }
+            }
+
             request = JsonSerializer.Deserialize(json, WebSocketJsonContext.Default.ModelCapabilityRequest);
             if (request is null)
             {
@@ -371,6 +471,12 @@ public sealed class WebSocketFeedServerService(
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             var type = root.TryGetProperty("type", out var t) ? t.GetString() ?? string.Empty : string.Empty;
+            if (string.Equals(type, "pong", StringComparison.Ordinal))
+            {
+                MarkPongReceived(id, "conversation-feed");
+                return;
+            }
+
             if (string.Equals(type, "subscribe", StringComparison.Ordinal))
             {
                 var protocol = root.TryGetProperty("protocol", out var p) ? p.GetString() ?? string.Empty : string.Empty;
@@ -540,15 +646,7 @@ public sealed class WebSocketFeedServerService(
     /// <returns>表示发送过程的任务。</returns>
     private async Task SendAsync(string id, string text, CancellationToken ct)
     {
-        if (!_clients.TryGetValue(id, out var ws) || ws.State != WebSocketState.Open) return;
-        if (!_clientLocks.TryGetValue(id, out var l)) return;
-        await l.WaitAsync(ct);
-        try
-        {
-            var bytes = Encoding.UTF8.GetBytes(text);
-            await ws.SendAsync(bytes, WebSocketMessageType.Text, true, ct);
-        }
-        finally { l.Release(); }
+        await _feedConnections.SendAsync(id, text, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -560,15 +658,7 @@ public sealed class WebSocketFeedServerService(
     /// <returns>表示发送过程的任务。</returns>
     private async Task SendModelCapabilityAsync(string id, string text, CancellationToken ct)
     {
-        if (!_modelCapabilityClients.TryGetValue(id, out var ws) || ws.State != WebSocketState.Open) return;
-        if (!_modelCapabilityClientLocks.TryGetValue(id, out var l)) return;
-        await l.WaitAsync(ct);
-        try
-        {
-            var bytes = Encoding.UTF8.GetBytes(text);
-            await ws.SendAsync(bytes, WebSocketMessageType.Text, true, ct);
-        }
-        finally { l.Release(); }
+        await _modelCapabilityConnections.SendAsync(id, text, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -636,21 +726,23 @@ public sealed class WebSocketFeedServerService(
     }
 
     /// <summary>
+    /// 从 feed 客户端集合中移除连接，并关闭释放对应 WebSocket 与发送锁。
+    /// </summary>
+    private async Task CloseFeedClientAsync(string id)
+    {
+        _subscriptions.TryRemove(id, out _);
+        await _feedConnections.RemoveAndCloseAsync(id).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// 从模型能力客户端集合中移除连接，并关闭释放对应 WebSocket 与发送锁。
     /// </summary>
     /// <param name="id">模型能力客户端连接标识。</param>
     /// <param name="ws">要关闭的 WebSocket 连接。</param>
     /// <returns>表示关闭过程的任务。</returns>
-    private async Task CloseModelCapabilityAsync(string id, WebSocket ws)
+    private async Task CloseModelCapabilityAsync(string id)
     {
-        _modelCapabilityClients.TryRemove(id, out _);
-        if (_modelCapabilityClientLocks.TryRemove(id, out var sendLock)) sendLock.Dispose();
-
-        if (ws.State is WebSocketState.Open or WebSocketState.CloseReceived)
-        {
-            try { await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "服务器关闭", CancellationToken.None); } catch { }
-        }
-        ws.Dispose();
+        await _modelCapabilityConnections.RemoveAndCloseAsync(id).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -685,13 +777,6 @@ public sealed class WebSocketFeedServerService(
             && ex.Message.Contains("without completing the close handshake", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// 将路径规范化为以斜杠结尾的形式，便于与注册端点比较。
-    /// </summary>
-    /// <param name="path">待规范化的请求路径。</param>
-    /// <returns>规范化后的路径。</returns>
-    private static string Normalize(string? path) => string.IsNullOrWhiteSpace(path) ? "/" : (path.EndsWith("/") ? path : path + "/");
-
-    /// <summary>
     /// 从本地回环地址申请一个当前可用的随机 TCP 端口。
     /// </summary>
     /// <returns>可用于监听的随机端口号。</returns>
@@ -706,15 +791,18 @@ public sealed class WebSocketFeedServerService(
     /// </summary>
     public void Dispose()
     {
-        try { _cts?.Cancel(); } catch { }
-        _cts?.Dispose();
-        _cts = null;
-        foreach (var c in _clients.Values) c.Dispose();
-        foreach (var l in _clientLocks.Values) l.Dispose();
-        foreach (var c in _modelCapabilityClients.Values) c.Dispose();
-        foreach (var l in _modelCapabilityClientLocks.Values) l.Dispose();
-        _clients.Clear(); _clientLocks.Clear(); _subscriptions.Clear();
-        _modelCapabilityClients.Clear(); _modelCapabilityClientLocks.Clear();
-        _listener?.Close();
+        try
+        {
+            StopAsync(CancellationToken.None).GetAwaiter().GetResult();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        finally
+        {
+            _subscriptions.Clear();
+            _memorySupplyPendingRequests.Clear();
+            _lifecycleLock.Dispose();
+        }
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Netor.Cortana.Platform.Core.Options;
@@ -15,8 +16,10 @@ public static class DependencyInjection
         var options = new DatabaseOptions
         {
             Provider = section[nameof(DatabaseOptions.Provider)] ?? "Sqlite",
-            ConnectionString = section[nameof(DatabaseOptions.ConnectionString)] ?? "Data Source=Data/platform.db"
+            ConnectionString = section[nameof(DatabaseOptions.ConnectionString)] ?? DatabaseOptions.DefaultConnectionString
         };
+
+        var connectionString = ResolveConnectionString(options.ConnectionString);
 
         services.AddDbContext<PlatformDbContext>(builder =>
         {
@@ -25,7 +28,7 @@ public static class DependencyInjection
 
             if (string.Equals(options.Provider, "Sqlite", StringComparison.OrdinalIgnoreCase))
             {
-                builder.UseSqlite(options.ConnectionString);
+                builder.UseSqlite(connectionString);
                 return;
             }
 
@@ -33,5 +36,24 @@ public static class DependencyInjection
         });
 
         return services;
+    }
+
+    private static string ResolveConnectionString(string connectionString)
+    {
+        var builder = new SqliteConnectionStringBuilder(connectionString);
+        if (string.IsNullOrWhiteSpace(builder.DataSource) || builder.DataSource.Equals(":memory:", StringComparison.OrdinalIgnoreCase) || Path.IsPathRooted(builder.DataSource))
+        {
+            return connectionString;
+        }
+
+        var dataSource = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, builder.DataSource));
+        var directory = Path.GetDirectoryName(dataSource);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        builder.DataSource = dataSource;
+        return builder.ConnectionString;
     }
 }

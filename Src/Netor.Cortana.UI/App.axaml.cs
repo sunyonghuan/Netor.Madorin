@@ -589,7 +589,7 @@ public partial class App : Application
         var logger = Services.GetRequiredService<ILogger<App>>();
         try
         {
-            var wsServer = Services.GetRequiredService<WebSocketServerService>();
+            var wsServer = Services.GetRequiredService<WebSocketInteractionServerService>();
             var feedServer = Services.GetRequiredService<WebSocketFeedServerService>();
             var pluginLoader = Services.GetRequiredService<PluginLoader>();
             pluginLoader.WsPort = wsServer.Port;

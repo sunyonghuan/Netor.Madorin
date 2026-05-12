@@ -19,14 +19,15 @@ public static class NetworkServiceExtensions
     {
         services.AddSingleton<WebSocketRequestContext>();
 
-        services.AddSingleton<WebSocketServerService>();
-        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketServerService>());
-        services.AddSingleton<IChatTransport>(sp => sp.GetRequiredService<WebSocketServerService>());
+        services.AddSingleton<WebSocketInteractionServerService>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketInteractionServerService>());
+        services.AddSingleton<IChatTransport>(sp => sp.GetRequiredService<WebSocketInteractionServerService>());
+        services.AddSingleton<ILongMemorySupplyClient>(sp => sp.GetRequiredService<WebSocketInteractionServerService>());
         services.AddSingleton<WebSocketEventRelayService>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketEventRelayService>());
         services.AddSingleton<WebSocketFeedServerService>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketFeedServerService>());
-        services.AddSingleton<ILongMemorySupplyClient>(sp => sp.GetRequiredService<WebSocketFeedServerService>());
+        services.AddSingleton<IConversationFeedBroadcaster>(sp => sp.GetRequiredService<WebSocketFeedServerService>());
         services.AddSingleton<WebSocketConversationFeedRelayService>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketConversationFeedRelayService>());
 

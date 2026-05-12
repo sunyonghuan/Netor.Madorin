@@ -268,12 +268,11 @@ public partial class SystemSettingsPage : UserControl
         // 如果端口发生了变化，重启 WebSocket 服务
         if (portEntry != default)
         {
-            var currentServer = App.Services.GetRequiredService<WebSocketServerService>();
+            var currentServer = App.Services.GetRequiredService<WebSocketInteractionServerService>();
             var oldPort = currentServer.Port;
             if (int.TryParse(portEntry.Value, out var newPort) && newPort != oldPort)
             {
-                await currentServer.StopAsync(CancellationToken.None);
-                await currentServer.StartAsync(CancellationToken.None);
+                await currentServer.RestartAsync(CancellationToken.None);
 
                 await ShowDialogAsync("端口已修改",
                     $"WebSocket 端口已从 {oldPort} 切换到 {currentServer.Port}，已立即生效。\n已加载的插件可能仍使用旧端口，建议重启软件。");

@@ -10,7 +10,7 @@ namespace Netor.Cortana.Networks;
 /// 取代原来 AI 层直接调用 WebSocketServer.BroadcastAsync 的耦合方式。
 /// </summary>
 public sealed class WebSocketEventRelayService(
-    WebSocketServerService server,
+    WebSocketInteractionServerService server,
     ISubscriber subscriber) : IHostedService
 {
     /// <summary>

@@ -1,0 +1,31 @@
+@model Netor.Cortana.Platform.Web.Models.Account.LoginViewModel
+@{
+    ViewData["Title"] = "登录";
+}
+
+<div class="auth-shell">
+    <div class="auth-card">
+        <span class="eyebrow">Account</span>
+        <h1>登录 Cortana 市场</h1>
+        <form method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="ReturnUrl" />
+            <div class="mb-3">
+                <label asp-for="UserName" class="form-label"></label>
+                <input asp-for="UserName" class="form-control" />
+                <span asp-validation-for="UserName" class="text-danger small"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Password" class="form-label"></label>
+                <input asp-for="Password" class="form-control" />
+                <span asp-validation-for="Password" class="text-danger small"></span>
+            </div>
+            <button class="btn btn-primary w-100" type="submit">登录</button>
+        </form>
+        <p class="text-secondary mt-3 mb-0">还没有账号？<a asp-action="Register">立即注册</a></p>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

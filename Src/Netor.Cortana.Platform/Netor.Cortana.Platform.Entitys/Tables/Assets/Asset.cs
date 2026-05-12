@@ -1,4 +1,5 @@
 using Netor.Cortana.Platform.Entitys.Enums;
+using Netor.Cortana.Platform.Entitys.Tables.Accounts;
 
 namespace Netor.Cortana.Platform.Entitys.Tables.Assets;
 
@@ -22,6 +23,13 @@ public sealed class Asset : Base
     [Comment("开发者")]
     [Display(Name = "开发者")]
     public string DeveloperName { get; set; } = string.Empty;
+
+    [StringLength(32)]
+    [Comment("归属账号ID")]
+    [Display(Name = "归属账号ID")]
+    public string? OwnerAccountId { get; set; }
+
+    public Account? OwnerAccount { get; set; }
 
     [StringLength(256)]
     [Comment("简短描述")]

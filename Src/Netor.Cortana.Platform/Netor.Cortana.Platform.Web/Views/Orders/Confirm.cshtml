@@ -1,0 +1,20 @@
+@model Netor.Cortana.Platform.Web.Models.Orders.OrderConfirmViewModel
+@{
+    ViewData["Title"] = "确认订单";
+}
+
+<div class="content-panel mx-auto" style="max-width: 720px;">
+    <span class="eyebrow">Order</span>
+    <h1>确认订单</h1>
+    <dl class="row mt-4">
+        <dt class="col-sm-3">资源</dt><dd class="col-sm-9">@Model.AssetName</dd>
+        <dt class="col-sm-3">方案</dt><dd class="col-sm-9">@Model.PricingPlanName</dd>
+        <dt class="col-sm-3">金额</dt><dd class="col-sm-9">@Model.Currency @Model.Price</dd>
+    </dl>
+    <form asp-action="Create" method="post">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="assetId" value="@Model.AssetId" />
+        <input type="hidden" name="pricingPlanId" value="@Model.PricingPlanId" />
+        <button class="btn btn-primary" type="submit">创建订单</button>
+    </form>
+</div>

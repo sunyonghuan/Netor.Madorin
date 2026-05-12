@@ -1,0 +1,63 @@
+@model Netor.Cortana.Platform.Web.Models.UserCenter.UserSubscriptionListViewModel
+@{
+    ViewData["Title"] = "我的订阅";
+}
+
+<div class="page-heading compact">
+    <span class="eyebrow">Subscriptions</span>
+    <h1>我的订阅</h1>
+</div>
+
+@if (Model.Items.Count == 0)
+{
+    <div class="empty-state">
+        <h2>暂无订阅</h2>
+        <p>订阅资源后会显示在这里。</p>
+    </div>
+}
+else
+{
+    <div class="content-panel">
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead><tr><th>资源</th><th>类型</th><th>方案</th><th>周期</th><th>状态</th><th>开始时间</th><th>到期时间</th><th>剩余</th><th>操作</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td>@item.AssetName</td>
+                        <td>@item.AssetTypeName</td>
+                        <td>@item.PricingPlanName</td>
+                        <td>@item.PlanTypeName</td>
+                        <td>@item.StatusName</td>
+                        <td>@item.StartedAtUtc.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                        <td>@item.ExpiresAtUtc.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                        <td>@(item.IsExpired ? "已到期" : $"{item.RemainingDays} 天")</td>
+                        <td>
+                            <div class="d-flex gap-2 flex-wrap">
+                                @if (!item.IsExpired && item.StatusName == "有效")
+                                {
+                                    <a class="btn btn-sm btn-outline-primary" asp-controller="Downloads" asp-action="Download" asp-route-assetId="@item.AssetId">下载</a>
+                                    <form asp-action="CancelSubscription" asp-route-id="@item.Id" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <button class="btn btn-sm btn-outline-danger" type="submit">取消</button>
+                                    </form>
+                                }
+                                @if (item.IsExpired || item.IsExpiringSoon || item.StatusName == "已取消")
+                                {
+                                    <form asp-controller="Orders" asp-action="Create" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="assetId" value="@item.AssetId" />
+                                        <input type="hidden" name="pricingPlanId" value="@item.PricingPlanId" />
+                                        <button class="btn btn-sm btn-primary" type="submit">续订</button>
+                                    </form>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

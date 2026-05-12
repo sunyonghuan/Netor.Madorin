@@ -1,0 +1,131 @@
+@model Netor.Cortana.Platform.Admin.Models.Assets.AssetCreateViewModel
+@using Netor.Cortana.Platform.Entitys.Enums
+@{
+    ViewData["Title"] = "上传资源";
+}
+
+<section class="admin-card">
+    <div class="admin-card-header">
+        <div>
+            <h2 class="admin-card-title">上传资源</h2>
+            <div class="text-secondary">创建插件、技能、智能体或解决方案，并上传首个版本包。</div>
+        </div>
+        <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Index">返回列表</a>
+    </div>
+    <div class="admin-card-body">
+        <form asp-action="Create" method="post" enctype="multipart/form-data" class="layui-form admin-edit-form">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label asp-for="Name" class="form-label">资源名称</label>
+                    <input asp-for="Name" class="form-control layui-input" placeholder="例如：Google 搜索插件" />
+                    <span asp-validation-for="Name" class="text-danger"></span>
+                </div>
+                <div class="col-md-6">
+                    <label asp-for="Slug" class="form-label">资源标识</label>
+                    <input asp-for="Slug" class="form-control layui-input" placeholder="例如：google-search-plugin" />
+                    <span asp-validation-for="Slug" class="text-danger"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Type" class="form-label">类型</label>
+                    <select asp-for="Type" class="form-select layui-select" asp-items="Html.GetEnumSelectList<AssetType>()"></select>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="CategoryId" class="form-label">分类</label>
+                    <select asp-for="CategoryId" class="form-select layui-select">
+                        <option value="">未分类</option>
+                        @foreach (var category in Model.Categories)
+                        {
+                            <option value="@category.Id">@category.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="DeveloperName" class="form-label">开发者</label>
+                    <input asp-for="DeveloperName" class="form-control layui-input" />
+                    <span asp-validation-for="DeveloperName" class="text-danger"></span>
+                </div>
+                <div class="col-md-3 d-flex align-items-end gap-3">
+                    <div class="form-check">
+                        <input asp-for="IsFeatured" class="form-check-input" />
+                        <label asp-for="IsFeatured" class="form-check-label">推荐资源</label>
+                    </div>
+                    <div class="form-check">
+                        <input asp-for="PublishNow" class="form-check-input" />
+                        <label asp-for="PublishNow" class="form-check-label">立即发布</label>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <label asp-for="ShortDescription" class="form-label">简短描述</label>
+                    <input asp-for="ShortDescription" class="form-control layui-input" />
+                    <span asp-validation-for="ShortDescription" class="text-danger"></span>
+                </div>
+                <div class="col-12">
+                    <label asp-for="Description" class="form-label">详细说明</label>
+                    <textarea asp-for="Description" class="form-control layui-textarea" rows="5"></textarea>
+                </div>
+                <div class="col-12">
+                    <label asp-for="Tags" class="form-label">标签</label>
+                    <input asp-for="Tags" class="form-control layui-input" placeholder="多个标签用逗号分隔" />
+                </div>
+            </div>
+
+            <hr />
+
+            <h3 class="h5 mb-3">版本包</h3>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label asp-for="VersionName" class="form-label">版本号</label>
+                    <input asp-for="VersionName" class="form-control layui-input" />
+                    <span asp-validation-for="VersionName" class="text-danger"></span>
+                </div>
+                <div class="col-md-8">
+                    <label asp-for="PackageFile" class="form-label">资源包</label>
+                    <input asp-for="PackageFile" class="form-control layui-input" type="file" accept=".zip" />
+                    <span asp-validation-for="PackageFile" class="text-danger"></span>
+                    <div class="form-text">当前只支持 .zip 包。保存目录：Data/packages/{类型}/{标识}/{版本}/</div>
+                </div>
+                <div class="col-12">
+                    <label asp-for="ReleaseNotes" class="form-label">发布说明</label>
+                    <textarea asp-for="ReleaseNotes" class="form-control layui-textarea" rows="3"></textarea>
+                </div>
+            </div>
+
+            <hr />
+
+            <h3 class="h5 mb-3">定价方案</h3>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label asp-for="PlanType" class="form-label">方案类型</label>
+                    <select asp-for="PlanType" class="form-select layui-select" asp-items="Html.GetEnumSelectList<PricingPlanType>()"></select>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Price" class="form-label">价格</label>
+                    <input asp-for="Price" class="form-control layui-input" type="number" step="0.01" />
+                    <span asp-validation-for="Price" class="text-danger"></span>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="Currency" class="form-label">货币</label>
+                    <input asp-for="Currency" class="form-control layui-input" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="DurationDays" class="form-label">有效天数</label>
+                    <input asp-for="DurationDays" class="form-control layui-input" type="number" />
+                    <span asp-validation-for="DurationDays" class="text-danger"></span>
+                    <div class="form-text">免费为 0，月付建议 30，年付建议 365。</div>
+                </div>
+            </div>
+
+            <div class="mt-4 d-flex gap-2">
+                <button class="layui-btn layui-btn-normal" type="submit">保存并上传</button>
+                <a class="layui-btn layui-btn-primary" asp-action="Index">取消</a>
+            </div>
+        </form>
+    </div>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

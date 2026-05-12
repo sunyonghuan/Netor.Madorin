@@ -32,6 +32,11 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
         {
             builder.HasIndex(x => x.Slug).IsUnique();
             builder.HasIndex(x => new { x.Type, x.Status });
+            builder.HasIndex(x => x.OwnerAccountId);
+            builder.HasOne(x => x.OwnerAccount)
+                .WithMany()
+                .HasForeignKey(x => x.OwnerAccountId)
+                .OnDelete(DeleteBehavior.SetNull);
             builder.HasOne(x => x.Category)
                 .WithMany(x => x.Assets)
                 .HasForeignKey(x => x.CategoryId)
@@ -116,9 +121,22 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
 
         var account = Accounts.Add(new Account
         {
+            No = 900000000001,
             LoginUserName = "demo@netor.me",
             Email = "demo@netor.me",
             Phone = "13800138000",
+            LoginPassword = "123456".MD5Encrypt(),
+            SafePassword = "888888".MD5Encrypt()
+        }).Entity;
+
+        var officialAccount = Accounts.Add(new Account
+        {
+            No = 900000000002,
+            LoginUserName = "official@netor.me",
+            Email = "official@netor.me",
+            NickName = "Netor 官方",
+            RealName = "Netor Official",
+            Phone = "13800138002",
             LoginPassword = "123456".MD5Encrypt(),
             SafePassword = "888888".MD5Encrypt()
         }).Entity;
@@ -132,6 +150,11 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
         AccountWallets.Add(new AccountWallet
         {
             Account = account
+        });
+
+        AccountWallets.Add(new AccountWallet
+        {
+            Account = officialAccount
         });
 
         var managerRole = ManagerRoles.Add(new ManagerRole
@@ -165,7 +188,7 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             });
 
         SeedCategories();
-        SeedAssets();
+        SeedAssets(officialAccount);
         SeedSettings();
     }
 
@@ -178,24 +201,25 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             new Category { Name = "解决方案", Slug = "solutions", Description = "插件、技能和智能体组合打包方案。", SortOrder = 40 });
     }
 
-    private void SeedAssets()
+    private void SeedAssets(Account officialAccount)
     {
         var now = new DateTimeOffset(2026, 5, 7, 0, 0, 0, TimeSpan.Zero);
 
-        AddAsset(AssetType.Plugin, "Google 搜索插件", "google-search-plugin", "提供 Google 搜索能力的基础插件。", "Data/packages/plugins/google-search/1.0.0/google-search.zip", now.AddDays(-8));
-        AddAsset(AssetType.Skill, "记忆整理技能", "memory-organizer-skill", "整理对话记忆和知识片段。", "Data/packages/skills/memory-organizer/1.0.0/memory-organizer.zip", now.AddDays(-6));
-        AddAsset(AssetType.Agent, "工作助手智能体", "work-assistant-agent", "面向日常办公和任务跟进的智能体。", "Data/packages/agents/work-assistant/1.0.0/work-assistant.zip", now.AddDays(-4));
-        AddAsset(AssetType.Solution, "入门插件解决方案包", "starter-plugin-solution", "适合个人用户快速体验平台生态。", "Data/packages/solutions/starter-plugin-solution/1.0.0/starter-plugin-solution.zip", now.AddDays(-2));
+        AddAsset(officialAccount, AssetType.Plugin, "Google 搜索插件", "google-search-plugin", "提供 Google 搜索能力的基础插件。", "Data/packages/plugins/google-search/1.0.0/google-search.zip", now.AddDays(-8));
+        AddAsset(officialAccount, AssetType.Skill, "记忆整理技能", "memory-organizer-skill", "整理对话记忆和知识片段。", "Data/packages/skills/memory-organizer/1.0.0/memory-organizer.zip", now.AddDays(-6));
+        AddAsset(officialAccount, AssetType.Agent, "工作助手智能体", "work-assistant-agent", "面向日常办公和任务跟进的智能体。", "Data/packages/agents/work-assistant/1.0.0/work-assistant.zip", now.AddDays(-4));
+        AddAsset(officialAccount, AssetType.Solution, "入门插件解决方案包", "starter-plugin-solution", "适合个人用户快速体验平台生态。", "Data/packages/solutions/starter-plugin-solution/1.0.0/starter-plugin-solution.zip", now.AddDays(-2));
     }
 
-    private void AddAsset(AssetType type, string name, string slug, string shortDescription, string filePath, DateTimeOffset publishedAtUtc)
+    private void AddAsset(Account officialAccount, AssetType type, string name, string slug, string shortDescription, string filePath, DateTimeOffset publishedAtUtc)
     {
         Assets.Add(new Asset
         {
             Type = type,
+            OwnerAccount = officialAccount,
             Name = name,
             Slug = slug,
-            DeveloperName = "Netor",
+            DeveloperName = "Netor 官方",
             ShortDescription = shortDescription,
             Description = "用于验证平台预览、订阅和下载机制的初始化种子数据。",
             Tags = type.ToString(),

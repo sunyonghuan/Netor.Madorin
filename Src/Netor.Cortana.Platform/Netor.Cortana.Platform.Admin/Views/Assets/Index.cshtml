@@ -34,7 +34,10 @@
 <section class="admin-card">
     <div class="admin-card-header">
         <h2 class="admin-card-title">资源列表</h2>
-        <span class="text-secondary">第 @Model.Page / @Model.TotalPages 页</span>
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-secondary">第 @Model.Page / @Model.TotalPages 页</span>
+            <a class="layui-btn layui-btn-normal layui-btn-sm" asp-action="Create">上传资源</a>
+        </div>
     </div>
     <div class="admin-card-body border-bottom">
         <form method="get" class="admin-filter-form layui-form">
@@ -112,6 +115,7 @@
                         <th>分类</th>
                         <th>状态</th>
                         <th>开发者</th>
+                        <th>归属账号</th>
                         <th>版本/定价</th>
                         <th>下载</th>
                         <th>发布时间</th>
@@ -122,7 +126,7 @@
                     @if (Model.Items.Count == 0)
                     {
                         <tr>
-                            <td colspan="10" class="text-center text-secondary py-5">暂无匹配资源，请调整筛选条件。</td>
+                            <td colspan="11" class="text-center text-secondary py-5">暂无匹配资源，请调整筛选条件。</td>
                         </tr>
                     }
                     else
@@ -140,6 +144,7 @@
                                 <td>@(item.CategoryName ?? "未分类")</td>
                                 <td><span class="admin-badge @GetStatusBadgeClass(item.Status)">@item.StatusName</span></td>
                                 <td>@item.DeveloperName</td>
+                                <td>@(item.OwnerAccountName ?? "未绑定")</td>
                                 <td>@item.VersionCount / @item.PricingPlanCount</td>
                                 <td>@item.DownloadCount</td>
                                 <td>@(item.PublishedAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</td>

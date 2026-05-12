@@ -85,7 +85,7 @@ namespace Netor.Cortana.Platform.Entitys.Data.Migrations
                     b.Property<long>("No")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
-                        .HasDefaultValue(1778139677631L)
+                        .HasDefaultValue(1778476340211L)
                         .HasComment("会员编号");
 
                     b.Property<string>("Phone")
@@ -429,6 +429,11 @@ namespace Netor.Cortana.Platform.Entitys.Data.Migrations
                         .HasColumnType("TEXT")
                         .HasComment("名称");
 
+                    b.Property<string>("OwnerAccountId")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT")
+                        .HasComment("归属账号ID");
+
                     b.Property<DateTimeOffset?>("PublishedAtUtc")
                         .HasColumnType("TEXT")
                         .HasComment("发布时间");
@@ -472,6 +477,8 @@ namespace Netor.Cortana.Platform.Entitys.Data.Migrations
                     b.HasKey("ID");
 
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("OwnerAccountId");
 
                     b.HasIndex("Slug")
                         .IsUnique();
@@ -809,7 +816,7 @@ namespace Netor.Cortana.Platform.Entitys.Data.Migrations
                     b.Property<long>("No")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
-                        .HasDefaultValue(1778139677634L)
+                        .HasDefaultValue(1778476340214L)
                         .HasComment("会员编号");
 
                     b.Property<string>("Phone")
@@ -1407,7 +1414,14 @@ namespace Netor.Cortana.Platform.Entitys.Data.Migrations
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Netor.Cortana.Platform.Entitys.Tables.Accounts.Account", "OwnerAccount")
+                        .WithMany()
+                        .HasForeignKey("OwnerAccountId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Category");
+
+                    b.Navigation("OwnerAccount");
                 });
 
             modelBuilder.Entity("Netor.Cortana.Platform.Entitys.Tables.Assets.AssetVersion", b =>

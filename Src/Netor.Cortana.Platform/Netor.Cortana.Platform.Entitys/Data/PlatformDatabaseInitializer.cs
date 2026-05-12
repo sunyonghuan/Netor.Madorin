@@ -22,13 +22,16 @@ public static class PlatformDatabaseInitializer
 
     public static async Task EnsureSeededAsync(this PlatformDbContext dbContext, CancellationToken cancellationToken = default)
     {
+        var officialAccount = await EnsureOfficialAccountAsync(dbContext, cancellationToken);
         var hasManager = await dbContext.Managers.AnyAsync(x => x.LoginUserName == "admin", cancellationToken);
         var hasSettings = await dbContext.SystemSettings.AnyAsync(x => x.Key == "platform.name", cancellationToken);
         var hasCategories = await dbContext.Categories.AnyAsync(cancellationToken);
         var hasAssets = await dbContext.Assets.AnyAsync(cancellationToken);
         var hasSubscriptions = await dbContext.Subscriptions.AnyAsync(cancellationToken);
+        var hasPaidAsset = await dbContext.Assets.AnyAsync(x => x.Slug == "pro-workflow-agent", cancellationToken);
+        var hasAssetsWithoutOwner = await dbContext.Assets.AnyAsync(x => x.OwnerAccountId == null, cancellationToken);
 
-        if (hasManager && hasSettings && hasCategories && hasAssets && hasSubscriptions)
+        if (hasManager && hasSettings && hasCategories && hasAssets && hasSubscriptions && hasPaidAsset && !hasAssetsWithoutOwner)
         {
             return;
         }
@@ -84,7 +87,12 @@ public static class PlatformDatabaseInitializer
 
         if (!hasAssets)
         {
-            await EnsureSeedAssetsAsync(dbContext, cancellationToken);
+            await EnsureSeedAssetsAsync(dbContext, officialAccount, cancellationToken);
+        }
+
+        if (hasAssetsWithoutOwner)
+        {
+            await BindOwnerToExistingAssetsAsync(dbContext, officialAccount.ID, cancellationToken);
         }
 
         if (!hasSubscriptions)
@@ -92,7 +100,40 @@ public static class PlatformDatabaseInitializer
             await EnsureSeedSubscriptionsAsync(dbContext, cancellationToken);
         }
 
+        if (!hasPaidAsset)
+        {
+            await EnsurePaidSeedAssetAsync(dbContext, officialAccount, cancellationToken);
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task<Account> EnsureOfficialAccountAsync(PlatformDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var account = await dbContext.Accounts.FirstOrDefaultAsync(x => x.LoginUserName == "official@netor.me", cancellationToken);
+        if (account is not null)
+        {
+            return account;
+        }
+
+        account = dbContext.Accounts.Add(new Account
+        {
+            No = 900000000002,
+            LoginUserName = "official@netor.me",
+            Email = "official@netor.me",
+            NickName = "Netor 官方",
+            RealName = "Netor Official",
+            Phone = "13800138002",
+            LoginPassword = "123456".MD5Encrypt(),
+            SafePassword = "888888".MD5Encrypt()
+        }).Entity;
+
+        dbContext.AccountWallets.Add(new AccountWallet
+        {
+            Account = account
+        });
+
+        return account;
     }
 
     private static IEnumerable<Category> CreateSeedCategories()
@@ -106,7 +147,7 @@ public static class PlatformDatabaseInitializer
         ];
     }
 
-    private static async Task EnsureSeedAssetsAsync(PlatformDbContext dbContext, CancellationToken cancellationToken)
+    private static async Task EnsureSeedAssetsAsync(PlatformDbContext dbContext, Account officialAccount, CancellationToken cancellationToken)
     {
         var categories = await dbContext.Categories.ToDictionaryAsync(x => x.Slug, cancellationToken);
 
@@ -126,21 +167,22 @@ public static class PlatformDatabaseInitializer
         var now = new DateTimeOffset(2026, 5, 7, 0, 0, 0, TimeSpan.Zero);
 
         dbContext.Assets.AddRange(
-            CreateSeedAsset(AssetType.Plugin, GetCategory("plugins"), "Google 搜索插件", "google-search-plugin", "提供 Google 搜索能力的基础插件。", "Data/packages/plugins/google-search/1.0.0/google-search.zip", now.AddDays(-8)),
-            CreateSeedAsset(AssetType.Skill, GetCategory("skills"), "记忆整理技能", "memory-organizer-skill", "整理对话记忆和知识片段。", "Data/packages/skills/memory-organizer/1.0.0/memory-organizer.zip", now.AddDays(-6)),
-            CreateSeedAsset(AssetType.Agent, GetCategory("agents"), "工作助手智能体", "work-assistant-agent", "面向日常办公和任务跟进的智能体。", "Data/packages/agents/work-assistant/1.0.0/work-assistant.zip", now.AddDays(-4)),
-            CreateSeedAsset(AssetType.Solution, GetCategory("solutions"), "入门插件解决方案包", "starter-plugin-solution", "适合个人用户快速体验平台生态。", "Data/packages/solutions/starter-plugin-solution/1.0.0/starter-plugin-solution.zip", now.AddDays(-2)));
+            CreateSeedAsset(AssetType.Plugin, officialAccount, GetCategory("plugins"), "Google 搜索插件", "google-search-plugin", "提供 Google 搜索能力的基础插件。", "Data/packages/plugins/google-search/1.0.0/google-search.zip", now.AddDays(-8)),
+            CreateSeedAsset(AssetType.Skill, officialAccount, GetCategory("skills"), "记忆整理技能", "memory-organizer-skill", "整理对话记忆和知识片段。", "Data/packages/skills/memory-organizer/1.0.0/memory-organizer.zip", now.AddDays(-6)),
+            CreateSeedAsset(AssetType.Agent, officialAccount, GetCategory("agents"), "工作助手智能体", "work-assistant-agent", "面向日常办公和任务跟进的智能体。", "Data/packages/agents/work-assistant/1.0.0/work-assistant.zip", now.AddDays(-4)),
+            CreateSeedAsset(AssetType.Solution, officialAccount, GetCategory("solutions"), "入门插件解决方案包", "starter-plugin-solution", "适合个人用户快速体验平台生态。", "Data/packages/solutions/starter-plugin-solution/1.0.0/starter-plugin-solution.zip", now.AddDays(-2)));
     }
 
-    private static Asset CreateSeedAsset(AssetType type, Category category, string name, string slug, string shortDescription, string filePath, DateTimeOffset publishedAtUtc)
+    private static Asset CreateSeedAsset(AssetType type, Account officialAccount, Category category, string name, string slug, string shortDescription, string filePath, DateTimeOffset publishedAtUtc)
     {
         return new Asset
         {
             Type = type,
             Category = category,
+            OwnerAccount = officialAccount,
             Name = name,
             Slug = slug,
-            DeveloperName = "Netor",
+            DeveloperName = "Netor 官方",
             ShortDescription = shortDescription,
             Description = "用于验证平台预览、订阅和下载机制的初始化种子数据。",
             Tags = type.ToString(),
@@ -174,6 +216,22 @@ public static class PlatformDatabaseInitializer
         };
     }
 
+    private static async Task BindOwnerToExistingAssetsAsync(PlatformDbContext dbContext, string officialAccountId, CancellationToken cancellationToken)
+    {
+        var assets = await dbContext.Assets
+            .Where(x => x.OwnerAccountId == null)
+            .ToListAsync(cancellationToken);
+
+        foreach (var asset in assets)
+        {
+            asset.OwnerAccountId = officialAccountId;
+            if (string.Equals(asset.DeveloperName, "Netor", StringComparison.OrdinalIgnoreCase))
+            {
+                asset.DeveloperName = "Netor 官方";
+            }
+        }
+    }
+
     private static async Task EnsureSeedSubscriptionsAsync(PlatformDbContext dbContext, CancellationToken cancellationToken)
     {
         var account = await dbContext.Accounts.FirstOrDefaultAsync(x => x.LoginUserName == "demo@netor.me", cancellationToken);
@@ -181,6 +239,7 @@ public static class PlatformDatabaseInitializer
         {
             account = dbContext.Accounts.Add(new Account
             {
+                No = 900000000001,
                 LoginUserName = "demo@netor.me",
                 Email = "demo@netor.me",
                 Phone = "13800138000",
@@ -234,5 +293,51 @@ public static class PlatformDatabaseInitializer
                 UserAgent = "Cortana Admin Seed"
             });
         }
+    }
+
+    private static async Task EnsurePaidSeedAssetAsync(PlatformDbContext dbContext, Account officialAccount, CancellationToken cancellationToken)
+    {
+        var category = await dbContext.Categories.FirstOrDefaultAsync(x => x.Slug == "agents", cancellationToken);
+        category ??= dbContext.Categories.Add(new Category { Name = "智能体", Slug = "agents", Description = "封装角色、工具和流程的智能体。", SortOrder = 30 }).Entity;
+
+        dbContext.Assets.Add(new Asset
+        {
+            Type = AssetType.Agent,
+            Category = category,
+            OwnerAccount = officialAccount,
+            Name = "专业流程智能体",
+            Slug = "pro-workflow-agent",
+            DeveloperName = "Netor 官方",
+            ShortDescription = "面向长期任务编排和自动化执行的付费智能体。",
+            Description = "用于验证付费订单、模拟支付和订阅生成流程的初始化种子数据。",
+            Tags = "Agent,Pro,Paid",
+            Status = AssetStatus.Published,
+            PublishedAtUtc = new DateTimeOffset(2026, 5, 3, 0, 0, 0, TimeSpan.Zero),
+            IsFeatured = true,
+            Versions =
+            [
+                new AssetVersion
+                {
+                    VersionName = "1.0.0",
+                    ReleaseNotes = "付费智能体初始化版本。",
+                    ManifestJson = "{}",
+                    PackageHash = "seed-paid-placeholder",
+                    PackageSize = 0,
+                    FilePath = "Data/packages/agents/pro-workflow/1.0.0/pro-workflow.zip"
+                }
+            ],
+            PricingPlans =
+            [
+                new PricingPlan
+                {
+                    Name = "月度订阅",
+                    PlanType = PricingPlanType.Monthly,
+                    Price = 19.9m,
+                    Currency = "CNY",
+                    DurationDays = 30,
+                    IsActive = true
+                }
+            ]
+        });
     }
 }

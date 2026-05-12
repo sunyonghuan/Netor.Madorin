@@ -1,0 +1,59 @@
+@model Netor.Cortana.Platform.Web.Models.Market.MarketAssetDetailViewModel
+@{
+    ViewData["Title"] = Model.Name;
+}
+
+<div class="detail-hero mb-4">
+    <div>
+        <span class="badge text-bg-primary">@Model.TypeName</span>
+        @if (!string.IsNullOrWhiteSpace(Model.CategoryName))
+        {
+            <span class="badge text-bg-light">@Model.CategoryName</span>
+        }
+        <h1 class="mt-3">@Model.Name</h1>
+        <p class="lead text-secondary">@Model.ShortDescription</p>
+        <div class="asset-meta justify-content-start">
+            <span>@Model.DeveloperName</span>
+            <span>@Model.DownloadCount 次下载</span>
+            <span>@Model.PublishedAtUtc?.ToString("yyyy-MM-dd")</span>
+        </div>
+    </div>
+    <div class="detail-action">
+        <h2>获取资源</h2>
+        @foreach (var plan in Model.PricingPlans)
+        {
+            <form asp-controller="Orders" asp-action="Create" method="post" class="plan-row">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="assetId" value="@Model.Id" />
+                <input type="hidden" name="pricingPlanId" value="@plan.Id" />
+                <div>
+                    <strong>@plan.Name</strong>
+                    <div class="text-secondary small">@plan.PlanTypeName · @plan.DurationDays 天</div>
+                </div>
+                <button class="btn btn-primary btn-sm" type="submit">@(plan.Price <= 0 ? "免费下载" : $"¥{plan.Price:0.##} 订阅")</button>
+            </form>
+        }
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="content-panel">
+            <h2>资源说明</h2>
+            <p>@Model.Description</p>
+            <p class="text-secondary">标签：@Model.Tags</p>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="content-panel">
+            <h2>版本</h2>
+            @foreach (var version in Model.Versions)
+            {
+                <div class="version-row">
+                    <strong>@version.VersionName</strong>
+                    <p>@version.ReleaseNotes</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>

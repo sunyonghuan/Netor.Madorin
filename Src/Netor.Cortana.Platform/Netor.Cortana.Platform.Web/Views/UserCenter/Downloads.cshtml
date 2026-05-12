@@ -1,0 +1,38 @@
+@model Netor.Cortana.Platform.Web.Models.UserCenter.UserDownloadListViewModel
+@{
+    ViewData["Title"] = "我的下载";
+}
+
+<div class="page-heading compact">
+    <span class="eyebrow">Downloads</span>
+    <h1>我的下载</h1>
+</div>
+
+@if (Model.Items.Count == 0)
+{
+    <div class="empty-state">
+        <h2>暂无下载记录</h2>
+        <p>下载资源后会显示在这里。</p>
+    </div>
+}
+else
+{
+    <div class="content-panel">
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead><tr><th>资源</th><th>版本</th><th>IP</th><th>下载时间</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td>@item.AssetName</td>
+                        <td>@item.VersionName</td>
+                        <td>@item.IpAddress</td>
+                        <td>@item.CreatedAt</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

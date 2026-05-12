@@ -331,13 +331,19 @@ public partial class MainWindow
     /// </summary>
     internal void AddSystemNotice(SystemNoticeArgs args)
     {
-        const int collapseThreshold = 300;
+        // 内容超过 4 行时默认折叠；用户点击“展开详情”后显示完整内容，
+        // 再点击“收起详情”恢复为前 4 行加省略号。
+        const int collapsedLineCount = 4;
 
         Dispatcher.UIThread.Post(() =>
         {
             var content = args.Content.Trim();
-            var collapsed = content.Length > collapseThreshold;
-            var displayContent = collapsed ? $"{content[..collapseThreshold]}…" : content;
+            var contentLines = content.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            var collapsed = contentLines.Length > collapsedLineCount;
+            var collapsedContent = collapsed
+                ? $"{string.Join(Environment.NewLine, contentLines.Take(collapsedLineCount))}{Environment.NewLine}…"
+                : content;
+            var displayContent = collapsed ? collapsedContent : content;
             var title = string.IsNullOrWhiteSpace(args.Title) ? "系统提示" : args.Title.Trim();
             var level = string.IsNullOrWhiteSpace(args.Level) ? "info" : args.Level.Trim().ToLowerInvariant();
             var source = string.IsNullOrWhiteSpace(args.Source) ? "系统" : args.Source.Trim();
@@ -371,7 +377,7 @@ public partial class MainWindow
                 Children = { titleBlock, metaBlock },
             };
 
-            var contentBlock = new TextBlock
+            var contentBlock = new SelectableTextBlock
             {
                 Text = displayContent,
                 FontSize = 12,
@@ -401,7 +407,7 @@ public partial class MainWindow
                 toggle.Click += (_, _) =>
                 {
                     expanded = !expanded;
-                    contentBlock.Text = expanded ? content : $"{content[..collapseThreshold]}…";
+                    contentBlock.Text = expanded ? content : collapsedContent;
                     toggle.Content = expanded ? "收起详情" : "展开详情";
                     if (expanded)
                     {

@@ -1,0 +1,37 @@
+@model Netor.Cortana.Platform.Web.Models.UserCenter.UserProfileViewModel
+@{
+    ViewData["Title"] = "个人资料";
+}
+
+<div class="page-heading compact">
+    <span class="eyebrow">Profile</span>
+    <h1>个人资料</h1>
+    <p>维护登录账号的基础联系方式和展示名称。</p>
+</div>
+
+<div class="content-panel mx-auto" style="max-width: 720px;">
+    <form method="post">
+        @Html.AntiForgeryToken()
+        <div class="mb-3">
+            <label class="form-label">登录账号</label>
+            <input class="form-control" value="@Model.LoginUserName" disabled />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" asp-for="NickName">昵称</label>
+            <input class="form-control" asp-for="NickName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" asp-for="RealName">真实姓名</label>
+            <input class="form-control" asp-for="RealName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" asp-for="Email">邮箱</label>
+            <input class="form-control" asp-for="Email" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" asp-for="Phone">手机号</label>
+            <input class="form-control" asp-for="Phone" />
+        </div>
+        <button class="btn btn-primary" type="submit">保存资料</button>
+    </form>
+</div>

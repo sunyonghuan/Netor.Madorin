@@ -1,0 +1,50 @@
+@model IReadOnlyList<Netor.Cortana.Platform.Web.Models.Market.MarketAssetCardViewModel>
+
+@if (Model.Count == 0)
+{
+    <div class="empty-state">
+        <h2>暂无资源</h2>
+        <p>后台上架资源后会显示在这里。</p>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var item in Model)
+        {
+            <div class="col-md-6 col-xl-4">
+                <a class="asset-card" asp-controller="Market" asp-action="Details" asp-route-slug="@item.Slug">
+                    <div class="asset-cover">
+                        @if (!string.IsNullOrWhiteSpace(item.CoverUrl))
+                        {
+                            <img src="@item.CoverUrl" alt="@item.Name" />
+                        }
+                        else
+                        {
+                            <span>@item.TypeName</span>
+                        }
+                    </div>
+                    <div class="asset-body">
+                        <div class="d-flex justify-content-between gap-2">
+                            <span class="badge text-bg-light">@item.TypeName</span>
+                            @if (item.HasFreePlan)
+                            {
+                                <span class="badge text-bg-success">免费</span>
+                            }
+                            else if (item.LowestPrice is not null)
+                            {
+                                <span class="badge text-bg-primary">¥@item.LowestPrice</span>
+                            }
+                        </div>
+                        <h3>@item.Name</h3>
+                        <p>@item.ShortDescription</p>
+                        <div class="asset-meta">
+                            <span>@item.DeveloperName</span>
+                            <span>@item.DownloadCount 次下载</span>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        }
+    </div>
+}

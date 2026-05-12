@@ -1,0 +1,39 @@
+@model Netor.Cortana.Platform.Web.Models.UserCenter.UserOrderListViewModel
+@{
+    ViewData["Title"] = "我的订单";
+}
+
+<div class="page-heading compact">
+    <span class="eyebrow">Orders</span>
+    <h1>我的订单</h1>
+</div>
+
+@if (Model.Items.Count == 0)
+{
+    <div class="empty-state">
+        <h2>暂无订单</h2>
+        <p>订阅付费资源后会显示在这里。</p>
+    </div>
+}
+else
+{
+    <div class="content-panel">
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead><tr><th>订单号</th><th>标题</th><th>金额</th><th>状态</th><th>创建时间</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td>@item.OrderNo</td>
+                        <td>@item.Title</td>
+                        <td>¥@item.Amount</td>
+                        <td>@item.StatusName</td>
+                        <td>@item.CreatedAt</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

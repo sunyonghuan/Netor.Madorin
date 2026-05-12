@@ -1,0 +1,40 @@
+@model Netor.Cortana.Platform.Web.Models.Market.MarketAssetListViewModel
+@{
+    ViewData["Title"] = "资源列表";
+}
+
+<div class="page-heading compact">
+    <span class="eyebrow">Assets</span>
+    <h1>资源列表</h1>
+    <p>共 @Model.TotalCount 个资源。</p>
+</div>
+
+<form class="filter-panel mb-4" method="get">
+    <div class="row g-2">
+        <div class="col-md-4">
+            <input class="form-control" name="keyword" value="@Model.Keyword" placeholder="搜索资源" />
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="pricing">
+                <option value="">全部价格</option>
+                <option value="free" selected="@(Model.Pricing == "free")">免费</option>
+                <option value="paid" selected="@(Model.Pricing == "paid")">付费</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="sort">
+                <option value="">最新</option>
+                <option value="featured" selected="@(Model.Sort == "featured")">推荐</option>
+                <option value="downloads" selected="@(Model.Sort == "downloads")">下载量</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-primary w-100" type="submit">筛选</button>
+        </div>
+        <div class="col-md-2">
+            <a class="btn btn-outline-secondary w-100" asp-controller="Market" asp-action="Assets">重置</a>
+        </div>
+    </div>
+</form>
+
+<partial name="_AssetCards" model="Model.Items" />

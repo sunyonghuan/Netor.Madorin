@@ -1,8 +1,52 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+﻿@model Netor.Cortana.Platform.Web.Models.Home.HomeIndexViewModel
+@{
+    ViewData["Title"] = "首页";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+<section class="hero-panel mb-5">
+    <div class="row align-items-center g-4">
+        <div class="col-lg-7">
+            <span class="eyebrow">Cortana AI 能力市场</span>
+            <h1 class="display-5 fw-bold mt-3">发现、订阅和下载 Cortana 生态能力</h1>
+            <p class="lead text-secondary mt-3">面向个人用户的插件、技能、智能体和解决方案市场。当前先搭建页面场景，后续继续升级视觉设计和业务闭环。</p>
+            <div class="d-flex flex-wrap gap-2 mt-4">
+                <a class="btn btn-primary btn-lg" asp-controller="Market" asp-action="Index">进入市场</a>
+                <a class="btn btn-outline-primary btn-lg" asp-controller="Home" asp-action="Download">下载客户端</a>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="hero-card">
+                <div class="small text-secondary">MVP 当前能力</div>
+                <div class="display-6 fw-bold mt-2">4 类资源</div>
+                <p class="text-secondary mb-0">插件 / 技能 / 智能体 / 解决方案统一接入市场、订阅和下载流程。</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mb-5">
+    <div class="section-title">
+        <h2>能力入口</h2>
+        <p>先搭建官网与前台入口，后续替换成正式设计。</p>
+    </div>
+    <div class="row g-3">
+        @foreach (var item in Model.Features)
+        {
+            <div class="col-md-6 col-xl-3">
+                <a class="feature-card" href="@item.Url">
+                    <div class="feature-icon">@item.Icon</div>
+                    <h3>@item.Title</h3>
+                    <p>@item.Description</p>
+                </a>
+            </div>
+        }
+    </div>
+</section>
+
+<section>
+    <div class="section-title">
+        <h2>官方精选</h2>
+        <a asp-controller="Market" asp-action="Assets">查看全部</a>
+    </div>
+    <partial name="~/Views/Market/_AssetCards.cshtml" model="Model.FeaturedAssets" />
+</section>

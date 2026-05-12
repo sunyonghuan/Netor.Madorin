@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Netor.Cortana.Platform.Entitys;
 using Netor.Cortana.Platform.Entitys.Data;
 using Netor.Cortana.Platform.Services;
@@ -5,6 +6,17 @@ using Netor.Cortana.Platform.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/account/login";
+        options.LogoutPath = "/account/logout";
+        options.AccessDeniedPath = "/account/login";
+        options.Cookie.Name = "Cortana.Platform.Web";
+        options.SlidingExpiration = true;
+        options.ExpireTimeSpan = TimeSpan.FromDays(7);
+    });
+builder.Services.AddAuthorization();
 builder.Services.AddControllersWithViews();
 builder.Services.AddPlatformDbContext(builder.Configuration);
 builder.Services.AddPlatformServices(builder.Configuration);
@@ -24,6 +36,7 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseRouting();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapStaticAssets();
