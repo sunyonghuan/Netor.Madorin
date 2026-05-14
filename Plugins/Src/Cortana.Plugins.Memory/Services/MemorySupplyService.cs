@@ -13,6 +13,10 @@ public sealed class MemorySupplyService(
     IMemorySettingsService settingsService) : IMemorySupplyService
 {
     private const int MaximumToolMemoryCount = 50;
+    private const string GlobalProfileGroupKey = "global-profile";
+    private const string WorkspaceProfileGroupKey = "workspace-profile";
+    private const string SessionContinuityGroupKey = "session-continuity";
+    private const string TaskRelatedGroupKey = "task-related";
 
     public MemorySupplyResult Supply(MemorySupplyRequest request)
     {
@@ -29,47 +33,18 @@ public sealed class MemorySupplyService(
             return CreateDisabledResult(request, supplyOptions, recallOptions, maxMemoryCount);
         }
 
-        // ── 双路召回 ──
-        // 路径 1：用最新用户消息做精确召回（捕捉当前意图）
-        var primaryQuery = BuildPrimaryQueryText(request);
-        var primaryItems = RecallLayered(request, recallOptions, primaryQuery, maxMemoryCount);
-
-        // 路径 2：用 session 标题 + 场景做宽泛召回（捕捉全局主题）
-        var secondaryQuery = BuildSecondaryQueryText(request);
-        IReadOnlyList<MemoryRecallItem> secondaryItems = [];
-        if (!string.IsNullOrWhiteSpace(secondaryQuery) && !string.Equals(primaryQuery, secondaryQuery, StringComparison.Ordinal))
-        {
-            secondaryItems = RecallLayered(request, recallOptions, secondaryQuery, maxMemoryCount);
-        }
-
-        // ── 合并去重，分层 ──
-        var allItems = primaryItems
-            .Concat(secondaryItems)
-            .GroupBy(static item => item.Id, StringComparer.OrdinalIgnoreCase)
-            .Select(static group => group.OrderByDescending(item => item.RecallScore).First())
+        var layeredItems = RecallLayeredSupplyItems(request, supplyOptions, recallOptions, maxMemoryCount);
+        var items = layeredItems
+            .GroupBy(static item => item.Item.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(static group => group
+                .OrderBy(static item => item.Priority)
+                .ThenByDescending(static item => item.Item.RecallScore)
+                .First())
+            .OrderBy(static item => item.Priority)
+            .ThenByDescending(static item => item.Item.RecallScore)
+            .Take(maxMemoryCount)
+            .Select(static item => ToSupplyItem(item.Item, item.GroupKey))
             .ToList();
-
-        // 分离 profile（abstractions）和 context（fragments）
-        var profileItems = allItems
-            .Where(static item => string.Equals(item.Kind, "abstraction", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(static item => item.Confidence)
-            .ThenByDescending(static item => item.RecallScore)
-            .Take(Math.Max(2, maxMemoryCount / 3))  // profile 占 1/3 名额，至少 2 条
-            .Select(ToSupplyItem)
-            .ToList();
-
-        var profileIds = profileItems.Select(static item => item.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var contextBudget = maxMemoryCount - profileItems.Count;
-
-        var contextItems = allItems
-            .Where(item => !profileIds.Contains(item.Id))
-            .OrderByDescending(static item => item.RecallScore)
-            .Take(contextBudget)
-            .Select(ToSupplyItem)
-            .ToList();
-
-        // 合并最终列表：profile 在前，context 在后
-        var items = profileItems.Concat(contextItems).ToList();
 
         if (request.MaxTokenBudget is > 0)
         {
@@ -113,11 +88,73 @@ public sealed class MemorySupplyService(
                 SupplyEnabled = true,
                 MaxMemoryCount = maxMemoryCount,
                 RecallMinimumConfidence = recallOptions.MinimumConfidence,
-                Ranking = "dual-path/layered-scope/profile-first/recallScore",
-                Grouping = "profile(abstraction)/constraint/preference/task/fact/other"
+                Ranking = "layered/global-profile/workspace-profile/session-continuity/task-related/recallScore",
+                Grouping = "global-profile/workspace-profile/session-continuity/task-related"
             },
             TraceId = request.TraceId
         };
+    }
+
+    private IReadOnlyList<LayeredRecallItem> RecallLayeredSupplyItems(
+        MemorySupplyRequest request,
+        MemorySupplyOptions supplyOptions,
+        MemoryRecallOptions recallOptions,
+        int maxMemoryCount)
+    {
+        var result = new List<LayeredRecallItem>();
+        var workspaceId = NormalizeOptional(request.WorkspaceId);
+
+        if (supplyOptions.IncludeWorkspaceProfile && workspaceId is not null)
+        {
+            result.AddRange(store.GetProfileRecallCandidates(
+                    request.AgentId,
+                    workspaceId,
+                    false,
+                    recallOptions.MinimumConfidence,
+                    recallOptions.IncludeCandidateMemories,
+                    NormalizeLayerLimit(supplyOptions.WorkspaceProfileMaxCount, 5, maxMemoryCount))
+                .Select(static item => new LayeredRecallItem(item, WorkspaceProfileGroupKey, 0)));
+        }
+
+        if (supplyOptions.IncludeGlobalProfile)
+        {
+            result.AddRange(store.GetProfileRecallCandidates(
+                    request.AgentId,
+                    null,
+                    true,
+                    recallOptions.MinimumConfidence,
+                    recallOptions.IncludeCandidateMemories,
+                    NormalizeLayerLimit(supplyOptions.GlobalProfileMaxCount, 3, maxMemoryCount))
+                .Select(static item => new LayeredRecallItem(item, GlobalProfileGroupKey, 1)));
+        }
+
+        if (supplyOptions.IncludeSessionContinuity && workspaceId is not null)
+        {
+            result.AddRange(store.GetRecentRecallCandidates(
+                    request.AgentId,
+                    workspaceId,
+                    recallOptions.MinimumConfidence,
+                    recallOptions.IncludeCandidateMemories,
+                    NormalizeLayerLimit(supplyOptions.SessionContinuityMaxCount, 2, maxMemoryCount))
+                .Select(static item => new LayeredRecallItem(item, SessionContinuityGroupKey, 2)));
+        }
+
+        if (supplyOptions.IncludeTaskRecall)
+        {
+            var primaryQuery = BuildPrimaryQueryText(request);
+            result.AddRange(RecallLayered(request, recallOptions, primaryQuery, NormalizeLayerLimit(supplyOptions.TaskRecallMaxCount, 5, maxMemoryCount))
+                .Select(static item => new LayeredRecallItem(item, TaskRelatedGroupKey, 3)));
+
+            var secondaryQuery = BuildSecondaryQueryText(request);
+            if (!string.IsNullOrWhiteSpace(secondaryQuery) && !string.Equals(primaryQuery, secondaryQuery, StringComparison.Ordinal))
+            {
+                result.AddRange(RecallLayered(request, recallOptions, secondaryQuery, NormalizeLayerLimit(supplyOptions.TaskRecallMaxCount, 5, maxMemoryCount))
+                    .Select(static item => new LayeredRecallItem(item, TaskRelatedGroupKey, 3)));
+            }
+        }
+
+        store.RecordMemoryAccesses(result.Select(static item => item.Item), DateTimeOffset.UtcNow.ToString("O"));
+        return result;
     }
 
     private IReadOnlyList<MemoryRecallItem> RecallLayered(
@@ -193,7 +230,6 @@ public sealed class MemorySupplyService(
                 .ToList();
         }
 
-        store.RecordMemoryAccesses(selected, DateTimeOffset.UtcNow.ToString("O"));
         return selected;
     }
 
@@ -242,6 +278,14 @@ public sealed class MemorySupplyService(
     private sealed record RecallScope(string? AgentId, bool AgentMustBeNull, string? WorkspaceId, bool WorkspaceMustBeNull, int Priority, int Limit);
 
     private sealed record ScopedRecallItem(MemoryRecallItem Item, int ScopePriority);
+
+    private sealed record LayeredRecallItem(MemoryRecallItem Item, string GroupKey, int Priority);
+
+    private static int NormalizeLayerLimit(int configuredLimit, int fallbackLimit, int maxMemoryCount)
+    {
+        var limit = configuredLimit <= 0 ? fallbackLimit : configuredLimit;
+        return Math.Clamp(limit, 1, Math.Max(1, maxMemoryCount));
+    }
 
     /// <summary>
     /// 路径 1：用最新用户消息构建精确查询文本。
@@ -299,7 +343,7 @@ public sealed class MemorySupplyService(
         builder.Append(value.Trim());
     }
 
-    private static MemorySupplyItem ToSupplyItem(MemoryRecallItem item)
+    private static MemorySupplyItem ToSupplyItem(MemoryRecallItem item, string groupKey)
     {
         var content = string.IsNullOrWhiteSpace(item.Detail) ? item.Summary : item.Detail;
         return new MemorySupplyItem
@@ -309,7 +353,7 @@ public sealed class MemorySupplyService(
             Topic = item.Topic,
             Title = item.Title,
             Content = content ?? string.Empty,
-            Reason = string.IsNullOrWhiteSpace(item.Topic) ? "与当前上下文相关。" : $"与主题“{item.Topic}”相关。",
+            Reason = GetSupplyReason(groupKey, item.Topic),
             Confidence = item.Confidence,
             Score = Math.Round(item.RecallScore, 4),
             SourceRecallScore = Math.Round(item.RecallScore, 4),
@@ -358,7 +402,10 @@ public sealed class MemorySupplyService(
 
     private static string GetGroupKey(MemorySupplyItem item)
     {
-        if (string.Equals(item.Kind, "abstraction", StringComparison.OrdinalIgnoreCase)) return "abstraction";
+        if (item.Reason.Contains("当前工作区", StringComparison.OrdinalIgnoreCase)) return WorkspaceProfileGroupKey;
+        if (item.Reason.Contains("全局用户画像", StringComparison.OrdinalIgnoreCase)) return GlobalProfileGroupKey;
+        if (item.Reason.Contains("会话连续性", StringComparison.OrdinalIgnoreCase)) return SessionContinuityGroupKey;
+        if (item.Reason.Contains("当前任务", StringComparison.OrdinalIgnoreCase)) return TaskRelatedGroupKey;
 
         var text = $"{item.Topic} {item.Title} {item.Content}";
         if (ContainsAny(text, "偏好", "preference", "习惯", "喜欢")) return "preference";
@@ -377,6 +424,10 @@ public sealed class MemorySupplyService(
     {
         return groupKey switch
         {
+            WorkspaceProfileGroupKey => "当前工作区上下文",
+            GlobalProfileGroupKey => "全局用户画像",
+            SessionContinuityGroupKey => "当前会话连续性",
+            TaskRelatedGroupKey => "当前任务相关记忆",
             "preference" => "偏好记忆",
             "constraint" => "约束记忆",
             "fact" => "事实记忆",
@@ -390,12 +441,28 @@ public sealed class MemorySupplyService(
     {
         return groupKey switch
         {
-            "abstraction" => 0,
+            WorkspaceProfileGroupKey => 0,
+            GlobalProfileGroupKey => 1,
+            SessionContinuityGroupKey => 2,
+            TaskRelatedGroupKey => 3,
             "constraint" => 1,
             "preference" => 2,
             "task" => 3,
             "fact" => 4,
             _ => 9
+        };
+    }
+
+    private static string GetSupplyReason(string groupKey, string? topic)
+    {
+        var topicText = string.IsNullOrWhiteSpace(topic) ? string.Empty : $"，主题“{topic}”";
+        return groupKey switch
+        {
+            WorkspaceProfileGroupKey => $"当前工作区长期上下文{topicText}。",
+            GlobalProfileGroupKey => $"全局用户画像长期记忆{topicText}。",
+            SessionContinuityGroupKey => $"当前会话连续性记忆{topicText}。",
+            TaskRelatedGroupKey => $"与当前任务相关的召回记忆{topicText}。",
+            _ => string.IsNullOrWhiteSpace(topic) ? "与当前上下文相关。" : $"与主题“{topic}”相关。"
         };
     }
 }

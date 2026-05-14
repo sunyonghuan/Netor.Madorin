@@ -18,11 +18,12 @@ namespace Netor.Cortana.UI;
 /// </summary>
 internal sealed class UiChatOutputChannel(
     IServiceProvider serviceProvider,
-    ILogger<UiChatOutputChannel> logger) : IAiOutputChannel
+    ILogger<UiChatOutputChannel> logger) : IAiOutputChannel, IRealtimeProcessOutput
 {
     private static readonly Bitmap AiAvatarBitmap = LoadAiAvatarBitmap();
 
     private readonly StringBuilder _buffer = new();
+    private readonly Dictionary<string, RealtimeProcessCardHandle> _cardsByProcessId = new(StringComparer.Ordinal);
     private MarkdownRenderer? _currentPresenter;
 
     private static Bitmap LoadAiAvatarBitmap()
@@ -36,6 +37,22 @@ internal sealed class UiChatOutputChannel(
 
     /// <inheritdoc />
     public bool IsActive => true;
+
+    public Task OnProcessEventAsync(RealtimeProcessEvent evt, CancellationToken ct = default)
+    {
+        if (ct.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (string.IsNullOrWhiteSpace(evt.ProcessId))
+        {
+            return Task.CompletedTask;
+        }
+
+        Dispatcher.UIThread.Post(() => HandleProcessEvent(evt));
+        return Task.CompletedTask;
+    }
 
     /// <inheritdoc />
     public Task OnTokenAsync(string token, CancellationToken cancellationToken = default)
@@ -217,12 +234,66 @@ internal sealed class UiChatOutputChannel(
             mainWindow.AutoScrollToBottom();
     }
 
+    private void HandleProcessEvent(RealtimeProcessEvent evt)
+    {
+        var status = string.IsNullOrWhiteSpace(evt.Status) ? "running" : evt.Status.Trim().ToLowerInvariant();
+
+        if (status == "running")
+        {
+            if (!_cardsByProcessId.TryGetValue(evt.ProcessId, out var handle))
+            {
+                var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
+                handle = mainWindow.AddRealtimeProcessCard(evt);
+                _cardsByProcessId[evt.ProcessId] = handle;
+            }
+            else
+            {
+                handle.UpdateStatus(status, evt.ExitCode, evt.DurationMs);
+                handle.AppendContent(evt.Content);
+            }
+
+            ScrollToBottom();
+            return;
+        }
+
+        if (_cardsByProcessId.TryGetValue(evt.ProcessId, out var existing))
+        {
+            existing.AppendContent(evt.Content);
+            existing.Complete(status, evt.ExitCode, evt.DurationMs);
+            _cardsByProcessId.Remove(evt.ProcessId);
+            ScrollToBottom();
+            return;
+        }
+
+        var window = serviceProvider.GetRequiredService<MainWindow>();
+        var created = window.AddRealtimeProcessCard(new RealtimeProcessEvent
+        {
+            TurnId = evt.TurnId,
+            ProcessId = evt.ProcessId,
+            Kind = evt.Kind,
+            Title = evt.Title,
+            Status = "running",
+            Content = string.Empty,
+            ExitCode = evt.ExitCode,
+            DurationMs = evt.DurationMs,
+            Timestamp = evt.Timestamp,
+        });
+        created.AppendContent(evt.Content);
+        created.Complete(status, evt.ExitCode, evt.DurationMs);
+    }
+
     /// <summary>
     /// 重置通道状态，为下一轮对话做准备。
     /// </summary>
     private void Reset()
     {
+        foreach (var card in _cardsByProcessId.Values)
+        {
+            card.Complete("cancelled", null, 0);
+        }
+
         _buffer.Clear();
         _currentPresenter = null;
+        _cardsByProcessId.Clear();
     }
 }

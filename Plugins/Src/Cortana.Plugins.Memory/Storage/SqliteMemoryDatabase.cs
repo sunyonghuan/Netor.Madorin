@@ -22,6 +22,18 @@ public sealed class SqliteMemoryDatabase(IMemoryDatabaseOptions options, ILogger
         get
         {
             if (_databasePath is not null) return _databasePath;
+            if (!string.IsNullOrWhiteSpace(options.ConnectionString))
+            {
+                var builder = new SqliteConnectionStringBuilder(options.ConnectionString);
+                if (!string.IsNullOrWhiteSpace(builder.DataSource))
+                {
+                    var fullPath = Path.GetFullPath(builder.DataSource);
+                    var directoryName = Path.GetDirectoryName(fullPath);
+                    if (!string.IsNullOrWhiteSpace(directoryName)) Directory.CreateDirectory(directoryName);
+                    _databasePath = fullPath;
+                    return _databasePath;
+                }
+            }
 
             var directory = options.DataDirectory;
             if (string.IsNullOrWhiteSpace(directory)) directory = AppContext.BaseDirectory;
@@ -37,7 +49,14 @@ public sealed class SqliteMemoryDatabase(IMemoryDatabaseOptions options, ILogger
     /// <returns>已经打开的 SQLite 连接。</returns>
     public SqliteConnection OpenConnection()
     {
-        var connection = new SqliteConnection($"Data Source={DatabasePath}");
+        if (!string.Equals(options.Provider, "sqlite", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NotSupportedException($"当前记忆插件只实现 sqlite 存储，暂不支持 {options.Provider}。");
+        }
+
+        var connection = string.IsNullOrWhiteSpace(options.ConnectionString)
+            ? new SqliteConnection($"Data Source={DatabasePath}")
+            : new SqliteConnection(options.ConnectionString);
         connection.Open();
         return connection;
     }

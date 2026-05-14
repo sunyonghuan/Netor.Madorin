@@ -14,6 +14,7 @@ using Netor.Cortana.Voice;
 using Netor.EventHub;
 
 using Serilog;
+using Serilog.Events;
 
 using System.Text;
 
@@ -201,14 +202,17 @@ public partial class App : Application
                     ?? Path.Combine(WorkspaceDirectory, "logs");
                 try { Directory.CreateDirectory(logDir); } catch { }
 
+                var fileMinimumLevel = ResolveFileLogMinimumLevel(logDir);
+
                 options.AddSerilog(new LoggerConfiguration()
                     .MinimumLevel
                     .Information()
+                    .MinimumLevel.Override("System.Net.Http.HttpClient", LogEventLevel.Warning)
                     .WriteTo
                     .File(
                         // 将日志写入可覆写目录（支持 CORTANA_LOG_DIR 环境变量）
                         Path.Combine(logDir, "app-.log"),
-                        restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning,
+                        restrictedToMinimumLevel: fileMinimumLevel,
                         rollingInterval: RollingInterval.Minute,
                         fileSizeLimitBytes: 100 * 1024 * 1024,
                         retainedFileCountLimit: 72,
@@ -241,7 +245,9 @@ public partial class App : Application
             .AddSingleton<IAppPaths, AppPaths>()
             .AddSingleton<IWindowController, WindowController>()
             // UI 输出通道：将 AI 流式回复渲染到 MainWindow
-            .AddSingleton<IAiOutputChannel, UiChatOutputChannel>()
+            .AddSingleton<UiChatOutputChannel>()
+            .AddSingleton<IAiOutputChannel>(sp => sp.GetRequiredService<UiChatOutputChannel>())
+            .AddSingleton<IRealtimeProcessOutput>(sp => sp.GetRequiredService<UiChatOutputChannel>())
             // AI 工具提供者
             .AddSingleton<AIContextProvider, Providers.WindowToolProvider>()
             .AddSingleton<AIContextProvider, Providers.AiConfigToolProvider>()
@@ -253,6 +259,63 @@ public partial class App : Application
             .AddCortanaNetworks();
 
         Services = services.BuildServiceProvider();
+    }
+
+    private static LogEventLevel ResolveFileLogMinimumLevel(string logDir)
+    {
+        var environmentValue = Environment.GetEnvironmentVariable("CORTANA_FILE_LOG_MINIMUM_LEVEL");
+        if (TryParseLogEventLevel(environmentValue, out var environmentLevel))
+        {
+            return environmentLevel;
+        }
+
+        try
+        {
+            using var db = new CortanaDbContext();
+            var raw = db.ExecuteScalar<string>(
+                "SELECT Value FROM SystemSettings WHERE Id = @Id",
+                cmd => cmd.Parameters.AddWithValue("@Id", "Logging.File.MinimumLevel"));
+
+            if (TryParseLogEventLevel(raw, out var settingLevel))
+            {
+                return settingLevel;
+            }
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                var fallbackPath = Path.Combine(logDir, "logging-bootstrap-error.log");
+                File.AppendAllText(fallbackPath, $"{DateTimeOffset.Now:O} 读取日志级别设置失败：{ex}\n");
+            }
+            catch
+            {
+                // ignore bootstrap logging failure
+            }
+        }
+
+        return LogEventLevel.Warning;
+    }
+
+    private static bool TryParseLogEventLevel(string? value, out LogEventLevel level)
+    {
+        level = LogEventLevel.Warning;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var normalized = value.Trim();
+        if (string.Equals(normalized, "Warn", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "Warning", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "WRN", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "Warm", StringComparison.OrdinalIgnoreCase))
+        {
+            level = LogEventLevel.Warning;
+            return true;
+        }
+
+        return Enum.TryParse(normalized, ignoreCase: true, out level);
     }
 
     /// <summary>
@@ -310,8 +373,8 @@ public partial class App : Application
 
         // 版本迁移：为已有数据库补充新增设置项
         sysSettings.EnsureSetting("WebSocket.Port",
-            group: "网络", displayName: "WebSocket 端口",
-            description: "WebSocket 服务监听端口，修改后立即生效，建议重启软件以确保插件正常工作。",
+            group: "网络", displayName: "服务端口",
+            description: "统一 WebSocket 服务监听端口。聊天、插件总线、记忆和模型能力均通过同一端口的 /internal 端点按协议字段区分。修改后重启软件生效。",
             defaultValue: "52841", valueType: "int", sortOrder: 0);
 
         sysSettings.EnsureSetting("Voice.WakeWordEnabled",
@@ -349,12 +412,18 @@ public partial class App : Application
             description: "记录 AI 请求、流式更新、响应和异常的完整调试日志。发布版默认关闭，开启后可用于排查工具调用与上下文问题。",
             defaultValue: "false", valueType: "bool", sortOrder: 0);
 
+        sysSettings.EnsureSetting("Logging.File.MinimumLevel",
+            group: "日志", displayName: "文件日志最小级别",
+            description: "写入 app 日志文件的最小日志级别。选择 Warning 时会记录 Warning、Error、Critical；选择 Information 时会额外记录普通运行信息。修改后重启应用生效。",
+            defaultValue: "Warning", valueType: "logLevel", sortOrder: 0);
+
         // v1.3: Ollama 兼容代理配置，供 ProxyWindow 设置页和网络代理服务读取。
         sysSettings.EnsureOllamaProxySettings();
         // 版本迁移：移除已废弃的旧配置项
         sysSettings.DeleteSetting("ChatHistory.MaxContentLength");
         sysSettings.DeleteSetting("ChatHistory.MaxContentCount");
         sysSettings.DeleteSetting("Memory.ModelId");
+        sysSettings.DeleteSetting("PluginBus.Port");
 
         var savedWorkspace = sysSettings.GetValue("System.WorkspaceDirectory");
         var workspacePath = (!string.IsNullOrWhiteSpace(savedWorkspace) && Directory.Exists(savedWorkspace))

@@ -433,6 +433,14 @@ public partial class MainWindow
         });
     }
 
+    internal RealtimeProcessCardHandle AddRealtimeProcessCard(RealtimeProcessEvent initial)
+    {
+        var card = new RealtimeProcessCard(initial);
+        MessageList.Items.Add(card);
+        ScrollToBottom();
+        return new RealtimeProcessCardHandle(card);
+    }
+
     private IBrush GetSystemNoticeAccentBrush(string level) => level switch
     {
         "success" => (IBrush)this.FindResource("GreenBrush")!,

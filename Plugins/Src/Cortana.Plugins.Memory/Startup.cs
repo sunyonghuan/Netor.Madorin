@@ -13,7 +13,7 @@ namespace Cortana.Plugins.Memory;
 [Plugin(
     Id = "memory_engine",
     Name = "增强记忆引擎",
-    Version = "1.0.31",
+    Version = "1.0.33",
     Description = "订阅宿主内部 PluginBus，为长期记忆构建做摄取、供应与模型能力协作。",
     Tags = ["memory", "ingest", "plugin-bus"],
     Instructions = """

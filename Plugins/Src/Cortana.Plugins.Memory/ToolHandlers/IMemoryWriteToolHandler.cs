@@ -27,6 +27,11 @@ public interface IMemoryWriteToolHandler
     string UpdateSetting(string settingKey, string settingValue, string reason, string workspaceId, bool userConfirmed);
 
     /// <summary>
+    /// 补齐记忆系统默认配置。
+    /// </summary>
+    string SeedDefaultSettings(string workspaceId, bool userConfirmed);
+
+    /// <summary>
     /// 删除一条指定的记忆。
     /// </summary>
     string DeleteMemory(string memoryId, string reason, bool userConfirmed);

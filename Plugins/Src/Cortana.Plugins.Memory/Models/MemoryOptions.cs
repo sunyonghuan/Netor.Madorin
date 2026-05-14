@@ -113,6 +113,46 @@ public sealed class MemorySupplyOptions
     /// 主动供应给上层的最大记忆数量。
     /// </summary>
     public int MaxMemoryCount { get; init; } = 12;
+
+    /// <summary>
+    /// 是否稳定注入全局用户画像。
+    /// </summary>
+    public bool IncludeGlobalProfile { get; init; } = true;
+
+    /// <summary>
+    /// 是否稳定注入当前工作区画像。
+    /// </summary>
+    public bool IncludeWorkspaceProfile { get; init; } = true;
+
+    /// <summary>
+    /// 是否注入当前会话连续性记忆。
+    /// </summary>
+    public bool IncludeSessionContinuity { get; init; } = true;
+
+    /// <summary>
+    /// 是否执行当前任务相关召回。
+    /// </summary>
+    public bool IncludeTaskRecall { get; init; } = true;
+
+    /// <summary>
+    /// 全局用户画像最大注入条数。
+    /// </summary>
+    public int GlobalProfileMaxCount { get; init; } = 3;
+
+    /// <summary>
+    /// 当前工作区画像最大注入条数。
+    /// </summary>
+    public int WorkspaceProfileMaxCount { get; init; } = 5;
+
+    /// <summary>
+    /// 会话连续性最大注入条数。
+    /// </summary>
+    public int SessionContinuityMaxCount { get; init; } = 2;
+
+    /// <summary>
+    /// 当前任务相关召回最大注入条数。
+    /// </summary>
+    public int TaskRecallMaxCount { get; init; } = 5;
 }
 
 /// <summary>

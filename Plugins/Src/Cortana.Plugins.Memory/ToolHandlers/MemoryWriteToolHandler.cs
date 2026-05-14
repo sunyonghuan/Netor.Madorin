@@ -29,6 +29,14 @@ public sealed class MemoryWriteToolHandler(
     {
         ["supply.enabled"] = new("记忆供应开关", "true", "bool", "是否在每轮对话前自动注入长期记忆到上下文。关闭后 AI 不会自动获得历史记忆。"),
         ["supply.maxMemoryCount"] = new("最大供应记忆数", "12", "int (1-50)", "每轮对话最多注入多少条长期记忆。数值越大上下文越丰富但消耗更多 Token。"),
+        ["supply.includeGlobalProfile"] = new("注入全局用户画像", "true", "bool", "是否每轮稳定注入全局用户画像、长期偏好和通用约束。"),
+        ["supply.includeWorkspaceProfile"] = new("注入工作区画像", "true", "bool", "是否每轮稳定注入当前工作区上下文、项目事实和仓库规则。"),
+        ["supply.includeSessionContinuity"] = new("注入会话连续性", "true", "bool", "是否注入最近会话进度和当前任务连续性记忆。"),
+        ["supply.includeTaskRecall"] = new("启用任务相关召回", "true", "bool", "是否根据当前用户消息执行关键词相关召回。"),
+        ["supply.globalProfileMaxCount"] = new("全局画像注入数", "3", "int (0-20)", "全局用户画像层最多注入多少条记忆。"),
+        ["supply.workspaceProfileMaxCount"] = new("工作区画像注入数", "5", "int (0-20)", "当前工作区画像层最多注入多少条记忆。"),
+        ["supply.sessionContinuityMaxCount"] = new("会话连续性注入数", "2", "int (0-20)", "当前会话连续性层最多注入多少条记忆。"),
+        ["supply.taskRecallMaxCount"] = new("任务相关召回数", "5", "int (0-20)", "当前任务相关召回层最多注入多少条记忆。"),
         ["recall.maxWindowCount"] = new("召回窗口数", "6", "int (1-20)", "召回时使用的滑动窗口数量，影响召回多样性。"),
         ["recall.maxMemoryCount"] = new("最大召回数", "20", "int (1-50)", "单次召回最多返回的记忆条数。"),
         ["recall.minimumConfidence"] = new("最低召回置信度", "0.35", "double (0-1)", "低于此置信度的记忆不会被召回。提高此值可减少低质量记忆干扰。"),
@@ -200,6 +208,51 @@ public sealed class MemoryWriteToolHandler(
     }
 
     /// <inheritdoc />
+    public string SeedDefaultSettings(string workspaceId, bool userConfirmed)
+    {
+        if (!userConfirmed)
+            return MemoryToolResult.Fail(MemoryToolErrorCodes.InvalidArgument, "补齐默认配置前必须获得用户明确授权。");
+
+        try
+        {
+            var agentId = runtimeContext.ResolveAgentId(null);
+            var ws = NormalizeOptional(workspaceId);
+            var existingKeys = store.GetMemorySettings(agentId, ws)
+                .Select(static setting => setting.SettingKey)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var now = DateTimeOffset.UtcNow.ToString("O");
+            var created = 0;
+
+            foreach (var (key, descriptor) in SettingDescriptors)
+            {
+                if (existingKeys.Contains(key)) continue;
+
+                store.UpsertMemorySetting(new MemorySetting
+                {
+                    Id = CreateSettingId(agentId, ws, key),
+                    AgentId = agentId,
+                    WorkspaceId = ws,
+                    SettingKey = key,
+                    SettingValue = descriptor.DefaultValue,
+                    ValueType = NormalizeValueType(descriptor.ValueType),
+                    Category = GetSettingCategory(key),
+                    Description = descriptor.Description,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+                created++;
+            }
+
+            return MemoryToolResult.Ok($"默认配置补齐完成：新增 {created} 项，已有 {existingKeys.Count} 项未覆盖。");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "记忆默认配置补齐失败。Workspace={WorkspaceId}", workspaceId);
+            return MemoryToolResult.Fail(MemoryToolErrorCodes.InternalError, $"默认配置补齐失败: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc />
     public string DeleteMemory(string memoryId, string reason, bool userConfirmed)
     {
         if (string.IsNullOrWhiteSpace(memoryId))
@@ -285,6 +338,24 @@ public sealed class MemoryWriteToolHandler(
     private static string? NormalizeOptional(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private static string CreateSettingId(string agentId, string? workspaceId, string settingKey)
+    {
+        var workspacePart = string.IsNullOrWhiteSpace(workspaceId) ? "global" : workspaceId;
+        return $"{agentId}.{workspacePart}.{settingKey}";
+    }
+
+    private static string GetSettingCategory(string settingKey)
+    {
+        var index = settingKey.IndexOf('.', StringComparison.Ordinal);
+        return index <= 0 ? "general" : settingKey[..index];
+    }
+
+    private static string NormalizeValueType(string valueType)
+    {
+        var index = valueType.IndexOf(' ', StringComparison.Ordinal);
+        return index <= 0 ? valueType : valueType[..index];
     }
 
     private sealed record SettingDescriptor(string DisplayName, string DefaultValue, string ValueType, string Description);

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 
 using Netor.Cortana.AI.Providers;
 using Netor.Cortana.Entitys;
+using Netor.Cortana.Entitys.Extensions;
 using Netor.Cortana.Entitys.Services;
 using Netor.EventHub;
 
@@ -31,6 +32,7 @@ public sealed class AiChatHostedService(
     ChatMessageAssetService assetService,
     IAppPaths appPaths,
     IEnumerable<IAiOutputChannel> outputChannels,
+    IRealtimeProcessOutput? realtimeOutput,
     IPublisher publisher,
     ISubscriber subscriber,
     ILogger<AiChatHostedService> logger) : IAiChatEngine, IHostedService, IDisposable
@@ -69,8 +71,7 @@ public sealed class AiChatHostedService(
 
         if (_currentProvider is not null && _currentAgent is not null && _currentModel is not null)
         {
-            _agent = factory.Build(_currentAgent, _currentProvider, _currentModel);
-            logger.LogInformation("AI 对话服务已初始化：Provider={Provider}, Agent={Agent}, Model={Model}",
+            logger.LogInformation("AI 对话服务已加载默认配置：Provider={Provider}, Agent={Agent}, Model={Model}。智能体将在首次对话时构建。",
                 _currentProvider.Name, _currentAgent.Name, _currentModel);
         }
         else
@@ -249,6 +250,8 @@ public sealed class AiChatHostedService(
         var assistantMessageId = Guid.NewGuid().ToString("N");
         var currentSessionId = _session?.StateBag.GetValue<string>("sessionid") ?? "";
         ConversationEventMetadata? conversationMetadata = null;
+        var reasoningProcessId = $"reasoning-{turnId}";
+        var hasReasoning = false;
 
         try
         {
@@ -380,6 +383,9 @@ public sealed class AiChatHostedService(
 
             await foreach (var chunk in _agent!.RunStreamingAsync(msg, _session!, cancellationToken: _streamCts.Token))
             {
+                await PublishRealtimeProcessEventsAsync(turnId, reasoningProcessId, chunk.Contents, _streamCts.Token);
+                hasReasoning |= chunk.Contents.Any(static t => t is TextReasoningContent reasoning && !string.IsNullOrWhiteSpace(reasoning.Text));
+
                 if (chunk.Role is not null && chunk.Role != ChatRole.Assistant) continue;
                 if (string.IsNullOrEmpty(chunk.Text)) continue;
                 //if (chunk.Contents.Any(t => t is TextReasoningContent)) continue;
@@ -405,6 +411,20 @@ public sealed class AiChatHostedService(
                 //{
                 //    var usege = chatResponse.RawRepresentation;
                 //}
+            }
+
+            if (hasReasoning)
+            {
+                await PublishRealtimeProcessEventAsync(
+                    turnId,
+                    reasoningProcessId,
+                    "thinking",
+                    "思考过程",
+                    "success",
+                    string.Empty,
+                    null,
+                    0,
+                    _streamCts.Token);
             }
 
             // 向所有活跃的输出通道广播完成
@@ -581,15 +601,16 @@ public sealed class AiChatHostedService(
     {
         if (_agent is null) return;
 
-        var recentMessage = dbContext.QueryFirstOrDefault(
-            "SELECT * FROM ChatMessages ORDER BY CreatedTimestamp DESC LIMIT 1",
-            ChatMessageService.ReadEntity);
+        var categorize = appPaths.WorkspaceDirectory.Md5Encrypt();
+        var recentSessionId = dbContext.ExecuteScalar<string>(
+            "SELECT Id FROM ChatSessions WHERE IsArchived = 0 AND Categorize = @Categorize ORDER BY IsPinned DESC, LastActiveTimestamp DESC LIMIT 1",
+            cmd => cmd.Parameters.AddWithValue("@Categorize", categorize));
 
         _session = await _agent.CreateSessionAsync(cancellationToken);
 
-        if (recentMessage is not null && !string.IsNullOrEmpty(recentMessage.SessionId))
+        if (!string.IsNullOrWhiteSpace(recentSessionId))
         {
-            _sessionId = recentMessage.SessionId;
+            _sessionId = recentSessionId;
             logger.LogDebug("恢复对话 Session：{SessionId}", _sessionId);
         }
         else
@@ -664,6 +685,134 @@ public sealed class AiChatHostedService(
                 logger.LogWarning(ex, "输出通道 {Channel} 处理取消事件失败", channel.Name);
             }
         }
+    }
+
+    private async Task PublishRealtimeProcessEventsAsync(
+        string turnId,
+        string reasoningProcessId,
+        IEnumerable<AIContent> contents,
+        CancellationToken ct)
+    {
+        if (realtimeOutput is null)
+        {
+            return;
+        }
+
+        foreach (var content in contents)
+        {
+            switch (content)
+            {
+                case TextReasoningContent reasoning when !string.IsNullOrWhiteSpace(reasoning.Text):
+                    await PublishRealtimeProcessEventAsync(
+                        turnId,
+                        reasoningProcessId,
+                        "thinking",
+                        "思考过程",
+                        "running",
+                        reasoning.Text,
+                        null,
+                        0,
+                        ct);
+                    break;
+
+                case FunctionCallContent functionCall:
+                    await PublishToolProcessEventAsync(turnId, functionCall.CallId, functionCall.Name, "running", SerializeContent(functionCall.Arguments), null, ct);
+                    break;
+
+                case McpServerToolCallContent mcpToolCall:
+                    await PublishToolProcessEventAsync(turnId, mcpToolCall.CallId, $"{mcpToolCall.ServerName}.{mcpToolCall.Name}", "running", SerializeContent(mcpToolCall.Arguments), null, ct);
+                    break;
+
+                case ToolCallContent toolCall:
+                    await PublishToolProcessEventAsync(turnId, toolCall.CallId, "工具调用", "running", string.Empty, null, ct);
+                    break;
+
+                case FunctionResultContent functionResult:
+                    await PublishToolProcessEventAsync(
+                        turnId,
+                        functionResult.CallId,
+                        "工具调用",
+                        functionResult.Exception is null ? "success" : "failed",
+                        functionResult.Exception?.ToString() ?? SerializeContent(functionResult.Result),
+                        null,
+                        ct);
+                    break;
+
+                case McpServerToolResultContent mcpToolResult:
+                    await PublishToolProcessEventAsync(turnId, mcpToolResult.CallId, "MCP 工具", "success", SerializeContent(mcpToolResult.Outputs), null, ct);
+                    break;
+
+                case ToolResultContent toolResult:
+                    await PublishToolProcessEventAsync(turnId, toolResult.CallId, "工具调用", "success", string.Empty, null, ct);
+                    break;
+            }
+        }
+    }
+
+    private Task PublishToolProcessEventAsync(
+        string turnId,
+        string? callId,
+        string title,
+        string status,
+        string content,
+        int? exitCode,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(callId))
+        {
+            return Task.CompletedTask;
+        }
+
+        return PublishRealtimeProcessEventAsync(
+            turnId,
+            callId,
+            "tool",
+            string.IsNullOrWhiteSpace(title) ? "工具调用" : title,
+            status,
+            content,
+            exitCode,
+            0,
+            ct);
+    }
+
+    private Task PublishRealtimeProcessEventAsync(
+        string turnId,
+        string processId,
+        string kind,
+        string title,
+        string status,
+        string content,
+        int? exitCode,
+        long durationMs,
+        CancellationToken ct)
+    {
+        if (realtimeOutput is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return realtimeOutput.OnProcessEventAsync(new RealtimeProcessEvent
+        {
+            TurnId = turnId,
+            ProcessId = processId,
+            Kind = kind,
+            Title = title,
+            Status = status,
+            Content = content,
+            ExitCode = exitCode,
+            DurationMs = durationMs,
+            Timestamp = DateTimeOffset.UtcNow,
+        }, ct);
+    }
+
+    private static string SerializeContent(object? value)
+    {
+        if (value is null)
+        {
+            return string.Empty;
+        }
+
+        return value is string text ? text : value.ToString() ?? string.Empty;
     }
 
     private ConversationEventMetadata CreateConversationEventMetadata(

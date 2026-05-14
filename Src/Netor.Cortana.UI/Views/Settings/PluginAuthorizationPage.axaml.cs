@@ -5,8 +5,6 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 
-using FluentAvalonia.UI.Controls;
-
 using Microsoft.Data.Sqlite;
 
 using Netor.Cortana.Plugin;
@@ -389,95 +387,12 @@ public partial class PluginAuthorizationPage : UserControl
 
     private void ShowToast(string message)
     {
-        var toast = new Border
-        {
-            Background = new SolidColorBrush(Color.FromArgb(238, 49, 50, 68)),
-            CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(12, 8),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Child = new TextBlock
-            {
-                Text = message,
-                Foreground = (IBrush)this.FindResource("TextBrush")!,
-                FontSize = 12
-            }
-        };
-
-        AuthorizationPanel.Children.Add(toast);
-
-        var timer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromMilliseconds(1800)
-        };
-        timer.Tick += (_, _) =>
-        {
-            timer.Stop();
-            AuthorizationPanel.Children.Remove(toast);
-        };
-        timer.Start();
+        Netor.Cortana.UI.UiPromptService.ShowToast(AuthorizationPanel, message, TimeSpan.FromMilliseconds(1800));
     }
 
     private async Task ShowDialogAsync(string title, string message)
     {
-        System.Diagnostics.Debug.WriteLine($"{title}: {message}");
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel is not Window window)
-        {
-            return;
-        }
-
-        Window? dialog = null;
-        dialog = new Window
-        {
-            Title = title,
-            Width = 360,
-            SizeToContent = SizeToContent.Height,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Background = (IBrush)this.FindResource("MantleBrush")!,
-            Content = BuildMessageDialogContent(title, message, () => dialog?.Close())
-        };
-
-        await dialog.ShowDialog(window);
-    }
-
-    private Control BuildMessageDialogContent(string title, string message, Action close)
-    {
-        var closeButton = new Button
-        {
-            Content = "确定",
-            HorizontalAlignment = HorizontalAlignment.Right,
-            MinWidth = 80
-        };
-
-        var stack = new StackPanel
-        {
-            Spacing = 12,
-            Margin = new Thickness(18)
-        };
-        stack.Children.Add(new TextBlock
-        {
-            Text = title,
-            Foreground = (IBrush)this.FindResource("TextBrush")!,
-            FontSize = 16,
-            FontWeight = FontWeight.SemiBold
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = message,
-            Foreground = (IBrush)this.FindResource("SubtextBrush")!,
-            TextWrapping = TextWrapping.Wrap
-        });
-        stack.Children.Add(closeButton);
-
-        var border = new Border
-        {
-            Padding = new Thickness(0),
-            Child = stack
-        };
-
-        closeButton.Click += (_, _) => close();
-        return border;
+        await Netor.Cortana.UI.UiPromptService.ShowDialogAsync(this, title, message);
     }
 
     private TextBlock BuildInfoText(string text) => new()

@@ -57,7 +57,15 @@ public sealed class MemorySettingsService(IMemoryStore store) : IMemorySettingsS
         return new MemorySupplyOptions
         {
             Enabled = GetBoolean("supply.enabled", true, agentId, workspaceId),
-            MaxMemoryCount = GetInt32("supply.maxMemoryCount", 12, agentId, workspaceId)
+            MaxMemoryCount = GetInt32("supply.maxMemoryCount", 12, agentId, workspaceId),
+            IncludeGlobalProfile = GetBoolean("supply.includeGlobalProfile", true, agentId, workspaceId),
+            IncludeWorkspaceProfile = GetBoolean("supply.includeWorkspaceProfile", true, agentId, workspaceId),
+            IncludeSessionContinuity = GetBoolean("supply.includeSessionContinuity", true, agentId, workspaceId),
+            IncludeTaskRecall = GetBoolean("supply.includeTaskRecall", true, agentId, workspaceId),
+            GlobalProfileMaxCount = GetInt32("supply.globalProfileMaxCount", 3, agentId, workspaceId),
+            WorkspaceProfileMaxCount = GetInt32("supply.workspaceProfileMaxCount", 5, agentId, workspaceId),
+            SessionContinuityMaxCount = GetInt32("supply.sessionContinuityMaxCount", 2, agentId, workspaceId),
+            TaskRecallMaxCount = GetInt32("supply.taskRecallMaxCount", 5, agentId, workspaceId)
         };
     }
 

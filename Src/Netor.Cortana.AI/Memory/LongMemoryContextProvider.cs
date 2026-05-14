@@ -39,7 +39,7 @@ public sealed class LongMemoryContextProvider(
             return new AIContext();
         }
 
-        var timeoutMs = Math.Clamp(systemSettings.GetValue(TimeoutMsKey, 250), 50, 2_000);
+            var timeoutMs = Math.Clamp(systemSettings.GetValue(TimeoutMsKey, 30_000), 50, 30_000);
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(TimeSpan.FromMilliseconds(timeoutMs));
 

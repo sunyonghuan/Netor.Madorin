@@ -1,0 +1,17 @@
+{
+  "storage": {
+    "provider": "sqlite",
+    "sqlite": {
+      "dataDirectory": "",
+      "databaseFileName": "memory.db",
+      "connectionString": ""
+    },
+    "sqlServer": {
+      "connectionString": "",
+      "schema": "dbo"
+    }
+  },
+  "runtime": {
+    "enableAutoProcessing": true
+  }
+}

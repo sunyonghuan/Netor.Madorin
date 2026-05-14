@@ -1,0 +1,53 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Netor.Cortana.UI.Controls.RealtimeProcessCard">
+    <Border x:Name="RootBorder"
+            Background="#16000000"
+            BorderBrush="#26FFFFFF"
+            BorderThickness="1"
+            CornerRadius="3"
+            Padding="10,7"
+            Margin="50,0">
+        <StackPanel Spacing="6">
+            <Button x:Name="HeaderButton"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Padding="0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch">
+                <DockPanel LastChildFill="True">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="7"
+                                DockPanel.Dock="Left">
+                        <TextBlock x:Name="ArrowBlock"
+                                   Text="▾"
+                                   FontSize="12"
+                                   VerticalAlignment="Center" />
+                        <TextBlock x:Name="IconBlock"
+                                   Text="⚙"
+                                   FontSize="12"
+                                   VerticalAlignment="Center" />
+                        <TextBlock x:Name="TitleBlock"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock x:Name="MetaBlock"
+                               FontSize="10"
+                               Opacity="0.75"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center" />
+                </DockPanel>
+            </Button>
+            <Border x:Name="DetailPanel"
+                    Padding="0,3,0,0">
+                <ScrollViewer MaxHeight="320"
+                              VerticalScrollBarVisibility="Auto">
+                    <SelectableTextBlock x:Name="ContentBlock"
+                                         FontSize="12"
+                                         TextWrapping="Wrap" />
+                </ScrollViewer>
+            </Border>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -29,6 +29,7 @@ public static class Program
         });
 
         var runtimeOptions = MemoryMcpRuntimeOptionsLoader.Load(args);
+        var pluginSettings = MemoryPluginSettingsLoader.Load(runtimeOptions.DataDirectory);
 
         builder.Services.AddSingleton(runtimeOptions);
         builder.Services.AddSingleton<IMemoryRuntimeContext>(_ => new MemoryRuntimeContext(
@@ -37,7 +38,11 @@ public static class Program
             runtimeOptions.DefaultSource));
         builder.Services.AddSingleton<IMemoryDatabaseOptions>(_ => new MemoryDatabaseOptions(
             runtimeOptions.DataDirectory,
-            runtimeOptions.DatabaseFileName));
+            string.IsNullOrWhiteSpace(pluginSettings.Storage.Sqlite.DatabaseFileName)
+                ? runtimeOptions.DatabaseFileName
+                : pluginSettings.Storage.Sqlite.DatabaseFileName,
+            pluginSettings.Storage.Sqlite.ConnectionString,
+            pluginSettings.Storage.Provider));
         builder.Services.AddMemoryStorage();
         builder.Services.AddSingleton<IMemorySettingsService, MemorySettingsService>();
         builder.Services.AddSingleton<IMemoryRecallService, MemoryRecallService>();

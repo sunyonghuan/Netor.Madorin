@@ -6,6 +6,11 @@ namespace Cortana.Plugins.Memory.Storage;
 public interface IMemoryDatabaseOptions
 {
     /// <summary>
+    /// 存储提供程序。
+    /// </summary>
+    string Provider { get; }
+
+    /// <summary>
     /// 数据库存放目录。
     /// </summary>
     string DataDirectory { get; }
@@ -14,4 +19,9 @@ public interface IMemoryDatabaseOptions
     /// 数据库文件名。
     /// </summary>
     string DatabaseFileName { get; }
+
+    /// <summary>
+    /// 数据库连接字符串。
+    /// </summary>
+    string? ConnectionString { get; }
 }

@@ -56,6 +56,16 @@ public sealed class MemoryWriteTools(IMemoryWriteToolHandler handler)
         return handler.UpdateSetting(settingKey, settingValue, reason, workspaceId, userConfirmed);
     }
 
+    /// <summary>补齐记忆系统默认配置。</summary>
+    [Tool(Name = "memory_seed_default_settings",
+        Description = "补齐记忆插件默认配置种子，包含分层主动注入、召回、供应、衰减、抽象和治理配置。需要用户明确授权，不覆盖已有配置。")]
+    public string SeedDefaultSettings(
+        [Parameter(Description = "工作区标识，空字符串表示补齐全局配置")] string workspaceId,
+        [Parameter(Description = "是否已获得用户明确授权，必须为 true")] bool userConfirmed)
+    {
+        return handler.SeedDefaultSettings(workspaceId, userConfirmed);
+    }
+
     /// <summary>删除一条指定的记忆。</summary>
     [Tool(Name = "memory_delete",
         Description = "删除一条指定的长期记忆。需要用户明确授权。删除后不可恢复，但会记录审计日志。")]

@@ -125,7 +125,7 @@ public sealed class WebSocketPluginBusServerService : KestrelWebSocketHost, IHos
             return;
         }
 
-        var configured = settingsService.GetValue<int>("PluginBus.Port", 0);
+        var configured = settingsService.GetValue<int>("WebSocket.Port", 0);
         var preferredPort = configured > 0 ? configured : GetRandomPort();
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
@@ -310,7 +310,7 @@ public sealed class WebSocketPluginBusServerService : KestrelWebSocketHost, IHos
                 return null;
             }
 
-            var timeoutMs = Math.Clamp(request.TimeoutMs <= 0 ? 250 : request.TimeoutMs, 50, 2_000);
+            var timeoutMs = Math.Clamp(request.TimeoutMs <= 0 ? 30_000 : request.TimeoutMs, 50, 30_000);
             return await _memorySupplyDispatcher.WaitAsync(requestId, pending, timeoutMs, cancellationToken).ConfigureAwait(false);
         }
         catch

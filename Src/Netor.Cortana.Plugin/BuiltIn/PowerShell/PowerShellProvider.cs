@@ -2,6 +2,10 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
+using Netor.Cortana.Entitys;
+
+using System.Diagnostics;
+
 namespace Netor.Cortana.Plugin.BuiltIn.PowerShell;
 
 /// <summary>
@@ -16,13 +20,15 @@ public sealed class PowerShellProvider : AIContextProvider
 {
     private readonly PowerShellExecutor _executor;
     private readonly ILogger<PowerShellProvider> _logger;
+    private readonly IRealtimeProcessOutput? _realtimeOutput;
     private readonly SessionRegistry _sessionRegistry;
     private readonly Lazy<List<AITool>> _lazyTools;
 
     public PowerShellProvider(
         PowerShellExecutor executor,
         ILogger<PowerShellProvider> logger,
-        SessionRegistry sessionRegistry)
+        SessionRegistry sessionRegistry,
+        IRealtimeProcessOutput? realtimeOutput = null)
     {
         ArgumentNullException.ThrowIfNull(executor);
         ArgumentNullException.ThrowIfNull(logger);
@@ -30,6 +36,7 @@ public sealed class PowerShellProvider : AIContextProvider
 
         _executor = executor;
         _logger = logger;
+        _realtimeOutput = realtimeOutput;
         _sessionRegistry = sessionRegistry;
         _lazyTools = new Lazy<List<AITool>>(RegisterTools);
     }
@@ -259,11 +266,28 @@ Parameters:
         if (string.IsNullOrWhiteSpace(script))
             return "错误：脚本不能为空";
 
+        var processId = Guid.NewGuid().ToString("N");
+        var stopwatch = Stopwatch.StartNew();
+        void OnOutput(string line) => _ = PublishProcessEventAsync(processId, "running", line, null, stopwatch.ElapsedMilliseconds, ct);
+        void OnError(string line) => _ = PublishProcessEventAsync(processId, "running", $"[stderr] {line}", null, stopwatch.ElapsedMilliseconds, ct);
+
         try
         {
             _logger.LogInformation("AI 正在执行 PowerShell 脚本，长度: {ScriptLength} 字符, 后台: {Background}", script.Length, background);
 
+            await PublishProcessEventAsync(processId, "running", script, null, 0, ct);
+            _executor.OnOutputLineReceived += OnOutput;
+            _executor.OnErrorReceived += OnError;
+
             var result = await _executor.ExecuteAsync(script, timeout, background, ct);
+
+            await PublishProcessEventAsync(
+                processId,
+                result.Success ? "success" : "failed",
+                string.Empty,
+                result.ExitCode,
+                stopwatch.ElapsedMilliseconds,
+                ct);
 
             _logger.LogInformation(
                 "PowerShell 执行完成，成功: {Success}, 退出代码: {ExitCode}",
@@ -277,19 +301,54 @@ Parameters:
         {
             var errorMsg = "PowerShell 执行被取消";
             _logger.LogWarning(errorMsg);
+            await PublishProcessEventAsync(processId, "cancelled", errorMsg, null, stopwatch.ElapsedMilliseconds, CancellationToken.None);
             return $"错误：{errorMsg}";
         }
         catch (TimeoutException)
         {
             var errorMsg = $"PowerShell 执行超时（{timeout}ms）";
             _logger.LogWarning(errorMsg);
+            await PublishProcessEventAsync(processId, "failed", errorMsg, -1, stopwatch.ElapsedMilliseconds, CancellationToken.None);
             return $"错误：{errorMsg}";
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "PowerShell 执行异常");
+            await PublishProcessEventAsync(processId, "failed", ex.Message, null, stopwatch.ElapsedMilliseconds, CancellationToken.None);
             return $"错误：{ex.Message}";
         }
+        finally
+        {
+            _executor.OnOutputLineReceived -= OnOutput;
+            _executor.OnErrorReceived -= OnError;
+        }
+    }
+
+    private Task PublishProcessEventAsync(
+        string processId,
+        string status,
+        string content,
+        int? exitCode,
+        long durationMs,
+        CancellationToken ct)
+    {
+        if (_realtimeOutput is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _realtimeOutput.OnProcessEventAsync(new RealtimeProcessEvent
+        {
+            TurnId = string.Empty,
+            ProcessId = processId,
+            Kind = "command",
+            Title = "PowerShell",
+            Status = status,
+            Content = content,
+            ExitCode = exitCode,
+            DurationMs = durationMs,
+            Timestamp = DateTimeOffset.UtcNow,
+        }, ct);
     }
 
     /// <summary>

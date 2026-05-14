@@ -309,10 +309,16 @@ namespace Netor.Cortana.Entitys.Services
                     description: "插件申请 LLM 用于记忆提取/更新/检索时所使用的模型。留空则回退到当前对话模型。",
                     value: "", valueType: "model", sortOrder: 0),
 
+                // ── 日志 ──────────────────────────────
+                Seed("Logging.File.MinimumLevel",
+                    group: "日志", displayName: "文件日志最小级别",
+                    description: "写入 app 日志文件的最小日志级别。选择 Warning 时会记录 Warning、Error、Critical；选择 Information 时会额外记录普通运行信息。修改后重启应用生效。",
+                    value: "Warning", valueType: "logLevel", sortOrder: 0),
+
                 // ── 网络 ──────────────────────────────
                 Seed("WebSocket.Port",
-                    group: "网络", displayName: "WebSocket 端口",
-                    description: "WebSocket 服务监听端口，修改后立即生效，建议重启软件以确保插件正常工作。",
+                    group: "网络", displayName: "服务端口",
+                    description: "统一 WebSocket 服务监听端口。聊天、插件总线、记忆和模型能力均通过同一端口的 /internal 端点按协议字段区分。修改后重启软件生效。",
                     value: "12841", valueType: "int", sortOrder: 0),
             };
 

@@ -30,6 +30,8 @@ public interface IMemoryStore
     MemoryFragment? GetFragmentById(string id);
     IReadOnlyList<MemoryRecallItem> SearchRecallCandidates(string? agentId, string? workspaceId, string? queryText, double minimumConfidence, bool includeCandidateMemories, int limit);
     IReadOnlyList<MemoryRecallItem> SearchRecallCandidatesInScope(string? agentId, bool agentMustBeNull, string? workspaceId, bool workspaceMustBeNull, string? queryText, double minimumConfidence, bool includeCandidateMemories, int limit);
+    IReadOnlyList<MemoryRecallItem> GetProfileRecallCandidates(string? agentId, string? workspaceId, bool workspaceMustBeNull, double minimumConfidence, bool includeCandidateMemories, int limit);
+    IReadOnlyList<MemoryRecallItem> GetRecentRecallCandidates(string? agentId, string? workspaceId, double minimumConfidence, bool includeCandidateMemories, int limit);
     void RecordMemoryAccesses(IEnumerable<MemoryRecallItem> items, string accessedAt);
     IReadOnlyList<MemoryRecentItem> ListRecentMemories(string? agentId, string? workspaceId, string? kind, int limit);
     IReadOnlyList<MemoryFragment> GetFragmentsForAbstraction(string agentId, string? workspaceId, string? topic, int minSupportCount, int limit);

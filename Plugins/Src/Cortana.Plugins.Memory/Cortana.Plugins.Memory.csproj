@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>memory</AssemblyName>
-    <Version>1.0.31</Version>
+    <Version>1.0.33</Version>
     <!-- Netor.Cortana.Plugin.Native 的生成文件未写入 #nullable，但业务源码保持 nullable 启用。 -->
     <NoWarn>$(NoWarn);CS8669</NoWarn>
     <!--
@@ -30,6 +30,13 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Memory.Test</_Parameter1>
     </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="setting.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
   </ItemGroup>
 
   <!-- MCP 控制台模式专用：仅在 OutputType=Exe 时引入 Hosting，并参与 Program.cs 编译 -->

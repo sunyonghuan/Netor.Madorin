@@ -53,6 +53,7 @@ public partial class MainWindow
                 MessageList.Items.Clear();
                 HistoryLabel.Text = "新对话";
                 ShowWelcome();
+                _ = Task.Run(() => chatEngine.NewSessionAsync());
             }
         }
         catch (Exception ex)
@@ -134,6 +135,11 @@ public partial class MainWindow
         HistoryPanel.CurrentSessionId = sessionId;
         MessageList.Items.Clear();
 
+        // 先通知 AiChatService 恢复该会话上下文。即使该会话还没有消息，也必须绑定，
+        // 否则用户在空会话里发送的第一条消息可能落到其他会话或无法形成持久化会话。
+        var chatService = App.Services.GetRequiredService<AiChatHostedService>();
+        _ = Task.Run(() => chatService.ResumeSessionAsync(sessionId));
+
         try
         {
             var messageService = App.Services.GetRequiredService<ChatMessageService>();
@@ -182,10 +188,6 @@ public partial class MainWindow
                 MessageList.LayoutUpdated -= ScrollOnceAfterLayout;
                 Dispatcher.UIThread.Post(() => MessageScroller.ScrollToEnd(), DispatcherPriority.Background);
             }
-
-            // 通知 AiChatService 恢复该会话上下文
-            var chatService = App.Services.GetRequiredService<AiChatHostedService>();
-            _ = Task.Run(() => chatService.ResumeSessionAsync(sessionId));
         }
         catch (Exception ex)
         {
