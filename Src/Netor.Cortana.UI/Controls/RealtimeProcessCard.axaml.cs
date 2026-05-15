@@ -16,6 +16,7 @@ public partial class RealtimeProcessCard : UserControl, IDisposable
     private readonly StringBuilder _contentBuffer = new();
     private readonly DispatcherTimer _flushTimer;
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
+    private readonly Image? _arrowImage;
 
     private bool _isDirty;
     private bool _isExpanded = true;
@@ -24,6 +25,7 @@ public partial class RealtimeProcessCard : UserControl, IDisposable
     private string _status = "running";
     private int? _exitCode;
     private long _durationMs;
+    private bool IsThinking => string.Equals(Kind, "thinking", StringComparison.OrdinalIgnoreCase);
 
     public RealtimeProcessCard()
         : this(new RealtimeProcessEvent
@@ -40,6 +42,7 @@ public partial class RealtimeProcessCard : UserControl, IDisposable
     public RealtimeProcessCard(RealtimeProcessEvent initial)
     {
         InitializeComponent();
+        _arrowImage = this.FindControl<Image>("ArrowImage");
 
         ProcessId = initial.ProcessId;
         Title = string.IsNullOrWhiteSpace(initial.Title) ? "过程" : initial.Title.Trim();
@@ -77,7 +80,7 @@ public partial class RealtimeProcessCard : UserControl, IDisposable
 
         Dispatcher.UIThread.Post(() =>
         {
-            if (_contentBuffer.Length > 0 && !EndsWithLineBreak(_contentBuffer))
+            if (!IsThinking && _contentBuffer.Length > 0 && !EndsWithLineBreak(_contentBuffer))
             {
                 _contentBuffer.AppendLine();
             }
@@ -124,7 +127,11 @@ public partial class RealtimeProcessCard : UserControl, IDisposable
     private void SetExpanded(bool expanded)
     {
         _isExpanded = expanded;
-        ArrowBlock.Text = expanded ? "▾" : "▸";
+        if (_arrowImage?.RenderTransform is RotateTransform rotateTransform)
+        {
+            rotateTransform.Angle = expanded ? 180 : 90;
+        }
+
         DetailPanel.IsVisible = expanded;
     }
 
@@ -170,21 +177,17 @@ public partial class RealtimeProcessCard : UserControl, IDisposable
         }
 
         ContentBlock.Text = _contentBuffer.ToString();
+        DetailScroller.ScrollToEnd();
         _isDirty = false;
     }
 
     private void ApplyTextBrushes()
     {
-        if (this.FindResource("TextBrush") is IBrush textBrush)
+        if (TryFindBrush("SubtextBrush") is IBrush subtextBrush)
         {
-            TitleBlock.Foreground = textBrush;
-            ContentBlock.Foreground = textBrush;
-            ArrowBlock.Foreground = textBrush;
-            IconBlock.Foreground = textBrush;
-        }
-
-        if (this.FindResource("SubtextBrush") is IBrush subtextBrush)
-        {
+            TitleBlock.Foreground = subtextBrush;
+            IconBlock.Foreground = subtextBrush;
+            ContentBlock.Foreground = subtextBrush;
             MetaBlock.Foreground = subtextBrush;
         }
     }

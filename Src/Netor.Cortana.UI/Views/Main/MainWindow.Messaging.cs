@@ -2,20 +2,20 @@ using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
 
-using System.Diagnostics;
-
-using Netor.Cortana.UI.Controls;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Extensions;
 using Netor.Cortana.Entitys.Services;
+using Netor.Cortana.UI.Controls;
+
+using System.Diagnostics;
 
 namespace Netor.Cortana.UI.Views;
 
@@ -26,6 +26,7 @@ public partial class MainWindow
 {
     private static readonly Bitmap AiAvatarBitmap = LoadAiAvatarBitmap();
     private static readonly Bitmap UserAvatarBitmap = LoadUserAvatarBitmap();
+    private static readonly Bitmap NoticeToggleBitmap = LoadNoticeToggleBitmap();
 
     // AI 对话进行中标志 & 取消令牌
     private bool _isSending;
@@ -314,6 +315,12 @@ public partial class MainWindow
         return new Bitmap(stream);
     }
 
+    private static Bitmap LoadNoticeToggleBitmap()
+    {
+        using var stream = AssetLoader.Open(new Uri("avares://Cortana/Assets/up.png"));
+        return new Bitmap(stream);
+    }
+
     private static Control BuildUserAvatarGlyph(IBrush glyphBrush)
     {
         return new Image
@@ -331,9 +338,7 @@ public partial class MainWindow
     /// </summary>
     internal void AddSystemNotice(SystemNoticeArgs args)
     {
-        // 内容超过 4 行时默认折叠；用户点击“展开详情”后显示完整内容，
-        // 再点击“收起详情”恢复为前 4 行加省略号。
-        const int collapsedLineCount = 4;
+        const int collapsedLineCount = 2;
 
         Dispatcher.UIThread.Post(() =>
         {
@@ -349,9 +354,19 @@ public partial class MainWindow
             var source = string.IsNullOrWhiteSpace(args.Source) ? "系统" : args.Source.Trim();
             var displayTime = args.CreatedAt.ToLocalTime().ToString("HH:mm");
 
-            var accentBrush = GetSystemNoticeAccentBrush(level);
-            var titleBrush = (IBrush)this.FindResource("TextBrush")!;
             var subtextBrush = (IBrush)this.FindResource("SubtextBrush")!;
+            var titleBrush = subtextBrush;
+
+            var arrowImage = new Image
+            {
+                Source = NoticeToggleBitmap,
+                Width = 13,
+                Height = 13,
+                Opacity = 0.58,
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative),
+                RenderTransform = new RotateTransform(collapsed ? 90 : 180),
+            };
 
             var titleBlock = new TextBlock
             {
@@ -370,11 +385,38 @@ public partial class MainWindow
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
             };
 
-            var header = new StackPanel
+            var leftHeader = new StackPanel
             {
                 Orientation = Avalonia.Layout.Orientation.Horizontal,
-                Spacing = 8,
-                Children = { titleBlock, metaBlock },
+                Spacing = 7,
+                Children = { arrowImage, titleBlock },
+            };
+            var headerPanel = new DockPanel
+            {
+                LastChildFill = true,
+            };
+            leftHeader.SetValue(DockPanel.DockProperty, Avalonia.Controls.Dock.Left);
+            metaBlock.SetValue(DockPanel.DockProperty, Avalonia.Controls.Dock.Right);
+            headerPanel.Children.Add(leftHeader);
+            headerPanel.Children.Add(metaBlock);
+
+            var headerButton = new Button
+            {
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                Cursor = new Cursor(StandardCursorType.Hand),
+                Content = headerPanel,
+            };
+
+            var header = new Border
+            {
+                BorderBrush = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)),
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                Padding = new Thickness(0, 0, 0, 6),
+                Child = headerButton,
             };
 
             var contentBlock = new SelectableTextBlock
@@ -393,28 +435,19 @@ public partial class MainWindow
             if (collapsed)
             {
                 var expanded = false;
-                var toggle = new Button
-                {
-                    Content = "展开详情",
-                    Background = Brushes.Transparent,
-                    BorderThickness = new Thickness(0),
-                    Padding = new Thickness(0, 2),
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-                    Foreground = accentBrush,
-                    Cursor = new Cursor(StandardCursorType.Hand),
-                    FontSize = 12,
-                };
-                toggle.Click += (_, _) =>
+                headerButton.Click += (_, _) =>
                 {
                     expanded = !expanded;
                     contentBlock.Text = expanded ? content : collapsedContent;
-                    toggle.Content = expanded ? "收起详情" : "展开详情";
-                    if (expanded)
+                    if (arrowImage.RenderTransform is RotateTransform rotateTransform)
                     {
-                        ForceScrollToBottom();
+                        rotateTransform.Angle = expanded ? 180 : 90;
                     }
                 };
-                body.Children.Add(toggle);
+            }
+            else
+            {
+                headerButton.Cursor = new Cursor(StandardCursorType.Arrow);
             }
 
             var card = new Border
@@ -436,7 +469,12 @@ public partial class MainWindow
     internal RealtimeProcessCardHandle AddRealtimeProcessCard(RealtimeProcessEvent initial)
     {
         var card = new RealtimeProcessCard(initial);
-        MessageList.Items.Add(card);
+        var container = new Border
+        {
+            Margin = new Thickness(0, -18, 0, 0),
+            Child = card,
+        };
+        MessageList.Items.Add(container);
         ScrollToBottom();
         return new RealtimeProcessCardHandle(card);
     }

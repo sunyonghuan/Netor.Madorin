@@ -384,7 +384,7 @@ public sealed class AiChatHostedService(
             await foreach (var chunk in _agent!.RunStreamingAsync(msg, _session!, cancellationToken: _streamCts.Token))
             {
                 await PublishRealtimeProcessEventsAsync(turnId, reasoningProcessId, chunk.Contents, _streamCts.Token);
-                hasReasoning |= chunk.Contents.Any(static t => t is TextReasoningContent reasoning && !string.IsNullOrWhiteSpace(reasoning.Text));
+                hasReasoning |= chunk.Contents.Any(static t => t is TextReasoningContent reasoning && !string.IsNullOrEmpty(reasoning.Text));
 
                 if (chunk.Role is not null && chunk.Role != ChatRole.Assistant) continue;
                 if (string.IsNullOrEmpty(chunk.Text)) continue;
@@ -702,7 +702,7 @@ public sealed class AiChatHostedService(
         {
             switch (content)
             {
-                case TextReasoningContent reasoning when !string.IsNullOrWhiteSpace(reasoning.Text):
+                case TextReasoningContent reasoning when !string.IsNullOrEmpty(reasoning.Text):
                     await PublishRealtimeProcessEventAsync(
                         turnId,
                         reasoningProcessId,

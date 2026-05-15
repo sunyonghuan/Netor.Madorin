@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     private bool _forceClose;
     private bool _workspaceOpen;
     private bool _historyPanelOpen;
+    private bool _debugSystemNoticeShown;
 
     private readonly IAiChatEngine chatEngine = App.Services.GetRequiredService<IAiChatEngine>();
 
@@ -78,6 +79,26 @@ public partial class MainWindow : Window
         var factory = App.Services.GetRequiredService<AIAgentFactory>();
         factory.TokenUsageChanged += RefreshTokenProgress;
         RefreshTokenProgress();
+        ShowDebugSystemNotice();
+    }
+
+    private void ShowDebugSystemNotice()
+    {
+#if DEBUG
+        if (_debugSystemNoticeShown)
+        {
+            return;
+        }
+
+        _debugSystemNoticeShown = true;
+        HideWelcome();
+        AddSystemNotice(new SystemNoticeArgs(
+            "这是调试模式下用于验收 system.notice 样式的系统提醒。\n当前默认只预览两行内容。\n点击标题左侧图标可以展开完整详情。\n再次点击可以折叠回预览状态。",
+            "系统提醒样式验收",
+            "info",
+            "调试模式",
+            DateTimeOffset.Now));
+#endif
     }
 
     /// <summary>加载初始数据（会话历史、智能体、厂商、模型选择器）。</summary>

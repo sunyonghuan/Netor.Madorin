@@ -1,6 +1,21 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Netor.Cortana.UI.Controls.RealtimeProcessCard">
+    <UserControl.Styles>
+        <Style Selector="Button.process-card-header">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="RenderTransform" Value="none" />
+        </Style>
+        <Style Selector="Button.process-card-header:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.process-card-header:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="RenderTransform" Value="none" />
+        </Style>
+    </UserControl.Styles>
     <Border x:Name="RootBorder"
             Background="#16000000"
             BorderBrush="#26FFFFFF"
@@ -10,6 +25,7 @@
             Margin="50,0">
         <StackPanel Spacing="6">
             <Button x:Name="HeaderButton"
+                    Classes="process-card-header"
                     Background="Transparent"
                     BorderThickness="0"
                     Padding="0"
@@ -19,32 +35,44 @@
                     <StackPanel Orientation="Horizontal"
                                 Spacing="7"
                                 DockPanel.Dock="Left">
-                        <TextBlock x:Name="ArrowBlock"
-                                   Text="▾"
-                                   FontSize="12"
-                                   VerticalAlignment="Center" />
+                        <Image x:Name="ArrowImage"
+                               Source="avares://Cortana/Assets/up.png"
+                               Width="13"
+                               Height="13"
+                               Opacity="0.58"
+                               VerticalAlignment="Center"
+                               RenderTransformOrigin="50%,50%">
+                            <Image.RenderTransform>
+                                <RotateTransform Angle="180" />
+                            </Image.RenderTransform>
+                        </Image>
                         <TextBlock x:Name="IconBlock"
                                    Text="⚙"
                                    FontSize="12"
+                                   Foreground="#8A8A8A"
                                    VerticalAlignment="Center" />
                         <TextBlock x:Name="TitleBlock"
                                    FontSize="12"
                                    FontWeight="SemiBold"
+                                    Foreground="#8A8A8A"
                                    VerticalAlignment="Center" />
                     </StackPanel>
                     <TextBlock x:Name="MetaBlock"
                                FontSize="10"
                                Opacity="0.75"
+                                Foreground="#7A7A7A"
                                HorizontalAlignment="Right"
                                VerticalAlignment="Center" />
                 </DockPanel>
             </Button>
             <Border x:Name="DetailPanel"
                     Padding="0,3,0,0">
-                <ScrollViewer MaxHeight="320"
+                <ScrollViewer x:Name="DetailScroller"
+                              MaxHeight="320"
                               VerticalScrollBarVisibility="Auto">
                     <SelectableTextBlock x:Name="ContentBlock"
                                          FontSize="12"
+                                          Foreground="#7A7A7A"
                                          TextWrapping="Wrap" />
                 </ScrollViewer>
             </Border>
