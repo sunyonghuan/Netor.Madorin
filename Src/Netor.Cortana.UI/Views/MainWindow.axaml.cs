@@ -400,4 +400,45 @@ public partial class MainWindow : Window
         catch { /* 关闭路径安静处理 */ }
         Close();
     }
+
+    // ────────────────────────────────────────────────────────────
+    // 阶段 3B：Chat / Workspace Tab 切换
+    // ────────────────────────────────────────────────────────────
+
+    private string _currentTab = "chat";
+
+    /// <summary>
+    /// 顶部 Tab 按钮点击：在 Chat / Workspace 之间切换主内容区。
+    /// 切换时仅修改 IsVisible 与按钮 active 样式，不卸载控件本身，保留 Chat Tab 焦点/输入历史。
+    /// </summary>
+    private async void OnTabSwitchClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not Button btn || btn.Tag is not string tab) return;
+        if (_currentTab == tab) return;
+
+        _currentTab = tab;
+        var toChat = tab == "chat";
+
+        ChatTabContent.IsVisible = toChat;
+        WorkspaceTabContent.IsVisible = !toChat;
+
+        ChatTabButton.Classes.Set("tab-btn-active", toChat);
+        WorkspaceTabButton.Classes.Set("tab-btn-active", !toChat);
+
+        if (!toChat)
+        {
+            // 切到工作台：关闭 Chat Tab 的两个抽屉（避免主内容被遮挡）
+            if (HistoryPopup?.IsOpen == true) HistoryPopup.IsOpen = false;
+
+            // 通知 WorkspaceTab 拉取最新列表（workspaceId 从当前会话中取，3B 简化版传空字符串）
+            try
+            {
+                await WorkspaceTabContent.OnAttachedAsync(workspaceId: string.Empty);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] WorkspaceTab attach error: {ex.Message}");
+            }
+        }
+    }
 }

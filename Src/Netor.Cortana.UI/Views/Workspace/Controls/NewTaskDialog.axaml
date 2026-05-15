@@ -1,0 +1,188 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Netor.Cortana.UI.ViewModels.Workspace"
+        xmlns:ent="using:Netor.Cortana.Entitys"
+        x:Class="Netor.Cortana.UI.Views.Workspace.Controls.NewTaskDialog"
+        x:DataType="vm:NewTaskDialogVm"
+        x:CompileBindings="True"
+        Title="新建 Workflow 任务"
+        Width="540"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#1e1e1e">
+
+    <Window.Styles>
+        <Style Selector="TextBlock.field-label">
+            <Setter Property="Foreground" Value="#cccccc" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+
+        <Style Selector="TextBlock.field-hint">
+            <Setter Property="Foreground" Value="#858585" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+
+        <Style Selector="TextBox.field-input">
+            <Setter Property="Background" Value="#252526" />
+            <Setter Property="Foreground" Value="#cccccc" />
+            <Setter Property="BorderBrush" Value="#3c3c3c" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="TextBox.field-input:focus /template/ Border">
+            <Setter Property="BorderBrush" Value="#007acc" />
+        </Style>
+
+        <Style Selector="ComboBox.field-input">
+            <Setter Property="Background" Value="#252526" />
+            <Setter Property="Foreground" Value="#cccccc" />
+            <Setter Property="BorderBrush" Value="#3c3c3c" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+
+        <Style Selector="Button.dialog-btn">
+            <Setter Property="MinWidth" Value="84" />
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.dialog-btn-primary">
+            <Setter Property="Background" Value="#0e639c" />
+            <Setter Property="Foreground" Value="#ffffff" />
+        </Style>
+        <Style Selector="Button.dialog-btn-primary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1177bb" />
+        </Style>
+        <Style Selector="Button.dialog-btn-primary:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="#2a2d2e" />
+            <Setter Property="Foreground" Value="#5a5a5a" />
+        </Style>
+        <Style Selector="Button.dialog-btn-cancel">
+            <Setter Property="Background" Value="#3a3d41" />
+            <Setter Property="Foreground" Value="#cccccc" />
+        </Style>
+        <Style Selector="Button.dialog-btn-cancel:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#4a4d51" />
+        </Style>
+
+        <Style Selector="Border.member-pill">
+            <Setter Property="Background" Value="#0e639c" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="Padding" Value="8,3,4,3" />
+        </Style>
+    </Window.Styles>
+
+    <StackPanel Margin="20" Spacing="14">
+        <!-- 标题 -->
+        <TextBlock Text="新建 Workflow 任务"
+                   Foreground="#cccccc" FontSize="16" FontWeight="SemiBold" />
+
+        <!-- 子模式 -->
+        <StackPanel>
+            <TextBlock Classes="field-label" Text="子模式" />
+            <ComboBox Classes="field-input"
+                      x:Name="SubModeCombo"
+                      SelectedIndex="0"
+                      SelectionChanged="OnSubModeChanged">
+                <ComboBoxItem Content="GroupChat（讨论 / 轮询发言）" Tag="groupchat" />
+                <ComboBoxItem Content="Magentic（计划-执行，阶段 4B+）" Tag="magentic" IsEnabled="False" />
+                <ComboBoxItem Content="ParallelAnalysis（并行分析，阶段 4B+）" Tag="parallelanalysis" IsEnabled="False" />
+            </ComboBox>
+            <TextBlock Classes="field-hint" Text="阶段 3B 仅 GroupChat 接入真实编排，其他子模式将在 4B 起逐步开放。" />
+        </StackPanel>
+
+        <!-- 任务标题（可选） -->
+        <StackPanel>
+            <TextBlock Classes="field-label" Text="任务标题（可选）" />
+            <TextBox Classes="field-input"
+                     Text="{Binding Title, Mode=TwoWay}"
+                     PlaceholderText="留空时自动用任务描述前 32 字 + LLM 兜底生成" />
+            <TextBlock Classes="field-hint" Text="决策 6-A：留空时占位 = InitialInput.Truncate(32)，并由 LLM 异步兜底覆盖。" />
+        </StackPanel>
+
+        <!-- 任务描述 -->
+        <StackPanel>
+            <TextBlock Classes="field-label" Text="任务描述 *" />
+            <TextBox Classes="field-input"
+                     Text="{Binding InitialInput, Mode=TwoWay}"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     MinHeight="80"
+                     PlaceholderText="详细描述需要讨论的问题，参与者将围绕该描述协同发言。" />
+        </StackPanel>
+
+        <!-- Manager（可选） -->
+        <StackPanel>
+            <TextBlock Classes="field-label" Text="Manager 智能体（可选）" />
+            <ComboBox Classes="field-input"
+                      ItemsSource="{Binding AvailableAgents}"
+                      SelectedItem="{Binding SelectedManager, Mode=TwoWay}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="ent:AgentEntity">
+                        <TextBlock Text="{Binding Name}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Classes="field-hint" Text="GroupChat 中 Manager 作为第一发言者，未配置时使用第一位 Member。" />
+        </StackPanel>
+
+        <!-- 成员选择 -->
+        <StackPanel>
+            <TextBlock Classes="field-label" Text="成员智能体 *（多选，建议 2~4 个）" />
+            <Border Background="#252526" BorderBrush="#3c3c3c" BorderThickness="1"
+                    CornerRadius="3" Padding="6" MinHeight="120" MaxHeight="240">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="MembersList"
+                                  ItemsSource="{Binding AvailableAgents}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="ent:AgentEntity">
+                                <CheckBox Content="{Binding Name}"
+                                          Tag="{Binding Id}"
+                                          Foreground="#cccccc"
+                                          FontSize="13"
+                                          Padding="4,2"
+                                          Click="OnMemberCheckChanged" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+            <TextBlock Classes="field-hint"
+                       Text="任务至少需要 2 个参与者（Manager + 至少 1 个 Member，或 ≥ 2 个 Member）。" />
+        </StackPanel>
+
+        <!-- 校验错误 -->
+        <Border Background="#3a1f1f" BorderBrush="#6e2828" BorderThickness="1"
+                CornerRadius="3" Padding="10"
+                IsVisible="{Binding ValidationError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding ValidationError}"
+                       Foreground="#f48771" FontSize="12" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- 底部按钮 -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Classes="dialog-btn dialog-btn-cancel"
+                    Content="取消"
+                    IsCancel="True"
+                    Click="OnCancelClick" />
+            <Button Classes="dialog-btn dialog-btn-primary"
+                    Content="启动任务"
+                    IsDefault="True"
+                    IsEnabled="{Binding CanSubmit}"
+                    Click="OnSubmitClick" />
+        </StackPanel>
+    </StackPanel>
+</Window>

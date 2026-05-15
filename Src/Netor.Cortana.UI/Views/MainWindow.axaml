@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:Netor.Cortana.UI.Controls"
+        xmlns:workspace="using:Netor.Cortana.UI.Views.Workspace"
         x:Class="Netor.Cortana.UI.Views.MainWindow"
         x:CompileBindings="True"
         Title="小娜宝贝"
@@ -85,6 +86,30 @@
 			<Setter Property="Background" Value="#252526" />
 		</Style>
 
+		<!-- ── 顶部 Tab 切换按钮（Chat / Workspace） ── -->
+		<Style Selector="Button.tab-btn">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Foreground" Value="#858585" />
+			<Setter Property="FontSize" Value="13" />
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="Padding" Value="12,4" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="BorderThickness" Value="0" />
+		</Style>
+		<Style Selector="Button.tab-btn:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#252526" />
+			<Setter Property="Foreground" Value="#cccccc" />
+		</Style>
+		<Style Selector="Button.tab-btn-active">
+			<Setter Property="Background" Value="#252526" />
+			<Setter Property="Foreground" Value="#007acc" />
+		</Style>
+		<Style Selector="Button.tab-btn-active /template/ ContentPresenter">
+			<Setter Property="Background" Value="#252526" />
+			<Setter Property="Foreground" Value="#007acc" />
+		</Style>
+
 		<!-- ── 附件标签样式 ── -->
 		<Style Selector="Border.attachment-tag">
 			<Setter Property="Background" Value="#252526" />
@@ -128,12 +153,25 @@
 								ToolTip.Tip="工作台" Click="OnWorkspaceToggleClick">
 							<Image Source="avares://Cortana/Assets/list.png" Width="14" Height="14" />
 						</Button>
-						<!-- 中：智能体/模型 -->
+						<!-- 中：Tab 切换 + 会话标题 -->
 						<StackPanel Grid.Column="1" Orientation="Horizontal"
-									HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6">
+									HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
+							<Button x:Name="ChatTabButton"
+									Classes="tab-btn tab-btn-active"
+									Tag="chat"
+									Click="OnTabSwitchClick">
+								<TextBlock Text="对话" />
+							</Button>
+							<Button x:Name="WorkspaceTabButton"
+									Classes="tab-btn"
+									Tag="workspace"
+									Click="OnTabSwitchClick">
+								<TextBlock Text="工作台" />
+							</Button>
 							<Button x:Name="HistoryButton" Grid.Column="0"
 								Classes="titlebar-btn" Padding="6,4"
-								Click="OnHistoryClick">
+								Click="OnHistoryClick"
+								Margin="8,0,0,0">
 								<StackPanel Orientation="Horizontal" Spacing="4">
 									<TextBlock x:Name="HistoryLabel" Text="新对话"
 											   Foreground="#cccccc" FontSize="12"
@@ -180,6 +218,10 @@
 						</ScrollViewer>
 					</Border>
 				</Popup>
+
+				<!-- ── Tab 切换容器（Chat / Workspace 互斥显示） ── -->
+				<Panel x:Name="ContentRoot">
+				<DockPanel x:Name="ChatTabContent" IsVisible="True">
 
 				<!-- ── 底部输入区 ── -->
 				<Border DockPanel.Dock="Bottom" Background="#181818"
@@ -483,6 +525,10 @@
 						</StackPanel>
 					</Button>
 				</Grid>
+				</DockPanel>
+				<!-- Workspace Tab 内容（默认隐藏） -->
+				<workspace:WorkspaceTab x:Name="WorkspaceTabContent" IsVisible="False" />
+				</Panel>
 			</DockPanel>
 
 			<!-- Col 3: 历史面板拖拽分隔条 -->

@@ -1,0 +1,154 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
+using Netor.Cortana.Entitys;
+
+namespace Netor.Cortana.UI.ViewModels.Workspace;
+
+/// <summary>
+/// 阶段 3B：单条 Workflow 任务步骤的 ViewModel。
+/// 实现 <see cref="INotifyPropertyChanged"/>，由 <see cref="TaskDetailVm"/> 在任务运行期通过
+/// <see cref="Events.OnWorkflowStepCompleted"/> 事件流增量追加。
+///
+/// 不订阅事件，仅作为数据载体。
+/// </summary>
+public sealed class StepItemVm : INotifyPropertyChanged
+{
+    private string _status = string.Empty;
+    private long? _completedAt;
+    private long? _durationMs;
+    private string? _summary;
+
+    public StepItemVm(OrchestrationStepEntity entity)
+    {
+        ArgumentNullException.ThrowIfNull(entity);
+        StepId = entity.Id;
+        Sequence = entity.Sequence;
+        AgentId = entity.AgentId ?? string.Empty;
+        AgentName = entity.AgentName ?? entity.AgentId ?? "(未知)";
+        Action = entity.Action;
+        StartedAt = entity.StartedAt;
+        _status = entity.Status;
+        _completedAt = entity.CompletedAt;
+        _durationMs = entity.DurationMs;
+        _summary = entity.SummaryJson;
+    }
+
+    /// <summary>从已落库的 step.completed 事件构造（用于异步追加场景）。</summary>
+    public StepItemVm(WorkflowStepCompletedArgs args)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+        StepId = args.StepId;
+        Sequence = args.Sequence;
+        AgentId = args.AgentId ?? string.Empty;
+        AgentName = args.AgentName ?? args.AgentId ?? "(未知)";
+        Action = args.Action;
+        StartedAt = args.StartedAt;
+        _status = args.Status;
+        _completedAt = args.CompletedAt;
+        _durationMs = args.DurationMs;
+        _summary = args.SummaryJson;
+    }
+
+    /// <summary>步骤主键。</summary>
+    public string StepId { get; }
+
+    /// <summary>任务内序号。</summary>
+    public int Sequence { get; }
+
+    /// <summary>执行步骤的 Agent ID。</summary>
+    public string AgentId { get; }
+
+    /// <summary>显示名称。</summary>
+    public string AgentName { get; }
+
+    /// <summary>动作类型（speak / plan / execute / ...）。</summary>
+    public string Action { get; }
+
+    /// <summary>启动时间（Unix ms）。</summary>
+    public long StartedAt { get; }
+
+    /// <summary>状态文本（running / completed / failed / skipped）。</summary>
+    public string Status
+    {
+        get => _status;
+        set
+        {
+            if (SetField(ref _status, value))
+            {
+                OnPropertyChanged(nameof(StatusIcon));
+                OnPropertyChanged(nameof(StatusColorHex));
+            }
+        }
+    }
+
+    /// <summary>完成时间（Unix ms）。</summary>
+    public long? CompletedAt
+    {
+        get => _completedAt;
+        set => SetField(ref _completedAt, value);
+    }
+
+    /// <summary>耗时（毫秒）。</summary>
+    public long? DurationMs
+    {
+        get => _durationMs;
+        set
+        {
+            if (SetField(ref _durationMs, value))
+                OnPropertyChanged(nameof(DurationText));
+        }
+    }
+
+    /// <summary>步骤摘要（OutputContent / 备注）。</summary>
+    public string? Summary
+    {
+        get => _summary;
+        set => SetField(ref _summary, value);
+    }
+
+    // ──── 派生显示属性 ────
+
+    public string StatusIcon => _status switch
+    {
+        "running" => "●",
+        "completed" => "✓",
+        "failed" => "✕",
+        "skipped" => "⊘",
+        _ => "?",
+    };
+
+    public string StatusColorHex => _status switch
+    {
+        "running" => "#3794ff",
+        "completed" => "#73c991",
+        "failed" => "#f48771",
+        "skipped" => "#858585",
+        _ => "#858585",
+    };
+
+    public string DurationText
+    {
+        get
+        {
+            if (_durationMs is null or 0) return string.Empty;
+            var seconds = _durationMs.Value / 1000.0;
+            return seconds < 60 ? $"{seconds:F1}s" : $"{seconds / 60:F1}m";
+        }
+    }
+
+    // ──── INotifyPropertyChanged ────
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+}

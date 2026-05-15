@@ -431,6 +431,60 @@ public sealed class AIAgentFactory(
     }
 
     /// <summary>
+    /// 阶段 3B：为 Workflow 模式（GroupChat / Magentic / ParallelAnalysis 等）构建参与者集合。
+    /// 所有参与者都走轻量 <see cref="BuildSubAgent"/> 路径（不挂 ChatHistoryDataProvider / Skills），
+    /// 因为 Workflow 模式有独立的 OrchestrationMessage 持久化路径，不复用 ChatMessages。
+    /// 详见：docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 3B / §阶段 4B。
+    /// </summary>
+    /// <param name="participantEntities">参与者智能体实体列表。重复 ID 会被自动跳过。</param>
+    /// <param name="fallbackProvider">兜底厂商；当参与者自身未配置 DefaultProviderId 时跟随此值。</param>
+    /// <param name="fallbackModel">兜底模型；当参与者自身未配置 DefaultModelId 时跟随此值。</param>
+    /// <param name="providerService">用于解析参与者自身厂商。</param>
+    /// <param name="modelService">用于解析参与者自身模型。</param>
+    /// <returns>参与者 AIAgent 集合，按入参顺序保留；解析失败的参与者会被过滤掉。</returns>
+    public IReadOnlyList<AIAgent> BuildWorkflowParticipants(
+        IReadOnlyList<AgentEntity> participantEntities,
+        AiProviderEntity fallbackProvider,
+        AiModelEntity fallbackModel,
+        AiProviderService providerService,
+        AiModelService modelService)
+    {
+        ArgumentNullException.ThrowIfNull(participantEntities);
+        ArgumentNullException.ThrowIfNull(fallbackProvider);
+        ArgumentNullException.ThrowIfNull(fallbackModel);
+        ArgumentNullException.ThrowIfNull(providerService);
+        ArgumentNullException.ThrowIfNull(modelService);
+
+        var participants = new List<AIAgent>(participantEntities.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var participantEntity in participantEntities)
+        {
+            if (!seen.Add(participantEntity.Id))
+            {
+                logger.LogInformation("Workflow 跳过重复参与者：{Name}", participantEntity.Name);
+                continue;
+            }
+
+            var (provider, model) = ResolveSubAgentProviderAndModel(
+                participantEntity, fallbackProvider, fallbackModel, providerService, modelService);
+
+            if (provider is null || model is null)
+            {
+                logger.LogWarning(
+                    "Workflow participant [{Name}] 厂商或模型无法解析，跳过",
+                    participantEntity.Name);
+                continue;
+            }
+
+            var participant = BuildSubAgent(participantEntity, provider, model);
+            participants.Add(participant);
+        }
+
+        return participants;
+    }
+
+    /// <summary>
     /// 构建子智能体（轻量）：仅携带 instructions + plugins + MCP，不带历史/memory/skills。
     /// </summary>
     private AIAgent BuildSubAgent(AgentEntity agent, AiProviderEntity provider, AiModelEntity model)

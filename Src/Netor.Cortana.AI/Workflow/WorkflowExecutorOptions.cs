@@ -9,6 +9,13 @@ public sealed class WorkflowExecutorOptions
     /// <summary>编排最大轮次（GroupChat / Magentic 共用）。</summary>
     public int MaxRounds { get; init; } = 8;
 
+    /// <summary>
+    /// GroupChat (RoundRobinGroupChatManager) 最大迭代次数。
+    /// SDK 默认 40，文档 [04] §3B.5 验收要求覆盖为 3，避免长时间空转。
+    /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §3B.2 / §3B.5。
+    /// </summary>
+    public int GroupChatMaxIterations { get; init; } = 3;
+
     /// <summary>单步超时。</summary>
     public TimeSpan PerStepTimeout { get; init; } = TimeSpan.FromMinutes(5);
 
