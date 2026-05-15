@@ -36,6 +36,7 @@ public sealed class WebSocketPluginBusServerService : KestrelWebSocketHost, IHos
     private readonly PluginBusChatDispatcher _chatDispatcher;
     private readonly PluginBusMemorySupplyDispatcher _memorySupplyDispatcher;
     private readonly PluginBusConversationHistoryDispatcher _historyDispatcher;
+    private readonly PluginBusWorkflowHistoryDispatcher _workflowHistoryDispatcher;
     private readonly PluginBusModelCapabilityDispatcher _modelCapabilityDispatcher;
     private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
@@ -86,6 +87,7 @@ public sealed class WebSocketPluginBusServerService : KestrelWebSocketHost, IHos
         _chatDispatcher = new PluginBusChatDispatcher(_pluginBusConnections, _subscriptions);
         _memorySupplyDispatcher = new PluginBusMemorySupplyDispatcher(logger);
         _historyDispatcher = new PluginBusConversationHistoryDispatcher(db, logger, SendAsync);
+        _workflowHistoryDispatcher = new PluginBusWorkflowHistoryDispatcher(db, logger, SendAsync);
         _modelCapabilityDispatcher = new PluginBusModelCapabilityDispatcher(modelCapabilityService, logger, SendAsync);
     }
 
@@ -478,6 +480,19 @@ public sealed class WebSocketPluginBusServerService : KestrelWebSocketHost, IHos
                 var batch = payload.TryGetProperty("batchSize", out var b) ? Math.Clamp(b.GetInt32(), 100, 2000) : 500;
                 var requestId = root.TryGetProperty("requestId", out var replayRequestId) ? replayRequestId.GetString() : null;
                 await _historyDispatcher.ReplayAsync(id, requestId, since, batch, ct); return;
+            }
+
+            // 阶段 2B 新增：Workflow 历史回放（任务级粒度）
+            if (string.Equals(type, "request", StringComparison.Ordinal)
+                && string.Equals(op, CortanaWsEndpoints.WorkflowHistoryReplayOperation, StringComparison.Ordinal))
+            {
+                var payload = root.TryGetProperty("payload", out var payloadElement) && payloadElement.ValueKind == JsonValueKind.Object
+                    ? payloadElement
+                    : root;
+                var since = payload.TryGetProperty("sinceTimestamp", out var s) ? s.GetInt64() : 0L;
+                var batch = payload.TryGetProperty("batchSize", out var b) ? Math.Clamp(b.GetInt32(), 100, 2000) : 500;
+                var requestId = root.TryGetProperty("requestId", out var workflowRequestId) ? workflowRequestId.GetString() : null;
+                await _workflowHistoryDispatcher.ReplayAsync(id, requestId, since, batch, ct); return;
             }
             if (string.Equals(type, "response", StringComparison.Ordinal)
                 && string.Equals(op, MemoryContextSupplyProtocol.SupplyPackageOperation, StringComparison.Ordinal))

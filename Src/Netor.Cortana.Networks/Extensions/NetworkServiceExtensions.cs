@@ -29,6 +29,10 @@ public static class NetworkServiceExtensions
         services.AddSingleton<WebSocketConversationFeedRelayService>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketConversationFeedRelayService>());
 
+        // 阶段 2B 新增：Workflow 任务事件 Relay
+        services.AddSingleton<WebSocketWorkflowFeedRelayService>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketWorkflowFeedRelayService>());
+
         services.AddSingleton<WebSocketChatOutputChannel>();
         services.AddSingleton<IAiOutputChannel>(sp => sp.GetRequiredService<WebSocketChatOutputChannel>());
 

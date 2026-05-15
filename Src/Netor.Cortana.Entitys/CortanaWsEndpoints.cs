@@ -8,11 +8,22 @@ public static class CortanaWsEndpoints
     public const string PluginBusPath = "/internal";
     public const string ChatPath = PluginBusPath;
     public const string PluginBusProtocol = "cortana.plugin-bus";
-    public const string PluginBusVersion = "1.0.0";
+
+    /// <summary>
+    /// PluginBus 协议版本号。
+    /// 阶段 2B：从 1.0.0 升到 1.1.0，新增 workflow topic 与对应 operations。
+    /// 详见 docs/未来版本策划/多智能体编排模式策划/07-事件分流与插件兼容设计.md §3.1。
+    /// 兼容性：旧 1.0.0 插件连接到 1.1.0 宿主仍然可用（不订阅 workflow topic）。
+    /// </summary>
+    public const string PluginBusVersion = "1.1.0";
+
     public const string ConversationTopic = "conversation";
     public const string MemoryTopic = "memory";
     public const string ModelTopic = "model";
     public const string PluginTopic = "plugin";
+
+    /// <summary>阶段 2B 新增 topic：Workflow 任务事件总线。</summary>
+    public const string WorkflowTopic = "workflow";
 
     public const string ConversationEventPublishOperation = "conversation.event.publish";
     public const string ConversationHistoryReplayOperation = "conversation.history.replay";
@@ -23,6 +34,12 @@ public static class CortanaWsEndpoints
     public const string MemoryContextSupplyErrorOperation = "memory.context.supply.error";
     public const string ModelCapabilityRequestOperation = "model.capability.request";
     public const string ModelCapabilityResponseOperation = "model.capability.response";
+
+    // ──── 阶段 2B 新增 workflow operations ────
+    public const string WorkflowEventPublishOperation = "workflow.event.publish";
+    public const string WorkflowHistoryReplayOperation = "workflow.history.replay";
+    public const string WorkflowHistoryBatchOperation = "workflow.history.batch";
+    public const string WorkflowHistoryCompletedOperation = "workflow.history.completed";
 
     public static string BuildChatEndpoint(int port) => BuildPluginBusEndpoint(port);
 

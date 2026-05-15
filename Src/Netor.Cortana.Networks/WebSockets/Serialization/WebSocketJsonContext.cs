@@ -27,6 +27,15 @@ namespace Netor.Cortana.Networks;
 [JsonSerializable(typeof(MemoryContextSupplyRequest))]
 [JsonSerializable(typeof(MemoryContextSupplyPackage))]
 [JsonSerializable(typeof(MemoryContextSupplyError))]
+// 阶段 2B 新增：Workflow 任务事件 Args
+[JsonSerializable(typeof(WorkflowTaskStartedArgs))]
+[JsonSerializable(typeof(WorkflowStepCompletedArgs))]
+[JsonSerializable(typeof(WorkflowTaskCompletedArgs))]
+[JsonSerializable(typeof(WorkflowTaskFailedArgs))]
+[JsonSerializable(typeof(WorkflowTaskTitleUpdatedArgs))]
+[JsonSerializable(typeof(WorkflowExportBatch))]
+[JsonSerializable(typeof(WorkflowExportRecord))]
+[JsonSerializable(typeof(WorkflowHistoryCompletedPayload))]
 internal partial class WebSocketJsonContext : JsonSerializerContext;
 
 /// <summary>
@@ -141,4 +150,52 @@ internal sealed record ConversationExportRecord
     [JsonPropertyName("modelId")] public string? ModelId { get; init; }
     [JsonPropertyName("modelName")] public string? ModelName { get; init; }
     [JsonPropertyName("traceId")] public string? TraceId { get; init; }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// 阶段 2B 新增：Workflow 历史回放数据契约
+// 详见 docs/未来版本策划/多智能体编排模式策划/07-事件分流与插件兼容设计.md §3.5
+// ════════════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// Workflow 历史回放批次负载（workflow.history.batch）。
+/// </summary>
+internal sealed record WorkflowExportBatch
+{
+    [JsonPropertyName("batchId")] public string BatchId { get; init; } = string.Empty;
+    [JsonPropertyName("hasMore")] public bool HasMore { get; init; }
+    [JsonPropertyName("items")] public WorkflowExportRecord[] Items { get; init; } = Array.Empty<WorkflowExportRecord>();
+}
+
+/// <summary>
+/// Workflow 任务级历史导出记录（一条记录代表一个完整任务）。
+/// 阶段 2B 起使用任务级粒度而非消息级，与文档 §3.5 对齐。
+/// </summary>
+internal sealed record WorkflowExportRecord
+{
+    [JsonPropertyName("taskId")] public string TaskId { get; init; } = string.Empty;
+    [JsonPropertyName("title")] public string Title { get; init; } = string.Empty;
+    [JsonPropertyName("status")] public string Status { get; init; } = string.Empty;
+    [JsonPropertyName("mode")] public string Mode { get; init; } = string.Empty;
+    [JsonPropertyName("subMode")] public string SubMode { get; init; } = string.Empty;
+    [JsonPropertyName("workspaceId")] public string WorkspaceId { get; init; } = string.Empty;
+    [JsonPropertyName("traceId")] public string TraceId { get; init; } = string.Empty;
+    [JsonPropertyName("sourceSessionId")] public string? SourceSessionId { get; init; }
+    [JsonPropertyName("sourceTaskId")] public string? SourceTaskId { get; init; }
+    [JsonPropertyName("managerAgentId")] public string? ManagerAgentId { get; init; }
+    [JsonPropertyName("managerAgentName")] public string? ManagerAgentName { get; init; }
+    [JsonPropertyName("startedAt")] public long StartedAt { get; init; }
+    [JsonPropertyName("completedAt")] public long? CompletedAt { get; init; }
+    [JsonPropertyName("lastActiveTimestamp")] public long LastActiveTimestamp { get; init; }
+    [JsonPropertyName("finalReport")] public string? FinalReport { get; init; }
+    [JsonPropertyName("errorMessage")] public string? ErrorMessage { get; init; }
+    [JsonPropertyName("totalTokenCount")] public long TotalTokenCount { get; init; }
+}
+
+/// <summary>
+/// Workflow 历史回放完成响应载荷（workflow.history.completed）。
+/// </summary>
+internal sealed record WorkflowHistoryCompletedPayload
+{
+    [JsonPropertyName("total")] public int Total { get; init; }
 }

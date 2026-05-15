@@ -6,7 +6,10 @@ using Netor.Cortana.AI.Drivers;
 using Netor.Cortana.AI.Memory;
 using Netor.Cortana.AI.Orchestration;
 using Netor.Cortana.AI.Providers;
+using Netor.Cortana.AI.Workflow;
+using Netor.Cortana.AI.Workflow.Title;
 using Netor.Cortana.Entitys;
+using Netor.Cortana.Entitys.Services;
 using Netor.Cortana.AI.Proxys;
 using Netor.Cortana.Entitys.Proxy;
 
@@ -60,6 +63,16 @@ public static class AIServiceExtensions
         // 阶段 2A：Chat 模式编排器（None / ToolDelegation / HandoffChat）
         services.AddSingleton(new AgentOrchestratorOptions());
         services.AddSingleton<IAgentOrchestrator, AgentOrchestrator>();
+
+        // 阶段 2B：Workflow 模式后端骨架
+        services.AddSingleton<IChatCompactionClientResolver, ChatCompactionClientResolver>();
+        services.AddSingleton<WorkflowTaskRepository>();
+        services.AddSingleton<WorkflowStepRepository>();
+        services.AddSingleton<IWorkflowTitleGenerator, WorkflowTitleGenerator>();
+        services.AddSingleton(new WorkflowExecutorOptions());
+        services.AddSingleton<WorkflowExecutor>();
+        services.AddSingleton<IWorkflowExecutor>(sp => sp.GetRequiredService<WorkflowExecutor>());
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WorkflowExecutor>());
 
         // Proxy 独立外部调用通道：不复用主聊天会话。
         services.AddSingleton<ProxyUsageTracker>();

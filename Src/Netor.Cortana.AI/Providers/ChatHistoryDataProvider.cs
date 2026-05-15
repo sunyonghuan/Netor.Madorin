@@ -712,13 +712,13 @@ public sealed class ChatHistoryDataProvider(
     }
 
     /// <summary>
-    /// 解析缩略专用模型。若 Compaction.ModelId 已配置且有效，则通过 <see cref="ModelPurposeResolver"/>
-    /// 复用缓存的 <see cref="IChatClient"/>；否则回退到当前 Agent 的 ChatClient。
+    /// 解析缩略专用模型。阶段 2B 起委托给 <see cref="IChatCompactionClientResolver"/>，
+    /// 让 Chat 与 Workflow 共享同一解析链路。
     /// </summary>
     private IChatClient? ResolveCompactionClient(AIAgent agent)
     {
-        var resolver = services.GetRequiredService<ModelPurposeResolver>();
-        return resolver.TryResolve("Compaction.ModelId") ?? agent.GetService<IChatClient>();
+        var resolver = services.GetRequiredService<IChatCompactionClientResolver>();
+        return resolver.Resolve(agent);
     }
 
     /// <summary>

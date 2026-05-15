@@ -118,6 +118,23 @@ public static class Events
 
     /// <summary>本轮对话已结束，状态可能是成功、取消或失败。</summary>
     public static ConversationTurnCompletedEvent OnConversationTurnCompleted = new("conversation.turn.completed");
+
+    // ──────── Workflow 任务事件（阶段 2B 起） ────────
+
+    /// <summary>Workflow 任务已启动，进入 running 状态。</summary>
+    public static WorkflowTaskStartedEvent OnWorkflowTaskStarted = new("workflow.task.started");
+
+    /// <summary>Workflow 任务的某个步骤已完成。</summary>
+    public static WorkflowStepCompletedEvent OnWorkflowStepCompleted = new("workflow.step.completed");
+
+    /// <summary>Workflow 任务已成功完成，FinalReport 可用。</summary>
+    public static WorkflowTaskCompletedEvent OnWorkflowTaskCompleted = new("workflow.task.completed");
+
+    /// <summary>Workflow 任务失败（含宿主重启孤儿清理场景）。</summary>
+    public static WorkflowTaskFailedEvent OnWorkflowTaskFailed = new("workflow.task.failed");
+
+    /// <summary>Workflow 任务标题已由 LLM 兜底生成（决策 6-A）。</summary>
+    public static WorkflowTaskTitleUpdatedEvent OnWorkflowTaskTitleUpdated = new("workflow.task.title.updated");
 }
 
 // ──────── AI 配置变更事件类型 ────────
@@ -172,6 +189,23 @@ public record SystemNoticeEvent(string Eventid) : EventID<SystemNoticeArgs>(Even
 
 /// <summary>MCP 服务器连接状态变更事件</summary>
 public record McpConnectionStateChangedEvent(string Eventid) : EventID<McpConnectionStateChangedArgs>(Eventid);
+
+// ──────── Workflow 任务事件类型（阶段 2B 起） ────────
+
+/// <summary>Workflow 任务启动事件（task.started）</summary>
+public record WorkflowTaskStartedEvent(string Eventid) : EventID<WorkflowTaskStartedArgs>(Eventid);
+
+/// <summary>Workflow 任务步骤完成事件（step.completed）</summary>
+public record WorkflowStepCompletedEvent(string Eventid) : EventID<WorkflowStepCompletedArgs>(Eventid);
+
+/// <summary>Workflow 任务完成事件（task.completed）</summary>
+public record WorkflowTaskCompletedEvent(string Eventid) : EventID<WorkflowTaskCompletedArgs>(Eventid);
+
+/// <summary>Workflow 任务失败事件（task.failed，含宿主重启孤儿清理）</summary>
+public record WorkflowTaskFailedEvent(string Eventid) : EventID<WorkflowTaskFailedArgs>(Eventid);
+
+/// <summary>Workflow 任务标题更新事件（task.title.updated，决策 6-A）</summary>
+public record WorkflowTaskTitleUpdatedEvent(string Eventid) : EventID<WorkflowTaskTitleUpdatedArgs>(Eventid);
 
 // ──────── 事件参数类型 ────────
 
@@ -432,6 +466,158 @@ public record McpConnectionStateChangedArgs(
     string ServerId,
     bool IsConnected,
     bool IsReconnecting) : EventArgs;
+
+// ════════════════════════════════════════════════════════════════════════
+// Workflow 任务事件参数（阶段 2B 起）
+// 详见 docs/未来版本策划/多智能体编排模式策划/07-事件分流与插件兼容设计.md §3.4
+// 所有 Workflow Args 共享以下定位字段：
+//   TaskId / SourceSessionId / TraceId / WorkspaceId / Mode / SubMode / OccurredAt
+// 这套字段允许 Memory 插件按工作区、追踪 ID、源会话进行任意聚合。
+// ════════════════════════════════════════════════════════════════════════
+
+/// <summary>
+/// Workflow 任务通用基类。所有 Workflow 事件继承该基类，复用统一定位字段。
+/// </summary>
+public abstract record WorkflowEventArgs(
+    string TaskId,
+    string? SourceSessionId,
+    string TraceId,
+    string WorkspaceId,
+    string Mode,
+    string SubMode,
+    DateTimeOffset OccurredAt) : EventArgs;
+
+/// <summary>
+/// Workflow 任务已启动事件参数（workflow.task.started）。
+/// </summary>
+public record WorkflowTaskStartedArgs(
+    string TaskId,
+    string? SourceSessionId,
+    string TraceId,
+    string WorkspaceId,
+    string Mode,
+    string SubMode,
+    DateTimeOffset OccurredAt,
+    string Title,
+    string? ManagerAgentId,
+    string? ManagerAgentName,
+    string InitialInput,
+    IReadOnlyList<string> ParticipantAgentIds,
+    long StartedAt) : WorkflowEventArgs(
+        TaskId,
+        SourceSessionId,
+        TraceId,
+        WorkspaceId,
+        Mode,
+        SubMode,
+        OccurredAt);
+
+/// <summary>
+/// Workflow 任务步骤完成事件参数（workflow.step.completed）。
+/// </summary>
+public record WorkflowStepCompletedArgs(
+    string TaskId,
+    string? SourceSessionId,
+    string TraceId,
+    string WorkspaceId,
+    string Mode,
+    string SubMode,
+    DateTimeOffset OccurredAt,
+    string StepId,
+    string? ParentStepId,
+    int Sequence,
+    string? AgentId,
+    string? AgentName,
+    string Action,
+    string Status,
+    long StartedAt,
+    long? CompletedAt,
+    long? DurationMs,
+    int? TokenInputCount,
+    int? TokenOutputCount,
+    string? ErrorMessage,
+    string? SummaryJson) : WorkflowEventArgs(
+        TaskId,
+        SourceSessionId,
+        TraceId,
+        WorkspaceId,
+        Mode,
+        SubMode,
+        OccurredAt);
+
+/// <summary>
+/// Workflow 任务完成事件参数（workflow.task.completed）。FinalReport 可用。
+/// </summary>
+public record WorkflowTaskCompletedArgs(
+    string TaskId,
+    string? SourceSessionId,
+    string TraceId,
+    string WorkspaceId,
+    string Mode,
+    string SubMode,
+    DateTimeOffset OccurredAt,
+    string Title,
+    string? ManagerAgentId,
+    string? ManagerAgentName,
+    string? FinalReport,
+    int StepCount,
+    long? TotalDurationMs,
+    long TotalTokenInputCount,
+    long TotalTokenOutputCount,
+    IReadOnlyList<string> ParticipantAgentIds,
+    long CompletedAt) : WorkflowEventArgs(
+        TaskId,
+        SourceSessionId,
+        TraceId,
+        WorkspaceId,
+        Mode,
+        SubMode,
+        OccurredAt);
+
+/// <summary>
+/// Workflow 任务失败事件参数（workflow.task.failed，含宿主重启孤儿清理场景）。
+/// </summary>
+public record WorkflowTaskFailedArgs(
+    string TaskId,
+    string? SourceSessionId,
+    string TraceId,
+    string WorkspaceId,
+    string Mode,
+    string SubMode,
+    DateTimeOffset OccurredAt,
+    string Title,
+    string ErrorMessage,
+    string FailureReason,           // "exception" / "timeout" / "host_restart_orphan" / "cancelled"
+    long FailedAt) : WorkflowEventArgs(
+        TaskId,
+        SourceSessionId,
+        TraceId,
+        WorkspaceId,
+        Mode,
+        SubMode,
+        OccurredAt);
+
+/// <summary>
+/// Workflow 任务标题更新事件参数（workflow.task.title.updated，决策 6-A）。
+/// </summary>
+public record WorkflowTaskTitleUpdatedArgs(
+    string TaskId,
+    string? SourceSessionId,
+    string TraceId,
+    string WorkspaceId,
+    string Mode,
+    string SubMode,
+    DateTimeOffset OccurredAt,
+    string OldTitle,
+    string NewTitle,
+    bool IsAutoGenerated) : WorkflowEventArgs(
+        TaskId,
+        SourceSessionId,
+        TraceId,
+        WorkspaceId,
+        Mode,
+        SubMode,
+        OccurredAt);
 
 /// <summary>
 /// 模型变更类型
