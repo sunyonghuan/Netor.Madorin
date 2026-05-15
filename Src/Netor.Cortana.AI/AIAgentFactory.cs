@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -247,13 +249,57 @@ public sealed class AIAgentFactory(
                 if (string.IsNullOrEmpty(safeIdPart)) safeIdPart = "unknown";
                 var functionName = $"agent_{safeIdPart}";
 
-                var agentFunction = subAgent.AsAIFunction(
+                // 阶段 1：自定义委托替换 SDK 默认 AsAIFunction(options) 的单参数签名，
+                // 让主 Agent 在调用子 Agent 时显式传递附件路径与描述（详见 03-编排模式与边界约束.md §7.2）。
+                // subAgent / subAgentEntity 是 foreach 体内的局部变量，C# 闭包语义保证每次迭代独立。
+
+                [Description("调用子智能体并可选携带附件来处理任务")]
+                async Task<string> InvokeAgentWithAttachmentsAsync(
+                    [Description("子智能体要回答的具体问题")] string query,
+                    [Description("附件绝对路径数组（可空）")] string[]? attachmentPaths,
+                    [Description("主 Agent 对每个附件的简短描述（可空，长度应与 attachmentPaths 一致）")] string[]? attachmentDescriptions,
+                    CancellationToken ct)
+                {
+                    var contents = new List<AIContent> { new TextContent(query) };
+
+                    if (attachmentPaths is { Length: > 0 })
+                    {
+                        for (var i = 0; i < attachmentPaths.Length; i++)
+                        {
+                            var path = attachmentPaths[i];
+                            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) continue;
+
+                            var description = attachmentDescriptions is { Length: > 0 } && i < attachmentDescriptions.Length
+                                ? attachmentDescriptions[i]
+                                : Path.GetFileName(path);
+
+                            var mime = GuessMimeFromPath(path);
+                            if (IsImageMime(mime))
+                            {
+                                var data = await DataContent.LoadFromAsync(path, mime, cancellationToken: ct).ConfigureAwait(false);
+                                contents.Add(data);
+                                contents.Add(new TextContent($" ![{description}]({path}) "));
+                            }
+                            else
+                            {
+                                contents.Add(new TextContent($" [{description}]({path}) "));
+                            }
+                        }
+                    }
+
+                    var msg = new ChatMessage(ChatRole.User, contents);
+                    var response = await subAgent.RunAsync([msg], cancellationToken: ct).ConfigureAwait(false);
+                    return response.Text ?? string.Empty;
+                }
+
+                var agentFunction = AIFunctionFactory.Create(
+                    InvokeAgentWithAttachmentsAsync,
                     new AIFunctionFactoryOptions
                     {
                         Name = functionName,
                         Description = string.IsNullOrWhiteSpace(subAgentEntity.Description)
-                            ? $"调用子智能体「{subAgentEntity.Name}」来处理任务"
-                            : $"[{subAgentEntity.Name}] {subAgentEntity.Description}"
+                            ? $"调用子智能体「{subAgentEntity.Name}」来处理任务（可附带附件）"
+                            : $"[{subAgentEntity.Name}] {subAgentEntity.Description}（可附带附件）"
                     });
 
                 subAgentFunctions.Add(agentFunction);
@@ -268,6 +314,18 @@ public sealed class AIAgentFactory(
 #pragma warning disable MAAI001
             providers.Add(new SubAgentContextProvider(subAgentFunctions));
 #pragma warning restore MAAI001
+        }
+
+        // 阶段 1：当 mentions >= 2 且主模型支持 FunctionCall 时，注入 Coordinator instructions
+        // 让主 Agent 进入"协调者"模式（先制定计划、按工具签名传附件、最终汇总）。
+        // 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 1。
+        if (mainFuncEnabled && mentions.Count >= 2)
+        {
+            var mentionAgents = mentions.Select(m => m.Agent).ToList();
+#pragma warning disable MAAI001
+            providers.Add(new OrchestrationInstructionsProvider(mentionAgents));
+#pragma warning restore MAAI001
+            logger.LogInformation("已启用 Coordinator 模式：mentions={Count}", mentions.Count);
         }
 
         var enableReasoning2 = mainModel.InteractionCapabilities.HasFlag(InteractionCapabilities.Reasoning);
@@ -476,5 +534,49 @@ public sealed class AIAgentFactory(
         providers.Add(excluded.Count > 0
             ? new PluginContextProvider(plugin, excluded)
             : new PluginContextProvider(plugin));
+    }
+
+    // ==================================================================================
+    // 阶段 1：MIME 类型 helper（仅供子 Agent 工具委托使用，作用域局部于本工厂）
+    // 与 AiChatHostedService 的同名方法保持语义一致；阶段 2A 起可下沉到公共工具类。
+    // ==================================================================================
+
+    private static bool IsImageMime(string mimeType) =>
+        !string.IsNullOrEmpty(mimeType) &&
+        mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+
+    private static string GuessMimeFromPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "application/octet-stream";
+
+        var ext = Path.GetExtension(path);
+        if (string.IsNullOrEmpty(ext)) return "application/octet-stream";
+
+        return ext.ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".gif" => "image/gif",
+            ".bmp" => "image/bmp",
+            ".webp" => "image/webp",
+            ".svg" => "image/svg+xml",
+            ".tiff" or ".tif" => "image/tiff",
+            ".heic" => "image/heic",
+            ".mp3" => "audio/mpeg",
+            ".wav" => "audio/wav",
+            ".ogg" => "audio/ogg",
+            ".m4a" => "audio/mp4",
+            ".flac" => "audio/flac",
+            ".mp4" => "video/mp4",
+            ".webm" => "video/webm",
+            ".mov" => "video/quicktime",
+            ".pdf" => "application/pdf",
+            ".txt" or ".md" or ".log" => "text/plain",
+            ".json" => "application/json",
+            ".xml" => "application/xml",
+            ".html" or ".htm" => "text/html",
+            ".csv" => "text/csv",
+            _ => "application/octet-stream",
+        };
     }
 }
