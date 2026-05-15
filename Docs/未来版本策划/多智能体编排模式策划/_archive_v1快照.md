@@ -7,9 +7,12 @@
 本方案目标是在不大面积重构现有 Cortana 架构的前提下，逐步引入以下编排模式：
 
 1. **Magentic 模式**：策划规划、分派任务、执行返回、检测总结，作为复杂任务的主编排模式。
-2. **Concurrent 模式**：在分派任务过程中，将多个独立子任务并行交给多个智能体处理。
-3. **GroupChat 讨论模式**：让多个角色智能体围绕问题开会、讨论方案、形成结论。
-4. **Handoff/备用智能体模式**：用于专家转接或备用智能体接管，但不作为复杂任务拆解主方案。
+2. **GroupChat 讨论模式**：让多个角色智能体围绕问题开会、讨论方案、形成结论。
+3. **Handoff/备用智能体模式**：用于专家转接或备用智能体接管，但不作为复杂任务拆解主方案。
+
+并引入与主模式正交的"执行策略"维度：
+
+- **Concurrent 执行策略**：作为 Magentic 分派阶段或 GroupChat 内部环节的并行执行器，把多个独立子任务交给多个智能体同时处理。它不是与 Magentic / GroupChat 平级的主模式，而是它们内部的执行策略选项之一（详见 §5.2）。
 
 设计原则：
 
@@ -47,7 +50,11 @@ _agent.RunStreamingAsync(...)
 IAiOutputChannel 广播 token
   ↓
 ChatHistoryDataProvider 持久化历史
+  ├── CompactAndReplaceAsync(...) 触发段落压缩并回写（StoreChatHistoryAsync 末尾）
+  └── 新会话首次对话：异步 GenerateAndUpdateTitleAsync(...) 生成 AI 摘要标题
 ```
+
+需要注意：`ChatHistoryDataProvider.StoreChatHistoryAsync(...)` 不仅写入消息，还会触发"压缩段落"和"AI 摘要标题"两个副作用。多智能体编排引入后，这两个副作用是否要禁用或延后由 Orchestration 层显式触发，需要在阶段 2 明确。
 
 `IAiChatEngine` 当前接口已经支持：
 
@@ -101,16 +108,22 @@ public AIAgent BuildWithSubAgents(
 ```text
 主智能体
   ↓
-将被 @ 提及的子智能体构建为轻量 AIAgent
-  ↓
-subAgent.AsAIFunction(...)
-  ↓
-SubAgentContextProvider 注入为工具
-  ↓
-主智能体通过 function call 调用子智能体
+判断主模型是否支持 FunctionCall（InteractionCapabilities.FunctionCall）
+  ├── 不支持 → 跳过所有工具/插件/MCP/子智能体注入，仅写日志，无任何用户提示
+  └── 支持
+        ↓
+      将被 @ 提及的子智能体构建为轻量 AIAgent
+        ↓
+      subAgent.AsAIFunction(...)
+        ↓
+      SubAgentContextProvider 注入为工具
+        ↓
+      主智能体通过 function call 调用子智能体
 ```
 
 这说明当前项目已经具备“轻量子智能体”雏形。
+
+**关键边界提示**：当前实现中如果主模型未启用 `InteractionCapabilities.FunctionCall`，所有 @ 子智能体会被**静默丢弃**（仅 `logger.LogInformation` 记录），用户层面感知不到任何区别。多智能体编排所有阶段方案的前置条件是"主模型支持 FunctionCall"，否则需要在 §6.4 的失败降级路径中明确提示用户、或退回单 Agent 普通对话模式，不能假装编排已生效。
 
 ---
 
@@ -156,6 +169,21 @@ internal sealed class SubAgentContextProvider(IReadOnlyList<AIFunction> agentFun
 
 因此第一阶段的子智能体更接近“带自身 instructions、插件和 MCP 的一次性专家工具”，而不是完整独立会话 Agent。
 
+需要特别注意：当前“工具能力”和“技能能力”的管理粒度不同。
+
+- 插件工具已经支持**全局插件**和**智能体绑定插件**两种来源。
+- 全局插件需要同时满足两个条件才会注入：
+  1. 插件的安装范围是 `PluginInstallScope.Global`（即来自全局插件目录）。
+  2. 该插件 ID 出现在 `GlobalPluginService.GetEnabledPluginIds()` 启用列表中。
+  两个条件缺一不可，仅启用未安装到全局目录的插件不会生效。
+- 智能体绑定插件通过 `AgentEntity.EnabledPluginIds` 控制，仅绑定的智能体可用；同一插件已通过全局通道注入时会自动去重（`injectedPluginIds`）。
+- MCP 服务通过 `AgentEntity.EnabledMcpServerIds` 绑定到具体智能体。
+- 公共文件读取、常用宿主工具等能力可以作为全局插件或宿主内置公共工具提供。
+- 特殊能力应通过智能体绑定插件或 MCP 只开放给特定智能体。
+- 技能目录当前通过 `AgentSkillsProvider(skillDirs)` 注入（该类由 `Microsoft.Agents.AI` 1.3.0 NuGet 包提供，不是项目自有类型），主智能体统一加载用户技能目录和工作区技能目录；当前没有按 `AgentEntity` 绑定技能的机制。
+
+因此，后续多智能体方案不需要重复设计一套完整的“工具归属模型”，应优先复用现有全局插件、智能体插件绑定和 MCP 绑定机制。真正缺口在于：**技能目前是全体主智能体共享加载，暂时没有可靠方案限制某个技能只给某个智能体使用。**
+
 ---
 
 ### 2.4 当前历史与记忆约束
@@ -166,19 +194,22 @@ internal sealed class SubAgentContextProvider(IReadOnlyList<AIFunction> agentFun
 - `Src/Netor.Cortana.AI/Memory/LongMemoryContextProvider.cs`
 - `Src/Netor.Cortana.AI/Providers/TokenTrackingChatClient.cs`
 
-当前历史持久化以一次主 `AgentSession` 为中心：
+当前历史持久化以一次主 `AgentSession` 为中心，`AiChatHostedService` 在不同时机向 `Session.StateBag` 写入以下键：
 
-```text
-sessionid
-agentid
-modelid
-turnid
-traceid
-currenttask
-assistantmessageid
-```
+| 键名 | 写入位置 | 用途 |
+| --- | --- | --- |
+| `sessionid` | `LoadOrCreateSessionAsync` / `NewSessionAsync` | 会话 ID，`ChatHistoryDataProvider`、`LongMemoryContextProvider` 都依赖它 |
+| `providerid` / `providername` | `UpdateSessionSelectionState` | 当前 AI 提供商 ID / 名称 |
+| `agentid` / `agentname` | `UpdateSessionSelectionState` | 当前主智能体 ID / 名称，`LongMemoryContextProvider` 依赖 |
+| `modelid` / `modeldbid` | `UpdateSessionSelectionState` | 模型显示名（OpenAI model id） / 数据库主键 |
+| `sessiontitle` | `AddOrUpdateSessionAsync` 内部 | 会话标题，`LongMemoryContextProvider` 依赖 |
+| `turnid` / `traceid` | `SendMessageAsync` 每轮开头 | 单轮编号 / 跨服务追踪 ID |
+| `usermessageid` | `SendMessageAsync` 每轮开头 | 用户消息预生成 ID |
+| `currenttask` | `SendMessageAsync` 每轮开头 | 当前用户问题正文（截断 500 字内） |
+| `assistantmessageid` | `SendMessageAsync` 写入 contents 后 | 助手消息预生成 ID |
+| `isnewsession` | `ChatHistoryDataProvider.CreateNewSessionAsync` | 私有标记，触发"首轮 AI 摘要标题" |
 
-`ChatHistoryDataProvider.StoreChatHistoryAsync(...)` 会从 `context.Agent` 和 `context.Session.StateBag` 中读取当前 Agent 与会话信息，然后保存消息。
+`ChatHistoryDataProvider.StoreChatHistoryAsync(...)` 会从 `context.Agent` 和 `context.Session.StateBag` 中读取当前 Agent 与会话信息，然后保存消息。`LongMemoryContextProvider` 额外依赖 `agentname` / `sessiontitle` / `usermessageid` 三个键。
 
 这意味着：
 
@@ -221,25 +252,53 @@ assistantmessageid
 
 因此不建议第一阶段直接改 `AgentEntity` 和数据库。更适合先使用运行时策略或配置文件承载。
 
+其中工具绑定相关能力已经存在，不属于第一阶段新增重点：
+
+```text
+全局插件 GlobalPlugins
+  ↓
+所有智能体默认可用
+
+AgentEntity.EnabledPluginIds
+  ↓
+指定插件只绑定到特定智能体
+
+AgentEntity.EnabledMcpServerIds
+  ↓
+指定 MCP 服务只绑定到特定智能体
+```
+
+当前缺少的是“技能绑定到智能体”的配置模型，例如：
+
+```text
+AgentEntity.EnabledSkillIds / EnabledSkillPaths / DisabledSkillIds
+```
+
+但技能系统暂时不建议在第一阶段扩展，因为技能目录与 Agent Framework 的加载方式、技能发现规则、冲突处理和 UI 管理都需要重新设计。
+
 ---
 
 ### 2.6 当前实现需要统一的元数据约束
 
-当前 `AIAgentFactory.Build(...)` 与 `BuildWithSubAgents(...)` 的 Agent 元数据设置并不完全一致：
+当前 `AIAgentFactory.Build(...)`、`BuildWithSubAgents(...)`、`BuildSubAgent(...)` 三条路径的 Agent 元数据设置并不完全一致，逐项对照如下：
 
-- `BuildWithSubAgents(...)` 构建主智能体时显式设置了 `Id = mainAgent.Id`。
-- `Build(...)` 当前没有显式设置 `Id = agent.Id` 和 `Description = agent.Description`。
-- `BuildSubAgent(...)` 设置了 `Name` 和 `Description`，但没有设置 `Id`，也没有历史与长期记忆上下文。
+| 构建路径 | Name | Id | Description | Instructions（来自 ChatOptions） |
+| --- | --- | --- | --- | --- |
+| `Build()` | ✅ `agent.Name` | ❌ 未设置 | ❌ 未设置 | ✅ `driver.BuildChatOptions` 中带 `agent.Instructions` |
+| `BuildWithSubAgents()` | ✅ `mainAgent.Name` | ✅ `mainAgent.Id` | ❌ 未设置 | ✅ 同上 |
+| `BuildSubAgent()` | ✅ `agent.Name` | ❌ 未设置 | ✅ `agent.Description` | ✅ 同上 |
+
+可以看到三个路径在 Id 和 Description 上是"两两不同"的：`Build()` 缺 Id 和 Description、`BuildWithSubAgents()` 缺 Description、`BuildSubAgent()` 缺 Id；只有 Name 和 Instructions 三处一致。
 
 这在现有单 Agent 对话中问题不大，因为消息归属主要依赖 `Session.StateBag`。  
-但引入 Orchestration 层后，如果编排步骤依赖 `context.Agent.Id` 或 `AIAgent.Id`，可能出现普通模式、@子智能体模式、子智能体模式之间的身份不一致。
+但引入 Orchestration 层后，如果编排步骤依赖 `context.Agent.Id`、`context.Agent.Description` 或 `AIAgent.Id`，可能出现普通模式、@子智能体模式、子智能体模式之间的身份不一致：例如阶段 2 想根据 `context.Agent.Description` 让 Coordinator 自动选择候选子智能体时，`Build()` 路径下拿不到值。
 
 因此在实施第一阶段前，建议先统一以下规则：
 
 ```text
 Build(...)、BuildWithSubAgents(...)、BuildSubAgent(...)
   ↓
-统一设置 Agent Id / Name / Description
+三个路径都显式设置 Id = agent.Id / Name = agent.Name / Description = agent.Description
   ↓
 历史归属仍以主 Session.StateBag 为准
   ↓
@@ -304,13 +363,14 @@ Build(...)、BuildWithSubAgents(...)、BuildSubAgent(...)
 
 ### 3.2 中改动方案：新增 Orchestration 层
 
-目标：引入真实的 Magentic / Concurrent / GroupChat 编排能力，但对外仍保持一次聊天回复。
+目标：引入真实的 Magentic / GroupChat 编排能力（Concurrent 作为内部执行策略），但对外仍保持一次聊天回复。
 
 新增目录建议：
 
 ```text
 Src/Netor.Cortana.AI/Orchestration/
   AgentOrchestrationMode.cs
+  AgentExecutionStrategy.cs
   AgentOrchestrationRequest.cs
   AgentOrchestrationResult.cs
   IAgentOrchestrator.cs
@@ -330,18 +390,26 @@ AiChatHostedService.SendMessageAsync(...)
   ↓
 编排模式：交给 IAgentOrchestrator
   ↓
-IAgentOrchestrator 内部构建 Magentic / Concurrent / GroupChat
+IAgentOrchestrator 内部基于 Microsoft.Agents.AI.Workflows 构建：
+  - Magentic：使用 Microsoft.Agents.AI.Workflows.AgentWorkflowBuilder（具体 API 见阶段 3 spike 结论）
+  - GroupChat：同上
+  - Concurrent：作为 Magentic / GroupChat 内部执行环节，必要时调用
+    Microsoft.Agents.AI.Workflows.AgentWorkflowBuilder.BuildConcurrent(...)
   ↓
 返回最终汇总文本
   ↓
 复用现有 IAiOutputChannel 输出
 ```
 
+> 说明：上述 `AgentWorkflowBuilder.BuildConcurrent(...)` 命名空间路径为 `Microsoft.Agents.AI.Workflows` 包（项目已引用 1.3.0）。
+> 该 API 在 1.3.0 的精确签名和 Builder 形态需要在阶段 3 接入前以 spike 形式确认，避免与后续 SDK 升级冲突。
+> 如 spike 发现 SDK API 与文档不一致，请以 spike 结论为准，并在本文档对应章节更新。
+
 优点：
 
 - 编排逻辑从 `AiChatHostedService` 分离。
 - 不污染 Provider Driver。
-- 可以逐步支持 Concurrent、GroupChat、Magentic。
+- 可以逐步支持 Concurrent 策略、GroupChat、Magentic。
 - 仍然不需要马上改 UI 和 DB。
 
 风险：
@@ -413,13 +481,12 @@ AgentExecutionRouter
   └── 多智能体编排模式
         ↓
       IAgentOrchestrator
-        ├── MagenticOrchestrationRunner
-        ├── ConcurrentOrchestrationRunner
-        ├── GroupChatOrchestrationRunner
+        ├── MagenticOrchestrationRunner    ← 内部可选 Sequential / Concurrent 策略
+        ├── GroupChatOrchestrationRunner   ← 内部可选 Sequential / Concurrent 策略
         └── HandoffOrchestrationRunner
 ```
 
-第一阶段不必一次性创建所有 Runner，可以先用一个 `AgentOrchestrator` 承载策略分支。
+> Concurrent 不是独立 Runner，而是 Magentic / GroupChat Runner 内部的执行策略（与 §1 / §5.2 一致）。第一阶段不必一次性创建所有 Runner，可以先用一个 `AgentOrchestrator` 承载策略分支。
 
 需要注意：`IAgentOrchestrator` 不应接管整个聊天生命周期。  
 它只负责“多智能体执行与汇总”，不负责替代 `AiChatHostedService` 的通用对话职责。
@@ -427,7 +494,7 @@ AgentExecutionRouter
 建议职责边界如下：
 
 | 职责 | 归属 |
-|---|---|
+| --- | --- |
 | 用户消息保存 | `AiChatHostedService` |
 | 会话状态、turnId、traceId、messageId 生成 | `AiChatHostedService` |
 | `OnAiStarted` / `OnAiCompleted` | `AiChatHostedService` |
@@ -437,7 +504,17 @@ AgentExecutionRouter
 | 多智能体计划、分派、执行、汇总 | `IAgentOrchestrator` |
 | 中间步骤、参与 Agent、警告和失败信息收集 | `IAgentOrchestrator` |
 
-也就是说，阶段 2 的 Orchestration 层应优先替代“模型执行部分”，而不是绕开现有 UI 输出、事件广播、历史保存和取消处理链路。
+`AgentOrchestrationResult` 各字段在阶段 2 的去向如下：
+
+| 字段 | UI 是否可见 | 是否入库 | 默认去向 |
+| --- | --- | --- | --- |
+| `FinalText` | ✅ 流式输出 | ✅ 与现有 assistant 消息一致 | 经 `IAiOutputChannel` 广播；由 `ChatHistoryDataProvider` 持久化 |
+| `Steps` | ❌ 默认不可见 | ❌ 默认不入库 | 日志（`logger.LogDebug` 级别）+ 内存（同一编排会话内可供 Aggregator 引用） |
+| `UsedAgentIds` | ✅ 作为"参与列表"附在 FinalText 尾部或单独事件 | ❌ 默认不入库 | 日志 + 内存；阶段 4 起入编排消息表 |
+| `Warnings` / `Failures` | ✅ 必要时附在 FinalText 尾部 | ❌ 默认不入库 | 日志（`logger.LogWarning`）+ 内存 |
+| `TokenUsage` | ✅ 累计后再回写 `AIAgentFactory.TokenUsageChanged` | ❌ 默认不入库 | 由 Orchestrator 聚合后再上报 |
+
+也就是说，阶段 2 的 Orchestration 层应优先替代“模型执行部分”，而不是绕开现有 UI 输出、事件广播、历史保存和取消处理链路；非 `FinalText` 字段在阶段 2 全部停留在内存和日志，不进 UI 也不进 DB，到阶段 4 再单独评估持久化。
 
 ---
 
@@ -486,11 +563,11 @@ Magentic Manager / Planner
 
 ---
 
-### 5.2 Concurrent：Magentic 分派阶段的并行执行器
+### 5.2 Concurrent：Magentic / GroupChat 内部的并行执行策略
 
-定位：不是独立主模式，而是 Magentic 的执行策略之一。
+定位：不是独立主模式，而是 Magentic 或 GroupChat 内部的执行策略之一。本文档的 `AgentOrchestrationMode` 枚举（详见 §7）也据此不包含 `Concurrent`。
 
-因此建议从模型上拆成两个维度：
+因此从模型上拆成两个相互正交的维度：
 
 ```text
 OrchestrationMode
@@ -505,7 +582,7 @@ ExecutionStrategy
   Concurrent
 ```
 
-如果后续仍保留 `Concurrent` 作为 `AgentOrchestrationMode` 的枚举值，需要把它定义为“独立并行分析模式”；否则更推荐把 Concurrent 作为 Magentic 或 GroupChat 内部的执行策略，而不是与 Magentic 完全平级的主模式。
+> 与 §1 一致：Concurrent 永远以 `ExecutionStrategy` 维度落地，不会回退到 `OrchestrationMode` 枚举。后续如果遇到"独立并行分析"需求，应作为 Magentic 退化形式（仅一个分派步骤、跳过重规划）实现，而不是新增主模式。
 
 适用场景：
 
@@ -521,7 +598,7 @@ Magentic Planner 拆出三个任务：
   2. 风险评估
   3. 测试影响分析
 
-Concurrent Runner 并行执行：
+Concurrent 执行策略并行执行：
   Explorer Agent
   Reviewer Agent
   Tester Agent
@@ -529,7 +606,7 @@ Concurrent Runner 并行执行：
 Aggregator 汇总结果。
 ```
 
-第一阶段可先不用真正 `BuildConcurrent(...)`，而是保留“多个子智能体工具”模式。第二阶段再接入 `AgentWorkflowBuilder.BuildConcurrent(...)`。
+第一阶段可先不用真正 `Microsoft.Agents.AI.Workflows.AgentWorkflowBuilder.BuildConcurrent(...)`，而是保留“多个子智能体工具”模式。第二阶段再接入 `Microsoft.Agents.AI.Workflows.AgentWorkflowBuilder.BuildConcurrent(...)`，具体 API 形态以阶段 3 spike 结论为准。
 
 ---
 
@@ -555,12 +632,33 @@ Aggregator 汇总结果。
 总结智能体 / Summarizer
 ```
 
+由于第一阶段不允许扩展 `AgentEntity`（详见 §2.5），小组成员声明暂用以下临时方案，按优先级使用：
+
+1. **运行时 @ 提及**：用户 @ 多个智能体且 Coordinator instructions 识别为 "GroupChat" 模式时，参与成员就是 @ 列表本身。第一阶段优先采用。
+2. **工作区配置文件**：`workspace/.cortana/groupchat.json` 声明命名小组，例如：
+
+   ```json
+   {
+     "groups": [
+       {
+         "id": "design-review",
+         "moderator": "<agentId>",
+         "members": ["<agentId>", "<agentId>"]
+       }
+     ]
+   }
+   ```
+
+   阶段 2 由 `IAgentOrchestrator` 解析此文件加载小组成员；不依赖数据库表。
+3. **AgentEntity 扩展**：阶段 4 过程可视化时，再评估在 `AgentEntity` 上加 `GroupMembershipIds` 或独立的 `OrchestrationGroupEntity`，配合 UI 管理。
+
 初期约束：
 
 - 最大轮次 3。
 - 每个智能体只发一轮或两轮。
 - 最终只输出主持智能体总结。
 - 不直接暴露所有中间消息到数据库。
+- 讨论阶段默认不启用高风险写操作工具（如发布、删除、网络出站），避免讨论本身意外修改外部状态；具体由 §6.2 工具边界规则承担。
 
 ---
 
@@ -603,8 +701,15 @@ tool result
 assistant final
 ```
 
-`ChatHistoryDataProvider` 当前会保存 `ResponseMessages`，并且已经针对工具调用链做了顺序归一化和完整性检查。  
+`ChatHistoryDataProvider` 当前会保存 `ResponseMessages`，并且已经针对工具调用链做了：
+
+- **时间戳归一化**：以"同 session 已存在的最大 `CreatedTimestamp` + 1ms"为基准，按 `ResponseMessages` 原始顺序强制单调递增（见 `StoreChatHistoryAsync` 中 `baseTs + index` 写法），保证 OpenAI 协议要求的 `assistant(tool_calls)` 与 `tool` 邻接关系不被排序破坏。
+- **孤立 tool 消息告警**：本轮入库后若发现 `Role=tool` 但同批没有任何带 `functionCall` / `toolCall` 的 assistant 消息，会输出 `工具链条警告`。
+- **每条消息独立 ID**：不再把 assistant 消息强行统一为同一 messageId。
+
 如果第一阶段为了“只保存最终回复”而过滤 tool_calls 或 tool result，可能破坏历史恢复后的工具调用协议。
+
+需要警惕的多智能体并发风险：上述时间戳归一化策略基于"同 session 顺序写入"假设。如果未来 Concurrent 让多个 Agent 同时写同一个 session，多线程同时计算 `baseTs` 会冲突，必须先解决并发写入问题再放开真正并行。
 
 因此第一阶段建议：
 
@@ -613,37 +718,60 @@ assistant final
 - UI 仍只显示最终 assistant token。
 - 中间工具链可以作为历史上下文的一部分保留。
 - 后续如果要“只保存最终汇总”，必须由 Orchestration 层显式生成可恢复的简化消息，而不是在 `ChatHistoryDataProvider` 里粗暴过滤。
+- `StoreChatHistoryAsync` 末尾的"段落压缩 `CompactAndReplaceAsync`"和"AI 摘要标题 `GenerateAndUpdateTitleAsync`"两个副作用，在多智能体编排场景下应保持只对主会话触发一次，不能因子智能体调用工具而被多次触发。
 
-### 6.2 子智能体权限边界
+### 6.2 子智能体工具与技能边界
 
-当前子智能体会携带自身配置的：
+当前系统已经具备工具分配能力，不需要在多智能体编排层重复设计一套完整的工具绑定模型。
 
-- `EnabledPluginIds`
-- `EnabledMcpServerIds`
-
-这意味着主智能体可以通过调用子智能体，间接访问子智能体启用的插件和 MCP 工具。  
-因此必须明确权限边界，避免通过子智能体绕过主智能体授权。
-
-第一阶段建议规则：
+现有工具来源分为：
 
 ```text
-子智能体可使用自身已启用工具
+全局插件
   ↓
-但不得突破当前主会话允许的宿主能力边界
+所有智能体默认可用
+
+智能体绑定插件
   ↓
-高风险工具需要主智能体和子智能体双侧授权
+仅 `AgentEntity.EnabledPluginIds` 中绑定的智能体可用
+
+智能体绑定 MCP
   ↓
-工具执行日志归属当前主会话，实际参与 Agent 由 UsedAgentIds / Step 记录
+仅 `AgentEntity.EnabledMcpServerIds` 中绑定的智能体可用
 ```
 
-高风险工具包括但不限于：
+这意味着：
 
-- 文件写入、删除、移动。
-- 终端命令执行。
-- 网络请求。
-- 数据库写入。
-- MCP 文件系统访问。
-- 任何会修改宿主状态或外部系统状态的工具。
+- 文件读取、通用上下文、基础宿主能力等公共工具，可以作为全局插件或宿主公共能力，让所有智能体使用。
+- 编码、测试、打包、发布、网络访问、外部系统访问等特殊工具，应绑定到对应专家智能体。
+- 主智能体作为 Planner / Supervisor / Coordinator，不必直接拥有所有执行工具。
+- 子智能体可以拥有与自身角色匹配的工具能力，否则无法真正完成编码、测试、构建、发布等执行任务。
+
+因此，第一阶段工具边界应调整为：
+
+```text
+工具能力边界 = 现有全局插件 + 当前智能体绑定插件 + 当前智能体绑定 MCP
+```
+
+多智能体编排层只需要记录和遵守这个边界，而不是重新裁剪工具集合。
+
+仍需保留的安全约束是：
+
+- 高风险工具应优先绑定到专用智能体，而不是设为全局工具。
+- 主智能体调用子智能体时，应在最终结果或后续 Step 记录中标记实际执行者。
+- 后续如引入任务级授权，可以在现有工具绑定结果之上再做临时收窄。
+- 发布、删除、批量写入、外部网络、命令执行等高风险行为仍建议由宿主侧确认或审计。
+
+技能边界与工具不同。当前技能通过 `AgentSkillsProvider(skillDirs)` 从用户技能目录和工作区技能目录统一注入，暂时没有按智能体绑定技能的机制。  
+也就是说，当前主智能体能够看到同一套技能目录，无法可靠约束“某个技能只能由某个智能体使用”。
+
+技能约束暂时建议作为后续课题，而不是第一阶段目标：
+
+```text
+阶段 1：接受技能全局可见现状，通过 instructions 引导智能体选择合适技能
+阶段 2：评估技能元数据增加 applyToAgent / allowedAgentIds / deniedAgentIds
+阶段 3：再考虑 UI 管理、技能冲突、技能继承与默认技能集
+```
 
 ### 6.3 附件与多模态输入传递策略
 
@@ -662,6 +790,19 @@ assistant final
 阶段 3+：再考虑文件锁、并发写入冲突、附件权限和资源引用追踪
 ```
 
+子智能体工具的参数 schema 必须显式包含 `attachmentPaths` / `attachmentDescriptions` 数组，理由：
+
+- 主 Agent 看到的图片是 `DataContent`（二进制），如果只让模型"自行转述"，子 Agent 完全拿不到原图；
+- 主 Agent 看到的文档是文本路径（如 `[report.docx](C:\\...\\report.docx)`），如果转述时省略了路径，子 Agent 无法再读原文件；
+- 子 Agent 自身的工具（如读文件、读图片）需要绝对路径作为输入参数才能工作。
+
+推荐参数约定（第一阶段 Coordinator instructions 显式要求模型按此结构调用子智能体工具）：
+
+```text
+attachmentPaths       : 原始绝对路径数组（图片用工作区拷贝后的资源路径）
+attachmentDescriptions: 主 Agent 对每个附件的简短描述（可选）
+```
+
 不建议第一阶段让多个子智能体直接并发访问和修改同一个附件文件。
 
 ### 6.4 取消、超时和失败降级
@@ -677,6 +818,18 @@ assistant final
 - 单个子智能体失败不应默认导致全局失败，除非该步骤被标记为 required。
 - 最终回复需要说明未完成项、失败原因和降级结果。
 - Magentic 重规划次数必须受限，避免无限规划。
+- 主模型未启用 `InteractionCapabilities.FunctionCall` 时，不应静默丢弃 @ 子智能体；应至少在最终回复中给出一段提示，或退回单 Agent 模式。
+
+**编排参数承载位置（在 §2.5 不允许第一阶段改 `AgentEntity` 前提下）**：
+
+| 参数 | 阶段 1 承载位置 | 阶段 2 承载位置 | 阶段 4+ |
+| --- | --- | --- | --- |
+| `MaxRounds` / `MaxSubTasks` / `Timeout` | 编排服务内置常量（`AgentOrchestrator` 默认值） | `SystemSettingsService` 系统配置项（`orchestration.maxRounds` 等） | `AgentEntity` 或独立 `OrchestrationProfileEntity` |
+| 默认编排模式 | Coordinator instructions 内置规则 | `SystemSettingsService` + `OrchestrationRequest.Mode` 显式覆盖 | `AgentEntity.DefaultOrchestrationMode` |
+| GroupChat 小组成员 | `@` 提及列表 | `workspace/.cortana/groupchat.json` | `AgentEntity` 或 `OrchestrationGroupEntity` |
+| 高风险工具白名单 | 复用现有插件 / MCP 绑定 | `SystemSettingsService` + 每次任务运行期收窄 | 独立授权模型 |
+
+这样可以在不动 `AgentEntity` 和数据库结构的前提下，保留 §6.4 的所有"必须"约束。所有阈值默认值由 `AgentOrchestrator` 在第一阶段以常量形式提供，第二阶段开始迁移到 `SystemSettingsService`，避免硬编码遗留。
 
 ### 6.5 参与智能体记录
 
@@ -708,31 +861,30 @@ Failures
 
 建议改动：
 
-0. 统一 `AIAgentFactory.Build(...)`、`BuildWithSubAgents(...)`、`BuildSubAgent(...)` 的 Agent Id / Name / Description 设置规则。
+0. 统一 `AIAgentFactory.Build(...)`、`BuildWithSubAgents(...)`、`BuildSubAgent(...)` 的 Agent 元数据设置：三个路径都显式设置 `Id = agent.Id`、`Name = agent.Name`、`Description = agent.Description`，对应 §2.6 的差异表。
 1. 在 `AIAgentFactory.BuildWithSubAgents(...)` 中增强主智能体 instructions。
-2. 新增一个专用 `OrchestrationInstructionsProvider` 或扩展 `SubAgentContextProvider`，注入编排规则。
+2. **新增独立的 `OrchestrationInstructionsProvider`**，返回 `AIContext.Instructions`，注入编排规则。  
+   不再在 `SubAgentContextProvider` 上挂指令，避免该 Provider 同时承担"注入工具函数"与"注入指令"两个职责。两个 Provider 在同一个 `providers` 列表里并列注册。
 3. 当 `mentions.Count > 1` 时，默认把当前主智能体视为 Coordinator。
 4. Coordinator 规则包括：
    - 先制定简短计划。
    - 根据任务需要调用一个或多个子智能体工具。
    - 不要把子智能体输出直接拼接。
    - 必须做冲突检查。
+   - 调用子智能体工具时必须按 §6.3 约定传入 `attachmentPaths` / `attachmentDescriptions`，否则子 Agent 拿不到原始附件。
    - 最终输出总结。
 5. `AiChatHostedService.SendMessageAsync(...)` 不改变流式输出主链路，但需要保留轻量分流和元数据处理。
 6. 第一阶段 UI 只展示最终回复，但历史层允许保留工具调用链，不强行过滤中间 tool 消息。
+7. 第一阶段 `MaxRounds` / `MaxSubTasks` / `Timeout` 等阈值以 `AgentOrchestrator` 内部常量形式提供（对应 §6.4 的承载位置表）。
 
 此阶段改动点：
 
 ```text
 Src/Netor.Cortana.AI/AIAgentFactory.cs
-Src/Netor.Cortana.AI/Providers/SubAgentContextProvider.cs
+Src/Netor.Cortana.AI/Providers/OrchestrationInstructionsProvider.cs   ← 新增
 ```
 
-可选新增：
-
-```text
-Src/Netor.Cortana.AI/Providers/OrchestrationInstructionsProvider.cs
-```
+`Src/Netor.Cortana.AI/Providers/SubAgentContextProvider.cs` 保持单一职责（只注入工具函数），第一阶段不做修改。
 
 预计改动量：**小**。
 
@@ -911,9 +1063,11 @@ else
 
 ### Step 1：文档与模式约束
 
-- 明确四种模式定位。
+- 明确三种主模式（Magentic / GroupChat / Handoff）+ Concurrent 执行策略的定位。
 - 明确第一阶段不做过程可视化。
-- 明确子智能体权限边界。
+- 明确子智能体工具边界复用现有全局插件、智能体绑定插件和 MCP 绑定机制。
+- 明确技能暂时是全局技能目录注入，第一阶段不做智能体级技能绑定。
+- 落地一份模式约束页到 `Docs/未来版本策划/多智能体编排模式策划/`，作为后续步骤的执行依据，避免“明确”停留在口头约定。
 
 ### Step 2：轻量 Coordinator 模式
 
@@ -926,6 +1080,7 @@ else
 ```
 
 同时保留主 Agent 工具调用链历史，不承诺第一阶段只保存最终 assistant 文本。
+"参与智能体"暂由 Coordinator instructions 要求模型在最终回复尾部简短说明，作为过渡方案。
 
 ### Step 3：新增 Orchestration 层壳子
 
@@ -938,13 +1093,27 @@ AgentOrchestrationRequest
 AgentOrchestrationResult
 ```
 
-### Step 4：Concurrent Runner
+**切换点（关键）**：从 Step 3 完成开始，"参与智能体来源"切换为宿主侧 `AgentOrchestrationResult.UsedAgentIds`，不再依赖 Step 2 的模型自述。  
+最终回复 UI 文本仍由 Coordinator 模型生成，但底部的"参与列表"应由宿主侧记录补充或覆盖。
 
-先支持多个智能体非流式并行分析，中间结果只保存在内存，再由主智能体或 Aggregator 汇总。
+### Step 4：接入 Concurrent 执行策略
+
+先支持多个智能体非流式并行分析，中间结果只保存在内存，再由主智能体或 Aggregator 汇总。Concurrent 作为 Magentic / GroupChat Runner 内部的执行策略选项之一（与 §4 / §5.2 一致），不新增独立 Runner。
+
+**中间消息存储策略切换点**：
+
+| 阶段 | 中间消息去向 | 入口 |
+| --- | --- | --- |
+| Step 2 | 主 Agent 工具调用链入库（`ChatHistoryDataProvider` 自动捕获） | `BuildWithSubAgents` 工具模式 |
+| Step 3 | 与 Step 2 一致，仅搬壳子不改语义 | `IAgentOrchestrator` 内部仍走 `BuildWithSubAgents` 路径 |
+| **Step 4 起** | 切换为 `Microsoft.Agents.AI.Workflows.AgentWorkflowBuilder.BuildConcurrent(...)` 执行路径，多 Agent 中间结果**只保存在内存**，不并发写主会话历史；最终汇总文本走原有 `IAiOutputChannel` | `IAgentOrchestrator` 内部分支判断 |
+
+切换原因：阶段 4 一旦改用 `Microsoft.Agents.AI.Workflows` 真正并行运行多 Agent，多线程同时写同一 `Session` 会和 §6.1 描述的"基于时间戳归一化"策略冲突，必须将中间消息从入库转为内存暂存。
 
 ### Step 5：GroupChat Runner
 
 支持讨论模式，先只输出会议纪要。
+小组成员声明优先级：运行时 @ 提及 → `workspace/.cortana/groupchat.json` → 阶段 4 再考虑 `AgentEntity` 扩展（详见 §5.3）。
 
 ### Step 6：Magentic Runner
 
@@ -970,13 +1139,18 @@ AgentOrchestrationResult
 public TokenTrackingChatClient? ChatClient { get; private set; }
 ```
 
-多智能体并发时，如果多个 Agent 同时构建或执行，可能覆盖当前 token 统计状态。
+且工厂还把 `_lastInputTokens` / `_maxContextTokens` 抽到字段层，每次 `CreateTrackingClient` 都会 `Interlocked.Exchange` 覆盖。这意味着 token 覆盖问题分两种严重程度：
+
+| 场景 | 当前是否会发生 | 影响 |
+| --- | --- | --- |
+| **串行多 Agent**（切换提供商/模型/@子智能体导致 ChatClient 重建） | 已经发生 | 上一个 Agent 的 token 用量会被新 Agent 覆盖；多智能体编排串联调用时 token 不可累加，UI 进度条只反映最近一次调用 |
+| **真正并行多 Agent** | 阶段 4 之前不会发生 | 多线程同时 `Interlocked.Exchange` 同一字段，进度条数据完全乱序 |
 
 规避：
 
-- 第一阶段不做真正并发。
-- 第二阶段开始，将 token usage 聚合独立出来，不再依赖工厂级 `ChatClient` 表示全局唯一当前调用。
-- 并发成员 Agent 不直接写工厂级 `ChatClient`。
+- **串行覆盖**：第一阶段 UI 进度条接受"显示最近一次调用"的现状；阶段 2 起在 `AgentOrchestrationResult.TokenUsage` 中独立累加每个成员 Agent 的 token，不再让 UI 依赖工厂级单值。
+- **并行覆盖**：第一阶段不做真正并发；阶段 3 开始的 Concurrent 路径必须先把 token 聚合从工厂层迁出（例如 `IAgentOrchestrator` 内置 `TokenAggregator`），再放开并行执行。
+- 并发成员 Agent 不直接写工厂级 `ChatClient`，统一通过 Orchestrator 收集后再上报到 `AIAgentFactory.TokenUsageChanged`。
 
 ---
 
@@ -1035,19 +1209,41 @@ traceid
 
 ---
 
-### 风险 5：子智能体扩大主智能体工具权限
+### 风险 5：误判工具边界导致重复设计
 
-当前子智能体会加载自身启用的插件和 MCP。主智能体调用子智能体时，可能间接获得主智能体本身未启用的工具能力。
+当前系统已经支持全局插件、智能体绑定插件和智能体绑定 MCP。  
+如果多智能体编排层重新设计一套独立工具权限模型，容易与现有插件管理、系统设置和智能体绑定逻辑重复甚至冲突。
 
 规避：
 
-- 第一阶段明确子智能体工具仍受当前主会话能力边界约束。
-- 高风险工具采用主智能体和子智能体双侧授权。
-- 后续在 Orchestration 层增加工具权限裁剪与审计记录。
+- 第一阶段直接复用现有工具绑定机制。
+- 公共工具使用全局插件或宿主公共能力。
+- 特殊工具绑定到专用智能体。
+- Orchestration 层只记录实际使用者、步骤和风险，不重新管理插件/MCP 绑定。
+- 后续如需任务级授权，只在现有绑定结果之上做临时收窄。
 
 ---
 
-### 风险 6：附件和文件并发访问冲突
+### 风险 6：技能无法按智能体约束
+
+当前技能通过 `AgentSkillsProvider` 加载用户技能目录和工作区技能目录，暂时没有 `AgentEntity` 级别的技能绑定字段。  
+这意味着不同主智能体会看到同一套技能集合，不能像插件和 MCP 一样精确限制到某个智能体。
+
+需要特别注意：`AgentSkillsProvider` 是 **`Microsoft.Agents.AI` 1.3.0 NuGet 包提供的上游类型**（命名空间 `Microsoft.Agents.AI`），不是 Cortana 项目自有类。这带来一个直接约束：
+
+- 项目侧无法直接在 `AgentSkillsProvider` 上加 `EnabledSkillIds` 这样的字段；
+- 如果要按智能体约束技能，必须以"包一层 Cortana 自有 Provider（如 `AgentBoundSkillsProvider`）"或"在 `AgentSkillsProvider` 之外二次过滤"的方式实现，不能改 SDK 类型。
+
+规避：
+
+- 第一阶段接受技能全局可见现状。
+- 通过 Agent instructions 约束智能体优先使用符合角色的技能。
+- 后续如需技能绑定，先评估"Cortana 自有包装 Provider + 技能元数据 `allowedAgentIds` / `deniedAgentIds`" 方案，再决定是否引入 `AgentEntity.EnabledSkillIds`。
+- 在没有技能绑定机制前，不把“技能隔离”作为多智能体编排第一阶段目标。
+
+---
+
+### 风险 7：附件和文件并发访问冲突
 
 多智能体并发时，多个子智能体可能同时读取或修改同一个附件原始路径。
 
@@ -1065,15 +1261,19 @@ traceid
 结合当前代码，推荐判断如下：
 
 | 能力 | 当前基础 | 修改量 | 是否架构级 |
-|---|---|---:|---:|
+| --- | --- | --- | --- |
 | @子智能体工具调用 | 已有 `BuildWithSubAgents` | 小 | 否 |
 | Coordinator 策划/分派/总结 | 可基于 instructions 增强 | 小 | 否 |
-| Concurrent 非流式并行分析 | 需新增编排层和执行隔离 | 中 | 暂不算 |
+| Concurrent 非流式并行分析 | 需新增编排层和执行隔离 | 中 | 否 |
 | Concurrent 独立流式输出/并发写历史 | 当前不支持 | 大 | 是 |
-| GroupChat 讨论模式 | 需新增编排层和轮次控制 | 中 | 暂不算 |
-| Magentic 完整流程 | 需编排状态机 | 中到大 | 取决于是否持久化 |
+| GroupChat 讨论模式 | 需新增编排层和轮次控制 | 中 | 否 |
+| Magentic 完整流程（不持久化中间步骤） | 需编排状态机 | 中 | 否 |
+| Magentic 完整流程（持久化中间步骤） | 同上 + 持久化 | 大 | 是 |
 | 中间过程 UI 展示 | 当前不支持 | 大 | 是 |
 | 多智能体历史/记忆独立 | 当前不支持 | 大 | 是 |
+
+> 备注：上表中"是否架构级"列只有 `否` / `是` 两值。  
+> Magentic 完整流程是否架构级取决于"是否持久化中间步骤"，已拆成两行分别评估，避免单元格出现复合判定。
 
 最终建议：
 
@@ -1082,7 +1282,7 @@ traceid
 
 先基于现有 BuildWithSubAgents 做 Coordinator 轻量模式；
 再新增 Orchestration 层；
-然后依次接入 Concurrent、GroupChat、Magentic；
+然后依次接入 Concurrent 执行策略、GroupChat、Magentic；
 最后再做过程可视化和持久化。
 ```
 
