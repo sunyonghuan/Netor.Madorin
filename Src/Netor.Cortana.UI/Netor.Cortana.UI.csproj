@@ -39,6 +39,13 @@
     <TrimmerRootAssembly Include="NAudio.WinMM" />
     <TrimmerRootAssembly Include="NAudio.Core" />
     <TrimmerRootAssembly Include="sherpa-onnx" />
+    <!-- 阶段 0 新增：保留 Microsoft.Agents.AI 全家桶（关联 [05] §风险 17） -->
+    <TrimmerRootAssembly Include="Microsoft.Agents.AI" />
+    <TrimmerRootAssembly Include="Microsoft.Agents.AI.Abstractions" />
+    <TrimmerRootAssembly Include="Microsoft.Agents.AI.OpenAI" />
+    <TrimmerRootAssembly Include="Microsoft.Agents.AI.Workflows" />
+    <TrimmerRootAssembly Include="Microsoft.Extensions.AI" />
+    <TrimmerRootAssembly Include="Microsoft.Extensions.AI.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>

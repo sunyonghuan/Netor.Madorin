@@ -35,7 +35,9 @@ public partial class MainWindow : Window
     private bool _forceClose;
     private bool _workspaceOpen;
     private bool _historyPanelOpen;
+#if DEBUG
     private bool _debugSystemNoticeShown;
+#endif
 
     private readonly IAiChatEngine chatEngine = App.Services.GetRequiredService<IAiChatEngine>();
 

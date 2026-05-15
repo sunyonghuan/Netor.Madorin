@@ -151,7 +151,9 @@ public sealed class AIAgentFactory(
             .AsBuilder()
             .BuildAIAgent(new ChatClientAgentOptions
             {
+                Id = agent.Id,
                 Name = agent.Name,
+                Description = agent.Description,
                 AIContextProviders = providers,
                 ChatOptions = driver.BuildChatOptions(provider, agent),
                 ChatHistoryProvider = services.GetRequiredService<ChatHistoryDataProvider>(),
@@ -274,15 +276,31 @@ public sealed class AIAgentFactory(
             mainModel.ContextLength,
             enableReasoning2);
 
+        // 阶段 0：当主模型不支持 FunctionCall 且用户 @ 了子智能体时，给一次用户可见提示（追加到 instructions 末尾），
+        // 配合 logger.Warning 让"静默丢弃"问题可观测。
+        var chatOptions = driver.BuildChatOptions(mainProvider, mainAgent);
+        if (!mainFuncEnabled && mentions.Count > 0)
+        {
+            logger.LogWarning(
+                "Main model '{Model}' does not support function call; {Count} mentioned sub-agents are dropped.",
+                mainModel.Name, mentions.Count);
+
+            var fallbackHint = $"\n\n[Note] 用户 @ 了 {mentions.Count} 个子智能体，但当前模型不支持工具调用，已退回单 Agent 模式。";
+#pragma warning disable MEAI001
+            chatOptions.Instructions = (chatOptions.Instructions ?? string.Empty) + fallbackHint;
+#pragma warning restore MEAI001
+        }
+
 #pragma warning disable MAAI001
         return ChatClient
             .AsBuilder()
             .BuildAIAgent(new ChatClientAgentOptions
             {
-                Name = mainAgent.Name,
                 Id = mainAgent.Id,
+                Name = mainAgent.Name,
+                Description = mainAgent.Description,
                 AIContextProviders = providers,
-                ChatOptions = driver.BuildChatOptions(mainProvider, mainAgent),
+                ChatOptions = chatOptions,
                 ChatHistoryProvider = services.GetRequiredService<ChatHistoryDataProvider>(),
             })
             .AsBuilder()
@@ -315,6 +333,7 @@ public sealed class AIAgentFactory(
             .AsBuilder()
             .BuildAIAgent(new ChatClientAgentOptions
             {
+                Id = agent.Id,
                 Name = agent.Name,
                 Description = agent.Description,
                 AIContextProviders = providers,

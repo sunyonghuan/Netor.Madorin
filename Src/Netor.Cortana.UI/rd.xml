@@ -1,5 +1,13 @@
 <Directives>
   <Application>
     <Assembly Name="System.Text.Json" Dynamic="Required All" />
+    <!-- 阶段 0 新增：保留 Microsoft.Agents.AI 全家桶的反射元数据
+         关联 docs/未来版本策划/多智能体编排模式策划/05-风险与规避.md §风险 17 -->
+    <Assembly Name="Microsoft.Agents.AI" Dynamic="Required All" />
+    <Assembly Name="Microsoft.Agents.AI.Abstractions" Dynamic="Required All" />
+    <Assembly Name="Microsoft.Agents.AI.OpenAI" Dynamic="Required All" />
+    <Assembly Name="Microsoft.Agents.AI.Workflows" Dynamic="Required All" />
+    <Assembly Name="Microsoft.Extensions.AI" Dynamic="Required All" />
+    <Assembly Name="Microsoft.Extensions.AI.Abstractions" Dynamic="Required All" />
   </Application>
 </Directives>

@@ -4,6 +4,9 @@
 	<TargetFramework>net10.0</TargetFramework>
 	<ImplicitUsings>enable</ImplicitUsings>
 	<Nullable>enable</Nullable>
+	<!-- 阶段 0：屏蔽 Microsoft.Agents.AI(.Workflows) / Microsoft.Extensions.AI 的 Experimental 诊断
+	     MAAI001 / MAAIW001 / MEAI001 - 见 docs/未来版本策划/多智能体编排模式策划/02-当前代码现状.md §8 -->
+	<NoWarn>$(NoWarn);MAAI001;MAAIW001;MEAI001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
