@@ -367,6 +367,70 @@ public sealed class AIAgentFactory(
     }
 
     /// <summary>
+    /// 阶段 3A：构建 HandoffChat 所需的 triage + specialists 智能体集合。
+    /// triage 走完整 <see cref="Build"/>（带 ChatHistoryDataProvider / Skills），specialists 走轻量 <see cref="BuildSubAgent"/>。
+    /// 返回的 AIAgent 集合由调用方（<c>AgentOrchestrator</c>）传给 <c>HandoffChatAgentBuilder</c> 组装 Workflow。
+    /// 详见：docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 3A。
+    /// </summary>
+    /// <param name="triageEntity">分流入口智能体实体。</param>
+    /// <param name="mainProvider">主厂商；当 specialist 自身未配置 DefaultProviderId 时跟随此值。</param>
+    /// <param name="mainModel">主模型；当 specialist 自身未配置 DefaultModelId 时跟随此值。</param>
+    /// <param name="specialistEntities">候选专家智能体实体列表。重复 ID / 与 triage 同 ID 会被自动跳过。</param>
+    /// <param name="providerService">用于解析 specialist 自身厂商。</param>
+    /// <param name="modelService">用于解析 specialist 自身模型。</param>
+    /// <returns>(triage, specialists) 元组；specialists 可能因解析失败被过滤，调用方需自行处理空列表场景。</returns>
+    public (AIAgent Triage, IReadOnlyList<AIAgent> Specialists) BuildHandoffAgents(
+        AgentEntity triageEntity,
+        AiProviderEntity mainProvider,
+        AiModelEntity mainModel,
+        IReadOnlyList<AgentEntity> specialistEntities,
+        AiProviderService providerService,
+        AiModelService modelService)
+    {
+        ArgumentNullException.ThrowIfNull(triageEntity);
+        ArgumentNullException.ThrowIfNull(mainProvider);
+        ArgumentNullException.ThrowIfNull(mainModel);
+        ArgumentNullException.ThrowIfNull(specialistEntities);
+        ArgumentNullException.ThrowIfNull(providerService);
+        ArgumentNullException.ThrowIfNull(modelService);
+
+        // triage 走完整 Build：保留 ChatHistoryDataProvider / Skills / 全部内置 Provider。
+        // 注意 WorkflowHostAgent 接管的是顶层 session（WorkflowSession），triage 自身的
+        // ChatHistoryProvider 不会被 SDK 直接调用，但 ChatHistoryDataProvider 提供的
+        // ProjectSettings / LongMemory 等 InvokingContext 仍随 ChatClient 调用链生效。
+        var triage = Build(triageEntity, mainProvider, mainModel);
+
+        var specialists = new List<AIAgent>(specialistEntities.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { triageEntity.Id };
+
+        foreach (var specialistEntity in specialistEntities)
+        {
+            // 与 triage 同 ID 或重复 specialist 全部跳过
+            if (!seen.Add(specialistEntity.Id))
+            {
+                logger.LogInformation("HandoffChat 跳过重复智能体：{Name}", specialistEntity.Name);
+                continue;
+            }
+
+            var (subProvider, subModel) = ResolveSubAgentProviderAndModel(
+                specialistEntity, mainProvider, mainModel, providerService, modelService);
+
+            if (subProvider is null || subModel is null)
+            {
+                logger.LogWarning(
+                    "HandoffChat specialist [{Name}] 厂商或模型无法解析，跳过",
+                    specialistEntity.Name);
+                continue;
+            }
+
+            var specialist = BuildSubAgent(specialistEntity, subProvider, subModel);
+            specialists.Add(specialist);
+        }
+
+        return (triage, specialists);
+    }
+
+    /// <summary>
     /// 构建子智能体（轻量）：仅携带 instructions + plugins + MCP，不带历史/memory/skills。
     /// </summary>
     private AIAgent BuildSubAgent(AgentEntity agent, AiProviderEntity provider, AiModelEntity model)
