@@ -1,0 +1,68 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+                    xmlns:m="clr-namespace:Avalonia.Media;assembly=Avalonia.Base">
+
+	<!-- ════════════════════════════════════════════════════════════════
+	     界面重设计 C1：设计 Token 收口
+	     ════════════════════════════════════════════════════════════════
+	     本文件按 Docs/未来版本策划/界面重设计/01-布局规格.md §6 定义全局 token。
+	     新代码请用 {StaticResource Space.Md} / {StaticResource Radius.Md} 等引用，
+	     不再硬编码数值。
+
+	     色彩 token 定义在 ThemeResources.axaml（保留现有命名 + 本期新增 Accent/Success/Warning/Info 别名）。
+	     ════════════════════════════════════════════════════════════════ -->
+
+	<!-- ══════ 间距（Space） ══════ -->
+	<!-- 用于 Padding / Margin / Spacing -->
+	<sys:Double x:Key="Space.Xs">4</sys:Double>
+	<sys:Double x:Key="Space.Sm">8</sys:Double>
+	<sys:Double x:Key="Space.Md">12</sys:Double>
+	<sys:Double x:Key="Space.Lg">16</sys:Double>
+	<sys:Double x:Key="Space.Xl">24</sys:Double>
+	<sys:Double x:Key="Space.2Xl">32</sys:Double>
+
+	<!-- 常用 Padding/Margin 组合（CornerRadius/Thickness 必须在资源里实例化） -->
+	<Thickness x:Key="Padding.Xs">4</Thickness>
+	<Thickness x:Key="Padding.Sm">8</Thickness>
+	<Thickness x:Key="Padding.Md">12</Thickness>
+	<Thickness x:Key="Padding.Lg">16</Thickness>
+	<Thickness x:Key="Padding.Button">14,6</Thickness>
+	<Thickness x:Key="Padding.ButtonLg">14,8</Thickness>
+	<Thickness x:Key="Padding.ListItem">10,6</Thickness>
+	<Thickness x:Key="Padding.Card">12,8</Thickness>
+
+	<!-- ══════ 圆角（Radius） ══════ -->
+	<CornerRadius x:Key="Radius.Sm">3</CornerRadius>
+	<CornerRadius x:Key="Radius.Md">4</CornerRadius>
+	<CornerRadius x:Key="Radius.Lg">6</CornerRadius>
+	<CornerRadius x:Key="Radius.Xl">12</CornerRadius>
+	<CornerRadius x:Key="Radius.Pill">999</CornerRadius>
+
+	<!-- ══════ 字号（Font Size） ══════ -->
+	<sys:Double x:Key="Font.Xs">11</sys:Double>
+	<sys:Double x:Key="Font.Sm">12</sys:Double>
+	<sys:Double x:Key="Font.Body">13</sys:Double>
+	<sys:Double x:Key="Font.Md">14</sys:Double>
+	<sys:Double x:Key="Font.Lg">16</sys:Double>
+	<sys:Double x:Key="Font.H2">18</sys:Double>
+	<sys:Double x:Key="Font.H1">22</sys:Double>
+
+	<!-- ══════ 字重（Font Weight） ══════ -->
+	<FontWeight x:Key="Weight.Regular">Normal</FontWeight>
+	<FontWeight x:Key="Weight.Medium">Medium</FontWeight>
+	<FontWeight x:Key="Weight.SemiBold">SemiBold</FontWeight>
+	<FontWeight x:Key="Weight.Bold">Bold</FontWeight>
+
+	<!-- ══════ 边框宽度 ══════ -->
+	<Thickness x:Key="Border.Hairline">1</Thickness>
+	<Thickness x:Key="Border.Bold">2</Thickness>
+	<Thickness x:Key="Border.None">0</Thickness>
+
+	<!-- ══════ 阴影（BoxShadow） ══════ -->
+	<!-- 用于 Border.BoxShadow，Avalonia BoxShadow 字符串："offsetX offsetY blur spread color" -->
+	<BoxShadows x:Key="Shadow.Sm">0 2 4 0 #44000000</BoxShadows>
+	<BoxShadows x:Key="Shadow.Md">0 4 12 0 #55000000</BoxShadows>
+	<BoxShadows x:Key="Shadow.Lg">0 6 18 0 #66000000</BoxShadows>
+
+</ResourceDictionary>

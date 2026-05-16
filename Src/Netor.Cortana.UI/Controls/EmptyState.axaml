@@ -1,0 +1,89 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Netor.Cortana.UI.Controls"
+             x:Class="Netor.Cortana.UI.Controls.EmptyState"
+             x:CompileBindings="True"
+             x:DataType="controls:EmptyState"
+             x:Name="root"
+             Background="Transparent">
+
+	<!-- ════════════════════════════════════════════════════════════════
+	     界面重设计 C1：空状态用户控件（决策 UI-5）
+	     ════════════════════════════════════════════════════════════════
+	     用于工作流 / 群聊模式下"还没有任何任务"的场景，引导用户新建。
+	     视觉规格详见 Docs/未来版本策划/界面重设计/02-空状态与文案.md §2。
+
+	     5 个属性 API（StyledProperty，支持绑定）：
+	       - IconText           : 图标 emoji（C1 阶段用 Emoji 顶替图标资产）
+	       - Title              : 标题文本（FontSize=18 SemiBold TextBrush）
+	       - Description        : 说明文本（FontSize=13 SubtextBrush，最大宽度 380 自动换行）
+	       - PrimaryActionText  : 主链接文案（btn-link 蓝字，空字符串时不显示）
+	       - SecondaryActionText: 次链接文案（btn-link-secondary 灰字，空字符串时不显示）
+
+	     2 个事件 API：
+	       - PrimaryActionClick   : 主链接点击
+	       - SecondaryActionClick : 次链接点击
+
+	     使用示例：
+	         <controls:EmptyState IconText="📋"
+	                              Title="还没有任何工作流任务"
+	                              Description="把复杂目标交给多个智能体协作完成。"
+	                              PrimaryActionText="✨ 新建工作流任务"
+	                              PrimaryActionClick="OnNewWorkflowTaskClick" />
+	     ════════════════════════════════════════════════════════════════ -->
+
+	<Grid>
+		<StackPanel HorizontalAlignment="Center"
+		            VerticalAlignment="Center"
+		            Spacing="{StaticResource Space.Lg}"
+		            MaxWidth="380"
+		            DataContext="{Binding #root}"
+		            x:DataType="controls:EmptyState">
+
+			<!-- 图标容器：Emoji 占位（图标资产未到位时用 Emoji 顶替，详见 02-空状态与文案.md §4 临时降级方案） -->
+			<Border x:Name="IconHost"
+			        Width="64" Height="64"
+			        HorizontalAlignment="Center"
+			        IsVisible="False">
+				<TextBlock Text="{Binding IconText}"
+				           FontSize="48"
+				           HorizontalAlignment="Center"
+				           VerticalAlignment="Center" />
+			</Border>
+
+			<!-- 标题 -->
+			<TextBlock Text="{Binding Title}"
+			           FontSize="{StaticResource Font.H2}"
+			           FontWeight="{StaticResource Weight.SemiBold}"
+			           Foreground="{StaticResource TextBrush}"
+			           HorizontalAlignment="Center"
+			           TextAlignment="Center" />
+
+			<!-- 说明 -->
+			<TextBlock Text="{Binding Description}"
+			           FontSize="{StaticResource Font.Body}"
+			           Foreground="{StaticResource SubtextBrush}"
+			           HorizontalAlignment="Center"
+			           TextAlignment="Center"
+			           TextWrapping="Wrap"
+			           LineHeight="20" />
+
+			<!-- 主链接（btn-link 由 SharedStyles.axaml 提供） -->
+			<Button x:Name="PrimaryActionButton"
+			        Classes="btn-link"
+			        Content="{Binding PrimaryActionText}"
+			        IsVisible="False"
+			        Click="OnPrimaryActionClick"
+			        HorizontalAlignment="Center" />
+
+			<!-- 次链接（btn-link-secondary 由 SharedStyles.axaml 提供） -->
+			<Button x:Name="SecondaryActionButton"
+			        Classes="btn-link-secondary"
+			        Content="{Binding SecondaryActionText}"
+			        IsVisible="False"
+			        Click="OnSecondaryActionClick"
+			        HorizontalAlignment="Center" />
+
+		</StackPanel>
+	</Grid>
+</UserControl>

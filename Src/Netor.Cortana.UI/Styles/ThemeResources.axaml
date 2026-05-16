@@ -24,6 +24,29 @@
 	<SolidColorBrush x:Key="GreenBrush"    Color="#4ec9b0" />
 	<SolidColorBrush x:Key="RedBrush"      Color="#f14c4c" />
 
+	<!-- ════════════════════════════════════════════════════════════════
+	     界面重设计 C1：语义色别名
+	     ════════════════════════════════════════════════════════════════
+	     新代码请优先用语义别名（Accent/Success/Warning/Danger/Info），
+	     不再用具体色名（BlueBrush/RedBrush）。具体色名仅作为底层映射保留。
+	     详见 Docs/未来版本策划/界面重设计/01-布局规格.md §6.5。
+	     ════════════════════════════════════════════════════════════════ -->
+
+	<!-- 主色 / 链接 / 激活态 -->
+	<SolidColorBrush x:Key="AccentBrush"        Color="#007acc" />
+	<SolidColorBrush x:Key="AccentHoverBrush"   Color="#3794ff" />
+	<SolidColorBrush x:Key="AccentPressedBrush" Color="#005a99" />
+
+	<!-- 状态色 -->
+	<SolidColorBrush x:Key="SuccessBrush" Color="#0e7c3c" />
+	<SolidColorBrush x:Key="WarningBrush" Color="#e0c074" />
+	<SolidColorBrush x:Key="DangerBrush"  Color="#f14c4c" />
+	<SolidColorBrush x:Key="InfoBrush"    Color="#3794ff" />
+
+	<!-- 状态色 hover 变体（pressed 状态可由控件自身用 :pressed 透明度处理） -->
+	<SolidColorBrush x:Key="SuccessHoverBrush" Color="#0e9c4c" />
+	<SolidColorBrush x:Key="DangerHoverBrush"  Color="#d83a3a" />
+
 	<!-- 聊天气泡：用户侧石墨蓝方案 -->
 	<SolidColorBrush x:Key="UserAvatarBrush"       Color="#00CCCCCC" />
 	<SolidColorBrush x:Key="UserAvatarBorderBrush" Color="#0FFFFFFF" />

@@ -4,11 +4,18 @@
              RequestedThemeVariant="Dark">
     <Application.Styles>
         <FluentTheme />
+        <!-- 界面重设计 C1：通用控件样式（按钮族 / 列表项 / 卡片 / 徽章）。
+             详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §1。 -->
+        <StyleInclude Source="avares://Cortana/Styles/SharedStyles.axaml" />
     </Application.Styles>
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <!-- 主题色 (深色) -->
                 <ResourceInclude Source="avares://Cortana/Styles/ThemeResources.axaml" />
+                <!-- 界面重设计 C1：设计 Token（间距 / 圆角 / 字号 / 字重 / 阴影）。
+                     详见 Docs/未来版本策划/界面重设计/01-布局规格.md §6。 -->
+                <ResourceInclude Source="avares://Cortana/Styles/DesignTokens.axaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

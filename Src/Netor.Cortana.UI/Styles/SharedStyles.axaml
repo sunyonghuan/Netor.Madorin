@@ -1,0 +1,70 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+	<!-- ════════════════════════════════════════════════════════════════
+	     界面重设计 C1：通用控件样式
+	     ════════════════════════════════════════════════════════════════
+	     本文件按 Docs/未来版本策划/界面重设计/01-布局规格.md §7 定义新增的
+	     通用控件样式（按钮族 / 列表项 / 卡片 / 徽章）。
+
+	     C1 阶段：仅放 EmptyState 控件需要的 btn-link / btn-link-secondary。
+	     现有 axaml 内联定义的样式（titlebar-btn / tab-btn / btn-primary 等）
+	     留到 C5 收尾时统一迁移到此文件。
+
+	     使用方式：
+	         <Button Classes="btn-link" Content="新建工作流任务" />
+	         <Button Classes="btn-link-secondary" Content="清空搜索" />
+
+	     ⚠️ 重要：本文件中所有资源引用必须用 {DynamicResource}，
+	     不能用 {StaticResource}。因为 Application.Styles 加载时
+	     Application.Resources 还未完全填充，StaticResource 立即查找会失败
+	     （AOT 发布场景会抛 KeyNotFoundException 启动崩溃）。
+	     ════════════════════════════════════════════════════════════════ -->
+
+	<!-- ══════ 超链接：主链接（用于空状态主操作 / 引导链接） ══════ -->
+	<Style Selector="Button.btn-link">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+		<Setter Property="FontSize" Value="{DynamicResource Font.Md}" />
+		<Setter Property="FontWeight" Value="{DynamicResource Weight.SemiBold}" />
+		<Setter Property="Padding" Value="4,6" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="HorizontalContentAlignment" Value="Center" />
+	</Style>
+	<Style Selector="Button.btn-link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentHoverBrush}" />
+		<Setter Property="TextBlock.TextDecorations" Value="Underline" />
+	</Style>
+	<Style Selector="Button.btn-link:pressed /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentPressedBrush}" />
+	</Style>
+	<Style Selector="Button.btn-link:disabled /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource Overlay0Brush}" />
+	</Style>
+
+	<!-- ══════ 超链接：次链接（用于空状态次操作 / 辅助链接） ══════ -->
+	<Style Selector="Button.btn-link-secondary">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource SubtextBrush}" />
+		<Setter Property="FontSize" Value="{DynamicResource Font.Body}" />
+		<Setter Property="FontWeight" Value="{DynamicResource Weight.Regular}" />
+		<Setter Property="Padding" Value="4,4" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="HorizontalContentAlignment" Value="Center" />
+	</Style>
+	<Style Selector="Button.btn-link-secondary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+		<Setter Property="TextBlock.TextDecorations" Value="Underline" />
+	</Style>
+	<Style Selector="Button.btn-link-secondary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource SubtextBrush}" />
+	</Style>
+
+</Styles>
