@@ -65,6 +65,14 @@ internal sealed class PluginBusSubscribeFrame
     [JsonPropertyName("topics")] public string[] Topics { get; init; } = [];
     [JsonPropertyName("protocol")] public string Protocol { get; init; } = string.Empty;
     [JsonPropertyName("version")] public string Version { get; init; } = string.Empty;
+
+    /// <summary>
+    /// 阶段 5B Phase 4 新增：客户端声明的 capability token 列表（如 "workflow.v1" / "memory.v1"）。
+    /// 宿主在校验 workflow topic 订阅时检查此字段；缺失时按降级处理（决策 5B-D）。
+    /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §5B.4 / Phase 4 实施计划 §5.2。
+    /// </summary>
+    [JsonPropertyName("capabilities")]
+    public string[]? Capabilities { get; init; }
 }
 
 /// <summary>PluginBus 历史回放请求帧。</summary>

@@ -417,6 +417,18 @@ public partial class App : Application
             description: "写入 app 日志文件的最小日志级别。选择 Warning 时会记录 Warning、Error、Critical；选择 Information 时会额外记录普通运行信息。修改后重启应用生效。",
             defaultValue: "Warning", valueType: "logLevel", sortOrder: 0);
 
+        // 阶段 5B Phase 4：Magentic 成本警告阈值 + 估算系数
+        // 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §5B.4 / 04 §4B.6。
+        sysSettings.EnsureSetting("Workflow.Magentic.CostWarningThreshold",
+            group: "工作模式", displayName: "Magentic 成本警告阈值",
+            description: "新建 Magentic 任务时若预估 token 消耗 ≥ 此阈值，会在 NewTaskDialog 上弹黄色警告 banner。设为 0 表示禁用警告。",
+            defaultValue: "100000", valueType: "int", sortOrder: 0);
+
+        sysSettings.EnsureSetting("Workflow.Magentic.EstimatedTokenMultiplier",
+            group: "工作模式", displayName: "Magentic 单轮 token 系数",
+            description: "估算公式：MaxRounds × 此系数 × 参与者数量。默认 2000 = 假设每个参与者每轮平均消耗约 2k token（含 manager 反思 + 子 agent 输出）。",
+            defaultValue: "2000", valueType: "int", sortOrder: 1);
+
         // v1.3: Ollama 兼容代理配置，供 ProxyWindow 设置页和网络代理服务读取。
         sysSettings.EnsureOllamaProxySettings();
         // 版本迁移：移除已废弃的旧配置项

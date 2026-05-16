@@ -12,10 +12,21 @@ public static class CortanaWsEndpoints
     /// <summary>
     /// PluginBus 协议版本号。
     /// 阶段 2B：从 1.0.0 升到 1.1.0，新增 workflow topic 与对应 operations。
-    /// 详见 docs/未来版本策划/多智能体编排模式策划/07-事件分流与插件兼容设计.md §3.1。
-    /// 兼容性：旧 1.0.0 插件连接到 1.1.0 宿主仍然可用（不订阅 workflow topic）。
+    /// 阶段 5B：从 1.1.0 升到 1.2.0，subscribe 帧新增 capabilities 字段（决策 5B-D：能力声明而非强制版本号锁）。
+    /// 详见 docs/未来版本策划/多智能体编排模式策划/07-事件分流与插件兼容设计.md §3.1
+    /// 与 04-实施阶段.md §5B.4 / Phase 4 实施计划 §5.2。
+    /// 兼容性：旧 1.0.0 / 1.1.0 插件连接到 1.2.0 宿主仍然可用（缺少 capabilities 时仅记 warning 不断连，
+    /// 决策 5B-D：避免单点故障导致全部插件断连）。
     /// </summary>
-    public const string PluginBusVersion = "1.1.0";
+    public const string PluginBusVersion = "1.2.0";
+
+    /// <summary>
+    /// 阶段 5B Phase 4 新增：宿主已知能力 token 列表，用于校验插件 subscribe 帧的 capabilities 字段。
+    /// 列表为白名单，未在白名单中的能力声明会被忽略但不阻断订阅。
+    /// </summary>
+    public const string CapabilityWorkflowV1 = "workflow.v1";
+    public const string CapabilityMemoryV1 = "memory.v1";
+    public const string CapabilityConversationV1 = "conversation.v1";
 
     public const string ConversationTopic = "conversation";
     public const string MemoryTopic = "memory";

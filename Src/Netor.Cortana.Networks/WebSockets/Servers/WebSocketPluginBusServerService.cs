@@ -465,6 +465,28 @@ public sealed class WebSocketPluginBusServerService : KestrelWebSocketHost, IHos
                         .ToArray()
                     : [CortanaWsEndpoints.ConversationTopic];
 
+                // 阶段 5B Phase 4：解析 capabilities 字段并持久化（决策 5B-D 能力声明）
+                // 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §5B.4 / Phase 4 实施计划 §5.2。
+                var capabilities = root.TryGetProperty("capabilities", out var capsElement) && capsElement.ValueKind == JsonValueKind.Array
+                    ? capsElement.EnumerateArray()
+                        .Select(static cap => cap.GetString())
+                        .Where(static cap => !string.IsNullOrWhiteSpace(cap))
+                        .Cast<string>()
+                        .Distinct(StringComparer.Ordinal)
+                        .ToArray()
+                    : Array.Empty<string>();
+                _subscriptions.SetCapabilities(id, capabilities);
+
+                // 阶段 5B Phase 4：workflow topic 订阅校验（决策 5B-D：仅记 warning，不强制拒绝）
+                // 避免单点故障导致全部老插件断连，保持向下兼容。
+                if (topics.Contains(CortanaWsEndpoints.WorkflowTopic, StringComparer.Ordinal)
+                    && !capabilities.Contains(CortanaWsEndpoints.CapabilityWorkflowV1, StringComparer.Ordinal))
+                {
+                    logger.LogWarning(
+                        "Plugin {ClientId} 订阅 workflow topic 但缺少 {Capability} 能力声明（按降级处理，不影响订阅）",
+                        id, CortanaWsEndpoints.CapabilityWorkflowV1);
+                }
+
                 var subscribed = _subscriptions.Subscribe(id, topics);
                 await SendAsync(id, PluginBusMessageFactory.CreateSubscribed(id, subscribed), ct); return;
             }

@@ -26,6 +26,13 @@ public sealed class NewTaskDialogVm : INotifyPropertyChanged
 {
     private readonly AgentService _agentService;
     private readonly IWorkflowExecutor _executor;
+    private readonly SystemSettingsService _systemSettings;
+
+    // 阶段 5B Phase 4：Magentic 成本估算缓存（从 SystemSettings 读取一次后缓存）
+    // 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §5B.4。
+    private readonly int _magenticEstimatedTokenMultiplier;
+    private readonly int _magenticCostWarningThreshold;
+    private const int MagenticDefaultMaxRounds = 8;   // 与 WorkflowExecutorOptions.MaxRounds 默认值保持同步
 
     private string _title = string.Empty;
     private string _subMode = "groupchat";
@@ -39,10 +46,21 @@ public sealed class NewTaskDialogVm : INotifyPropertyChanged
     {
         _agentService = App.Services.GetRequiredService<AgentService>();
         _executor = App.Services.GetRequiredService<IWorkflowExecutor>();
+        _systemSettings = App.Services.GetRequiredService<SystemSettingsService>();
 
-        // SelectedMembers 是 ObservableCollection，把集合变化映射到 CanSubmit 的 PropertyChanged，
-        // 让 View 层 IsEnabled 实时更新（AOT 友好，无反射）。
-        SelectedMembers.CollectionChanged += (_, _) => OnPropertyChanged(nameof(CanSubmit));
+        // 一次性读取 Magentic 成本警告配置（构造期固定值，对话框生命周期短，不订阅设置变更）
+        _magenticEstimatedTokenMultiplier = _systemSettings.GetValue("Workflow.Magentic.EstimatedTokenMultiplier", 2000);
+        _magenticCostWarningThreshold = _systemSettings.GetValue("Workflow.Magentic.CostWarningThreshold", 100000);
+
+        // SelectedMembers 是 ObservableCollection，把集合变化映射到 CanSubmit + 成本相关属性的 PropertyChanged，
+        // 让 View 层 IsEnabled 与警告 banner 实时更新（AOT 友好，无反射）。
+        SelectedMembers.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(CanSubmit));
+            OnPropertyChanged(nameof(EstimatedCost));
+            OnPropertyChanged(nameof(EstimatedCostText));
+            OnPropertyChanged(nameof(IsCostWarningVisible));
+        };
 
         LoadAvailableAgents();
     }
@@ -65,7 +83,16 @@ public sealed class NewTaskDialogVm : INotifyPropertyChanged
     public string SubMode
     {
         get => _subMode;
-        set => SetField(ref _subMode, value);
+        set
+        {
+            if (SetField(ref _subMode, value))
+            {
+                // 阶段 5B Phase 4：切到/离开 magentic 时刷新成本估算
+                OnPropertyChanged(nameof(EstimatedCost));
+                OnPropertyChanged(nameof(EstimatedCostText));
+                OnPropertyChanged(nameof(IsCostWarningVisible));
+            }
+        }
     }
 
     public string InitialInput
@@ -84,7 +111,13 @@ public sealed class NewTaskDialogVm : INotifyPropertyChanged
         set
         {
             if (SetField(ref _selectedManager, value))
+            {
                 OnPropertyChanged(nameof(CanSubmit));
+                // 阶段 5B Phase 4：Manager 变化也算参与者变化，刷新成本估算
+                OnPropertyChanged(nameof(EstimatedCost));
+                OnPropertyChanged(nameof(EstimatedCostText));
+                OnPropertyChanged(nameof(IsCostWarningVisible));
+            }
         }
     }
 
@@ -130,6 +163,54 @@ public sealed class NewTaskDialogVm : INotifyPropertyChanged
             if (string.IsNullOrWhiteSpace(_initialInput)) return false;
             var count = (_selectedManager is null ? 0 : 1) + SelectedMembers.Count;
             return count >= 2;
+        }
+    }
+
+    // ──── 阶段 5B Phase 4：Magentic 成本估算 ────
+
+    /// <summary>
+    /// 当前参与者总数（Manager + Members）。Magentic 通常需要 1 个 manager + N 个 specialist。
+    /// </summary>
+    private int ParticipantCount => (_selectedManager is null ? 0 : 1) + SelectedMembers.Count;
+
+    /// <summary>
+    /// 估算 token 消耗（仅 magentic 子模式有效，其它子模式返回 0）。
+    /// 公式：MaxRounds × MagenticEstimatedTokenMultiplier × ParticipantCount
+    /// 详见 04-实施阶段.md §5B.4 / 04 §4B.6。
+    /// </summary>
+    public long EstimatedCost
+    {
+        get
+        {
+            if (!string.Equals(_subMode, "magentic", StringComparison.OrdinalIgnoreCase)) return 0;
+            if (ParticipantCount == 0) return 0;
+            return (long)MagenticDefaultMaxRounds * _magenticEstimatedTokenMultiplier * ParticipantCount;
+        }
+    }
+
+    /// <summary>UI 友好的成本展示文本（如 "约 128k tokens"）。</summary>
+    public string EstimatedCostText
+    {
+        get
+        {
+            var cost = EstimatedCost;
+            if (cost <= 0) return string.Empty;
+            return cost >= 1000
+                ? $"预计消耗约 {cost / 1000:N0}k tokens"
+                : $"预计消耗约 {cost} tokens";
+        }
+    }
+
+    /// <summary>
+    /// 是否显示成本警告 banner：仅当 magentic 子模式 + 参与者已选 + 估算值 ≥ 阈值。
+    /// 阈值 0 表示禁用警告（用户在 SystemSettings 中显式关闭）。
+    /// </summary>
+    public bool IsCostWarningVisible
+    {
+        get
+        {
+            if (_magenticCostWarningThreshold <= 0) return false;
+            return EstimatedCost >= _magenticCostWarningThreshold;
         }
     }
 

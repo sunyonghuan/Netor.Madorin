@@ -164,6 +164,25 @@
                        Text="任务至少需要 2 个参与者（Manager + 至少 1 个 Member，或 ≥ 2 个 Member）。" />
         </StackPanel>
 
+        <!-- 阶段 5B Phase 4：Magentic 成本警告 banner（决策 [04] §4B.6）-->
+        <!-- 仅在 SubMode=magentic 且预估 token ≥ Workflow.Magentic.CostWarningThreshold 时显示 -->
+        <Border Background="#3a2f1f" BorderBrush="#8c6e1c" BorderThickness="1"
+                CornerRadius="3" Padding="10"
+                IsVisible="{Binding IsCostWarningVisible}">
+            <Grid ColumnDefinitions="Auto,*">
+                <TextBlock Grid.Column="0" Text="⚠"
+                           Foreground="#e0c074" FontSize="14"
+                           VerticalAlignment="Center" Margin="0,0,8,0" />
+                <StackPanel Grid.Column="1" Orientation="Vertical" Spacing="2">
+                    <TextBlock Text="{Binding EstimatedCostText, StringFormat='Magentic 成本预警：{0}'}"
+                               Foreground="#e0c074" FontSize="12" FontWeight="SemiBold"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="估算公式 = MaxRounds × 单轮 token 系数 × 参与者数（可在系统设置 → 工作模式中调整阈值与系数）。"
+                               Foreground="#bba87a" FontSize="11" TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
         <!-- 校验错误 -->
         <Border Background="#3a1f1f" BorderBrush="#6e2828" BorderThickness="1"
                 CornerRadius="3" Padding="10"

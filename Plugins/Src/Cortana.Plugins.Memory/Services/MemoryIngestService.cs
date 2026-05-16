@@ -101,13 +101,15 @@ public sealed class MemoryIngestService(
 
         // 2) 发送 subscribe
         //    阶段 4B：新增 workflow topic（决策 5-B / 决策 4-A）
-        //    详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §4B.5
+        //    阶段 5B Phase 4：协议版本 1.0.0 → 1.2.0；新增 capabilities 字段（决策 5B-D 能力声明）
+        //    详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §4B.5 / §5B.4 / Phase 4 §5.2
         var sub = new PluginBusSubscribeFrame
         {
             Type = "subscribe",
             Topics = ["conversation", "memory", "model", "workflow"],
             Protocol = MemoryContextSupplyProtocol.Protocol,
-            Version = "1.0.0"
+            Version = "1.2.0",
+            Capabilities = ["conversation.v1", "memory.v1", "workflow.v1"]
         };
         var json = JsonSerializer.Serialize(sub, MemoryInternalJsonContext.Chinese.PluginBusSubscribeFrame);
         await pluginBus.SendTextAsync(json, ct).ConfigureAwait(false);
