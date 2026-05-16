@@ -238,6 +238,12 @@ public partial class App : Application
             // 界面重设计 C3：左侧面板 VM（决策 UI-1 L2 + UI-9）。Singleton 与 LeftPanel 单例对齐。
             // 详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §3。
             .AddSingleton<ViewModels.LeftPanelVm>()
+            // 界面重设计 C4：WorkspaceTabVm 改 DI Singleton（决策 DT-11）。
+            // C4 之前 WorkspaceTab.axaml.cs 内部 new WorkspaceTabVm()，本期改造后由
+            // TaskListPanel（左）+ WorkflowDetailView（右）两个新控件共享同一实例，
+            // 通过 DI 容器解析保证 SelectedItem 联动一致。
+            // 详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §4.2。
+            .AddSingleton<ViewModels.Workspace.WorkspaceTabVm>()
             // 数据库
             .AddSingleton<CortanaDbContext>()
             .AddTransient<SystemSettingsService>()

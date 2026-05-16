@@ -594,18 +594,16 @@
 					</Button>
 				</Grid>
 				</DockPanel>
-				<!-- 界面重设计 C2：Tab 内容容器（决策 UI-3 B1 - 三 tab 互斥显示）。
-				     WorkspaceTabContent 重命名为 WorkflowTabContent（语义对齐）。
-				     GroupChatTabContent 一期用 EmptyState 占位 "群聊模式即将上线"；
-				     完整群聊主区视图留到 C4 拆分时实现（详见 04-实施阶段.md §4.2 GroupChatDetailView）。
-				     详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §2.4。 -->
-				<workspace:WorkspaceTab x:Name="WorkflowTabContent" IsVisible="False" />
-				<controls:EmptyState x:Name="GroupChatTabContent"
-				                     IsVisible="False"
-				                     IconText="💬"
-				                     Title="群聊模式即将上线"
-				                     Description="多个智能体围绕一个主题轮流发言，适合头脑风暴、多视角讨论。&#10;此功能将在后续阶段（C4）随空状态视图一并上线。"
-				                     PrimaryActionText="" />
+				<!-- 界面重设计 C4：主区 Tab 内容容器（决策 UI-1 L2 + DT-12）。
+				     原 WorkflowTabContent (WorkspaceTab 整体) → WorkflowDetailView（仅右半，左半移到 LeftPanel.Tab2）；
+				     原 GroupChatTabContent (EmptyState 占位) → WorkflowDetailView（与工作流共用同一个 DI Singleton VM，
+				                                                  任务列表通过 LeftPanel.Tab2 共享，互斥显示）。
+				     用户在工作流 / 群聊任意 tab 选中任务后，主区都会显示该任务详情。
+				     C4 阶段：两个 Tab 共用同一个 VM 实例（决策 DT-9 SubMode 过滤推迟到 C5+，本期先跑通）。
+
+				     详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §4.3 + §4.5。 -->
+				<workspace:WorkflowDetailView x:Name="WorkflowTabContent" IsVisible="False" />
+				<workspace:WorkflowDetailView x:Name="GroupChatTabContent" IsVisible="False" />
 				</Panel>
 			</DockPanel>
 

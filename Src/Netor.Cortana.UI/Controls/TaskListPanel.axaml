@@ -1,0 +1,128 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Netor.Cortana.UI.ViewModels.Workspace"
+             x:Class="Netor.Cortana.UI.Controls.TaskListPanel"
+             x:DataType="vm:WorkspaceTabVm"
+             x:CompileBindings="True"
+             Background="#1e1e1e">
+
+	<!-- ════════════════════════════════════════════════════════════════
+	     界面重设计 C4：任务列表面板（左侧 Tab2 内容）
+	     ════════════════════════════════════════════════════════════════
+	     视觉规格 100% 迁移自原 WorkspaceTab.axaml 左半（Col 0，line 148-229）。
+	     不引入新视觉，保证 C4 视觉回归零风险。
+
+	     DataContext 约定：调用方（LeftPanel.axaml）必须设置
+	     DataContext = WorkspaceTabVm（DI Singleton 共享）。
+
+	     详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §4.2。
+	     ════════════════════════════════════════════════════════════════ -->
+
+	<UserControl.Styles>
+		<!-- 任务列表项悬停 / 选中样式（与原 WorkspaceTab.axaml 一致） -->
+		<Style Selector="Border.task-item">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="Padding" Value="10,8" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="Margin" Value="0,1" />
+		</Style>
+		<Style Selector="Border.task-item:pointerover">
+			<Setter Property="Background" Value="#252526" />
+		</Style>
+		<Style Selector="Border.task-item-active">
+			<Setter Property="Background" Value="#2a2d2e" />
+		</Style>
+
+		<!-- 新建任务按钮 -->
+		<Style Selector="Button.new-task-btn">
+			<Setter Property="Background" Value="#0e639c" />
+			<Setter Property="Foreground" Value="#ffffff" />
+			<Setter Property="Padding" Value="14,8" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="HorizontalAlignment" Value="Stretch" />
+			<Setter Property="HorizontalContentAlignment" Value="Center" />
+			<Setter Property="FontSize" Value="13" />
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="BorderThickness" Value="0" />
+		</Style>
+		<Style Selector="Button.new-task-btn:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#1177bb" />
+		</Style>
+	</UserControl.Styles>
+
+	<DockPanel>
+		<!-- 顶部工具栏：新建按钮 + 搜索框（搬运自 WorkspaceTab.axaml line 152-171） -->
+		<Border DockPanel.Dock="Top" Padding="10,10,10,6"
+		        BorderBrush="#252526" BorderThickness="0,0,0,1">
+			<StackPanel Spacing="8">
+				<Button Classes="new-task-btn" Content="+ 新建任务"
+				        Click="OnNewTaskClick" />
+				<!-- 阶段 6 Phase 3：搜索框（决策 6-3-A 子串 LIKE 匹配，200ms 防抖）。 -->
+				<TextBox x:Name="TaskSearchBox"
+				         PlaceholderText="搜索任务标题..."
+				         Background="#252526" Foreground="#cccccc" BorderBrush="#3c3c3c"
+				         BorderThickness="1" CornerRadius="3" Padding="8,4" FontSize="12"
+				         TextChanged="OnTaskSearchTextChanged" />
+			</StackPanel>
+		</Border>
+
+		<!-- 任务列表（搬运自 WorkspaceTab.axaml line 174-228） -->
+		<ScrollViewer x:Name="ListScroller"
+		              VerticalScrollBarVisibility="Auto"
+		              HorizontalScrollBarVisibility="Disabled"
+		              Background="Transparent">
+			<ItemsControl x:Name="TaskList"
+			              ItemsSource="{Binding List.Items}"
+			              Padding="6">
+				<ItemsControl.ItemsPanel>
+					<ItemsPanelTemplate>
+						<VirtualizingStackPanel Orientation="Vertical" />
+					</ItemsPanelTemplate>
+				</ItemsControl.ItemsPanel>
+				<ItemsControl.ItemTemplate>
+					<DataTemplate x:DataType="vm:WorkflowTaskItemVm">
+						<Border Classes="task-item"
+						        Tag="{Binding TaskId}"
+						        PointerPressed="OnTaskItemPressed">
+							<Border.ContextMenu>
+								<ContextMenu>
+									<MenuItem Header="重命名" Tag="{Binding TaskId}" Click="OnRenameClick" />
+									<MenuItem Header="置顶 / 取消置顶" Tag="{Binding TaskId}" Click="OnTogglePinClick" />
+									<MenuItem Header="归档" Tag="{Binding TaskId}" Click="OnArchiveClick" />
+									<Separator />
+									<MenuItem Header="复制为新任务" Tag="{Binding TaskId}" Click="OnDuplicateClick" />
+									<Separator />
+									<MenuItem Header="删除" Tag="{Binding TaskId}" Click="OnDeleteClick" />
+								</ContextMenu>
+							</Border.ContextMenu>
+							<StackPanel Spacing="4">
+								<Grid ColumnDefinitions="Auto,*,Auto">
+									<TextBlock Grid.Column="0" Text="📌"
+									           FontSize="11" Margin="0,0,4,0"
+									           VerticalAlignment="Center"
+									           IsVisible="{Binding IsPinned}" />
+									<TextBlock Grid.Column="1"
+									           Text="{Binding DisplayTitle}"
+									           Foreground="#cccccc"
+									           FontSize="13"
+									           TextTrimming="CharacterEllipsis" />
+									<TextBlock Grid.Column="2"
+									           Text="{Binding StatusIcon}"
+									           Foreground="{Binding StatusColorHex}"
+									           FontSize="11"
+									           Margin="6,0,0,0"
+									           VerticalAlignment="Center" />
+								</Grid>
+								<TextBlock Text="{Binding RelativeTimeText}"
+								           Foreground="#858585"
+								           FontSize="11" />
+							</StackPanel>
+						</Border>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+		</ScrollViewer>
+	</DockPanel>
+</UserControl>

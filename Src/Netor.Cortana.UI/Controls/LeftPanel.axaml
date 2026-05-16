@@ -69,14 +69,28 @@
 			<controls:WorkspaceExplorer x:Name="FileExplorerHost"
 			                            IsVisible="{Binding IsTab1Active}" />
 
-			<!-- Tab2: 动态 tab（C3 阶段用 EmptyState 占位）。
-			     C4 时本节点会替换为 ContentControl + DataTemplate，
-			     按 MainVm.CurrentMode 切换到 ChatHistoryPanel / TaskListPanel。 -->
-			<controls:EmptyState x:Name="DynamicTabHost"
-			                     IsVisible="{Binding IsTab2Active}"
-			                     IconText="📋"
-			                     Title="待 C4 实现"
-			                     Description="C4 阶段此处将根据顶部模式显示：&#10;对话 → 会话历史&#10;工作流 → 工作流任务&#10;群聊 → 群聊任务" />
+			<!-- Tab2: 动态 tab。
+			     C4 阶段：非 Chat 模式时显示 TaskListPanel（工作流 / 群聊任务列表）；
+			               Chat 模式时仍显示 EmptyState 占位（C5 才接 ChatHistoryPanel）。
+			     C5 阶段：把 Chat 模式的 EmptyState 替换为 ChatHistoryPanel（决策 R2 历史挪左侧）。
+			     详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §4.4 + §5。
+
+			     注意：内层 IsVisible 必须用 Panel/Border 包裹后再绑 MainVm.IsChatMode，
+			           因为 TaskListPanel 自身构造时把 DataContext 改写成了 WorkspaceTabVm（决策 DT-13）。
+			           用外层包裹可以保留对 LeftPanelVm 的继承，binding 评估正确。 -->
+			<Panel IsVisible="{Binding IsTab2Active}">
+				<Panel x:Name="TaskListPanelWrapper"
+				       IsVisible="{Binding !MainVm.IsChatMode}">
+					<controls:TaskListPanel x:Name="TaskListPanelHost" />
+				</Panel>
+				<Panel x:Name="ChatTab2EmptyWrapper"
+				       IsVisible="{Binding MainVm.IsChatMode}">
+					<controls:EmptyState x:Name="ChatTab2EmptyHost"
+					                     IconText="💬"
+					                     Title="待 C5 实现"
+					                     Description="C5 阶段此处将显示会话历史列表。&#10;现在右侧抽屉的会话记录功能届时会迁移到这里。" />
+				</Panel>
+			</Panel>
 		</Panel>
 
 		<!-- Row 2: 底部 Tab 切换栏（决策 UI-9：VS 经典风格） -->

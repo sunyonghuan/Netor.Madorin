@@ -66,6 +66,16 @@ public partial class MainWindow : Window
     private readonly Netor.Cortana.UI.Services.ChatDraftService _draftService =
         App.Services.GetRequiredService<Netor.Cortana.UI.Services.ChatDraftService>();
 
+    /// <summary>
+    /// 工作台 VM（C4 引入，决策 DT-11 / DT-13）：DI Singleton，
+    /// 与 TaskListPanel（左 Tab2）+ WorkflowDetailView（主区）共享同一实例。
+    /// MainWindow 持有引用是为了 tab 切换时调 OnAttachedAsync 触发列表刷新
+    /// （C4 之前是调 WorkflowTabContent.OnAttachedAsync，C4 拆分后 WorkflowDetailView
+    /// 不再暴露此方法，改由 MainWindow 直接调 VM）。
+    /// </summary>
+    private readonly Netor.Cortana.UI.ViewModels.Workspace.WorkspaceTabVm _workspaceTabVm =
+        App.Services.GetRequiredService<Netor.Cortana.UI.ViewModels.Workspace.WorkspaceTabVm>();
+
     public MainWindow()
     {
         InitializeComponent();
@@ -119,10 +129,10 @@ public partial class MainWindow : Window
         {
             ApplyModeToUI(_mainVm.CurrentMode);
 
-            // 工作流模式：触发 WorkflowTab 数据加载
+            // 工作流模式：触发 WorkflowTab 数据加载（C4：改为直接调 DI Singleton VM）
             if (_mainVm.CurrentMode == Netor.Cortana.UI.Models.WorkMode.Workflow)
             {
-                _ = WorkflowTabContent.OnAttachedAsync(workspaceId: string.Empty);
+                _ = _workspaceTabVm.OnAttachedAsync(workspaceId: string.Empty);
             }
         }
 
@@ -573,10 +583,10 @@ public partial class MainWindow : Window
 
         if (targetMode == Netor.Cortana.UI.Models.WorkMode.Workflow)
         {
-            // 通知 WorkflowTab 拉取最新列表（workspaceId 从当前会话中取，3B 简化版传空字符串）
+            // 通知 WorkflowTab 拉取最新列表（C4：改为直接调 DI Singleton VM；workspaceId 简化版传空字符串）
             try
             {
-                await WorkflowTabContent.OnAttachedAsync(workspaceId: string.Empty);
+                await _workspaceTabVm.OnAttachedAsync(workspaceId: string.Empty);
             }
             catch (Exception ex)
             {
@@ -617,7 +627,7 @@ public partial class MainWindow : Window
 
                 try
                 {
-                    await WorkflowTabContent.OnAttachedAsync(workspaceId: string.Empty);
+                    await _workspaceTabVm.OnAttachedAsync(workspaceId: string.Empty);
                 }
                 catch (Exception innerEx)
                 {
