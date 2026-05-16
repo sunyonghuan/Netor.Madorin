@@ -136,8 +136,6 @@
 				<ColumnDefinition Width="0" MinWidth="0" MaxWidth="600" />
 				<ColumnDefinition Width="Auto" />
 				<ColumnDefinition Width="*" MinWidth="200" />
-				<ColumnDefinition Width="Auto" />
-				<ColumnDefinition Width="0" MinWidth="0" MaxWidth="600" />
 			</Grid.ColumnDefinitions>
 
 			<!-- Col 0: 左侧面板（界面重设计 C3：替代原 WorkspaceExplorer 直挂载，引入底部 Tab 切换）。
@@ -191,18 +189,6 @@
 									Click="OnTabSwitchClick">
 								<TextBlock Text="群聊" />
 							</Button>
-							<Button x:Name="HistoryButton" Grid.Column="0"
-								Classes="titlebar-btn" Padding="6,4"
-								Click="OnHistoryClick"
-								Margin="8,0,0,0">
-								<StackPanel Orientation="Horizontal" Spacing="4">
-									<TextBlock x:Name="HistoryLabel" Text="新对话"
-											   Foreground="#cccccc" FontSize="12"
-											   MaxWidth="160" TextTrimming="CharacterEllipsis" />
-									<TextBlock Text="▼" Foreground="#6a6a6a" FontSize="9"
-											   VerticalAlignment="Center" />
-								</StackPanel>
-							</Button>
 						</StackPanel>
 						<!-- 右：操作按钮组 -->
 						<StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2"
@@ -216,31 +202,9 @@
 							<Button Classes="titlebar-btn" ToolTip.Tip="设置" Click="OnSettingsClick">
 								<Image Source="avares://Cortana/Assets/setting.png" Width="14" Height="14" />
 							</Button>
-							<Button Classes="titlebar-btn" ToolTip.Tip="历史记录" Click="OnHistoryPanelToggleClick">
-								<Image Source="avares://Cortana/Assets/historys.png" Width="14" Height="14" />
-							</Button>
 						</StackPanel>
 					</Grid>
 				</Border>
-
-				<!-- 会话历史弹出面板 -->
-				<Popup x:Name="HistoryPopup" Placement="BottomEdgeAlignedLeft"
-					   PlacementTarget="{Binding #HistoryButton}"
-					   IsLightDismissEnabled="True">
-					<Border Background="#181818" CornerRadius="6"
-							BorderBrush="#3c3c3c" BorderThickness="1"
-							Padding="4" MinWidth="260" MaxHeight="400">
-						<ScrollViewer VerticalScrollBarVisibility="Auto">
-							<ItemsControl x:Name="HistoryList">
-								<ItemsControl.ItemsPanel>
-									<ItemsPanelTemplate>
-										<StackPanel Spacing="2" />
-									</ItemsPanelTemplate>
-								</ItemsControl.ItemsPanel>
-							</ItemsControl>
-						</ScrollViewer>
-					</Border>
-				</Popup>
 
 				<!-- ── Tab 切换容器（Chat / Workspace 互斥显示） ── -->
 				<Panel x:Name="ContentRoot">
@@ -606,17 +570,6 @@
 				<workspace:WorkflowDetailView x:Name="GroupChatTabContent" IsVisible="False" />
 				</Panel>
 			</DockPanel>
-
-			<!-- Col 3: 历史面板拖拽分隔条 -->
-			<GridSplitter x:Name="HistorySplitter" Grid.Column="3"
-			              Width="4" IsVisible="False" />
-
-			<!-- Col 4: 历史记录面板（负边距齐平标题栏） -->
-			<Border Grid.Column="4" Margin="0,-36,0,0"
-			        BorderBrush="#3c3c3c" BorderThickness="1,0,0,0"
-			        Background="#1e1e1e">
-				<controls:ChatHistoryPanel x:Name="HistoryPanel" />
-			</Border>
 		</Grid>
 	</Panel>
 </Window>

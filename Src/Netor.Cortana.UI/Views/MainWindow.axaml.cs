@@ -36,7 +36,7 @@ public partial class MainWindow : Window
     private ISubscriber? _subscriber;
     private bool _forceClose;
     private bool _workspaceOpen;
-    private bool _historyPanelOpen;
+    // C5 决策 R2：_historyPanelOpen 字段删除（右侧历史抽屉已干掉，ChatHistoryPanel 挪到 LeftPanel.Tab2）。
 #if DEBUG
     private bool _debugSystemNoticeShown;
 #endif
@@ -53,8 +53,8 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// 主窗口 ViewModel（C2 引入）：承载 CurrentMode 状态 + SystemSettings 持久化（决策 DT-3）。
-    /// 本期仅承载模式状态，InputBox / HistoryLabel 等内容控件仍为 code-behind 操作，
-    /// C5 收尾时再考虑 Chat 全面 MVVM 化。
+    /// 本期仅承载模式状态，InputBox 等内容控件仍为 code-behind 操作，
+    /// 后续可考虑 Chat 全面 MVVM 化（HistoryLabel 已在 C5 决策 R1 时删除）。
     /// </summary>
     private readonly Netor.Cortana.UI.ViewModels.MainWindowVm _mainVm =
         App.Services.GetRequiredService<Netor.Cortana.UI.ViewModels.MainWindowVm>();
@@ -110,10 +110,13 @@ public partial class MainWindow : Window
         LeftPanelHost.WorkspaceDirectory = App.WorkspaceDirectory;
         LeftPanelHost.AttachmentRequested += OnWorkspaceAttachmentRequested;
 
-        // 历史记录面板初始化
-        HistoryPanel.SessionSelected += OnHistoryPanelSessionSelected;
-        HistoryPanel.RequestNewSession += OnHistoryPanelRequestNewSession;
-        HistoryPanel.AttachScrollHandler();
+        // 界面重设计 C5：会话历史面板事件订阅（决策 R2/R3）。
+        // 原 HistoryPanel.X → LeftPanelHost.X：ChatHistoryPanel 已挪到 LeftPanel.Tab2 内部，
+        // 由 LeftPanel 转发对外 API（事件签名 + 调用方式不变，只换路径）。
+        // 详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §5.3。
+        LeftPanelHost.SessionSelected += OnHistoryPanelSessionSelected;
+        LeftPanelHost.RequestNewSession += OnHistoryPanelRequestNewSession;
+        LeftPanelHost.AttachHistoryScrollHandler();
 
         // Token 使用量变更 → 实时刷新进度条（跨 ChatClient 重建保留数值）
         var factory = App.Services.GetRequiredService<AIAgentFactory>();
@@ -186,25 +189,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnHistoryPanelToggleClick(object? sender, RoutedEventArgs e)
-    {
-        _historyPanelOpen = !_historyPanelOpen;
-        var col = WorkspaceGrid.ColumnDefinitions[4];
-        if (_historyPanelOpen)
-        {
-            col.Width = new GridLength(280);
-            col.MinWidth = 180;
-            HistorySplitter.IsVisible = true;
-            HistoryPanel.Reload();
-        }
-        else
-        {
-            col.MinWidth = 0;
-            col.Width = new GridLength(0);
-            HistorySplitter.IsVisible = false;
-        }
-    }
-
     // ──────── 事件订阅（EventHub） ────────
 
     /// <summary>
@@ -260,9 +244,12 @@ public partial class MainWindow : Window
         {
             Dispatcher.UIThread.Post(() =>
             {
-                if (string.Equals(HistoryPanel.CurrentSessionId, args.SessionId, StringComparison.OrdinalIgnoreCase))
+                // C5 决策 R1：HistoryLabel 已删除（顶栏 "最近 ▼" 按钮被砍）。
+                // 这里只需调 RefreshCurrentSessionTitle，由 LeftPanel 内部 ChatHistoryPanel
+                // 的列表自然刷新。CurrentSessionId 比对逻辑保留，避免误刷新非当前会话。
+                if (string.Equals(LeftPanelHost.CurrentSessionId, args.SessionId, StringComparison.OrdinalIgnoreCase))
                 {
-                    HistoryLabel.Text = args.Title;
+                    // 当前会话标题刷新由 RefreshCurrentSessionTitle 统一处理
                 }
                 RefreshCurrentSessionTitle();
             });
@@ -325,15 +312,12 @@ public partial class MainWindow : Window
                 LeftPanelHost.WorkspaceDirectory = args.Path;
                 LoadSessions();
 
-                // 刷新历史记录面板
-                if (_historyPanelOpen)
-                    HistoryPanel.Reload();
+                // C5 决策 R2：右侧抽屉已删除，会话历史列表现在常驻在 LeftPanel.Tab2 内的 ChatHistoryPanel。
+                // 工作区变化后直接刷新左侧列表（不再判断 _historyPanelOpen，左侧列表始终可见）。
+                LeftPanelHost.ReloadHistory();
 
-                // 新工作目录没有任何会话时，主动创建一个
-                if (HistoryList.Items.Count == 0)
-                {
-                    Task.Run(() => chatEngine.NewSessionAsync());
-                }
+                // 新工作目录没有任何会话时，LoadSessions 内部已主动创建（详见 MainWindow.Sessions.cs §LoadSessions）；
+                // C5 删除原冗余的 HistoryList.Items.Count == 0 判断（HistoryList Popup 已不存在）。
             });
             return Task.FromResult(false);
         });
@@ -344,7 +328,8 @@ public partial class MainWindow : Window
             Dispatcher.UIThread.Post(() =>
             {
                 MessageList.Items.Clear();
-                HistoryLabel.Text = "新对话";
+                // C5 决策 R1：HistoryLabel 已删除（顶栏 "最近 ▼" 按钮被砍）。
+                // 新会话标题由 LeftPanel.Tab2 内 ChatHistoryPanel 列表自然刷新。
                 ShowWelcome();
                 LoadSessions();
                 // 关键：切换到新创建的会话，而不是继续在旧会话上
@@ -577,8 +562,8 @@ public partial class MainWindow : Window
 
         if (targetMode != Netor.Cortana.UI.Models.WorkMode.Chat)
         {
-            // 切到非对话模式：关闭 Chat Tab 的历史下拉（避免主内容被遮挡）
-            if (HistoryPopup?.IsOpen == true) HistoryPopup.IsOpen = false;
+            // C5 决策 R1：HistoryPopup 已删除（顶栏 "最近 ▼" 按钮 + 浮窗式历史列表全部砍掉）。
+            // 切换到非对话模式时不再需要关闭历史下拉，本判断块保留为占位（C6+ 可能加其他切换前清理）。
         }
 
         if (targetMode == Netor.Cortana.UI.Models.WorkMode.Workflow)
@@ -623,7 +608,8 @@ public partial class MainWindow : Window
                 ApplyModeToUI(Netor.Cortana.UI.Models.WorkMode.Workflow);
                 _mainVm.CurrentMode = Netor.Cortana.UI.Models.WorkMode.Workflow;
 
-                if (HistoryPopup?.IsOpen == true) HistoryPopup.IsOpen = false;
+                // C5 决策 R1：HistoryPopup 已删除（顶栏 "最近 ▼" 按钮 + 浮窗式历史列表全部砍掉）。
+                // OnWorkflowSuggestion accept 时不再需要关闭历史下拉。
 
                 try
                 {

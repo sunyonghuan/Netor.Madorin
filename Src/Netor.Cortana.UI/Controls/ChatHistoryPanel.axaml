@@ -43,8 +43,10 @@
 	</UserControl.Styles>
 
 	<DockPanel>
-		<!-- 标题栏对齐占位 -->
-		<Border DockPanel.Dock="Top" Height="36" />
+		<!-- 界面重设计 C5：标题栏 36px 对齐占位移除（对齐 C3 决策，由 LeftPanel 容器统一管理）。
+		     原占位由 LeftPanel.Tab2 的 36px 顶部占位 + 父级 Margin='0,-36,0,0' 上移贴顶处理；
+		     本控件改为纯历史列表 UI，不再耦合 MainWindow 标题栏布局。
+		     详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §5.3 + §3.4（C3 同款策略）。 -->
 
 		<!-- 顶部工具栏 -->
 		<Border DockPanel.Dock="Top" Background="#1e1e1e" Padding="8,6"

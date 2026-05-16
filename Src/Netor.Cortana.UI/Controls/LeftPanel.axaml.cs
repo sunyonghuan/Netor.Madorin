@@ -44,6 +44,11 @@ public partial class LeftPanel : UserControl
 
         // 内部 WorkspaceExplorer 的事件转发到本控件对外暴露的 event
         FileExplorerHost.AttachmentRequested += paths => AttachmentRequested?.Invoke(paths);
+
+        // 内部 ChatHistoryPanel 的事件转发到本控件对外暴露的 event（C5 引入，决策 R2/R3）。
+        // 让 MainWindow 无感切换：事件签名 + 调用方式不变，只是路径从原 HistoryPanel.X 改为 LeftPanelHost.X。
+        ChatHistoryPanelHost.SessionSelected += (id, title) => SessionSelected?.Invoke(id, title);
+        ChatHistoryPanelHost.RequestNewSession += () => RequestNewSession?.Invoke();
     }
 
     /// <summary>
@@ -59,6 +64,40 @@ public partial class LeftPanel : UserControl
     /// 用户在文件树右键选择 "引用为附件" 时触发。转发自内部 <see cref="WorkspaceExplorer"/>。
     /// </summary>
     public event Action<IReadOnlyList<string>>? AttachmentRequested;
+
+    // ──── C5：ChatHistoryPanel 转发 API（决策 R2/R3） ────
+
+    /// <summary>
+    /// 用户在历史记录列表中选中会话时触发。转发自内部 <see cref="ChatHistoryPanel"/>。
+    /// 参数：(sessionId, title)。
+    /// </summary>
+    public event Action<string, string>? SessionSelected;
+
+    /// <summary>
+    /// 用户在历史记录列表中删除当前激活会话后，控件请求宿主创建新会话。
+    /// 转发自内部 <see cref="ChatHistoryPanel"/>。
+    /// </summary>
+    public event Action? RequestNewSession;
+
+    /// <summary>
+    /// 当前激活会话 ID（用于历史列表中高亮当前项）。转发到内部 <see cref="ChatHistoryPanel"/>。
+    /// </summary>
+    public string CurrentSessionId
+    {
+        get => ChatHistoryPanelHost.CurrentSessionId;
+        set => ChatHistoryPanelHost.CurrentSessionId = value;
+    }
+
+    /// <summary>
+    /// 触发历史列表重新加载。转发到内部 <see cref="ChatHistoryPanel"/>。
+    /// </summary>
+    public void ReloadHistory() => ChatHistoryPanelHost.Reload();
+
+    /// <summary>
+    /// 注册滚动到底部时加载下一页（MainWindow 启动时调一次）。
+    /// 转发到内部 <see cref="ChatHistoryPanel"/>。
+    /// </summary>
+    public void AttachHistoryScrollHandler() => ChatHistoryPanelHost.AttachScrollHandler();
 
     /// <summary>
     /// DataContext 变化时重新绑定 VM 监听 + 同步 active 样式。

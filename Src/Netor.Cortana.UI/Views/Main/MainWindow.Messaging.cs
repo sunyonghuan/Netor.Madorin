@@ -264,7 +264,9 @@ public partial class MainWindow
         _sendCts?.Dispose();
         _sendCts = new CancellationTokenSource();
         var token = _sendCts.Token;
-        HistoryLabel.Text = resolvedText.Truncate(32);
+        // C5 决策 R1：HistoryLabel 已删除（顶栏 "最近 ▼" 按钮被砍）。
+        // 原本这里临时把用户输入前 32 字符显示在顶栏，作为 AI 生成正式标题前的占位；
+        // C5 后会话标题刷新由 LeftPanel.Tab2 ChatHistoryPanel 自然处理（AI 生成完成后 reload）。
         _ = Task.Run(async () =>
         {
             try

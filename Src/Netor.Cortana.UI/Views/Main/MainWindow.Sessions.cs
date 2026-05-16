@@ -29,6 +29,8 @@ public partial class MainWindow
 
     /// <summary>
     /// 加载会话历史列表并自动恢复最近一个会话。
+    /// C5 决策 R2：右侧抽屉 Popup 删除后，会话列表由 LeftPanel.Tab2 内的 ChatHistoryPanel 自管理。
+    /// 本方法仍负责"自动恢复最近会话"逻辑（DB 查询 + SwitchToSession），但不再填充本地 HistoryList。
     /// </summary>
     private void LoadSessions()
     {
@@ -41,7 +43,8 @@ public partial class MainWindow
                 ReadSessionEntity,
                 cmd => cmd.Parameters.AddWithValue("@cat", categorize));
 
-            FillHistoryList(sessions);
+            // C5 决策 R2：通知左侧 ChatHistoryPanel 重新加载（替代原 FillHistoryList 填充 Popup）。
+            LeftPanelHost.ReloadHistory();
 
             // 自动加载最近的会话消息
             if (sessions.Count > 0)
@@ -51,7 +54,7 @@ public partial class MainWindow
             else
             {
                 MessageList.Items.Clear();
-                HistoryLabel.Text = "新对话";
+                // C5 决策 R1：HistoryLabel 已删除（顶栏 "最近 ▼" 按钮被砍）。新会话标题不再单独标记。
                 ShowWelcome();
                 _ = Task.Run(() => chatEngine.NewSessionAsync());
             }
@@ -63,65 +66,22 @@ public partial class MainWindow
             ShowWelcome();
         }
     }
-
     /// <summary>
-    /// 填充会话历史列表到 Popup。
-    /// </summary>
-    private void FillHistoryList(List<ChatSessionEntity> sessions)
-    {
-        HistoryList.Items.Clear();
-
-        foreach (var session in sessions.Take(15))
-        {
-            var title = string.IsNullOrWhiteSpace(session.Title) ? "新对话" : session.Title;
-            var btn = new Button
-            {
-                Classes = { "selector-item" },
-                Tag = session.Id,
-                Content = new TextBlock
-                {
-                    Text = title,
-                    FontSize = 12,
-                    TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
-                    MaxWidth = 220,
-                },
-            };
-            btn.Click += OnHistoryItemClick;
-            HistoryList.Items.Add(btn);
-        }
-    }
-
-    /// <summary>
-    /// 从数据库重新读取当前会话标题，刷新顶部标签和历史列表中对应项。
+    /// 从数据库重新读取当前会话标题，触发左侧 ChatHistoryPanel 刷新对应项。
+    /// C5 决策 R1+R2：HistoryLabel + HistoryList Popup 已删除（顶栏 "最近 ▼" 被砍），
+    /// 标题刷新由 LeftPanel.Tab2 内 ChatHistoryPanel 的列表自然刷新接管。
+    /// 本方法保留是为了让 OnSessionTitleUpdated 事件能触发左侧列表 Reload（保持事件链完整）。
     /// </summary>
     private void RefreshCurrentSessionTitle()
     {
-        var sessionId = HistoryPanel.CurrentSessionId;
+        var sessionId = LeftPanelHost.CurrentSessionId;
         if (string.IsNullOrEmpty(sessionId)) return;
 
+        // C5 决策：原读取 DB 单条 + 更新 HistoryLabel/HistoryList 逻辑全部删除。
+        // 改为直接通知左侧 ChatHistoryPanel 整体 Reload，让其自己从 DB 重新加载列表。
         try
         {
-            var db = App.Services.GetRequiredService<CortanaDbContext>();
-            var session = db.QueryFirstOrDefault(
-                "SELECT * FROM ChatSessions WHERE Id = @Id",
-                ReadSessionEntity,
-                cmd => cmd.Parameters.AddWithValue("@Id", sessionId));
-            if (session is null) return;
-
-            var title = string.IsNullOrWhiteSpace(session.Title) ? "新对话" : session.Title;
-            HistoryLabel.Text = title;
-
-            // 同步更新 Popup 历史列表中对应按钮的文本
-            foreach (var item in HistoryList.Items)
-            {
-                if (item is Button btn && btn.Tag is string id
-                    && string.Equals(id, sessionId, StringComparison.OrdinalIgnoreCase)
-                    && btn.Content is TextBlock tb)
-                {
-                    tb.Text = title;
-                    break;
-                }
-            }
+            LeftPanelHost.ReloadHistory();
         }
         catch { /* 非关键路径，静默忽略 */ }
     }
@@ -131,8 +91,9 @@ public partial class MainWindow
     /// </summary>
     private void SwitchToSession(string sessionId, string title)
     {
-        HistoryLabel.Text = string.IsNullOrWhiteSpace(title) ? "新对话" : title;
-        HistoryPanel.CurrentSessionId = sessionId;
+        // C5 决策 R1：HistoryLabel.Text 赋值已删除（顶栏 "最近 ▼" 按钮被砍）。
+        // 当前会话标题由 LeftPanel.Tab2 ChatHistoryPanel 内部高亮处理（CurrentSessionId 比对）。
+        LeftPanelHost.CurrentSessionId = sessionId;
         MessageList.Items.Clear();
 
         // 先通知 AiChatService 恢复该会话上下文。即使该会话还没有消息，也必须绑定，
@@ -274,25 +235,6 @@ public partial class MainWindow
             LastActiveTimestamp = r.GetInt64(r.GetOrdinal("LastActiveTimestamp")),
             TotalTokenCount = r.GetInt32(r.GetOrdinal("TotalTokenCount"))
         };
-    }
-
-    // ──────── 历史 Popup & 会话操作按钮 ────────
-
-    /// <summary>会话历史下拉按钮点击 → 弹出/关闭 Popup。</summary>
-    private void OnHistoryClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        HistoryPopup.IsOpen = !HistoryPopup.IsOpen;
-    }
-
-    /// <summary>会话历史列表项点击 → 切换到选中的会话。</summary>
-    private void OnHistoryItemClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.Tag is string sessionId)
-        {
-            var title = btn.Content is TextBlock tb ? tb.Text ?? "新对话" : "新对话";
-            HistoryPopup.IsOpen = false;
-            SwitchToSession(sessionId, title);
-        }
     }
 
     /// <summary>新建会话按钮点击。</summary>
