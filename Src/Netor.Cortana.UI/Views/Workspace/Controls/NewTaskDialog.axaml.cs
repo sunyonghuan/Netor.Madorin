@@ -18,8 +18,12 @@ public partial class NewTaskDialog : Window
 
     public NewTaskDialog()
     {
-        InitializeComponent();
+        // Bug 修复（2026-05-17，根因：InitializeComponent 加载 XAML 时 ComboBox.SelectionChanged
+        // 立即触发 OnSubModeChanged 默认选中第一项，此时 _vm 还是 null 会抛 NRE 让整个对话框构造失败 →
+        // Release/AOT 模式下 Debug.WriteLine 异常被剥离 → 用户看到"无响应"假象）。
+        // 修复：必须先初始化 _vm，再 InitializeComponent；OnSubModeChanged 也加 null 防御作为双保险。
         _vm = new NewTaskDialogVm();
+        InitializeComponent();
         DataContext = _vm;
     }
 
@@ -63,6 +67,10 @@ public partial class NewTaskDialog : Window
 
     private void OnSubModeChanged(object? sender, SelectionChangedEventArgs e)
     {
+        // Bug 修复（2026-05-17）双保险：构造期 InitializeComponent 加载 XAML 时 ComboBox 默认选中
+        // 第一项会立即触发本事件，此时 _vm 可能还未初始化（取决于 ctor 内字段赋值与 InitializeComponent
+        // 的执行顺序）。即使 ctor 已修复，保留此 null 防御让本控件即使被 axaml-only 场景实例化也安全。
+        if (_vm is null) return;
         if (sender is not ComboBox combo) return;
         if (combo.SelectedItem is ComboBoxItem { Tag: string subMode })
         {

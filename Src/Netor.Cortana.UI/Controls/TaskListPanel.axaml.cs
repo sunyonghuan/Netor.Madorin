@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 using Netor.Cortana.AI.Workflow;
 using Netor.Cortana.UI.ViewModels.Workspace;
@@ -36,6 +37,13 @@ public partial class TaskListPanel : UserControl
     private readonly WorkspaceTabVm _vm;
 
     /// <summary>
+    /// Bug 诊断（2026-05-16 用户反馈"群聊 tab 新建任务无响应"）：
+    /// 原 <see cref="ShowError"/> 走 Debug.WriteLine 在 Release/AOT 下被编译器剥离，
+    /// 异常被静默吞掉。改用 ILogger 让所有错误在生产日志可见。
+    /// </summary>
+    private readonly ILogger<TaskListPanel> _logger;
+
+    /// <summary>
     /// 初始化。从 DI 解析 IWorkflowExecutor + WorkspaceTabVm，并自行设置 DataContext。
     /// </summary>
     public TaskListPanel()
@@ -43,6 +51,7 @@ public partial class TaskListPanel : UserControl
         InitializeComponent();
         _executor = App.Services.GetRequiredService<IWorkflowExecutor>();
         _vm = App.Services.GetRequiredService<WorkspaceTabVm>();
+        _logger = App.Services.GetRequiredService<ILogger<TaskListPanel>>();
         DataContext = _vm;
     }
 
@@ -86,6 +95,10 @@ public partial class TaskListPanel : UserControl
     /// </summary>
     private async void OnNewTaskClick(object? sender, RoutedEventArgs e)
     {
+        // Bug 诊断：入口日志确认按钮事件触发（Release/AOT 模式下 Debug.WriteLine 不可见）
+        _logger.LogInformation("[TaskListPanel] OnNewTaskClick: WorkspaceId={WorkspaceId}, SubModeFilter={SubModes}",
+            _vm.List.WorkspaceId, _vm.List.SubModeFilter is null ? "(null)" : string.Join(",", _vm.List.SubModeFilter));
+
         if (_vm is null) return;
 
         try
@@ -97,12 +110,19 @@ public partial class TaskListPanel : UserControl
 
             if (TopLevel.GetTopLevel(this) is Window owner)
             {
+                _logger.LogInformation("[TaskListPanel] Showing NewTaskDialog with owner={OwnerType}", owner.GetType().Name);
                 await dialog.ShowDialog(owner);
+                _logger.LogInformation("[TaskListPanel] NewTaskDialog closed, CreatedTaskId={TaskId}",
+                    dialog.CreatedTaskId ?? "(null)");
+            }
+            else
+            {
+                _logger.LogWarning("[TaskListPanel] TopLevel.GetTopLevel(this) returned null — dialog NOT shown");
             }
         }
         catch (Exception ex)
         {
-            ShowError($"新建任务失败：{ex.Message}");
+            ShowError($"新建任务失败：{ex.Message}", ex);
         }
     }
 
@@ -132,7 +152,7 @@ public partial class TaskListPanel : UserControl
         }
         catch (Exception ex)
         {
-            ShowError($"重命名失败：{ex.Message}");
+            ShowError($"重命名失败：{ex.Message}", ex);
         }
     }
 
@@ -150,7 +170,7 @@ public partial class TaskListPanel : UserControl
         }
         catch (Exception ex)
         {
-            ShowError($"置顶切换失败：{ex.Message}");
+            ShowError($"置顶切换失败：{ex.Message}", ex);
         }
     }
 
@@ -170,7 +190,7 @@ public partial class TaskListPanel : UserControl
         }
         catch (Exception ex)
         {
-            ShowError($"归档失败：{ex.Message}");
+            ShowError($"归档失败：{ex.Message}", ex);
         }
     }
 
@@ -186,7 +206,7 @@ public partial class TaskListPanel : UserControl
         }
         catch (Exception ex)
         {
-            ShowError($"复制任务失败：{ex.Message}");
+            ShowError($"复制任务失败：{ex.Message}", ex);
         }
     }
 
@@ -210,16 +230,26 @@ public partial class TaskListPanel : UserControl
         }
         catch (Exception ex)
         {
-            ShowError($"删除失败：{ex.Message}");
+            ShowError($"删除失败：{ex.Message}", ex);
         }
     }
 
     /// <summary>
-    /// C4 阶段保留与原 WorkspaceTab 一致的简化错误提示（仅写 Debug 输出）。
-    /// C5+ 接入 Snackbar 时替换。
+    /// Bug 诊断版（2026-05-16）：原版用 Debug.WriteLine 在 Release/AOT 下被剥离，异常静默吞掉。
+    /// 改为 ILogger.LogError + Console.Error.WriteLine 让所有错误在生产日志可见。
+    /// C5+ 接入 Snackbar 时把第二个调用替换为 UI 弹窗。
     /// </summary>
-    private void ShowError(string message)
+    private void ShowError(string message, Exception? ex = null)
     {
-        System.Diagnostics.Debug.WriteLine($"[TaskListPanel] {message}");
+        if (ex is null)
+        {
+            _logger.LogError("[TaskListPanel] {Message}", message);
+            Console.Error.WriteLine($"[TaskListPanel] {message}");
+        }
+        else
+        {
+            _logger.LogError(ex, "[TaskListPanel] {Message}", message);
+            Console.Error.WriteLine($"[TaskListPanel] {message}\n{ex}");
+        }
     }
 }
