@@ -102,5 +102,14 @@ namespace Netor.Cortana.Entitys
 
         /// <summary>阶段 5B+ 起：保存 WorkflowTaskOverrides（MaxRounds 等覆盖）。</summary>
         public string? OverridesJson { get; set; }
+
+        /// <summary>
+        /// 阶段 6 Phase 2：任务级工具黑名单（JSON 字符串数组，元素格式 "pluginId:toolName"）。
+        /// 用户在 NewTaskDialog 上勾选"本次禁用高风险工具"时填充；
+        /// <see cref="AI.AIAgentFactory.AssembleToolProviders"/> 在为 sub-agent 构建工具集时按此列表过滤掉对应函数。
+        /// null 或空字符串表示不过滤（向后兼容，旧任务行为不变）。
+        /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #1 + 05-风险与规避.md §风险 7。
+        /// </summary>
+        public string? ToolBlacklistJson { get; set; }
     }
 }

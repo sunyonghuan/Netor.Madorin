@@ -164,6 +164,32 @@
                        Text="任务至少需要 2 个参与者（Manager + 至少 1 个 Member，或 ≥ 2 个 Member）。" />
         </StackPanel>
 
+        <!-- 阶段 6 Phase 2：高风险工具屏蔽（决策 6-2-A 黑名单 + 6-2-B "pluginId" 粒度）-->
+        <!-- 用户勾选后本次任务参与者构建时跳过对应插件，不影响其他任务的工具可用性 -->
+        <StackPanel>
+            <TextBlock Classes="field-label" Text="本次禁用的高风险工具（可选）" />
+            <Border Background="#252526" BorderBrush="#3c3c3c" BorderThickness="1"
+                    CornerRadius="3" Padding="8" MaxHeight="160">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding HighRiskTools}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HighRiskToolItem">
+                                <CheckBox Content="{Binding DisplayName}"
+                                          IsChecked="{Binding IsBlocked, Mode=TwoWay}"
+                                          ToolTip.Tip="{Binding Description}"
+                                          Foreground="#cccccc"
+                                          FontSize="13"
+                                          Padding="4,2"
+                                          Margin="0,1" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+            <TextBlock Classes="field-hint"
+                       Text="勾选后本次任务的所有参与者都不会启用对应插件。Agent 全局工具配置保持不变。" />
+        </StackPanel>
+
         <!-- 阶段 5B Phase 4：Magentic 成本警告 banner（决策 [04] §4B.6）-->
         <!-- 仅在 SubMode=magentic 且预估 token ≥ Workflow.Magentic.CostWarningThreshold 时显示 -->
         <Border Background="#3a2f1f" BorderBrush="#8c6e1c" BorderThickness="1"

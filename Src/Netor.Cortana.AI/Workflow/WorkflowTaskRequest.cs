@@ -50,4 +50,13 @@ public sealed record WorkflowTaskRequest
 
     /// <summary>OverridesJson（阶段 5B+ 用于 MaxRounds 等覆盖）。</summary>
     public string? OverridesJson { get; init; }
+
+    /// <summary>
+    /// 阶段 6 Phase 2：任务级工具黑名单（"pluginId:toolName" 格式列表，决策 6-2-B 粒度）。
+    /// 用户在 NewTaskDialog 上勾选"本次禁用 Shell / FileWrite"等高风险工具时填充；
+    /// <see cref="AIAgentFactory.AssembleToolProviders"/> 在为参与者构建工具集时按此列表过滤。
+    /// 空列表 / null 表示不过滤（决策 6-2-A 黑名单模式：默认全部允许，向后兼容）。
+    /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #1。
+    /// </summary>
+    public IReadOnlyList<string>? ToolBlacklist { get; init; }
 }

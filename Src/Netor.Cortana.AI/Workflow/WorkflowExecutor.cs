@@ -13,6 +13,7 @@ using Netor.EventHub;
 
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 // SDK 的 Workflow 类型名与本项目 namespace `Netor.Cortana.AI.Workflow` 同名，
 // 编译器优先解析为命名空间，因此用类型别名消除歧义（与 GroupChatWorkflowFactory / MagenticWorkflowFactory 一致）。
@@ -402,6 +403,22 @@ public sealed class WorkflowExecutor(
     private OrchestrationTaskEntity InsertTaskAndParticipants(
         string taskId, WorkflowTaskRequest request, string traceId, long nowMs)
     {
+        // 阶段 6 Phase 2：把 request.ToolBlacklist (List<string>) 序列化为 JSON 数组（AOT 安全）。
+        // 用 JsonArray 而不是 JsonSerializer.Serialize（避免反射式序列化 + 不依赖 JsonContext source-gen）。
+        // 详见 04-实施阶段.md §阶段 6 #1。
+        string? toolBlacklistJson = null;
+        if (request.ToolBlacklist is { Count: > 0 } list)
+        {
+            var arr = new JsonArray();
+            foreach (var item in list)
+            {
+                if (!string.IsNullOrWhiteSpace(item))
+                    arr.Add(item);
+            }
+            if (arr.Count > 0)
+                toolBlacklistJson = arr.ToJsonString();
+        }
+
         var entity = new OrchestrationTaskEntity
         {
             Id = taskId,
@@ -423,6 +440,7 @@ public sealed class WorkflowExecutor(
             InitialAttachmentsJson = request.InitialAttachmentsJson,
             WorkspaceId = request.WorkspaceId,
             OverridesJson = request.OverridesJson,
+            ToolBlacklistJson = toolBlacklistJson,   // 阶段 6 Phase 2
         };
         taskRepo.Insert(entity);
 
@@ -598,9 +616,10 @@ public sealed class WorkflowExecutor(
         // 1. 加载并构建参与者（Manager + Members 全部走轻量路径）
         // 阶段 6 Phase 1：维护 trackers 字典让 PersistAndPublishStep 在 step 完成时反查 token；
         // outputSnapshot 字典记录每个 agent 的累计输出快照，用于计算 step 级 output 增量。
+        // 阶段 6 Phase 2：把 request.ToolBlacklist 传给参与者构建，AssembleToolProviders 在工具组装阶段过滤掉黑名单工具。
         var trackers = new Dictionary<string, TokenTrackingChatClient>(StringComparer.OrdinalIgnoreCase);
         var outputSnapshot = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-        var participants = LoadAndBuildParticipants(request, trackers);
+        var participants = LoadAndBuildParticipants(request, trackers, request.ToolBlacklist);
         if (participants.Count == 0)
         {
             HandleTaskFailed(taskId, request, traceId, entity, participantIds, startedMs,
@@ -670,10 +689,12 @@ public sealed class WorkflowExecutor(
     /// <summary>
     /// 加载 request 中的 ManagerAgent + Member Agents 并构建为 AIAgent。
     /// 阶段 6 Phase 1：可选输出 trackerByAgentId 字典，让调用方在 step 完成时取 token 数据。
+    /// 阶段 6 Phase 2：可选 taskBlacklist 参数，按 "pluginId:toolName" 在工具组装阶段过滤掉本次任务屏蔽的高风险工具。
     /// </summary>
     private IReadOnlyList<AIAgent> LoadAndBuildParticipants(
         WorkflowTaskRequest request,
-        IDictionary<string, TokenTrackingChatClient>? trackerByAgentId = null)
+        IDictionary<string, TokenTrackingChatClient>? trackerByAgentId = null,
+        IReadOnlyCollection<string>? taskBlacklist = null)
     {
         var entities = new List<AgentEntity>();
 
@@ -715,7 +736,7 @@ public sealed class WorkflowExecutor(
         if (fallbackModel is null) return [];
 
         return factory.BuildWorkflowParticipants(
-            entities, fallbackProvider, fallbackModel, providerService, modelService, trackerByAgentId);
+            entities, fallbackProvider, fallbackModel, providerService, modelService, trackerByAgentId, taskBlacklist);
     }
 
     /// <summary>

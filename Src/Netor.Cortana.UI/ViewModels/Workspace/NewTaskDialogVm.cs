@@ -11,6 +11,47 @@ using Netor.Cortana.Entitys.Services;
 namespace Netor.Cortana.UI.ViewModels.Workspace;
 
 /// <summary>
+/// 阶段 6 Phase 2：NewTaskDialog 高风险工具屏蔽项 ViewModel。
+/// 决策 6-2-C：一期硬编码 4 项已知高风险插件 / 工具，未来可由插件 manifest 声明 riskLevel 字段动态生成。
+/// 决策 6-2-A 黑名单 + 6-2-B 粒度 "pluginId" 整体屏蔽（也兼容 "pluginId:toolName" 细粒度）。
+/// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #1。
+/// </summary>
+public sealed class HighRiskToolItem : INotifyPropertyChanged
+{
+    private bool _isBlocked;
+
+    /// <summary>UI 显示名称（如 "C# 脚本执行"）。</summary>
+    public string DisplayName { get; }
+
+    /// <summary>黑名单元素值。pluginId 或 pluginId:toolName 格式（决策 6-2-B）。</summary>
+    public string BlacklistKey { get; }
+
+    /// <summary>UI ToolTip / 描述文本（解释该工具的风险类别）。</summary>
+    public string Description { get; }
+
+    /// <summary>用户是否勾选屏蔽。双向绑定到 CheckBox.IsChecked。</summary>
+    public bool IsBlocked
+    {
+        get => _isBlocked;
+        set
+        {
+            if (_isBlocked == value) return;
+            _isBlocked = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsBlocked)));
+        }
+    }
+
+    public HighRiskToolItem(string displayName, string blacklistKey, string description)
+    {
+        DisplayName = displayName;
+        BlacklistKey = blacklistKey;
+        Description = description;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+}
+
+/// <summary>
 /// 阶段 3B：新建 Workflow 任务对话框的 ViewModel。
 ///
 /// 职责：
@@ -133,6 +174,32 @@ public sealed class NewTaskDialogVm : INotifyPropertyChanged
     /// <summary>选中的 Member 智能体（双向绑定，用户多选）。</summary>
     public ObservableCollection<AgentEntity> SelectedMembers { get; } = [];
 
+    /// <summary>
+    /// 阶段 6 Phase 2：高风险工具屏蔽列表（一期硬编码 4 项，决策 6-2-C）。
+    /// 用户在 NewTaskDialog 上勾选 CheckBox 即把对应 BlacklistKey 加入任务级黑名单。
+    /// 后期由插件 manifest 声明 riskLevel 字段动态生成（推到阶段 7）。
+    /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #1。
+    /// </summary>
+    public ObservableCollection<HighRiskToolItem> HighRiskTools { get; } =
+    [
+        new HighRiskToolItem(
+            "C# 脚本执行 (sys_csx_script)",
+            "sys_csx_script",
+            "可在 .NET Runtime 上执行任意 C# 代码，能调用 BCL 全部 API；屏蔽后本任务不会启用此插件。"),
+        new HighRiskToolItem(
+            "应用程序启动器 (sys_app_launcher)",
+            "sys_app_launcher",
+            "可启动本机任意可执行文件，可能导致进程注入或权限提升；屏蔽后本任务不会启动外部应用。"),
+        new HighRiskToolItem(
+            "窗口管理 (sys_window_manager)",
+            "sys_window_manager",
+            "可读取/操作其他应用的窗口与输入焦点；屏蔽后本任务不会跨进程操作窗口。"),
+        new HighRiskToolItem(
+            "Office 文档操作 (sys_office)",
+            "sys_office",
+            "可读写本机 Office 文档；屏蔽后本任务不会修改 .docx / .xlsx / .pptx 文件。"),
+    ];
+
     public bool IsSubmitting
     {
         get => _isSubmitting;
@@ -241,6 +308,19 @@ public sealed class NewTaskDialogVm : INotifyPropertyChanged
         {
             var memberIds = SelectedMembers.Select(m => m.Id).ToList();
 
+            // 阶段 6 Phase 2：收集用户勾选的高风险工具屏蔽项（决策 6-2-A 黑名单 + 6-2-B "pluginId" 粒度）。
+            // 空列表传 null，让 WorkflowTaskRequest.ToolBlacklist 保持 null，
+            // 后端 InsertTaskAndParticipants 会跳过 ToolBlacklistJson 序列化（向后兼容旧任务）。
+            List<string>? blacklist = null;
+            foreach (var tool in HighRiskTools)
+            {
+                if (tool.IsBlocked)
+                {
+                    blacklist ??= [];
+                    blacklist.Add(tool.BlacklistKey);
+                }
+            }
+
             var request = new WorkflowTaskRequest
             {
                 Title = string.IsNullOrWhiteSpace(_title) ? null : _title.Trim(),
@@ -252,6 +332,7 @@ public sealed class NewTaskDialogVm : INotifyPropertyChanged
                 ManagerAgentId = _selectedManager?.Id,
                 ManagerAgentName = _selectedManager?.Name,
                 MemberAgentIds = memberIds,
+                ToolBlacklist = blacklist,   // 阶段 6 Phase 2
             };
 
             var taskId = await _executor.StartTaskAsync(request, cancellationToken);

@@ -476,6 +476,12 @@ namespace Netor.Cortana.Entitys
             // 历史数据回填：通过 ChatSessions.AgentId 反查 Agents.Name，把消息上的 AgentId/AgentName
             // 一次性补齐。仅回填 AgentId 当前为空（IFNULL='')、且 SessionId 能匹配到会话的消息，避免重复覆盖。
             BackfillChatMessagesAgentInfo();
+
+            // 阶段 6 Phase 2：任务级工具黑名单（决策 6-2-A 黑名单 + 6-2-B "pluginId:toolName" 粒度）。
+            // 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #1
+            // 与 05-风险与规避.md §风险 7。
+            // 默认 NULL（不过滤），保持向后兼容；旧任务行为不变。
+            TryAddColumn("ALTER TABLE OrchestrationTask ADD COLUMN ToolBlacklistJson TEXT NULL");
         }
 
         /// <summary>

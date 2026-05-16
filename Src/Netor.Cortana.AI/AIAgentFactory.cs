@@ -471,6 +471,11 @@ public sealed class AIAgentFactory(
     /// 调用前由调用方初始化（如 <c>new Dictionary&lt;string, TokenTrackingChatClient&gt;()</c>），方法仅写入。
     /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #2。
     /// </param>
+    /// <param name="taskBlacklist">
+    /// 阶段 6 Phase 2 新增：任务级工具黑名单（"pluginId:toolName" 格式），决策 6-2-A 黑名单 + 6-2-B 粒度。
+    /// 所有参与者共享同一份黑名单，本次任务对全员等效收窄高风险工具。
+    /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #1。
+    /// </param>
     /// <returns>参与者 AIAgent 集合，按入参顺序保留；解析失败的参与者会被过滤掉。</returns>
     public IReadOnlyList<AIAgent> BuildWorkflowParticipants(
         IReadOnlyList<AgentEntity> participantEntities,
@@ -478,7 +483,8 @@ public sealed class AIAgentFactory(
         AiModelEntity fallbackModel,
         AiProviderService providerService,
         AiModelService modelService,
-        IDictionary<string, TokenTrackingChatClient>? trackerByAgentId = null)
+        IDictionary<string, TokenTrackingChatClient>? trackerByAgentId = null,
+        IReadOnlyCollection<string>? taskBlacklist = null)
     {
         ArgumentNullException.ThrowIfNull(participantEntities);
         ArgumentNullException.ThrowIfNull(fallbackProvider);
@@ -508,7 +514,7 @@ public sealed class AIAgentFactory(
                 continue;
             }
 
-            var participant = BuildSubAgent(participantEntity, provider, model, out var tracker);
+            var participant = BuildSubAgent(participantEntity, provider, model, out var tracker, taskBlacklist);
             participants.Add(participant);
 
             // 阶段 6 Phase 1：把 tracker 按 agent.Id 注册到字典，让 Workflow 在 step 完成时反查
@@ -530,13 +536,15 @@ public sealed class AIAgentFactory(
     /// <summary>
     /// 阶段 6 Phase 1：构建子智能体（轻量），并通过 out 参数回传其 <see cref="TokenTrackingChatClient"/>，
     /// 让调用方（如 Workflow）在 step 完成时取 token 数据持久化到 OrchestrationStep。
-    /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #2。
+    /// 阶段 6 Phase 2 新增：可选 taskBlacklist 参数，按 "pluginId:toolName" 在工具组装阶段过滤掉本次任务屏蔽的高风险工具。
+    /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #1 #2。
     /// </summary>
     private AIAgent BuildSubAgent(
         AgentEntity agent,
         AiProviderEntity provider,
         AiModelEntity model,
-        out TokenTrackingChatClient tracker)
+        out TokenTrackingChatClient tracker,
+        IReadOnlyCollection<string>? taskBlacklist = null)
     {
         var driver = driverRegistry.Resolve(provider);
 
@@ -544,7 +552,7 @@ public sealed class AIAgentFactory(
         var registeredTools = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (model.InteractionCapabilities.HasFlag(InteractionCapabilities.FunctionCall))
         {
-            AssembleToolProviders(agent, providers, registeredTools);
+            AssembleToolProviders(agent, providers, registeredTools, taskBlacklist);
         }
         else
         {
@@ -595,15 +603,38 @@ public sealed class AIAgentFactory(
 
     /// <summary>
     /// 组装智能体已启用的插件 Provider 和 MCP Server Provider 到 providers 列表。
+    /// 阶段 6 Phase 2 新增：可选 taskBlacklist 参数，按 "pluginId:toolName" 过滤掉对应函数（决策 6-2-A 黑名单 + 6-2-B 粒度）。
     /// </summary>
     private void AssembleToolProviders(
         AgentEntity agent,
         List<AIContextProvider> providers,
-        Dictionary<string, string> registeredTools)
+        Dictionary<string, string> registeredTools,
+        IReadOnlyCollection<string>? taskBlacklist = null)
     {
+        // 阶段 6 Phase 2：把 taskBlacklist 规范化成大小写不敏感的 HashSet，传给下游 Add*Provider 做按工具过滤。
+        // 空集合视为 null（无过滤），避免后续每次 Contains 调用都先判 null 再判 Count。
+        HashSet<string>? blacklistSet = null;
+        if (taskBlacklist is { Count: > 0 })
+        {
+            blacklistSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in taskBlacklist)
+            {
+                if (!string.IsNullOrWhiteSpace(item))
+                    blacklistSet.Add(item.Trim());
+            }
+            if (blacklistSet.Count == 0) blacklistSet = null;
+        }
+
         var globalPluginService = services.GetService<GlobalPluginService>();
         var globalPluginIds = globalPluginService?.GetEnabledPluginIds() ?? [];
         var injectedPluginIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // 阶段 6 Phase 2 helper：plugin 整体级屏蔽判定（黑名单元素如果就是 plugin.Id，跳过整个 plugin 不注入）。
+        // 决策 6-2-B 扩展：支持两种粒度同时存在
+        //   1) "pluginId" 整体屏蔽（用于 UI 列表的简化模式：用户勾选屏蔽某高风险插件）
+        //   2) "pluginId:toolName" 工具级屏蔽（保留细粒度能力）
+        bool IsPluginEntirelyBlacklisted(string pluginId)
+            => blacklistSet is not null && blacklistSet.Contains(pluginId);
 
         // 合并全局插件 Provider。仅全局插件目录中的插件允许生效。
         foreach (var pluginInfo in pluginLoader.GetLoadedPluginInfos())
@@ -611,8 +642,13 @@ public sealed class AIAgentFactory(
             var plugin = pluginInfo.Plugin;
             if (pluginInfo.Scope != PluginInstallScope.Global) continue;
             if (!globalPluginIds.Contains(plugin.Id, StringComparer.OrdinalIgnoreCase)) continue;
+            if (IsPluginEntirelyBlacklisted(plugin.Id))
+            {
+                logger.LogInformation("任务级黑名单：跳过整个全局插件 [{PluginName}]({PluginId})", plugin.Name, plugin.Id);
+                continue;
+            }
 
-            AddPluginProvider(plugin, providers, registeredTools);
+            AddPluginProvider(plugin, providers, registeredTools, blacklistSet);
             injectedPluginIds.Add(plugin.Id);
         }
 
@@ -623,8 +659,13 @@ public sealed class AIAgentFactory(
         {
             if (!enabledIds.Contains(plugin.Id)) continue;
             if (injectedPluginIds.Contains(plugin.Id)) continue;
+            if (IsPluginEntirelyBlacklisted(plugin.Id))
+            {
+                logger.LogInformation("任务级黑名单：跳过整个智能体级插件 [{PluginName}]({PluginId})", plugin.Name, plugin.Id);
+                continue;
+            }
 
-            AddPluginProvider(plugin, providers, registeredTools);
+            AddPluginProvider(plugin, providers, registeredTools, blacklistSet);
         }
 
         // 合并该智能体已启用的 MCP Server Provider
@@ -633,6 +674,11 @@ public sealed class AIAgentFactory(
         foreach (var mcpHost in pluginLoader.GetActiveMcpServers())
         {
             if (!enabledMcpIds.Contains(mcpHost.Id)) continue;
+            if (IsPluginEntirelyBlacklisted(mcpHost.Id))
+            {
+                logger.LogInformation("任务级黑名单：跳过整个 MCP 服务器 [{McpName}]({McpId})", mcpHost.Name, mcpHost.Id);
+                continue;
+            }
 
             var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -644,6 +690,16 @@ public sealed class AIAgentFactory(
                 {
                     logger.LogWarning(
                         "工具名称冲突，已跳过：工具 '{ToolName}' 使用了系统保留前缀 'sys_'，来源：MCP 服务器 [{McpName}]({McpId})",
+                        toolName, mcpHost.Name, mcpHost.Id);
+                    excluded.Add(toolName);
+                    continue;
+                }
+
+                // 阶段 6 Phase 2：任务级黑名单过滤（按 mcpHostId:toolName 匹配）
+                if (blacklistSet is not null && blacklistSet.Contains($"{mcpHost.Id}:{toolName}"))
+                {
+                    logger.LogInformation(
+                        "任务级黑名单过滤：MCP 工具 '{ToolName}'（来源 [{McpName}]({McpId})）被本次任务屏蔽",
                         toolName, mcpHost.Name, mcpHost.Id);
                     excluded.Add(toolName);
                     continue;
@@ -671,7 +727,8 @@ public sealed class AIAgentFactory(
     private void AddPluginProvider(
         IPlugin plugin,
         List<AIContextProvider> providers,
-        Dictionary<string, string> registeredTools)
+        Dictionary<string, string> registeredTools,
+        HashSet<string>? blacklistSet = null)
     {
         var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -683,6 +740,16 @@ public sealed class AIAgentFactory(
             {
                 logger.LogWarning(
                     "工具名称冲突，已跳过：工具 '{ToolName}' 使用了系统保留前缀 'sys_'，来源：插件 [{PluginName}]({PluginId} v{Version})",
+                    toolName, plugin.Name, plugin.Id, plugin.Version);
+                excluded.Add(toolName);
+                continue;
+            }
+
+            // 阶段 6 Phase 2：任务级黑名单过滤（按 pluginId:toolName 匹配，决策 6-2-B 粒度）
+            if (blacklistSet is not null && blacklistSet.Contains($"{plugin.Id}:{toolName}"))
+            {
+                logger.LogInformation(
+                    "任务级黑名单过滤：插件工具 '{ToolName}'（来源 [{PluginName}]({PluginId} v{Version})）被本次任务屏蔽",
                     toolName, plugin.Name, plugin.Id, plugin.Version);
                 excluded.Add(toolName);
                 continue;
