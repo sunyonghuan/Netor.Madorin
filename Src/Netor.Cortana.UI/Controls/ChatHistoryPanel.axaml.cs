@@ -218,17 +218,54 @@ public partial class ChatHistoryPanel : UserControl
         };
         border.PointerPressed += OnItemPressed;
 
+        // 界面重设计 B 步骤：右键菜单（3 项：重命名 / 恢复对话 / 删除）。
+        // 用户决策：危险操作（删除）放最下 + 弹二次确认对话框。
+        // - 重命名：调用 BeginEditTitle 走 inline edit 模式（与双击交互一致）
+        // - 恢复对话：复用 OnItemPressed 的 SessionSelected 事件
+        // - 删除：弹 InputBoxDialog.ConfirmAsync 二次确认 + 单条 SQL 删除
+        var renameItem = new MenuItem { Header = "重命名", Tag = session.Id };
+        renameItem.Click += OnContextRenameClick;
+
+        var restoreItem = new MenuItem { Header = "恢复对话", Tag = session.Id };
+        restoreItem.Click += OnContextRestoreClick;
+
+        var deleteItem = new MenuItem { Header = "删除", Tag = session.Id };
+        deleteItem.Click += OnContextDeleteClick;
+
+        // Items.Add 风格（避免 AOT 模式下混类型数组的潜在分析告警，所有 Avalonia 项目代码统一用法）
+        var menu = new ContextMenu();
+        menu.Items.Add(renameItem);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(restoreItem);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(deleteItem);
+        border.ContextMenu = menu;
+
         return border;
     }
 
     /// <summary>
-    /// 双击标题进入编辑模式。
+    /// 双击标题进入编辑模式（保留原有交互）。委托到 <see cref="BeginEditTitle"/>。
     /// </summary>
     private void OnTitleDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (sender is not TextBlock titleBlock) return;
+        BeginEditTitle(titleBlock);
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// 进入标题 inline edit 模式（B 步骤提取的公共方法，被双击 + 右键"重命名"共同调用）。
+    /// 把 TextBlock 替换为 TextBox，注册回车/失焦保存 + ESC 取消。
+    /// </summary>
+    private void BeginEditTitle(TextBlock titleBlock)
+    {
         var parent = titleBlock.Parent as StackPanel;
         if (parent is null) return;
+
+        // 防止重复进入编辑（已经是 TextBox 时直接返回）
+        var index = parent.Children.IndexOf(titleBlock);
+        if (index < 0) return;
 
         var editBox = new TextBox
         {
@@ -242,12 +279,10 @@ public partial class ChatHistoryPanel : UserControl
         editBox.KeyDown += OnTitleEditKeyDown;
         editBox.LostFocus += OnTitleEditLostFocus;
 
-        var index = parent.Children.IndexOf(titleBlock);
         parent.Children[index] = editBox;
 
         editBox.Focus();
         editBox.SelectAll();
-        e.Handled = true;
     }
 
     private void OnTitleEditKeyDown(object? sender, KeyEventArgs e)
@@ -439,6 +474,110 @@ public partial class ChatHistoryPanel : UserControl
             var logger = App.Services.GetRequiredService<ILogger<ChatHistoryPanel>>();
             logger.LogError(ex, "删除会话失败");
         }
+    }
+
+    // ──────── 界面重设计 B 步骤：右键菜单 3 个 handler ────────
+    // 用户决策：菜单顺序 重命名 → 恢复对话 → 删除（危险操作放最下）+ 删除弹二次确认。
+    // 详见 Docs/未来版本策划/界面重设计/05-阶段总结.md §6.1（B 步骤实施记录）。
+
+    /// <summary>
+    /// 右键菜单 - 重命名：按 Tag 找到对应列表项的 TextBlock，进入 inline edit 模式。
+    /// 与双击交互完全一致（共享 <see cref="BeginEditTitle"/> 公共方法）。
+    /// </summary>
+    private void OnContextRenameClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem || menuItem.Tag is not string sessionId) return;
+
+        var titleBlock = FindTitleBlock(sessionId);
+        if (titleBlock is not null)
+            BeginEditTitle(titleBlock);
+    }
+
+    /// <summary>
+    /// 右键菜单 - 恢复对话：触发 <see cref="SessionSelected"/> 事件，
+    /// 与左键单击列表项的行为一致（OnItemPressed 入口）。
+    /// </summary>
+    private void OnContextRestoreClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem || menuItem.Tag is not string sessionId) return;
+
+        var session = _loadedSessions.Find(s => s.Id == sessionId);
+        if (session is null) return;
+
+        SessionSelected?.Invoke(session.Id, session.Title);
+    }
+
+    /// <summary>
+    /// 右键菜单 - 删除（危险操作）：弹二次确认对话框，确认后删除单条会话 + 关联消息。
+    /// 与 <see cref="OnDeleteSelectedClick"/>（多选删除）共享 SQL 删除逻辑，但走单条路径。
+    /// 删除当前激活会话时触发 <see cref="RequestNewSession"/> 让 MainWindow 创建新会话。
+    /// </summary>
+    private async void OnContextDeleteClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menuItem || menuItem.Tag is not string sessionId) return;
+
+        var session = _loadedSessions.Find(s => s.Id == sessionId);
+        if (session is null) return;
+
+        var owner = TopLevel.GetTopLevel(this) as Window;
+        if (owner is null) return;
+
+        var displayTitle = string.IsNullOrWhiteSpace(session.Title) ? "新对话" : session.Title;
+
+        // 二次确认（默认按钮 = 取消，防误删）
+        var confirmed = await Netor.Cortana.UI.Views.Workspace.InputBoxDialog.ConfirmAsync(
+            owner,
+            title: "删除会话",
+            message: $"确定要删除会话「{displayTitle}」吗？\n\n该会话的所有消息将一并删除，此操作不可撤销。",
+            confirmText: "删除",
+            cancelText: "取消");
+
+        if (!confirmed) return;
+
+        var deletedActiveSession = string.Equals(sessionId, CurrentSessionId, StringComparison.OrdinalIgnoreCase);
+
+        try
+        {
+            var db = App.Services.GetRequiredService<CortanaDbContext>();
+            db.Execute(
+                "DELETE FROM ChatSessions WHERE Id = @id",
+                cmd => cmd.Parameters.AddWithValue("@id", sessionId));
+            db.Execute(
+                "DELETE FROM ChatMessages WHERE SessionId = @id",
+                cmd => cmd.Parameters.AddWithValue("@id", sessionId));
+
+            _selectedIds.Remove(sessionId);
+            Reload();
+
+            if (deletedActiveSession)
+                RequestNewSession?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            var logger = App.Services.GetRequiredService<ILogger<ChatHistoryPanel>>();
+            logger.LogError(ex, "删除单条会话失败 SessionId={SessionId}", sessionId);
+        }
+    }
+
+    /// <summary>
+    /// 按 sessionId 找到列表中对应 Border 内的标题 TextBlock。
+    /// CreateSessionItem 的 Border &gt; Grid &gt; StackPanel &gt; TextBlock(标题) 路径。
+    /// </summary>
+    private TextBlock? FindTitleBlock(string sessionId)
+    {
+        foreach (var item in HistoryItems.Items)
+        {
+            if (item is not Border border || border.Tag is not string id) continue;
+            if (!string.Equals(id, sessionId, StringComparison.OrdinalIgnoreCase)) continue;
+
+            if (border.Child is Grid grid && grid.Children.Count >= 2
+                && grid.Children[1] is StackPanel sp && sp.Children.Count >= 1
+                && sp.Children[0] is TextBlock titleBlock)
+            {
+                return titleBlock;
+            }
+        }
+        return null;
     }
 
     /// <summary>
