@@ -631,6 +631,7 @@ a:hover {
 }
 
 .pain-section,
+.scenario-section,
 .department-section,
 .feature-runway,
 .advantage-section,
@@ -665,7 +666,7 @@ a:hover {
 }
 
 .pain-card {
-  min-height: 260px;
+  min-height: 230px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -682,6 +683,43 @@ a:hover {
   font-weight: 950;
 }
 
+.pain-visual {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  height: 58px;
+  margin: 18px 0 24px;
+}
+
+.pain-visual i {
+  width: 34px;
+  height: 34px;
+  display: block;
+  background: linear-gradient(135deg, var(--md-cyan), var(--md-lime));
+  border-radius: 9px;
+  box-shadow: 0 14px 28px rgba(23, 200, 211, .18);
+  animation: blockPulse 2.8s ease-in-out infinite;
+}
+
+.pain-visual i:nth-child(2) {
+  height: 48px;
+  animation-delay: .18s;
+}
+
+.pain-visual i:nth-child(3) {
+  height: 58px;
+  animation-delay: .36s;
+}
+
+.pain-visual.decision i {
+  border-radius: 999px;
+}
+
+.pain-visual.delivery i {
+  width: 46px;
+  height: 16px;
+}
+
 .pain-card h3 {
   margin: auto 0 12px;
   font-size: clamp(1.45rem, 2vw, 2.25rem);
@@ -693,6 +731,168 @@ a:hover {
   margin: 0;
   color: var(--md-muted);
   line-height: 1.75;
+}
+
+.scenario-section {
+  color: #f8fbff;
+  background:
+    radial-gradient(circle at 72% 32%, rgba(182, 243, 91, .16), transparent 28rem),
+    #080b10;
+}
+
+.scenario-layout {
+  display: grid;
+  grid-template-columns: minmax(0, .72fr) minmax(520px, 1fr);
+  gap: clamp(34px, 7vw, 110px);
+  align-items: center;
+}
+
+.scenario-copy h2 {
+  margin: 14px 0 18px;
+  font-size: clamp(2.05rem, 3.8vw, 4.4rem);
+  line-height: 1.08;
+  font-weight: 950;
+}
+
+.scenario-copy p {
+  max-width: 620px;
+  margin: 0;
+  color: rgba(248, 251, 255, .68);
+  font-size: 1.08rem;
+  line-height: 1.78;
+}
+
+.meeting-visual {
+  position: relative;
+  min-height: 520px;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(255, 255, 255, .04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .04) 1px, transparent 1px),
+    rgba(255, 255, 255, .055);
+  background-size: 44px 44px;
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 22px;
+  box-shadow: 0 38px 100px rgba(0, 0, 0, .34);
+}
+
+.meeting-visual::before,
+.meeting-visual::after {
+  content: "";
+  position: absolute;
+  inset: 82px;
+  border: 1px dashed rgba(23, 200, 211, .36);
+  border-radius: 999px;
+  animation: orbitSpin 18s linear infinite;
+}
+
+.meeting-visual::after {
+  inset: 132px 110px;
+  border-color: rgba(182, 243, 91, .32);
+  animation-duration: 24s;
+  animation-direction: reverse;
+}
+
+.meeting-center {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  z-index: 2;
+  width: min(300px, 58%);
+  min-height: 140px;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  text-align: center;
+  color: #061014;
+  background: linear-gradient(135deg, var(--md-cyan), var(--md-lime));
+  border-radius: 18px;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 28px 70px rgba(23, 200, 211, .24);
+}
+
+.meeting-center span,
+.expert-node span {
+  font-size: .8rem;
+  font-weight: 950;
+}
+
+.meeting-center strong {
+  display: block;
+  font-size: clamp(1.3rem, 2vw, 2.1rem);
+  line-height: 1.15;
+}
+
+.expert-node {
+  position: absolute;
+  z-index: 3;
+  width: 150px;
+  min-height: 86px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 15px;
+  background: rgba(255, 255, 255, .09);
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .22);
+  backdrop-filter: blur(16px);
+  animation: nodeFloat 4.4s ease-in-out infinite;
+}
+
+.expert-node span {
+  color: var(--md-cyan);
+}
+
+.expert-node b {
+  margin-top: 16px;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+.node-tech {
+  left: 8%;
+  top: 16%;
+}
+
+.node-growth {
+  right: 9%;
+  top: 16%;
+  animation-delay: .25s;
+}
+
+.node-care {
+  left: 10%;
+  bottom: 26%;
+  animation-delay: .5s;
+}
+
+.node-plan {
+  right: 11%;
+  bottom: 26%;
+  animation-delay: .75s;
+}
+
+.delivery-strip {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 24px;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.delivery-strip span {
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  color: rgba(248, 251, 255, .86);
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: var(--md-radius);
+  font-weight: 850;
 }
 
 .showcase-section {
@@ -823,7 +1023,7 @@ a:hover {
 .department-card {
   position: relative;
   grid-column: span 2;
-  min-height: 360px;
+  min-height: 300px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -860,7 +1060,7 @@ a:hover {
 }
 
 .department-card h3 {
-  margin: auto 0 14px;
+  margin: 18px 0 12px;
   color: #fff;
   font-size: clamp(1.45rem, 2.1vw, 2.22rem);
   line-height: 1.14;
@@ -871,6 +1071,26 @@ a:hover {
   margin: 0;
   color: rgba(248, 251, 255, .68);
   line-height: 1.75;
+}
+
+.department-visual {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 24px 0 auto;
+}
+
+.department-visual i {
+  min-height: 46px;
+  display: grid;
+  place-items: center;
+  color: rgba(248, 251, 255, .86);
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: var(--md-radius);
+  font-style: normal;
+  font-size: .72rem;
+  font-weight: 950;
 }
 
 .feature-runway {
@@ -885,7 +1105,7 @@ a:hover {
 }
 
 .mode-card {
-  min-height: 330px;
+  min-height: 290px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -904,7 +1124,7 @@ a:hover {
 }
 
 .mode-card h3 {
-  margin: auto 0 14px;
+  margin: 24px 0 14px;
   font-size: clamp(1.45rem, 2.25vw, 2.35rem);
   line-height: 1.14;
   font-weight: 930;
@@ -914,6 +1134,63 @@ a:hover {
   margin: 0;
   color: var(--md-muted);
   line-height: 1.75;
+}
+
+.mode-visual {
+  height: 96px;
+  display: grid;
+  align-items: center;
+  margin: 24px 0 auto;
+}
+
+.mode-visual i {
+  display: block;
+  background: linear-gradient(135deg, var(--md-cyan), var(--md-lime));
+  border-radius: 999px;
+  animation: blockPulse 3s ease-in-out infinite;
+}
+
+.chat-lines {
+  gap: 10px;
+}
+
+.chat-lines i {
+  height: 13px;
+}
+
+.chat-lines i:nth-child(1) {
+  width: 72%;
+}
+
+.chat-lines i:nth-child(2) {
+  width: 92%;
+  animation-delay: .18s;
+}
+
+.chat-lines i:nth-child(3) {
+  width: 54%;
+  animation-delay: .36s;
+}
+
+.meeting-dots {
+  grid-template-columns: repeat(4, 44px);
+  justify-content: start;
+  gap: 12px;
+}
+
+.meeting-dots i {
+  width: 44px;
+  height: 44px;
+}
+
+.flow-blocks {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.flow-blocks i {
+  height: 72px;
+  border-radius: 12px;
 }
 
 .feature-strips {
@@ -966,13 +1243,43 @@ a:hover {
 }
 
 .advantage-card {
-  min-height: 230px;
+  min-height: 170px;
   padding: clamp(22px, 3vw, 34px);
   background: #fff;
   border: 1px solid rgba(17, 19, 23, .1);
   border-radius: 16px;
   box-shadow: 0 18px 52px rgba(17, 19, 23, .055);
   transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+
+@keyframes blockPulse {
+  0%,
+  100% {
+    opacity: .72;
+    transform: translateY(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes nodeFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes orbitSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .advantage-card:hover,
@@ -1456,6 +1763,7 @@ a:hover {
 
 @media (max-width: 1180px) {
   .hero-shell,
+  .scenario-layout,
   .showcase-grid,
   .flow-layout {
     grid-template-columns: 1fr;
@@ -1506,6 +1814,10 @@ a:hover {
   .department-card {
     grid-column: auto;
     min-height: 280px;
+  }
+
+  .delivery-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .team-board {
@@ -1638,6 +1950,7 @@ a:hover {
   }
 
   .pain-section,
+  .scenario-section,
   .department-section,
   .feature-runway,
   .advantage-section,
@@ -1652,7 +1965,40 @@ a:hover {
   }
 
   .pain-card {
-    min-height: 240px;
+    min-height: 210px;
+  }
+
+  .meeting-visual {
+    min-height: 520px;
+  }
+
+  .meeting-visual::before,
+  .meeting-visual::after {
+    inset: 86px 28px;
+  }
+
+  .meeting-visual::after {
+    inset: 132px 56px;
+  }
+
+  .expert-node {
+    width: 128px;
+    min-height: 78px;
+    padding: 12px;
+  }
+
+  .expert-node b {
+    font-size: .92rem;
+  }
+
+  .node-tech,
+  .node-care {
+    left: 16px;
+  }
+
+  .node-growth,
+  .node-plan {
+    right: 16px;
   }
 
   .flow-step {
