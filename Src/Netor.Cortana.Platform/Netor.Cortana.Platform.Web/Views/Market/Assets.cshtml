@@ -3,13 +3,13 @@
     ViewData["Title"] = "资源列表";
 }
 
-<section class="page-heading compact reveal-up">
+<section class="page-heading compact reveal-up resource-list-heading">
     <span class="eyebrow">ASSETS</span>
-    <h1>资源库</h1>
-    <p>@Model.TotalCount 个能力，按任务直接检索。</p>
+    <h1>全部资源</h1>
+    <p>@Model.TotalCount 个能力。按岗位、价格和热度筛选，把合适的资源加入 Madorin。</p>
 </section>
 
-<form class="filter-panel mb-4" method="get">
+<form class="filter-panel mb-4 resource-filter" method="get">
     <div class="row g-2">
         <div class="col-md-4">
             <input class="form-control" name="keyword" value="@Model.Keyword" placeholder="搜索插件、技能、智能体" />

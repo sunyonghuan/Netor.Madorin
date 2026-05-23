@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Netor.Cortana.Platform.Web.styles.css" asp-append-version="true" />
 </head>
-<body class="@ViewData["BodyClass"]">
+<body class="@(ViewData["BodyClass"] ?? "official-page")">
     <header>
         <nav class="navbar navbar-expand-lg sticky-top madorin-nav">
             <div class="container-fluid nav-frame">
@@ -30,10 +30,13 @@
                             <a class="nav-link" asp-area="" asp-controller="Market" asp-action="Index">资源中心</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Market" asp-action="Assets">资源</a>
+                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Download">下载</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Download">下载</a>
+                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="About">关于我们</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Contact">联系我们</a>
                         </li>
                     </ul>
                     <div class="d-flex gap-2 align-items-center">
@@ -68,9 +71,17 @@
     </div>
 
     <footer class="site-footer py-4">
-        <div class="container-fluid nav-frame d-flex flex-wrap justify-content-between gap-2">
-            <span>&copy; 2026 Madorin</span>
-            <span>本地优先 · 模型自由 · 插件扩展</span>
+        <div class="container-fluid nav-frame site-footer-grid">
+            <div>
+                <strong>Madorin</strong>
+                <span>&copy; 2026 Madorin</span>
+            </div>
+            <div class="footer-links">
+                <a asp-controller="Home" asp-action="About">关于我们</a>
+                <a asp-controller="Home" asp-action="Contact">联系我们</a>
+                <a asp-controller="Home" asp-action="Privacy">隐私说明</a>
+                <a asp-controller="Home" asp-action="Terms">服务条款</a>
+            </div>
         </div>
     </footer>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>

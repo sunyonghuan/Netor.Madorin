@@ -1,27 +1,52 @@
 @{
-    ViewData["Title"] = "平台介绍";
+    ViewData["Title"] = "关于我们";
 }
 
-<section class="page-heading">
-    <span class="eyebrow">ABOUT</span>
-    <h1>Madorin 是本地 AI 工作底座</h1>
-    <p>它把模型、插件、记忆、智能体和资源中心放进同一个工作入口，让 AI 参与真实任务，而不止回答问题。</p>
+<section class="official-hero reveal-on-scroll">
+    <div>
+        <span class="eyebrow">ABOUT MADORIN</span>
+        <h1>我们在做一个个人 AI 公司操作系统。</h1>
+        <p>Madorin 面向创业者、小团队、独立开发者和自由职业者。它让一个人也能组织 AI 部门、召开专家会议、推进工作流，并把想法变成可交付结果。</p>
+    </div>
+    <div class="official-visual" aria-hidden="true">
+        <div class="orbit-panel">
+            <span>CEO</span>
+            <i>技术</i>
+            <i>市场</i>
+            <i>客服</i>
+            <i>运营</i>
+        </div>
+    </div>
 </section>
 
-<section class="capability-grid compact">
-    <article class="capability-card">
+<section class="section-block">
+    <div class="section-title">
+        <div>
+            <span class="eyebrow">WHAT WE BELIEVE</span>
+            <h2>AI 应该服务任务，而不是增加学习负担。</h2>
+        </div>
+    </div>
+    <div class="capability-grid compact">
+        <article class="capability-card">
         <span>01</span>
-        <h3>本地优先</h3>
-        <p>工作区、上下文和扩展能力围绕本地客户端组织，适合高频、长期的个人工作流。</p>
-    </article>
-    <article class="capability-card">
-        <span>02</span>
-        <h3>模型自由</h3>
-        <p>接入不同模型与兼容接口，按任务选择最合适的推理能力。</p>
-    </article>
-    <article class="capability-card">
-        <span>03</span>
-        <h3>资源可扩展</h3>
-        <p>插件、技能、智能体和解决方案统一进入资源中心，能力可以持续增长。</p>
-    </article>
+            <h3>一个入口</h3>
+            <p>对话、会议、工作流、资源中心都在同一个软件里，减少切换和重复配置。</p>
+        </article>
+        <article class="capability-card">
+            <span>02</span>
+            <h3>多个岗位</h3>
+            <p>智能体以岗位方式参与任务，技术、市场、客服、策划可以一起协作。</p>
+        </article>
+        <article class="capability-card">
+            <span>03</span>
+            <h3>持续成长</h3>
+            <p>技能、插件、脚本和资源中心让能力持续扩展，逐步形成专属工作系统。</p>
+        </article>
+    </div>
+</section>
+
+<section class="statement-band">
+    <span class="eyebrow">DIRECTION</span>
+    <h2>让个人拥有组织能力，让小团队拥有更强执行力。</h2>
+    <a class="btn btn-madorin-primary btn-lg" asp-controller="Home" asp-action="Download">立即下载</a>
 </section>
