@@ -2,12 +2,12 @@
 
 ## 修改范围
 
-- `Src/Netor.Cortana.AI/`
-- `Src/Netor.Cortana.UI/`
-- `Src/Netor.Cortana.Entitys/`
-- `Src/Netor.Cortana.Networks/`
-- `Src/Netor.Cortana.Plugin/`
-- `Plugins/Src/Cortana.Plugins.Memory/`
+- `Src/Netor.Madorin.AI/`
+- `Src/Netor.Madorin.UI/`
+- `Src/Netor.Madorin.Entitys/`
+- `Src/Netor.Madorin.Networks/`
+- `Src/Netor.Madorin.Plugin/`
+- `Plugins/Src/Madorin.Plugins.Memory/`
 - `Docs/`
 - `Plugins/docs/`
 

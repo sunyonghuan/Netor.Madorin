@@ -1,25 +1,25 @@
 # 核心类文件说明
 
-> 状态：按当前仓库实现整理。默认主线以 Netor.Cortana.UI、Native 插件通道和 MCP 通道为准。
+> 状态：按当前仓库实现整理。默认主线以 Netor.Madorin.UI、Native 插件通道和 MCP 通道为准。
 
 ## 项目一览
 
 | 项目 | 目标框架 | 当前定位 |
 |------|---------|----------|
-| Netor.Cortana.UI | net10.0 | 当前主项目 UI，默认开发、调试和发布入口 |
-| Netor.Cortana | net10.0-windows | 遗留 WinForms UI，保留兼容和历史参考 |
-| Netor.Cortana.AI | net10.0 | AI 编排、模型接入、Agent 组装 |
-| Netor.Cortana.Voice | net10.0 | KWS、STT、TTS 等语音能力 |
-| Netor.Cortana.Networks | net10.0 | WebSocket 与网络侧能力 |
-| Netor.Cortana.Plugin | net10.0 | 插件运行时、通道路由和热插拔 |
-| Netor.Cortana.Entitys | net10.0 | SQLite 持久化、实体与配置存储 |
-| Netor.Cortana.NativeHost | net10.0 | Native 插件宿主子进程 |
-| Netor.Cortana.Plugin.Native | net10.0 | Native 插件开发包 |
-| Netor.Cortana.Plugin.Native.Generator | netstandard2.0 | Native 插件源码生成器 |
+| Netor.Madorin.UI | net10.0 | 当前主项目 UI，默认开发、调试和发布入口 |
+| Netor.Madorin | net10.0-windows | 遗留 WinForms UI，保留兼容和历史参考 |
+| Netor.Madorin.AI | net10.0 | AI 编排、模型接入、Agent 组装 |
+| Netor.Madorin.Voice | net10.0 | KWS、STT、TTS 等语音能力 |
+| Netor.Madorin.Networks | net10.0 | WebSocket 与网络侧能力 |
+| Netor.Madorin.Plugin | net10.0 | 插件运行时、通道路由和热插拔 |
+| Netor.Madorin.Entitys | net10.0 | SQLite 持久化、实体与配置存储 |
+| Netor.Madorin.NativeHost | net10.0 | Native 插件宿主子进程 |
+| Netor.Madorin.Plugin.Native | net10.0 | Native 插件开发包 |
+| Netor.Madorin.Plugin.Native.Generator | netstandard2.0 | Native 插件源码生成器 |
 
 ## 当前主入口
 
-### Netor.Cortana.UI
+### Netor.Madorin.UI
 
 | 文件 | 类型 | 说明 |
 |------|------|------|
@@ -31,14 +31,14 @@
 | Controls/ | 控件 | Avalonia 自定义控件 |
 | Providers/ | 提供者 | 面向 UI 的输出通道和桥接能力 |
 
-### Netor.Cortana.AI
+### Netor.Madorin.AI
 
 | 文件/目录 | 说明 |
 |-----------|------|
 | AIAgentFactory 相关实现 | 组装聊天客户端、工具和上下文提供者 |
 | Provider 相关实现 | 模型提供商与能力接入 |
 
-### Netor.Cortana.Voice
+### Netor.Madorin.Voice
 
 | 能力 | 说明 |
 |------|------|
@@ -46,7 +46,7 @@
 | STT | 实时语音识别 |
 | TTS | 文本转语音与播放链路 |
 
-### Netor.Cortana.Networks
+### Netor.Madorin.Networks
 
 | 能力 | 说明 |
 |------|------|
@@ -54,7 +54,7 @@
 
 > 规划补充：后续将新增“内部对话事件订阅 WebSocket”，专门向插件分发宿主内部对话事实流。该内部协议与当前对外聊天 WebSocket 明确区分，不复用同一消息对象。
 
-### Netor.Cortana.Plugin
+### Netor.Madorin.Plugin
 
 | 组件 | 说明 |
 |------|------|
@@ -77,11 +77,11 @@
 
 ## 数据与配置
 
-### Netor.Cortana.Entitys
+### Netor.Madorin.Entitys
 
 | 组件 | 说明 |
 |------|------|
-| CortanaDbContext | 基于 SQLite 的轻量持久化上下文 |
+| MadorinDbContext | 基于 SQLite 的轻量持久化上下文 |
 | AgentEntity / AiProviderEntity / AiModelEntity | AI 配置与模型实体 |
 | McpServerEntity | MCP Server 连接配置实体 |
 | ChatSessionEntity / ChatMessageEntity | 对话会话和消息存储 |
@@ -97,7 +97,7 @@
 
 ## Native 基础设施
 
-### Netor.Cortana.NativeHost
+### Netor.Madorin.NativeHost
 
 | 文件 | 说明 |
 |------|------|
@@ -107,10 +107,10 @@
 
 | 项目 | 说明 |
 |------|------|
-| Netor.Cortana.Plugin.Native | Native 插件开发时引用的主包 |
-| Netor.Cortana.Plugin.Native.Generator | 自动生成工具注册、JsonContext、plugin.json 等构建产物 |
+| Netor.Madorin.Plugin.Native | Native 插件开发时引用的主包 |
+| Netor.Madorin.Plugin.Native.Generator | 自动生成工具注册、JsonContext、plugin.json 等构建产物 |
 
 ## 历史说明
 
-- 本文档不再把 Netor.Cortana 旧 WinForms UI 视为主项目。
+- 本文档不再把 Netor.Madorin 旧 WinForms UI 视为主项目。
 - 对于历史设计细节，请结合对应文档顶部的状态说明判断是否仍然适用。

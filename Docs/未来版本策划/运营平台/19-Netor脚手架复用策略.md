@@ -29,7 +29,7 @@
 
 ## 4. 数据库复用策略
 
-`Netor.Cortana.Platform.Entitys` 已按以下模式设计：
+`Netor.Madorin.Platform.Entitys` 已按以下模式设计：
 
 - `Account : AccountBase`
 - `Manager : AccountBase`
@@ -46,7 +46,7 @@
 
 `Netor.Operates` 的价值在于后台结构和 Layui 页面组织方式。
 
-平台后台 `Netor.Cortana.Platform.Admin` 应参考：
+平台后台 `Netor.Madorin.Platform.Admin` 应参考：
 
 - MVC Controller + Razor View
 - Layui 表格、弹层、表单
@@ -77,11 +77,11 @@
 
 ## 7. 当前平台引用关系
 
-### 7.1 `Netor.Cortana.Platform.Core`
+### 7.1 `Netor.Madorin.Platform.Core`
 
 保留基础模型、结果封装和选项类。
 
-### 7.2 `Netor.Cortana.Platform.Entitys`
+### 7.2 `Netor.Madorin.Platform.Entitys`
 
 现在只负责：
 
@@ -89,15 +89,15 @@
 - EF Core DbContext
 - 迁移和种子数据
 
-### 7.3 `Netor.Cortana.Platform.Services`
+### 7.3 `Netor.Madorin.Platform.Services`
 
 只编排业务，不承担仓储职责。
 
-### 7.4 `Netor.Cortana.Platform.Admin`
+### 7.4 `Netor.Madorin.Platform.Admin`
 
 使用 MVC + Razor + Layui，后续页面尽量和 `Netor.Operates` 的字段命名、表格结构保持一致。
 
-### 7.5 `Netor.Cortana.Platform.Api`
+### 7.5 `Netor.Madorin.Platform.Api`
 
 继续使用 Minimal API + Route Group，负责对外接口，不额外引入复杂层次。
 
@@ -112,12 +112,12 @@
 基于这四个脚手架项目，第一阶段平台架构应调整为：
 
 ```text
-Netor.Cortana.Platform.Api
-Netor.Cortana.Platform.Web
-Netor.Cortana.Platform.Admin
-Netor.Cortana.Platform.Services
-Netor.Cortana.Platform.Entitys
-Netor.Cortana.Platform.Core
+Netor.Madorin.Platform.Api
+Netor.Madorin.Platform.Web
+Netor.Madorin.Platform.Admin
+Netor.Madorin.Platform.Services
+Netor.Madorin.Platform.Entitys
+Netor.Madorin.Platform.Core
 ```
 
 其中：

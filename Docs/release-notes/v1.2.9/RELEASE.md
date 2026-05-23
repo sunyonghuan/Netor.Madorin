@@ -1,4 +1,4 @@
-# Cortana v1.2.9 Release Notes
+# Madorin v1.2.9 Release Notes
 
 发布日期：2026-04-25
 
@@ -27,7 +27,7 @@
 ### UI 与默认策略
 - 模型设置页新增“思考模式”复选框，读取/保存交互能力位。
 - 新增模型默认勾选“函数调用”；“刷新远程模型”拉取后默认赋予 FunctionCall。
-- 日志输出支持工作区目录或 CORTANA_LOG_DIR，方便测试与采集。
+- 日志输出支持工作区目录或 MADORIN_LOG_DIR，方便测试与采集。
 
 ## 不兼容变更
 - SaveGeneratedAssetsAsync 方法签名调整：接收已入库的 assistant 消息 ID 列表以稳定资源归属（项目内已统一调整）。
@@ -40,9 +40,9 @@
 3. 端到端验证（OpenAI 兼容）：跑一轮 assistant tool_calls → tool result → assistant，确认无 400、链条完整、历史视图隐藏工具占位。
 
 ## 文件参考
-- 交互能力位：Src/Netor.Cortana.Entitys/Entities/ModelCapabilities.cs
-- 历史与资源：Src/Netor.Cortana.AI/Providers/ChatHistoryDataProvider.cs
-- 回传与捕获：Src/Netor.Cortana.AI/Providers/TokenTrackingChatClient.cs
-- 工具配送 gating：Src/Netor.Cortana.AI/AIAgentFactory.cs
-- 模型设置 UI：Src/Netor.Cortana.UI/Views/Settings/ModelSettingsPage.axaml(+.cs)
+- 交互能力位：Src/Netor.Madorin.Entitys/Entities/ModelCapabilities.cs
+- 历史与资源：Src/Netor.Madorin.AI/Providers/ChatHistoryDataProvider.cs
+- 回传与捕获：Src/Netor.Madorin.AI/Providers/TokenTrackingChatClient.cs
+- 工具配送 gating：Src/Netor.Madorin.AI/AIAgentFactory.cs
+- 模型设置 UI：Src/Netor.Madorin.UI/Views/Settings/ModelSettingsPage.axaml(+.cs)
 

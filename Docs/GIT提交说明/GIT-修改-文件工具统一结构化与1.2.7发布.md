@@ -22,8 +22,8 @@
 
 ### 1. 文件工具统一结构化返回
 
-- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs`
-- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperator.cs`
+- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs`
+- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperator.cs`
 
 **修改内容**:
 
@@ -35,7 +35,7 @@
 
 ### 2. 版本号升级与发布说明
 
-- `Src/Netor.Cortana.UI/Netor.Cortana.UI.csproj`
+- `Src/Netor.Madorin.UI/Netor.Madorin.UI.csproj`
 - `Docs/release-notes/v1.2.7/RELEASE.md`
 
 **修改内容**:
@@ -49,7 +49,7 @@
 
 ## 本地发布说明
 
-- 已准备本地发布流程，仅生成 `Realases/Netor.Cortana-v1.2.7-win-x64.zip` 和 `Realases/Netor.Cortana-v1.2.7-win-x64.sha256`。
+- 已准备本地发布流程，仅生成 `Realases/Netor.Madorin-v1.2.7-win-x64.zip` 和 `Realases/Netor.Madorin-v1.2.7-win-x64.sha256`。
 - 暂不执行 GitHub Release 上传。
 
 ---
@@ -72,9 +72,9 @@
 ## Git 命令
 
 ```bash
-git add Src/Netor.Cortana.UI/Netor.Cortana.UI.csproj
-git add Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperator.cs
-git add Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs
+git add Src/Netor.Madorin.UI/Netor.Madorin.UI.csproj
+git add Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperator.cs
+git add Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs
 git add Docs/GIT提交说明/GIT-修改-文件工具统一结构化与1.2.7发布.md
 git add Docs/release-notes/v1.2.7/RELEASE.md
 

@@ -1,4 +1,4 @@
-# Netor.Cortana v1.1.6 发布说明
+# Netor.Madorin v1.1.6 发布说明
 
 **发布日期：** 2026 年 4 月 18 日
 **运行时：** .NET 10 | Avalonia 12 | Native AOT
@@ -73,9 +73,9 @@
 
 ## 已知事项
 
-- 仓库中的旧 WinForms 项目 `Src/Netor.Cortana` 仍存在历史依赖版本冲突，不影响当前 UI 主线发布。
+- 仓库中的旧 WinForms 项目 `Src/Netor.Madorin` 仍存在历史依赖版本冲突，不影响当前 UI 主线发布。
 - Avalonia 编译仍会提示少量已知过时 API 警告，不影响当前版本运行与发布。
 
 ---
 
-> Netor.Cortana v1.1.6 重点不是堆功能，而是把核心执行链路和桌面体验打磨得更可靠。
+> Netor.Madorin v1.1.6 重点不是堆功能，而是把核心执行链路和桌面体验打磨得更可靠。

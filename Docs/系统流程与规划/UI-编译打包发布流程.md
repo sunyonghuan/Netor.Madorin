@@ -9,9 +9,9 @@
 ## 适用范围
 
 - 主项目：UI 桌面端。
-- 输出目录：Realases/Cortana。
-- 打包产物：Realases/Netor.Cortana-v版本号-win-x64.zip。
-- 校验文件：Realases/Netor.Cortana-v版本号-win-x64.sha256。
+- 输出目录：Realases/Madorin。
+- 打包产物：Realases/Netor.Madorin-v版本号-win-x64.zip。
+- 校验文件：Realases/Netor.Madorin-v版本号-win-x64.sha256。
 - 发布说明：Docs/release-notes/v版本号/RELEASE.md。
 
 ## 阶段一：编译目录产物
@@ -26,8 +26,8 @@ powershell -ExecutionPolicy Bypass -File .\ui.publish.ps1
 
 预期结果：
 
-- 目录 Realases/Cortana 已存在并被刷新。
-- 目录内应至少包含 Cortana.exe 和 Cortana.NativeHost.exe。
+- 目录 Realases/Madorin 已存在并被刷新。
+- 目录内应至少包含 Madorin.exe 和 Madorin.NativeHost.exe。
 - 这一步只负责目录产物，不生成压缩包，不生成 sha256，不创建 GitHub Release。
 
 ## 阶段二：打包 zip 和 sha256
@@ -48,9 +48,9 @@ powershell -ExecutionPolicy Bypass -File .\ui.package.ps1 -Version 1.1.6
 
 预期结果：
 
-- 生成 Realases/Netor.Cortana-v版本号-win-x64.zip。
-- 生成 Realases/Netor.Cortana-v版本号-win-x64.sha256。
-- 这一步只消费 Realases/Cortana 目录，不重新编译，不发布到 GitHub。
+- 生成 Realases/Netor.Madorin-v版本号-win-x64.zip。
+- 生成 Realases/Netor.Madorin-v版本号-win-x64.sha256。
+- 这一步只消费 Realases/Madorin 目录，不重新编译，不发布到 GitHub。
 
 ## 阶段三：创建 GitHub Release
 
@@ -108,12 +108,12 @@ powershell -ExecutionPolicy Bypass -File .\github.release.ps1 -Tag v1.1.6-r3
 - 当前仓库 GitHub Release 存在 immutable release 历史限制，旧 tag 失败后不要强行复用。
 - 更稳妥的做法是使用新的未占用 tag，例如 v1.1.6-r2、v1.1.6-r3。
 - github.release.ps1 默认远端使用 github，而不是 origin。
-- 本地数据库文件 cortana.db、cortana.db-wal、cortana.db-shm 不应提交到 Git。
+- 本地数据库文件 madorin.db、madorin.db-wal、madorin.db-shm 不应提交到 Git。
 
 ## 相关脚本
 
 - ui.publish.ps1：只生成 UI 目录产物。
-- ui.package.ps1：只从 Realases/Cortana 生成 zip 和 sha256。
+- ui.package.ps1：只从 Realases/Madorin 生成 zip 和 sha256。
 - github.release.ps1：只创建 GitHub Release。
 - ui.publish.cmd、ui.package.cmd、github.release.cmd：对应的命令行入口。
 

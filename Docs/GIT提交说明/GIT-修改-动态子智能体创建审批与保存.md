@@ -2,9 +2,9 @@
 
 ## 修改范围
 
-- `Src/Netor.Cortana.AI/`
-- `Src/Netor.Cortana.Entitys/`
-- `Src/Netor.Cortana.UI/`
+- `Src/Netor.Madorin.AI/`
+- `Src/Netor.Madorin.Entitys/`
+- `Src/Netor.Madorin.UI/`
 - `Docs/未来版本策划/聊天式任务发起与动态智能体/`
 - `Docs/GIT提交说明/`
 
@@ -23,7 +23,7 @@
 
 - 新增 `Resources/Prompts/Magentic.DynamicCreation.md`，指导 Manager 判断何时创建子智能体、如何命名、如何拆分职责和处理失败。
 - 新增提示词注入 Provider，在 Manager 上下文中动态替换 `{{MaxSubAgents}}` 并注入动态创建说明。
-- 调整 `Netor.Cortana.AI.csproj`，将提示词模板作为嵌入资源发布。
+- 调整 `Netor.Madorin.AI.csproj`，将提示词模板作为嵌入资源发布。
 
 ### 3. 动态子智能体创建审批
 

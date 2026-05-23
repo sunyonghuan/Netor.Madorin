@@ -1,7 +1,7 @@
 # 03 - 内部事件 WebSocket 协议
 
 > 状态：已被 S08 单端点 PluginBus 方案取代  
-> 当前主线：`ws://localhost:{pluginBusPort}/internal`，协议 `cortana.plugin-bus`  
+> 当前主线：`ws://localhost:{pluginBusPort}/internal`，协议 `madorin.plugin-bus`  
 > 说明：本文保留为历史设计记录，旧 `/internal/conversation-feed/`、`conversation-feed` 协议和 `memory.supply.*` 操作名不再作为当前实现依据。
 
 ## 目标
@@ -28,14 +28,14 @@
 
 ## 握手消息
 
-当前实现使用 `cortana.plugin-bus`：
+当前实现使用 `madorin.plugin-bus`：
 
 ```json
 {
 	"type": "connected",
 	"clientId": "plugin-bus-client-id",
 	"topics": ["conversation", "memory", "model", "plugin"],
-	"protocol": "cortana.plugin-bus",
+	"protocol": "madorin.plugin-bus",
 	"version": "1.0.0"
 }
 ```
@@ -60,7 +60,7 @@
 {
 	"type": "subscribe",
 	"topics": ["conversation", "memory", "model"],
-	"protocol": "cortana.plugin-bus",
+	"protocol": "madorin.plugin-bus",
 	"version": "1.0.0"
 }
 ```
@@ -80,7 +80,7 @@
 
 ## 订阅确认
 
-当前实现使用 `cortana.plugin-bus`，并回传实际订阅的 topic。以下旧示例仅作历史记录：
+当前实现使用 `madorin.plugin-bus`，并回传实际订阅的 topic。以下旧示例仅作历史记录：
 
 ```json
 {
@@ -94,7 +94,7 @@
 
 ## 错误消息
 
-当前实现错误帧使用 `protocol = "cortana.plugin-bus"`。结构化 `error` 对象仍属于 S08-25 后续标准化范围。以下旧示例仅作历史记录：
+当前实现错误帧使用 `protocol = "madorin.plugin-bus"`。结构化 `error` 对象仍属于 S08-25 后续标准化范围。以下旧示例仅作历史记录：
 
 ```json
 {
@@ -113,7 +113,7 @@
 ```json
 {
 	"type": "event",
-	"protocol": "cortana.plugin-bus",
+	"protocol": "madorin.plugin-bus",
 	"version": "1.0.0",
 	"topic": "conversation",
 	"op": "conversation.event.publish",
@@ -165,8 +165,8 @@
 	"requestId": "uuid",
 	"agentId": "agent-1",
 	"agentName": "默认智能体",
-	"workspaceId": "E:\\Netor.me\\Cortana",
-	"workspaceDirectory": "E:\\Netor.me\\Cortana",
+	"workspaceId": "E:\\Netor.me\\Madorin",
+	"workspaceDirectory": "E:\\Netor.me\\Madorin",
 	"sessionId": "session-1",
 	"turnId": "turn-1",
 	"messageId": "message-1",

@@ -13,7 +13,7 @@
 - 语音引擎崩溃或 Native 依赖异常会影响主进程稳定性；
 - 无法按需安装、更新或替换单个语音能力。
 
-原方案计划把 STT/TTS 拆为固定的 `Cortana.Stt.exe` / `Cortana.Tts.exe` 子进程，KWS 留在主进程。
+原方案计划把 STT/TTS 拆为固定的 `Madorin.Stt.exe` / `Madorin.Tts.exe` 子进程，KWS 留在主进程。
 经重新评估，新的目标是：
 
 > **KWS、STT、TTS 全部独立为 Process 子插件，模型跟随插件包发布；主程序只保留语音编排和插件能力适配层。**

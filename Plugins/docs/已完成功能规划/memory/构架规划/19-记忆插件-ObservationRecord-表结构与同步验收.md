@@ -1,7 +1,7 @@
 # 记忆插件 ObservationRecord 表结构与同步验收
 
 ## 范围
-- 仓库：Plugins/Src/Cortana.Plugins.Memory
+- 仓库：Plugins/Src/Madorin.Plugins.Memory
 - 表：observation_records（memory.db）
 - 目标：按照《05-记忆体系设计》补齐 ObservationRecord 所需字段，并验证批量导入/实时入库路径同步新列。
 
@@ -24,12 +24,12 @@
 ## 验证步骤
 1) 构建插件与控制台
 ```powershell
-dotnet build e:\Netor.me\Cortana\Plugins\Src\Cortana.Plugins.Memory\Cortana.Plugins.Memory.csproj -c Debug
-dotnet build e:\Netor.me\Cortana\Tests\MemoryIngestConsole\MemoryIngestConsole.csproj -c Debug
+dotnet build e:\Netor.me\Madorin\Plugins\Src\Madorin.Plugins.Memory\Madorin.Plugins.Memory.csproj -c Debug
+dotnet build e:\Netor.me\Madorin\Tests\MemoryIngestConsole\MemoryIngestConsole.csproj -c Debug
 ```
 2) 运行控制台（启动即建库 + 打印表结构/索引）
 ```powershell
-dotnet run --project e:\Netor.me\Cortana\Tests\MemoryIngestConsole\MemoryIngestConsole.csproj -c Debug
+dotnet run --project e:\Netor.me\Madorin\Tests\MemoryIngestConsole\MemoryIngestConsole.csproj -c Debug
 ```
 
 ## 运行摘录

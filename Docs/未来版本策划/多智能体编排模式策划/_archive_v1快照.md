@@ -4,7 +4,7 @@
 
 当前项目已经基于 `Microsoft.Agents.AI` 和 `Microsoft.Agents.AI.Workflows` 构建 AI 对话能力，并且在 `AIAgentFactory.BuildWithSubAgents(...)` 中实现了“主智能体 + @提及子智能体工具”的轻量子智能体模式。
 
-本方案目标是在不大面积重构现有 Cortana 架构的前提下，逐步引入以下编排模式：
+本方案目标是在不大面积重构现有 Madorin 架构的前提下，逐步引入以下编排模式：
 
 1. **Magentic 模式**：策划规划、分派任务、执行返回、检测总结，作为复杂任务的主编排模式。
 2. **GroupChat 讨论模式**：让多个角色智能体围绕问题开会、讨论方案、形成结论。
@@ -31,8 +31,8 @@
 
 核心入口是：
 
-- `Src/Netor.Cortana.AI/AiChatHostedService.cs`
-- `Src/Netor.Cortana.Entitys/Interfaces/IAiChatEngine.cs`
+- `Src/Netor.Madorin.AI/AiChatHostedService.cs`
+- `Src/Netor.Madorin.Entitys/Interfaces/IAiChatEngine.cs`
 
 当前输入链路：
 
@@ -74,7 +74,7 @@ Task SendMessageAsync(
 
 核心文件：
 
-- `Src/Netor.Cortana.AI/AIAgentFactory.cs`
+- `Src/Netor.Madorin.AI/AIAgentFactory.cs`
 
 当前职责：
 
@@ -131,7 +131,7 @@ public AIAgent BuildWithSubAgents(
 
 核心文件：
 
-- `Src/Netor.Cortana.AI/Providers/SubAgentContextProvider.cs`
+- `Src/Netor.Madorin.AI/Providers/SubAgentContextProvider.cs`
 
 当前 `SubAgentContextProvider` 非常轻量，只负责把子智能体函数注入为工具：
 
@@ -190,9 +190,9 @@ internal sealed class SubAgentContextProvider(IReadOnlyList<AIFunction> agentFun
 
 核心文件：
 
-- `Src/Netor.Cortana.AI/Providers/ChatHistoryDataProvider.cs`
-- `Src/Netor.Cortana.AI/Memory/LongMemoryContextProvider.cs`
-- `Src/Netor.Cortana.AI/Providers/TokenTrackingChatClient.cs`
+- `Src/Netor.Madorin.AI/Providers/ChatHistoryDataProvider.cs`
+- `Src/Netor.Madorin.AI/Memory/LongMemoryContextProvider.cs`
+- `Src/Netor.Madorin.AI/Providers/TokenTrackingChatClient.cs`
 
 当前历史持久化以一次主 `AgentSession` 为中心，`AiChatHostedService` 在不同时机向 `Session.StateBag` 写入以下键：
 
@@ -226,7 +226,7 @@ internal sealed class SubAgentContextProvider(IReadOnlyList<AIFunction> agentFun
 
 核心文件：
 
-- `Src/Netor.Cortana.Entitys/Entities/AgentEntity.cs`
+- `Src/Netor.Madorin.Entitys/Entities/AgentEntity.cs`
 
 当前 `AgentEntity` 包含：
 
@@ -368,7 +368,7 @@ Build(...)、BuildWithSubAgents(...)、BuildSubAgent(...)
 新增目录建议：
 
 ```text
-Src/Netor.Cortana.AI/Orchestration/
+Src/Netor.Madorin.AI/Orchestration/
   AgentOrchestrationMode.cs
   AgentExecutionStrategy.cs
   AgentOrchestrationRequest.cs
@@ -431,7 +431,7 @@ IAgentOrchestrator 内部基于 Microsoft.Agents.AI.Workflows 构建：
 
 - `ChatHistoryDataProvider.cs`
 - `AgentEntity.cs`
-- `CortanaDbContext.cs`
+- `MadorinDbContext.cs`
 - `ChatMessageEntity` 相关结构
 - UI 消息气泡
 - WebSocket 事件协议
@@ -533,7 +533,7 @@ AgentExecutionRouter
 - 需要失败后重新规划。
 - 需要最后总结。
 
-在 Cortana 中的目标流程：
+在 Madorin 中的目标流程：
 
 ```text
 用户请求
@@ -635,7 +635,7 @@ Aggregator 汇总结果。
 由于第一阶段不允许扩展 `AgentEntity`（详见 §2.5），小组成员声明暂用以下临时方案，按优先级使用：
 
 1. **运行时 @ 提及**：用户 @ 多个智能体且 Coordinator instructions 识别为 "GroupChat" 模式时，参与成员就是 @ 列表本身。第一阶段优先采用。
-2. **工作区配置文件**：`workspace/.cortana/groupchat.json` 声明命名小组，例如：
+2. **工作区配置文件**：`workspace/.madorin/groupchat.json` 声明命名小组，例如：
 
    ```json
    {
@@ -826,7 +826,7 @@ attachmentDescriptions: 主 Agent 对每个附件的简短描述（可选）
 | --- | --- | --- | --- |
 | `MaxRounds` / `MaxSubTasks` / `Timeout` | 编排服务内置常量（`AgentOrchestrator` 默认值） | `SystemSettingsService` 系统配置项（`orchestration.maxRounds` 等） | `AgentEntity` 或独立 `OrchestrationProfileEntity` |
 | 默认编排模式 | Coordinator instructions 内置规则 | `SystemSettingsService` + `OrchestrationRequest.Mode` 显式覆盖 | `AgentEntity.DefaultOrchestrationMode` |
-| GroupChat 小组成员 | `@` 提及列表 | `workspace/.cortana/groupchat.json` | `AgentEntity` 或 `OrchestrationGroupEntity` |
+| GroupChat 小组成员 | `@` 提及列表 | `workspace/.madorin/groupchat.json` | `AgentEntity` 或 `OrchestrationGroupEntity` |
 | 高风险工具白名单 | 复用现有插件 / MCP 绑定 | `SystemSettingsService` + 每次任务运行期收窄 | 独立授权模型 |
 
 这样可以在不动 `AgentEntity` 和数据库结构的前提下，保留 §6.4 的所有"必须"约束。所有阈值默认值由 `AgentOrchestrator` 在第一阶段以常量形式提供，第二阶段开始迁移到 `SystemSettingsService`，避免硬编码遗留。
@@ -880,11 +880,11 @@ Failures
 此阶段改动点：
 
 ```text
-Src/Netor.Cortana.AI/AIAgentFactory.cs
-Src/Netor.Cortana.AI/Providers/OrchestrationInstructionsProvider.cs   ← 新增
+Src/Netor.Madorin.AI/AIAgentFactory.cs
+Src/Netor.Madorin.AI/Providers/OrchestrationInstructionsProvider.cs   ← 新增
 ```
 
-`Src/Netor.Cortana.AI/Providers/SubAgentContextProvider.cs` 保持单一职责（只注入工具函数），第一阶段不做修改。
+`Src/Netor.Madorin.AI/Providers/SubAgentContextProvider.cs` 保持单一职责（只注入工具函数），第一阶段不做修改。
 
 预计改动量：**小**。
 
@@ -897,11 +897,11 @@ Src/Netor.Cortana.AI/Providers/OrchestrationInstructionsProvider.cs   ← 新增
 建议新增：
 
 ```text
-Src/Netor.Cortana.AI/Orchestration/AgentOrchestrationMode.cs
-Src/Netor.Cortana.AI/Orchestration/AgentOrchestrationRequest.cs
-Src/Netor.Cortana.AI/Orchestration/AgentOrchestrationResult.cs
-Src/Netor.Cortana.AI/Orchestration/IAgentOrchestrator.cs
-Src/Netor.Cortana.AI/Orchestration/AgentOrchestrator.cs
+Src/Netor.Madorin.AI/Orchestration/AgentOrchestrationMode.cs
+Src/Netor.Madorin.AI/Orchestration/AgentOrchestrationRequest.cs
+Src/Netor.Madorin.AI/Orchestration/AgentOrchestrationResult.cs
+Src/Netor.Madorin.AI/Orchestration/IAgentOrchestrator.cs
+Src/Netor.Madorin.AI/Orchestration/AgentOrchestrator.cs
 ```
 
 `AgentOrchestrationMode` 建议：
@@ -1113,7 +1113,7 @@ AgentOrchestrationResult
 ### Step 5：GroupChat Runner
 
 支持讨论模式，先只输出会议纪要。
-小组成员声明优先级：运行时 @ 提及 → `workspace/.cortana/groupchat.json` → 阶段 4 再考虑 `AgentEntity` 扩展（详见 §5.3）。
+小组成员声明优先级：运行时 @ 提及 → `workspace/.madorin/groupchat.json` → 阶段 4 再考虑 `AgentEntity` 扩展（详见 §5.3）。
 
 ### Step 6：Magentic Runner
 
@@ -1229,16 +1229,16 @@ traceid
 当前技能通过 `AgentSkillsProvider` 加载用户技能目录和工作区技能目录，暂时没有 `AgentEntity` 级别的技能绑定字段。  
 这意味着不同主智能体会看到同一套技能集合，不能像插件和 MCP 一样精确限制到某个智能体。
 
-需要特别注意：`AgentSkillsProvider` 是 **`Microsoft.Agents.AI` 1.3.0 NuGet 包提供的上游类型**（命名空间 `Microsoft.Agents.AI`），不是 Cortana 项目自有类。这带来一个直接约束：
+需要特别注意：`AgentSkillsProvider` 是 **`Microsoft.Agents.AI` 1.3.0 NuGet 包提供的上游类型**（命名空间 `Microsoft.Agents.AI`），不是 Madorin 项目自有类。这带来一个直接约束：
 
 - 项目侧无法直接在 `AgentSkillsProvider` 上加 `EnabledSkillIds` 这样的字段；
-- 如果要按智能体约束技能，必须以"包一层 Cortana 自有 Provider（如 `AgentBoundSkillsProvider`）"或"在 `AgentSkillsProvider` 之外二次过滤"的方式实现，不能改 SDK 类型。
+- 如果要按智能体约束技能，必须以"包一层 Madorin 自有 Provider（如 `AgentBoundSkillsProvider`）"或"在 `AgentSkillsProvider` 之外二次过滤"的方式实现，不能改 SDK 类型。
 
 规避：
 
 - 第一阶段接受技能全局可见现状。
 - 通过 Agent instructions 约束智能体优先使用符合角色的技能。
-- 后续如需技能绑定，先评估"Cortana 自有包装 Provider + 技能元数据 `allowedAgentIds` / `deniedAgentIds`" 方案，再决定是否引入 `AgentEntity.EnabledSkillIds`。
+- 后续如需技能绑定，先评估"Madorin 自有包装 Provider + 技能元数据 `allowedAgentIds` / `deniedAgentIds`" 方案，再决定是否引入 `AgentEntity.EnabledSkillIds`。
 - 在没有技能绑定机制前，不把“技能隔离”作为多智能体编排第一阶段目标。
 
 ---

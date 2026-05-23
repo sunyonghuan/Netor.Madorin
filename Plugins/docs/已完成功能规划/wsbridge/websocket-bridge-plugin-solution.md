@@ -47,12 +47,12 @@ AI 到插件侧协议固定，插件到外部应用侧通过适配器扩展。
 
 这样可保证不同应用仅改“转换器”，不改核心路由。
 
-## 6. 固定侧协议（Cortana WebSocket）
+## 6. 固定侧协议（Madorin WebSocket）
 
 固定侧连接地址为 ws://host:52841/ws/（端口可配置）。
 编码为 UTF-8 JSON 文本帧，连接成功后服务端先下发 connected 与 clientId。
 
-客户端到 Cortana 的核心消息只有两类。
+客户端到 Madorin 的核心消息只有两类。
 1. send：发送用户消息，可附带 attachments。
 2. stop：中止当前回复。
 
@@ -67,7 +67,7 @@ AI 到插件侧协议固定，插件到外部应用侧通过适配器扩展。
 ### 7.1 双端连接器
 
 1. LeftConnector（固定）
-连接 Cortana WebSocket，负责 send/stop 与 token/done/error 接收。
+连接 Madorin WebSocket，负责 send/stop 与 token/done/error 接收。
 
 2. RightConnector（可插拔）
 连接外部应用 WebSocket，每个应用由独立适配器提供连接参数和协议模型。
@@ -76,8 +76,8 @@ AI 到插件侧协议固定，插件到外部应用侧通过适配器扩展。
 
 1. RightConnector 收到外部消息，交给 Adapter 做 InboundConvert。
 2. 转换后得到标准 Envelope，交给 Router。
-3. Router 调用 LeftConnector 发到 Cortana。
-4. Cortana 回包后由 Adapter 做 OutboundConvert，再回发外部应用。
+3. Router 调用 LeftConnector 发到 Madorin。
+4. Madorin 回包后由 Adapter 做 OutboundConvert，再回发外部应用。
 
 ### 7.3 串行执行约束
 
@@ -100,8 +100,8 @@ Bridge Core 不感知应用业务字段，所有字段映射留在适配器。
 
 ## 9. 附件与文件路径策略
 
-技能约束要求 attachments.path 必须是 Cortana 进程机器上的本地路径。
-因此远端应用上传附件时，中转站需要先把文件落到 Cortana 所在机器临时目录。
+技能约束要求 attachments.path 必须是 Madorin 进程机器上的本地路径。
+因此远端应用上传附件时，中转站需要先把文件落到 Madorin 所在机器临时目录。
 
 推荐流程。
 1. 外部应用发送附件元数据或文件引用。
@@ -136,19 +136,19 @@ Bridge Core 不感知应用业务字段，所有字段映射留在适配器。
 
 ## 12. 建议项目结构
 
-1. Src/Cortana.Plugins.WsBridge
+1. Src/Madorin.Plugins.WsBridge
 核心插件入口、工具暴露、配置加载。
 
-2. Src/Cortana.Plugins.WsBridge.Core
+2. Src/Madorin.Plugins.WsBridge.Core
 Envelope、Router、SessionQueue、重试与限流。
 
-3. Src/Cortana.Plugins.WsBridge.Cortana
-固定侧 CortanaWsClient 与协议模型。
+3. Src/Madorin.Plugins.WsBridge.Madorin
+固定侧 MadorinWsClient 与协议模型。
 
-4. Src/Cortana.Plugins.WsBridge.Adapters.AbcApp
+4. Src/Madorin.Plugins.WsBridge.Adapters.AbcApp
 某个应用的适配器实现。
 
-5. Src/Cortana.Plugins.WsBridge.Adapters.XyzApp
+5. Src/Madorin.Plugins.WsBridge.Adapters.XyzApp
 另一个应用的适配器实现。
 
 ## 13. 对外工具建议
@@ -157,7 +157,7 @@ Envelope、Router、SessionQueue、重试与限流。
 建立中转连接并返回 bridge_session_id。
 
 2. ws_bridge_send
-向外部应用或 Cortana 发送标准消息。
+向外部应用或 Madorin 发送标准消息。
 
 3. ws_bridge_stop
 中止当前 AI 回复（转发 stop）。
@@ -170,7 +170,7 @@ Envelope、Router、SessionQueue、重试与限流。
 
 ## 14. 分阶段实施
 
-第一阶段：实现 Cortana 固定侧连接、标准 Envelope 与单适配器打通。
+第一阶段：实现 Madorin 固定侧连接、标准 Envelope 与单适配器打通。
 第二阶段：加入会话队列、重连、观测与错误码体系。
 第三阶段：支持附件中转与本地缓存策略。
 第四阶段：扩展多应用适配器与配置中心。

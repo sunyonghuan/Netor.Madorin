@@ -38,7 +38,7 @@
 - [×] 插件侧使用 `JsonDocument` / `JsonElement` 或轻量字符串解析读取授权摘要。
 
 ## Step 6 建立 model-capability WebSocket 控制面 : 0%
-- [×] 在 `CortanaWsEndpoints` 增加 `ModelCapabilityPath`、`ModelCapabilityProtocol`、`ModelCapabilityVersion`。
+- [×] 在 `MadorinWsEndpoints` 增加 `ModelCapabilityPath`、`ModelCapabilityProtocol`、`ModelCapabilityVersion`。
 - [×] 在当前实际运行的内部 WebSocket 服务中挂载 `/internal/model-capability/`。
 - [×] 增加 `/internal/plugin-push/` 或在同一控制面支持通用插件推送操作。
 - [×] 实现 connected / subscribe / subscribed / error 握手流程。

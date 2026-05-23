@@ -1,6 +1,6 @@
 ---
 name: plugin-development
-description: 'Cortana 插件开发入口技能。用于统一编排 Native、MCP、Process 三类通道，约束工程规范、外部包 AOT 校验、发布安装与运行时更新流程。触发关键词：插件开发、Native 插件、MCP 插件、Process 插件、进程插件、发布插件、安装插件。'
+description: 'Madorin 插件开发入口技能。用于统一编排 Native、MCP、Process 三类通道，约束工程规范、外部包 AOT 校验、发布安装与运行时更新流程。触发关键词：插件开发、Native 插件、MCP 插件、Process 插件、进程插件、发布插件、安装插件。'
 version: 7
 user-invocable: true
 ---
@@ -33,7 +33,7 @@ user-invocable: true
 - 运行时安装和更新必须走 skill-plugin-installation，不手工复制文件。
 - 更新已加载插件必须调用 sys_list_loaded_plugins → sys_unload_plugin → 安装脚本 → sys_reload_plugin。
 - 新开发优先选择 Native（AOT 性能最优）或 MCP（远程服务）；需要完整 JIT 生态时选择 Process 通道。
-- C# 插件发布前必须本地调试通过；Native 使用 `Netor.Cortana.Plugin.Native.Debugger`，Process 使用 Generator 生成的 `{PluginClass}Debugger`。
+- C# 插件发布前必须本地调试通过；Native 使用 `Netor.Madorin.Plugin.Native.Debugger`，Process 使用 Generator 生成的 `{PluginClass}Debugger`。
 - 不要手写 Native/Process 宿主协议、工具路由、消息循环或 `plugin.json`，这些由框架和 Generator 负责。
 
 ## Debug Policy

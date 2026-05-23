@@ -14,7 +14,7 @@
 | `Microsoft.Agents.AI` | `Microsoft.Agents.AI` | `ChatClientAgent`、`AgentSkillsProvider`、`Compaction.*`、`Memory.*`、`AIAgentBuilder` 等 |
 | `Microsoft.Agents.AI.Workflows` | `Microsoft.Agents.AI.Workflows` | `Workflow`、`AgentWorkflowBuilder`、`MagenticWorkflowBuilder`、`GroupChatWorkflowBuilder`、`HandoffWorkflowBuilder`、`InProcessExecution` 等 |
 
-**项目当前已引用**：`Microsoft.Agents.AI` 1.3.0、`Microsoft.Agents.AI.Workflows` 1.3.0（见 `Src/Netor.Cortana.AI/Netor.Cortana.AI.csproj`）。Agent-framework 1.5.0 与 1.3.0 在本方案涉及的 API 上保持一致；如有差异以 spike 验证为准。
+**项目当前已引用**：`Microsoft.Agents.AI` 1.3.0、`Microsoft.Agents.AI.Workflows` 1.3.0（见 `Src/Netor.Madorin.AI/Netor.Madorin.AI.csproj`）。Agent-framework 1.5.0 与 1.3.0 在本方案涉及的 API 上保持一致；如有差异以 spike 验证为准。
 
 ---
 

@@ -1,9 +1,9 @@
-# Cortana.Plugins.WsBridge
+# Madorin.Plugins.WsBridge
 
 ## 1. 项目说明
 
 通用 WebSocket 中转插件，实现 AI ↔ 插件 ↔ 外部应用的双向消息路由。
-AI 到插件侧协议固定（Cortana WebSocket），插件到外部应用侧通过适配器扩展。
+AI 到插件侧协议固定（Madorin WebSocket），插件到外部应用侧通过适配器扩展。
 
 ## 2. 设计原则
 
@@ -16,7 +16,7 @@ AI 到插件侧协议固定（Cortana WebSocket），插件到外部应用侧通
 ## 3. 架构概览
 
 ```
-外部应用 WebSocket ←→ ExternalConnector ←→ BridgeSession ←→ CortanaConnector ←→ Cortana WebSocket
+外部应用 WebSocket ←→ ExternalConnector ←→ BridgeSession ←→ MadorinConnector ←→ Madorin WebSocket
                               ↑                    ↑
                         IExternalAppAdapter    SessionQueue（串行执行）
 ```
@@ -30,7 +30,7 @@ AI 到插件侧协议固定（Cortana WebSocket），插件到外部应用侧通
 ├── Models/
 │   ├── BridgeEnvelope.cs               统一消息信封
 │   ├── BridgeConfig.cs                 连接配置
-│   ├── CortanaMessage.cs               Cortana 协议消息
+│   ├── MadorinMessage.cs               Madorin 协议消息
 │   └── BridgeSessionInfo.cs            会话摘要信息
 ├── Core/
 │   ├── IExternalAppAdapter.cs          适配器接口
@@ -38,7 +38,7 @@ AI 到插件侧协议固定（Cortana WebSocket），插件到外部应用侧通
 │   ├── SessionQueue.cs                 串行执行队列
 │   └── BridgeSession.cs               会话管理与消息路由
 ├── Connectors/
-│   ├── CortanaConnector.cs             Cortana 固定侧连接器
+│   ├── MadorinConnector.cs             Madorin 固定侧连接器
 │   └── ExternalConnector.cs            外部应用连接器
 ├── Adapters/
 │   └── GenericAdapter.cs               通用直通适配器
@@ -65,7 +65,7 @@ AI 到插件侧协议固定（Cortana WebSocket），插件到外部应用侧通
 1. 调用 ws_bridge_connect(adapter_id="generic", ws_url="ws://app:8080/ws", auth_token="")
    → 返回 session_id
 
-2. 外部应用发送消息 → 自动转发到 Cortana → Cortana 回复流式回传外部应用
+2. 外部应用发送消息 → 自动转发到 Madorin → Madorin 回复流式回传外部应用
 
 3. 调用 ws_bridge_status(session_id) 查看连接状态
 
@@ -80,13 +80,13 @@ AI 到插件侧协议固定（Cortana WebSocket），插件到外部应用侧通
 
 ## 8. 串行执行约束
 
-同一会话同一时刻只有一个 Cortana 请求在处理。
+同一会话同一时刻只有一个 Madorin 请求在处理。
 `SessionQueue` 通过信号量保证 send → 等待 done/error → 下一条的顺序。
 新请求在队列中等待，不会并发抢占。
 
 ## 9. 当前阶段（Phase 1）
 
-- Cortana 固定侧连接 ✓
+- Madorin 固定侧连接 ✓
 - 标准 Envelope 消息模型 ✓
 - Generic 通用适配器 ✓
 - 串行执行队列 ✓

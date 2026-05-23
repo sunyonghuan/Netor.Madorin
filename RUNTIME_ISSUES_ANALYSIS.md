@@ -1,14 +1,14 @@
-# Cortana UI Runtime Issues Analysis
+# Madorin UI Runtime Issues Analysis
 
 **Date**: May 18, 2026  
-**Application**: Netor.Cortana.UI (Main UI Project)  
+**Application**: Netor.Madorin.UI (Main UI Project)  
 **Status**: ✅ Partially Fixed - 1 of 3 issues resolved
 
 ---
 
 ## Executive Summary
 
-The Cortana UI application started successfully with all core services initialized. However, 2 plugin loading issues and 1 legacy endpoint issue were detected during startup. The weather plugin issue has been fixed. The social plugin requires investigation into its build configuration.
+The Madorin UI application started successfully with all core services initialized. However, 2 plugin loading issues and 1 legacy endpoint issue were detected during startup. The weather plugin issue has been fixed. The social plugin requires investigation into its build configuration.
 
 ---
 
@@ -26,7 +26,7 @@ Plugin not loaded
 **Root Cause**:
 The weather-plugin plugin.json had `executableName` field instead of the required `command` field for process mode plugins. The PluginManifest validation requires the `command` field for `PluginRuntime.Process`.
 
-**Validation Code** (from `Src/Netor.Cortana.Plugin/Core/PluginManifest.cs`):
+**Validation Code** (from `Src/Netor.Madorin.Plugin/Core/PluginManifest.cs`):
 ```csharp
 case PluginRuntime.Process when string.IsNullOrWhiteSpace(Command):
     error = "process 模式缺少 'command' 字段";
@@ -53,7 +53,7 @@ To:
 ```
 
 **File Modified**:
-- `Src/Netor.Cortana.UI/bin/Debug/net10.0/plugins/weather-plugin/plugin.json`
+- `Src/Netor.Madorin.UI/bin/Debug/net10.0/plugins/weather-plugin/plugin.json`
 
 **Verification**:
 - ✅ Fixed in bin directory
@@ -68,7 +68,7 @@ To:
 
 **Problem**:
 ```
-[Plugin:social]: EntryPointNotFoundException - cortana_plugin_get_info not found
+[Plugin:social]: EntryPointNotFoundException - madorin_plugin_get_info not found
 NativeHost subprocess exited with code 2
 Plugin failed to load
 ```
@@ -85,16 +85,16 @@ The SocialPlugin is configured as a **native plugin** in its plugin.json:
 }
 ```
 
-Native plugins in Cortana must export specific functions:
-- `cortana_plugin_get_info()` - Returns plugin metadata
-- `cortana_plugin_init()` - Optional initialization
-- `cortana_plugin_invoke()` - Tool invocation handler
+Native plugins in Madorin must export specific functions:
+- `madorin_plugin_get_info()` - Returns plugin metadata
+- `madorin_plugin_init()` - Optional initialization
+- `madorin_plugin_invoke()` - Tool invocation handler
 
-The error indicates that `SocialPlugin.PluginHost.dll` is missing the `cortana_plugin_get_info` export.
+The error indicates that `SocialPlugin.PluginHost.dll` is missing the `madorin_plugin_get_info` export.
 
 **Why This Happens**:
 
-Native plugins must be built using the **Cortana Native Plugin Generator** which:
+Native plugins must be built using the **Madorin Native Plugin Generator** which:
 1. Scans for `[Plugin]` and `[Tool]` attributes
 2. Generates the required export functions
 3. Compiles to a native DLL with proper exports
@@ -105,7 +105,7 @@ The current `SocialPlugin.PluginHost.dll` appears to be a managed .NET DLL witho
 
 ### Option A: Rebuild SocialPlugin (Recommended)
 1. Locate the SocialPlugin source project
-2. Ensure it uses the Cortana Native Plugin Generator
+2. Ensure it uses the Madorin Native Plugin Generator
 3. Rebuild the project
 4. Verify the generated DLL has the required exports
 
@@ -122,8 +122,8 @@ mv plugins/SocialPlugin plugins/SocialPlugin.disabled
 3. Check for any build configuration issues
 
 **Files Involved**:
-- `Src/Netor.Cortana.UI/bin/Debug/net10.0/plugins/SocialPlugin/plugin.json`
-- `Src/Netor.Cortana.UI/bin/Debug/net10.0/plugins/SocialPlugin/SocialPlugin.PluginHost.dll`
+- `Src/Netor.Madorin.UI/bin/Debug/net10.0/plugins/SocialPlugin/plugin.json`
+- `Src/Netor.Madorin.UI/bin/Debug/net10.0/plugins/SocialPlugin/SocialPlugin.PluginHost.dll`
 
 **Next Steps**:
 - [ ] Investigate SocialPlugin source project location
@@ -146,7 +146,7 @@ Request reached end of middleware pipeline without being handled
 
 **Root Cause**:
 
-This is a **legacy endpoint** from an older Cortana architecture. The new unified PluginBus architecture (Phase 2B+) has replaced it with a single `/internal` endpoint that handles all WebSocket communication.
+This is a **legacy endpoint** from an older Madorin architecture. The new unified PluginBus architecture (Phase 2B+) has replaced it with a single `/internal` endpoint that handles all WebSocket communication.
 
 **Architecture Evolution**:
 
@@ -158,7 +158,7 @@ This is a **legacy endpoint** from an older Cortana architecture. The new unifie
 **New Architecture** (Current - Phase 2B+):
 - `/internal` - Unified PluginBus endpoint
 - Protocol field distinguishes message types:
-  - `cortana.plugin-bus` - Main plugin communication
+  - `madorin.plugin-bus` - Main plugin communication
   - `conversation-feed` - Legacy protocol (deprecated)
   - `conversation` - Conversation topic
   - `memory` - Memory supply
@@ -166,19 +166,19 @@ This is a **legacy endpoint** from an older Cortana architecture. The new unifie
 
 **Implementation Details**:
 
-From `Src/Netor.Cortana.Networks/WebSockets/Servers/WebSocketPluginBusServerService.cs`:
+From `Src/Netor.Madorin.Networks/WebSockets/Servers/WebSocketPluginBusServerService.cs`:
 ```csharp
 private WebApplication BuildApp(int port)
 {
     return BuildLocalhostApp(port, app =>
     {
-        app.Map(CortanaWsEndpoints.PluginBusPath, context => 
+        app.Map(MadorinWsEndpoints.PluginBusPath, context => 
             AcceptClientAsync(context, _cts?.Token ?? CancellationToken.None));
     });
 }
 ```
 
-Where `CortanaWsEndpoints.PluginBusPath = "/internal"`
+Where `MadorinWsEndpoints.PluginBusPath = "/internal"`
 
 **Migration Path**:
 
@@ -191,15 +191,15 @@ With subscription message:
 ```json
 {
     "type": "subscribe",
-    "protocol": "cortana.plugin-bus",
+    "protocol": "madorin.plugin-bus",
     "topics": ["conversation"],
     "capabilities": ["conversation.v1"]
 }
 ```
 
 **Files Involved**:
-- `Src/Netor.Cortana.Networks/WebSockets/Servers/WebSocketPluginBusServerService.cs`
-- `Src/Netor.Cortana.Entitys/CortanaWsEndpoints.cs`
+- `Src/Netor.Madorin.Networks/WebSockets/Servers/WebSocketPluginBusServerService.cs`
+- `Src/Netor.Madorin.Entitys/MadorinWsEndpoints.cs`
 
 **Status**: ✅ No action required - this is expected behavior
 
@@ -280,8 +280,8 @@ All core services initialized successfully:
 
 **Related Documentation**:
 - `Docs/未来版本策划/Kestrel WebSocket 服务重构与运营平台补充.md` - PluginBus architecture
-- `Src/Netor.Cortana.Plugin/Core/PluginManifest.cs` - Plugin validation logic
-- `Src/Netor.Cortana.Networks/WebSockets/Servers/WebSocketPluginBusServerService.cs` - WebSocket server implementation
+- `Src/Netor.Madorin.Plugin/Core/PluginManifest.cs` - Plugin validation logic
+- `Src/Netor.Madorin.Networks/WebSockets/Servers/WebSocketPluginBusServerService.cs` - WebSocket server implementation
 
 **Key Classes**:
 - `PluginManifest` - Plugin configuration validation

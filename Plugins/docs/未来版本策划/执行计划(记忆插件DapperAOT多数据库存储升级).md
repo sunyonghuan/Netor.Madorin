@@ -229,12 +229,12 @@ MemoryStorageProviderFactory
 预计新增或调整：
 
 ```text
-Plugins/Src/Cortana.Plugins.Memory/Storage/Providers/
-Plugins/Src/Cortana.Plugins.Memory/Storage/Dialects/
-Plugins/Src/Cortana.Plugins.Memory/Storage/Connections/
-Plugins/Src/Cortana.Plugins.Memory/Storage/Sqlite/
-Plugins/Src/Cortana.Plugins.Memory/Storage/SqlServer/
-Plugins/Src/Cortana.Plugins.Memory/setting.json
+Plugins/Src/Madorin.Plugins.Memory/Storage/Providers/
+Plugins/Src/Madorin.Plugins.Memory/Storage/Dialects/
+Plugins/Src/Madorin.Plugins.Memory/Storage/Connections/
+Plugins/Src/Madorin.Plugins.Memory/Storage/Sqlite/
+Plugins/Src/Madorin.Plugins.Memory/Storage/SqlServer/
+Plugins/Src/Madorin.Plugins.Memory/setting.json
 ```
 
 ---

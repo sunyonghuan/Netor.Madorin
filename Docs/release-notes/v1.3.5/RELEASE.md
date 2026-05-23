@@ -1,4 +1,4 @@
-# Cortana v1.3.5 Release Notes
+# Madorin v1.3.5 Release Notes
 
 发布日期：2026-05-07
 
@@ -55,7 +55,7 @@ AI 工具装配流程同步调整为：
 兼容说明：
 
 - 旧工作区插件目录接口保留废弃提示；
-- 工作区切换不再创建 `.cortana/plugins`；
+- 工作区切换不再创建 `.madorin/plugins`；
 - 如仍有旧插件放在工作区目录，需要迁移到用户全局插件目录。
 
 ### 4. 工具名 shortName 治理
@@ -80,7 +80,7 @@ Native / Process 插件协议新增 `shortName` 支持。
 
 OpenAI-compatible 代理新增 DeepSeek reasoner 专用 reasoning 回放能力。
 
-当外部客户端没有在下一轮请求中回传 `reasoning_content` 时，Cortana 会在代理侧缓存 DeepSeek 响应中的 reasoning，并在后续 DeepSeek 请求中按协议补写到 assistant 消息里。
+当外部客户端没有在下一轮请求中回传 `reasoning_content` 时，Madorin 会在代理侧缓存 DeepSeek 响应中的 reasoning，并在后续 DeepSeek 请求中按协议补写到 assistant 消息里。
 
 该能力只在 DeepSeek provider 下启用，不改变 OpenAI、Azure OpenAI、GLM、Custom 等普通兼容通道的请求结构。
 
@@ -129,13 +129,13 @@ Office 工具名统一改为 `word_*`、`excel_*`、`ppt_*`；Bt 插件也移除
 新的项目设置文件优先路径为：
 
 ```text
-.cortana/project-settings.md
+.madorin/project-settings.md
 ```
 
 旧路径继续兼容：
 
 ```text
-.cortana/memory.md
+.madorin/memory.md
 ```
 
 新增工具：
@@ -161,8 +161,8 @@ Office 工具名统一改为 `word_*`、`excel_*`、`ppt_*`；Bt 插件也移除
 
 客户端隔离优先读取：
 
-- `X-Cortana-Session-Id`
-- `X-Cortana-Conversation-Id`
+- `X-Madorin-Session-Id`
+- `X-Madorin-Conversation-Id`
 - `X-Request-Id`
 - 远端地址
 
@@ -185,7 +185,7 @@ Office 工具名统一改为 `word_*`、`excel_*`、`ppt_*`；Bt 插件也移除
 
 ### 主程序
 
-- Cortana：`1.3.3` → `1.3.5`
+- Madorin：`1.3.3` → `1.3.5`
 
 ### 内置插件
 
@@ -201,13 +201,13 @@ Office 工具名统一改为 `word_*`、`excel_*`、`ppt_*`；Bt 插件也移除
 
 ### 插件 SDK
 
-- `Netor.Cortana.Plugin.Native` / 生成器：升级到 `1.0.36` 系列
+- `Netor.Madorin.Plugin.Native` / 生成器：升级到 `1.0.36` 系列
 
 ## 不兼容变更与迁移提示
 
 ### 工作区插件目录不再作为默认加载来源
 
-插件统一从用户全局插件目录加载。若此前插件放在 `.cortana/plugins`，需要迁移到用户插件目录后再在插件管理页中重载。
+插件统一从用户全局插件目录加载。若此前插件放在 `.madorin/plugins`，需要迁移到用户插件目录后再在插件管理页中重载。
 
 ### 工具名更短
 
@@ -231,7 +231,7 @@ Office 工具名统一改为 `word_*`、`excel_*`、`ppt_*`；Bt 插件也移除
 已执行并通过：
 
 ```text
-dotnet build .\Src\Netor.Cortana.UI\Netor.Cortana.UI.csproj -p:OutDir=.\artifacts\build-verify\ui\
+dotnet build .\Src\Netor.Madorin.UI\Netor.Madorin.UI.csproj -p:OutDir=.\artifacts\build-verify\ui\
 ```
 
 ```text
@@ -239,30 +239,30 @@ dotnet build .\Src\Netor.Cortana.UI\Netor.Cortana.UI.csproj -p:OutDir=.\artifact
 ```
 
 ```text
-dotnet build .\Plugins\Src\Cortana.Plugins.Memory\Cortana.Plugins.Memory.csproj
+dotnet build .\Plugins\Src\Madorin.Plugins.Memory\Madorin.Plugins.Memory.csproj
 ```
 
 DeepSeek reasoning 回放测试：
 
 ```text
-dotnet test Tests\Netor.Cortana.Networks.Tests\Netor.Cortana.Networks.Tests.csproj
+dotnet test Tests\Netor.Madorin.Networks.Tests\Netor.Madorin.Networks.Tests.csproj
 ```
 
 测试结果：9 个测试全部通过。
 
 ## 文件参考
 
-- 主程序版本：`Src/Netor.Cortana.UI/Netor.Cortana.UI.csproj`
-- 全局插件实体：`Src/Netor.Cortana.Entitys/Entities/GlobalPluginEntity.cs`
-- 全局插件服务：`Src/Netor.Cortana.Entitys/Services/GlobalPluginService.cs`
-- 插件注入：`Src/Netor.Cortana.AI/AIAgentFactory.cs`
-- 插件加载：`Src/Netor.Cortana.Plugin/PluginLoader.cs`
-- 插件管理页：`Src/Netor.Cortana.UI/Views/Settings/PluginManagementPage.axaml`
-- Native 插件 shortName：`Src/Netor.Cortana.Plugin/Native/NativePluginInfo.cs`
-- Process 插件协议：`Src/Plugins/Netor.Cortana.Plugin.Process/Protocol/PluginInfoData.cs`
-- DeepSeek reasoning 缓存：`Src/Netor.Cortana.Networks/Proxy/DeepSeekReasoningReplayCache.cs`
-- DeepSeek 请求重写：`Src/Netor.Cortana.Networks/Proxy/DeepSeekReasoningRequestRewriter.cs`
-- OpenAI 兼容代理：`Src/Netor.Cortana.Networks/Proxy/OpenAiCompatibleRawProxy.cs`
-- 项目设置工具：`Src/Netor.Cortana.AI/Providers/ProjectSettingsProvider.cs`
-- 应用启动插件：`Plugins/Src/Cortana.Plugins.ApplicationLauncher`
-- 窗口管理插件：`Plugins/Src/Cortana.Plugins.WindowManagement`
+- 主程序版本：`Src/Netor.Madorin.UI/Netor.Madorin.UI.csproj`
+- 全局插件实体：`Src/Netor.Madorin.Entitys/Entities/GlobalPluginEntity.cs`
+- 全局插件服务：`Src/Netor.Madorin.Entitys/Services/GlobalPluginService.cs`
+- 插件注入：`Src/Netor.Madorin.AI/AIAgentFactory.cs`
+- 插件加载：`Src/Netor.Madorin.Plugin/PluginLoader.cs`
+- 插件管理页：`Src/Netor.Madorin.UI/Views/Settings/PluginManagementPage.axaml`
+- Native 插件 shortName：`Src/Netor.Madorin.Plugin/Native/NativePluginInfo.cs`
+- Process 插件协议：`Src/Plugins/Netor.Madorin.Plugin.Process/Protocol/PluginInfoData.cs`
+- DeepSeek reasoning 缓存：`Src/Netor.Madorin.Networks/Proxy/DeepSeekReasoningReplayCache.cs`
+- DeepSeek 请求重写：`Src/Netor.Madorin.Networks/Proxy/DeepSeekReasoningRequestRewriter.cs`
+- OpenAI 兼容代理：`Src/Netor.Madorin.Networks/Proxy/OpenAiCompatibleRawProxy.cs`
+- 项目设置工具：`Src/Netor.Madorin.AI/Providers/ProjectSettingsProvider.cs`
+- 应用启动插件：`Plugins/Src/Madorin.Plugins.ApplicationLauncher`
+- 窗口管理插件：`Plugins/Src/Madorin.Plugins.WindowManagement`

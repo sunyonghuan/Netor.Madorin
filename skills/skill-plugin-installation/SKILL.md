@@ -1,6 +1,6 @@
 ---
 name: skill-plugin-installation
-description: 安装 Cortana skill 或 plugin；处理 zip/目录批量安装、解压、覆盖和结构校验。
+description: 安装 Madorin skill 或 plugin；处理 zip/目录批量安装、解压、覆盖和结构校验。
 user-invocable: true
 ---
 

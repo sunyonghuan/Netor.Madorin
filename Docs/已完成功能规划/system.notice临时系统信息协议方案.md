@@ -36,7 +36,7 @@ system.notice
 
 ## 消息格式
 
-### 第三方 / 插件 / 客户端 -> Cortana
+### 第三方 / 插件 / 客户端 -> Madorin
 
 ```json
 {
@@ -58,7 +58,7 @@ system.notice
 | `level` | 否 | 提示等级，建议值：`info`、`success`、`warning`、`error`、`progress` |
 | `source` | 否 | 来源名称，例如插件名、第三方软件名、客户端标识 |
 
-### Cortana -> WebSocket 客户端
+### Madorin -> WebSocket 客户端
 
 如果后续需要把宿主内部系统提示广播给网络客户端，也复用同样结构：
 

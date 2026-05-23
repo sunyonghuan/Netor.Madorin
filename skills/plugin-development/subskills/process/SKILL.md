@@ -1,6 +1,6 @@
 ---
 name: process
-description: 'Cortana Process 插件开发子技能。位置：subskills/process。用于开发以独立 exe 进程运行的插件，支持 JIT self-contained 和 AOT exe 两种发布方式，通过 stdin/stdout JSON 协议与宿主通信。触发关键词：Process 插件、进程插件、exe 插件、JIT 插件、进程隔离插件。'
+description: 'Madorin Process 插件开发子技能。位置：subskills/process。用于开发以独立 exe 进程运行的插件，支持 JIT self-contained 和 AOT exe 两种发布方式，通过 stdin/stdout JSON 协议与宿主通信。触发关键词：Process 插件、进程插件、exe 插件、JIT 插件、进程隔离插件。'
 version: 3
 user-invocable: true
 ---
@@ -9,7 +9,7 @@ user-invocable: true
 
 Process 通道启动一个独立的 exe 子进程作为插件。宿主通过 stdin/stdout 单行 JSON 协议通信。
 插件无需 AOT 发布，可以使用完整 .NET JIT 生态（反射、Roslyn、动态编译等）。
-对于 C# Process 插件，不要手写协议层，直接使用 `Netor.Cortana.Plugin.Process` 框架和 `create-process-plugin.ps1` 脚手架。
+对于 C# Process 插件，不要手写协议层，直接使用 `Netor.Madorin.Plugin.Process` 框架和 `create-process-plugin.ps1` 脚手架。
 框架会在编译时自动生成消息循环、`plugin.json` 和强类型 Debugger。
 
 ## Flow
@@ -27,7 +27,7 @@ Process 通道启动一个独立的 exe 子进程作为插件。宿主通过 std
 
 ## Rules
 
-- C# Process 插件默认引用 `Netor.Cortana.Plugin.Process` 包；该包会自动带上 Generator，不需要再单独手写协议代码。
+- C# Process 插件默认引用 `Netor.Madorin.Plugin.Process` 包；该包会自动带上 Generator，不需要再单独手写协议代码。
 - 入口类必须是 `public static partial class`，带 `[Plugin]` 特性，并提供 `Configure(IServiceCollection services)`。
 - `Program.cs` 是插件唯一入口文件；默认走 `RunPluginAsync()`，测试时只允许增加一个 Debug 条件编译的 `--self-test` 分支。
 - 自测代码必须放在插件项目自身内，优先使用 `Program.cs` + `SelfTest.cs` 模板；除非用户明确要求，否则不要创建外部脚本、额外控制台工程或独立测试工程。

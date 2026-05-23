@@ -67,7 +67,7 @@
 ## 推荐架构
 
 ```text
-Netor.Cortana.Networks
+Netor.Madorin.Networks
 ├─ WebSockets
 │  ├─ Hosting
 │  │  ├─ KestrelWebSocketHost
@@ -221,7 +221,7 @@ Netor.Cortana.Networks
 - 默认：`52841`
 
 路径：
-- `CortanaWsEndpoints.ChatPath`，例如 `/ws/`
+- `MadorinWsEndpoints.ChatPath`，例如 `/ws/`
 - 兼容保留现有 `ModelCapabilityProtocol.Path`。
 - 兼容保留现有长期记忆供应消息通道；若当前依赖 conversation-feed 承载，应先在交互服务中提供兼容桥接，不直接删除旧入口。
 
@@ -273,7 +273,7 @@ Netor.Cortana.Networks
 - 默认：`0` 表示随机端口，或明确配置一个默认端口。
 
 路径：
-- `CortanaWsEndpoints.ConversationFeedPath`，例如 `/internal/conversation-feed/`
+- `MadorinWsEndpoints.ConversationFeedPath`，例如 `/internal/conversation-feed/`
 
 输入协议：
 - 只允许：
@@ -435,7 +435,7 @@ Kestrel 配置建议：
 
 ## Kestrel 与 AOT 安全讨论
 
-结论：可以使用 Kestrel，但必须按 Native AOT / Trim 安全方式使用。当前项目主 UI 已启用 `PublishAot=true`，而 `Netor.Cortana.Networks` 是普通 class library；引入 Kestrel 后，最终风险会体现在 UI AOT 发布阶段。因此该重构必须把 Kestrel 用法控制在 AOT 友好子集内。
+结论：可以使用 Kestrel，但必须按 Native AOT / Trim 安全方式使用。当前项目主 UI 已启用 `PublishAot=true`，而 `Netor.Madorin.Networks` 是普通 class library；引入 Kestrel 后，最终风险会体现在 UI AOT 发布阶段。因此该重构必须把 Kestrel 用法控制在 AOT 友好子集内。
 
 ### 1. Kestrel 本身是否适合 AOT
 
@@ -460,7 +460,7 @@ ASP.NET Core / Kestrel 在 .NET 8+ 已支持 Native AOT 的核心场景，尤其
 
 ### 2. 当前项目引入 Kestrel 的项目文件风险
 
-`Netor.Cortana.Networks.csproj` 当前是：
+`Netor.Madorin.Networks.csproj` 当前是：
 
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
@@ -543,13 +543,13 @@ Kestrel host 内部服务注册必须显式。
 在正式编码后，应至少增加以下验证：
 
 ```text
-dotnet build Src/Netor.Cortana.UI/Netor.Cortana.UI.csproj /p:EnableAotAnalyzer=true /p:EnableTrimAnalyzer=true /p:TrimmerSingleWarn=false
+dotnet build Src/Netor.Madorin.UI/Netor.Madorin.UI.csproj /p:EnableAotAnalyzer=true /p:EnableTrimAnalyzer=true /p:TrimmerSingleWarn=false
 ```
 
 发布验证：
 
 ```text
-dotnet publish Src/Netor.Cortana.UI/Netor.Cortana.UI.csproj -c Release -r win-x64 /p:PublishAot=true /p:TrimmerSingleWarn=false
+dotnet publish Src/Netor.Madorin.UI/Netor.Madorin.UI.csproj -c Release -r win-x64 /p:PublishAot=true /p:TrimmerSingleWarn=false
 ```
 
 验收标准：
@@ -630,7 +630,7 @@ IConversationFeedBroadcaster
 - `WebSocketFeedServerService` 的 conversation-feed 通道已接入 `WebSocketConnectionManager`、`WebSocketConnection`、`WebSocketSendQueue` 与 `WebSocketHeartbeatLoop`。
 - `WebSocketFeedServerService` 的 model-capability legacy 通道已接入 `WebSocketConnectionManager`、`WebSocketConnection`、`WebSocketSendQueue` 与 `WebSocketHeartbeatLoop`。
 - `WebSocketFeedServerService` 已清理旧内联心跳循环和 model-capability 旧发送锁残留。
-- 已通过 `dotnet build Src/Netor.Cortana.Networks/Netor.Cortana.Networks.csproj` 构建验证。
+- 已通过 `dotnet build Src/Netor.Madorin.Networks/Netor.Madorin.Networks.csproj` 构建验证。
 
 ## Step 3 重构 WebSocketInteractionServerService : 89%
 - [×] 移除 HttpListener 和裸 Thread。
@@ -721,11 +721,11 @@ IConversationFeedBroadcaster
 - [×] Interaction conversation-feed legacy 通道接入连接管理器和发送队列后，Networks 项目构建通过。
 - [×] Interaction model-capability legacy 通道接入连接管理器和发送队列后，临时探针回归通过。
 - [×] Interaction model-capability legacy 通道接入连接管理器和发送队列后，Networks 项目构建通过。
-- [×] 清理旧内联心跳循环后，解决方案 `Netor.Cortana.slnx` 全量构建通过。
+- [×] 清理旧内联心跳循环后，解决方案 `Netor.Madorin.slnx` 全量构建通过。
 - [×] 清理旧内联心跳循环后，临时探针回归通过。
-- [×] Feed 服务清理旧内联心跳与 model-capability 旧发送锁残留后，解决方案 `Netor.Cortana.slnx` 全量构建通过。
+- [×] Feed 服务清理旧内联心跳与 model-capability 旧发送锁残留后，解决方案 `Netor.Madorin.slnx` 全量构建通过。
 - [×] Feed 服务清理旧内联心跳与 model-capability 旧发送锁残留后，临时探针回归通过。
-- [×] 公共连接基础设施关闭路径竞态加固后，解决方案 `Netor.Cortana.slnx` 全量构建通过。
+- [×] 公共连接基础设施关闭路径竞态加固后，解决方案 `Netor.Madorin.slnx` 全量构建通过。
 - [×] 公共连接基础设施关闭路径竞态加固后，临时探针回归通过。
 
 本轮临时运行探针：`artifacts/KestrelWsProbe`。
@@ -795,12 +795,12 @@ IConversationFeedBroadcaster
 ## 当前方案涉及文件
 
 预计后续会新增或修改：
-- `Src/Netor.Cortana.Networks/WebSockets/Hosting/*`
-- `Src/Netor.Cortana.Networks/WebSockets/Connections/*`
-- `Src/Netor.Cortana.Networks/WebSockets/Servers/WebSocketInteractionServerService.cs`
-- `Src/Netor.Cortana.Networks/WebSockets/Servers/WebSocketFeedServerService.cs`
-- `Src/Netor.Cortana.Networks/WebSockets/Relays/WebSocketConversationFeedRelayService.cs`
-- `Src/Netor.Cortana.Networks/Extensions/NetworkServiceExtensions.cs`
-- `Src/Netor.Cortana.UI/Views/Settings/SystemSettingsPage.axaml.cs`
-- `Src/Netor.Cortana.UI/App.axaml.cs`
+- `Src/Netor.Madorin.Networks/WebSockets/Hosting/*`
+- `Src/Netor.Madorin.Networks/WebSockets/Connections/*`
+- `Src/Netor.Madorin.Networks/WebSockets/Servers/WebSocketInteractionServerService.cs`
+- `Src/Netor.Madorin.Networks/WebSockets/Servers/WebSocketFeedServerService.cs`
+- `Src/Netor.Madorin.Networks/WebSockets/Relays/WebSocketConversationFeedRelayService.cs`
+- `Src/Netor.Madorin.Networks/Extensions/NetworkServiceExtensions.cs`
+- `Src/Netor.Madorin.UI/Views/Settings/SystemSettingsPage.axaml.cs`
+- `Src/Netor.Madorin.UI/App.axaml.cs`
 - `Docs/系统流程与规划/websocket-api.md`

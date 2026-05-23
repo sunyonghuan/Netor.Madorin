@@ -1,4 +1,4 @@
-# Netor.Cortana v1.1.5 发布说明
+# Netor.Madorin v1.1.5 发布说明
 
 **发布日期：** 2026 年 4 月 16 日
 **运行时：** .NET 10 | Avalonia 12 | Native AOT
@@ -96,12 +96,12 @@
 | Sherpa-ONNX | 本地集成 |
 
 ### 变更文件范围
-- `Src/Netor.Cortana.UI/Controls/MarkdownRenderer.cs` — Markdown 渲染引擎重构
-- `Src/Netor.Cortana.UI/Views/MainWindow.axaml.cs` — 新会话切换修复
-- `Src/Netor.Cortana.AI/AiChatService.cs` — 部分响应保存
-- `Src/Netor.Cortana.AI/Providers/ChatHistoryDataProvider.cs` — 新增 SavePartialResponseAsync
-- `Src/Netor.Cortana.Voice/TextToSpeechService.cs` — 欢迎语自定义集成
-- `Src/Netor.Cortana.Entitys/Services/SystemSettingsService.cs` — 新增设置项
+- `Src/Netor.Madorin.UI/Controls/MarkdownRenderer.cs` — Markdown 渲染引擎重构
+- `Src/Netor.Madorin.UI/Views/MainWindow.axaml.cs` — 新会话切换修复
+- `Src/Netor.Madorin.AI/AiChatService.cs` — 部分响应保存
+- `Src/Netor.Madorin.AI/Providers/ChatHistoryDataProvider.cs` — 新增 SavePartialResponseAsync
+- `Src/Netor.Madorin.Voice/TextToSpeechService.cs` — 欢迎语自定义集成
+- `Src/Netor.Madorin.Entitys/Services/SystemSettingsService.cs` — 新增设置项
 - `README.md` — 全面改版
 
 ---
@@ -109,7 +109,7 @@
 ## ⬆️ 升级说明
 
 1. **从 v1.1.0 升级：** 直接替换文件即可，数据库自动迁移（新增 Tts.WelcomeGreeting 设置项）
-2. **首次安装：** 解压到任意目录，运行 `Cortana.exe` 即可
+2. **首次安装：** 解压到任意目录，运行 `Madorin.exe` 即可
 3. **自定义欢迎语：** 进入「系统设置 → 语音合成 → 唤醒欢迎语」修改，重启后生效
 4. **自定义唤醒词：** 编辑 `sherpa_models/KWS/keywords.txt`，重启后生效
 
@@ -124,4 +124,4 @@
 
 ---
 
-> **Netor.Cortana** — 你的私人 AI 助手，不联网、不收费、不套路。🦞
+> **Netor.Madorin** — 你的私人 AI 助手，不联网、不收费、不套路。🦞

@@ -17,7 +17,7 @@
 3. 移除工作区插件加载路径，插件统一从用户全局插件目录加载。
 4. 调整 AI 工具装配逻辑，先注入全局插件，再注入智能体绑定插件，并避免重复注入。
 5. 为 Native / Process 插件协议补充 `shortName`，宿主优先暴露短工具名，避免插件 ID 前缀污染工具列表。
-6. 升级多个插件到新版 `Netor.Cortana.Plugin.Native`，修复旧生成器导致的工具名前缀与导出入口问题。
+6. 升级多个插件到新版 `Netor.Madorin.Plugin.Native`，修复旧生成器导致的工具名前缀与导出入口问题。
 7. 将内置应用启动、窗口管理能力迁移为独立 Native 插件，主程序内置 Provider 收口。
 8. 批量清理 Bt、Office 等插件工具名前缀，统一改为插件内短名。
 9. 将项目记忆 Provider 改造为项目设置 Provider，并保留旧工具名兼容。
@@ -32,15 +32,15 @@
 
 涉及文件：
 
-- `Src/Netor.Cortana.Entitys/CortanaDbContext.cs`
-- `Src/Netor.Cortana.Entitys/Entities/GlobalPluginEntity.cs`
-- `Src/Netor.Cortana.Entitys/Services/GlobalPluginService.cs`
-- `Src/Netor.Cortana.AI/AIAgentFactory.cs`
-- `Src/Netor.Cortana.Plugin/PluginLoader.cs`
-- `Src/Netor.Cortana.UI/Views/Settings/PluginManagementPage.axaml`
-- `Src/Netor.Cortana.UI/Views/Settings/PluginManagementPage.axaml.cs`
-- `Src/Netor.Cortana.UI/Views/SettingsWindow.axaml`
-- `Src/Netor.Cortana.UI/Views/SettingsWindow.axaml.cs`
+- `Src/Netor.Madorin.Entitys/MadorinDbContext.cs`
+- `Src/Netor.Madorin.Entitys/Entities/GlobalPluginEntity.cs`
+- `Src/Netor.Madorin.Entitys/Services/GlobalPluginService.cs`
+- `Src/Netor.Madorin.AI/AIAgentFactory.cs`
+- `Src/Netor.Madorin.Plugin/PluginLoader.cs`
+- `Src/Netor.Madorin.UI/Views/Settings/PluginManagementPage.axaml`
+- `Src/Netor.Madorin.UI/Views/Settings/PluginManagementPage.axaml.cs`
+- `Src/Netor.Madorin.UI/Views/SettingsWindow.axaml`
+- `Src/Netor.Madorin.UI/Views/SettingsWindow.axaml.cs`
 
 修改内容：
 
@@ -61,17 +61,17 @@
 
 涉及文件：
 
-- `Src/Netor.Cortana.UI/App.axaml.cs`
-- `Src/Netor.Cortana.UI/AppPaths.cs`
-- `Src/Netor.Cortana.Entitys/Interfaces/IAppPaths.cs`
-- `Src/Netor.Cortana.Plugin/PluginLoader.cs`
-- `Src/Netor.Cortana.UI/Providers/WindowToolProvider.cs`
+- `Src/Netor.Madorin.UI/App.axaml.cs`
+- `Src/Netor.Madorin.UI/AppPaths.cs`
+- `Src/Netor.Madorin.Entitys/Interfaces/IAppPaths.cs`
+- `Src/Netor.Madorin.Plugin/PluginLoader.cs`
+- `Src/Netor.Madorin.UI/Providers/WindowToolProvider.cs`
 
 修改内容：
 
 - `PluginDirectory` 改为指向 `UserPluginsDirectory`。
 - `WorkspacePluginsDirectory` 标记为废弃。
-- 工作目录切换不再创建 `.cortana/plugins`。
+- 工作目录切换不再创建 `.madorin/plugins`。
 - `PluginLoader` 只扫描全局插件目录。
 - 移除工作区变化触发插件全量重载的订阅。
 - `sys_get_workspace_plugins_directory` 改为废弃提示，推荐使用全局插件目录。
@@ -80,13 +80,13 @@
 
 涉及文件：
 
-- `Src/Netor.Cortana.Plugin/Native/NativePluginInfo.cs`
-- `Src/Netor.Cortana.Plugin/Native/NativePluginWrapper.cs`
-- `Src/Plugins/Netor.Cortana.Plugin.Native.Generator/Analysis/*`
-- `Src/Plugins/Netor.Cortana.Plugin.Native.Generator/Emitters/InfoJsonEmitter.cs`
-- `Src/Plugins/Netor.Cortana.Plugin.Process.Generator/Analysis/ToolNameGenerator.cs`
-- `Src/Plugins/Netor.Cortana.Plugin.Process.Generator/Emitters/ProgramEmitter.cs`
-- `Src/Plugins/Netor.Cortana.Plugin.Process/Protocol/PluginInfoData.cs`
+- `Src/Netor.Madorin.Plugin/Native/NativePluginInfo.cs`
+- `Src/Netor.Madorin.Plugin/Native/NativePluginWrapper.cs`
+- `Src/Plugins/Netor.Madorin.Plugin.Native.Generator/Analysis/*`
+- `Src/Plugins/Netor.Madorin.Plugin.Native.Generator/Emitters/InfoJsonEmitter.cs`
+- `Src/Plugins/Netor.Madorin.Plugin.Process.Generator/Analysis/ToolNameGenerator.cs`
+- `Src/Plugins/Netor.Madorin.Plugin.Process.Generator/Emitters/ProgramEmitter.cs`
+- `Src/Plugins/Netor.Madorin.Plugin.Process/Protocol/PluginInfoData.cs`
 
 修改内容：
 
@@ -94,26 +94,26 @@
 - 宿主优先使用 `ShortName` 暴露工具名，内部调用仍使用完整工具名。
 - 工具名生成器避免重复拼接插件 ID 前缀。
 - Native 生成器同时兼容新旧命名空间：
-  - `Netor.Cortana.Plugin.Native.*`
-  - `Netor.Cortana.Plugin.*`
+  - `Netor.Madorin.Plugin.Native.*`
+  - `Netor.Madorin.Plugin.*`
 - 插件 SDK 版本提升到 `1.0.36`。
 
 ### 4. 插件升级与工具名前缀清理
 
 涉及插件：
 
-- `Cortana.Plugins.Bt`
-- `Cortana.Plugins.GoogleSearch`
-- `Cortana.Plugins.Memory`
-- `Cortana.Plugins.Office`
-- `Cortana.Plugins.Reminder`
-- `Cortana.Plugins.ScriptRunner`
-- `Cortana.Plugins.WsBridge`
+- `Madorin.Plugins.Bt`
+- `Madorin.Plugins.GoogleSearch`
+- `Madorin.Plugins.Memory`
+- `Madorin.Plugins.Office`
+- `Madorin.Plugins.Reminder`
+- `Madorin.Plugins.ScriptRunner`
+- `Madorin.Plugins.WsBridge`
 
 修改内容：
 
-- 多个 Native 插件升级到 `Netor.Cortana.Plugin.Native` `1.0.34`。
-- Memory 插件从旧命名空间切换到 `Netor.Cortana.Plugin.Native`，修复 `#sym:memory_engine` / 插件 ID 前缀问题。
+- 多个 Native 插件升级到 `Netor.Madorin.Plugin.Native` `1.0.34`。
+- Memory 插件从旧命名空间切换到 `Netor.Madorin.Plugin.Native`，修复 `#sym:memory_engine` / 插件 ID 前缀问题。
 - Office 插件工具名移除 `office_` 前缀，改为：
   - `word_*`
   - `excel_*`
@@ -125,34 +125,34 @@
 
 新增文件：
 
-- `Plugins/Src/Cortana.Plugins.ApplicationLauncher/*`
-- `Plugins/Src/Cortana.Plugins.WindowManagement/*`
+- `Plugins/Src/Madorin.Plugins.ApplicationLauncher/*`
+- `Plugins/Src/Madorin.Plugins.WindowManagement/*`
 
 删除文件：
 
-- `Src/Netor.Cortana.Plugin/BuiltIn/ApplicationLauncher/*`
-- `Src/Netor.Cortana.Plugin/BuiltIn/WindowManagement/*`
+- `Src/Netor.Madorin.Plugin/BuiltIn/ApplicationLauncher/*`
+- `Src/Netor.Madorin.Plugin/BuiltIn/WindowManagement/*`
 
 修改内容：
 
 - 应用启动能力迁移为 `application_launcher` Native 插件。
 - Windows 窗口管理能力迁移为 `window_management` Native 插件。
 - `PluginServiceExtensions` 移除对应内置 Provider 和辅助服务注册。
-- `Plugins/Cortana.Plugins.slnx` 加入新插件工程。
+- `Plugins/Madorin.Plugins.slnx` 加入新插件工程。
 
 ### 6. 项目设置 Provider 替换文件记忆 Provider
 
 涉及文件：
 
-- `Src/Netor.Cortana.AI/AIServiceExtensions.cs`
-- `Src/Netor.Cortana.AI/Providers/ProjectSettingsProvider.cs`
-- 删除 `Src/Netor.Cortana.AI/Providers/FileMemoryProvider.cs`
+- `Src/Netor.Madorin.AI/AIServiceExtensions.cs`
+- `Src/Netor.Madorin.AI/Providers/ProjectSettingsProvider.cs`
+- 删除 `Src/Netor.Madorin.AI/Providers/FileMemoryProvider.cs`
 
 修改内容：
 
 - `FileMemoryProvider` 替换为 `ProjectSettingsProvider`。
-- 新增项目设置文件优先路径：`.cortana/project-settings.md`。
-- 兼容旧 `.cortana/memory.md`。
+- 新增项目设置文件优先路径：`.madorin/project-settings.md`。
+- 兼容旧 `.madorin/memory.md`。
 - 新增 `sys_read_settings` / `sys_write_settings` / `sys_edit_settings` / `sys_delete_settings` / `sys_clear_settings`。
 - 保留旧 `sys_*_memory` 工具名，作为兼容入口。
 
@@ -160,11 +160,11 @@
 
 涉及文件：
 
-- `Src/Netor.Cortana.UI/Controls/WorkspaceExplorer.axaml`
-- `Src/Netor.Cortana.UI/Controls/WorkspaceExplorer.axaml.cs`
-- `Src/Netor.Cortana.UI/Controls/ChatHistoryPanel.axaml.cs`
-- `Src/Netor.Cortana.UI/Assets/jl.png`
-- `Src/Netor.Cortana.UI/Assets/mk.png`
+- `Src/Netor.Madorin.UI/Controls/WorkspaceExplorer.axaml`
+- `Src/Netor.Madorin.UI/Controls/WorkspaceExplorer.axaml.cs`
+- `Src/Netor.Madorin.UI/Controls/ChatHistoryPanel.axaml.cs`
+- `Src/Netor.Madorin.UI/Assets/jl.png`
+- `Src/Netor.Madorin.UI/Assets/mk.png`
 
 修改内容：
 
@@ -217,7 +217,7 @@
 已执行并通过：
 
 ```powershell
-dotnet build .\Src\Netor.Cortana.UI\Netor.Cortana.UI.csproj -p:OutDir=.\artifacts\build-verify\ui\
+dotnet build .\Src\Netor.Madorin.UI\Netor.Madorin.UI.csproj -p:OutDir=.\artifacts\build-verify\ui\
 ```
 
 构建结果：成功。
@@ -233,7 +233,7 @@ dotnet build .\Src\Netor.Cortana.UI\Netor.Cortana.UI.csproj -p:OutDir=.\artifact
 Memory 插件单独构建：
 
 ```powershell
-dotnet build .\Plugins\Src\Cortana.Plugins.Memory\Cortana.Plugins.Memory.csproj
+dotnet build .\Plugins\Src\Madorin.Plugins.Memory\Madorin.Plugins.Memory.csproj
 ```
 
 执行结果：成功。

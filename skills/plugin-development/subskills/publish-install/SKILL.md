@@ -1,6 +1,6 @@
 ---
 name: publish-install
-description: 'Cortana 插件发布与安装子技能。位置：subskills/publish-install。用于发布 zip 包、遵循安装规范、更新已加载插件时调用 sys_list_loaded_plugins/sys_unload_plugin/sys_reload_plugin。触发关键词：发布插件、安装插件、更新插件、热重载插件、插件 zip。'
+description: 'Madorin 插件发布与安装子技能。位置：subskills/publish-install。用于发布 zip 包、遵循安装规范、更新已加载插件时调用 sys_list_loaded_plugins/sys_unload_plugin/sys_reload_plugin。触发关键词：发布插件、安装插件、更新插件、热重载插件、插件 zip。'
 version: 1
 user-invocable: true
 ---

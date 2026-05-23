@@ -2,7 +2,7 @@
 
 ## 1. 文档目标
 
-本文档给出一个适配当前 Cortana 插件体系的办公文档插件方案。
+本文档给出一个适配当前 Madorin 插件体系的办公文档插件方案。
 目标是让 AI 通过工具调用完成 Word、Excel、PPT 的基础内容操作。
 插件本体必须支持 Native AOT 发布。
 复杂排版、复杂公式、复杂动画和高保真渲染不纳入第一版目标。
@@ -54,7 +54,7 @@ PPT 建议公开 create_ppt_document、list_ppt_slides、add_ppt_slide、update_
 
 ## 7. 项目分层建议
 
-建议单独创建一个办公插件项目，例如 Cortana.Plugins.Office。
+建议单独创建一个办公插件项目，例如 Madorin.Plugins.Office。
 Startup 只负责注册日志、配置对象、文件系统安全服务和三个文档服务。
 OfficeTools 负责暴露工具入口，不直接处理底层 XML 细节。
 WordDocumentService、ExcelWorkbookService、PowerPointService 分别处理各自文件类型。

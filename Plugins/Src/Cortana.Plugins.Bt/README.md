@@ -1,8 +1,8 @@
-# Cortana.Plugins.Bt
+# Madorin.Plugins.Bt
 
 ## 1. 项目说明
 
-这是一个面向宝塔面板的 Cortana 插件。
+这是一个面向宝塔面板的 Madorin 插件。
 
 插件通过宝塔 HTTP API 提供系统查询、站点管理和站点配置能力。
 当前版本不负责文件上传与部署工作流，这部分预留给外部技能或独立工作流完成。

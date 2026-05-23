@@ -138,7 +138,7 @@ Dictionary<string, Func<IServiceProvider, string, string>> s_toolRoutes
 结合问题 1 的方案 A，去掉 `GeneratedPluginBuilder` 后，Init 流程更清晰：
 
 ```csharp
-[UnmanagedCallersOnly(EntryPoint = "cortana_plugin_init")]
+[UnmanagedCallersOnly(EntryPoint = "madorin_plugin_init")]
 public static int Init(IntPtr configJsonPtr)
 {
     try

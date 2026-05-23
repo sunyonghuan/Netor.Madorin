@@ -1,6 +1,6 @@
 ---
 name: native
-description: 'Cortana Native 插件开发子技能。位置：subskills/native。用于 Native AOT 插件创建、Startup 组合、Tool 编写、JsonContext、后台服务、AOT 规则。触发关键词：Native 插件、AOT 插件、Startup.Configure、ToolAttribute、原生插件。'
+description: 'Madorin Native 插件开发子技能。位置：subskills/native。用于 Native AOT 插件创建、Startup 组合、Tool 编写、JsonContext、后台服务、AOT 规则。触发关键词：Native 插件、AOT 插件、Startup.Configure、ToolAttribute、原生插件。'
 version: 2
 user-invocable: true
 ---
@@ -29,7 +29,7 @@ user-invocable: true
 
 ## Native Debugger
 
-C# Native 插件使用 `Netor.Cortana.Plugin.Native.Debugger` 调试。脚手架会生成 `Debug\{PluginName}.Debug.csproj`，该项目引用插件项目和 Debugger 包。
+C# Native 插件使用 `Netor.Madorin.Plugin.Native.Debugger` 调试。脚手架会生成 `Debug\{PluginName}.Debug.csproj`，该项目引用插件项目和 Debugger 包。
 
 调试命令：
 
@@ -41,7 +41,7 @@ dotnet run --project Debug\PluginName.Debug.csproj
 调试入口固定使用：
 
 ```csharp
-using Netor.Cortana.Plugin.Native.Debugger;
+using Netor.Madorin.Plugin.Native.Debugger;
 using PluginName;
 
 await PluginDebugRunner.RunAsync(typeof(Startup).Assembly, options =>

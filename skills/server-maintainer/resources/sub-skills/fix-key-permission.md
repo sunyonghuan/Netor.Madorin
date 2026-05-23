@@ -1,4 +1,4 @@
-﻿---
+---
 name: fix-key-permission
 description: Fix SSH key file permission issues on Windows
 license: MIT
@@ -45,7 +45,7 @@ icacls "{工作目录}\Servers\{服务器 IP}\id_rsa" /inheritance:r
 
 **执行脚本文件**：
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File "E:\Workspace\.cortana\skills\server-maintainer\scripts\fix-key-permission.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "E:\Workspace\.madorin\skills\server-maintainer\scripts\fix-key-permission.ps1"
 ```
 
 **或者在会话中直接运行脚本内容**：
@@ -85,7 +85,7 @@ $keyPath = "$workspace\Servers\$serverIp\id_rsa"
 icacls $keyPath /inheritance:r
 
 # 步骤 2：执行权限修复脚本（替换脚本中的 {ip地址} 为实际 IP）
-powershell.exe -ExecutionPolicy Bypass -File "E:\Workspace\.cortana\skills\server-maintainer\scripts\fix-key-permission.ps1"
+powershell.exe -ExecutionPolicy Bypass -File "E:\Workspace\.madorin\skills\server-maintainer\scripts\fix-key-permission.ps1"
 
 # 步骤 3：验证连接
 ssh -i $keyPath root@$serverIp -p 22

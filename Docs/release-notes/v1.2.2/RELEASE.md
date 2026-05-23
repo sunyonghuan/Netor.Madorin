@@ -1,4 +1,4 @@
-# Netor.Cortana v1.2.2 发布说明
+# Netor.Madorin v1.2.2 发布说明
 
 **发布日期：** 2026 年 4 月 20 日
 **运行时：** .NET 10 | Avalonia 12 | Native AOT
@@ -48,8 +48,8 @@
 
 ## 🗑️ 清理
 
-### 移除废弃的 Netor.Cortana 旧项目
+### 移除废弃的 Netor.Madorin 旧项目
 
-从解决方案中移除已废弃的 `Src/Netor.Cortana` 项目（旧版 WinForm + WebView2 架构），该项目已被 `Netor.Cortana.UI` 完全替代。
+从解决方案中移除已废弃的 `Src/Netor.Madorin` 项目（旧版 WinForm + WebView2 架构），该项目已被 `Netor.Madorin.UI` 完全替代。
 
 ---

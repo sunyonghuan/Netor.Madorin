@@ -1,4 +1,4 @@
-# Cortana Native AOT 插件开发指南
+# Madorin Native AOT 插件开发指南
 
 > **框架版本**：1.0.3+ &nbsp;|&nbsp; **.NET 10** &nbsp;|&nbsp; **Windows x64**
 
@@ -35,8 +35,8 @@
 
 ```bash
 dotnet nuget add source http://nuget.netor.me/v3/index.json -n netor
-dotnet add package Netor.Cortana.Plugin.Native
-dotnet add package Netor.Cortana.Plugin.Native.Generator
+dotnet add package Netor.Madorin.Plugin.Native
+dotnet add package Netor.Madorin.Plugin.Native.Generator
 ```
 
 > 如果本机已经配置好内部源，上述第一条可跳过。
@@ -65,8 +65,8 @@ cd MyPlugin
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Netor.Cortana.Plugin.Native" Version="1.0.3" />
-    <PackageReference Include="Netor.Cortana.Plugin.Native.Generator" Version="1.0.3" />
+    <PackageReference Include="Netor.Madorin.Plugin.Native" Version="1.0.3" />
+    <PackageReference Include="Netor.Madorin.Plugin.Native.Generator" Version="1.0.3" />
   </ItemGroup>
 
 </Project>
@@ -85,7 +85,7 @@ cd MyPlugin
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
-using Netor.Cortana.Plugin.Native;
+using Netor.Madorin.Plugin.Native;
 
 namespace MyPlugin;
 
@@ -122,7 +122,7 @@ public static partial class Startup
 每个工具类代表一组相关的工具方法。创建 `EchoTools.cs`：
 
 ```csharp
-using Netor.Cortana.Plugin.Native;
+using Netor.Madorin.Plugin.Native;
 
 namespace MyPlugin;
 
@@ -373,7 +373,7 @@ dotnet publish -c Release
 | `MyPlugin.dll` | 原生 AOT 编译的动态链接库（主文件） |
 | `plugin.json` | 插件描述文件（包含工具列表、参数信息） |
 
-> 这两个文件就是你交付给 Cortana 加载的完整插件。
+> 这两个文件就是你交付给 Madorin 加载的完整插件。
 
 ### plugin.json 示例
 

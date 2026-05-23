@@ -2,7 +2,7 @@
 
 > 创建日期：2026-05-12  
 > 状态：方案确认中，待原型实现与测试落盘  
-> 范围：Cortana.Plugins.Memory 记忆增强插件  
+> 范围：Madorin.Plugins.Memory 记忆增强插件  
 > 目标：在现有 SQLite 记忆库基础上，引入 SQLite 向量扩展进行第一阶段效果验证，同时控制 Native AOT 发布风险。
 
 ## 1. 背景
@@ -11,8 +11,8 @@
 
 当前召回链路主要位于：
 
-- `Src/Cortana.Plugins.Memory/Services/MemoryRecallService.cs`
-- `Src/Cortana.Plugins.Memory/Storage/MemoryStore.cs`
+- `Src/Madorin.Plugins.Memory/Services/MemoryRecallService.cs`
+- `Src/Madorin.Plugins.Memory/Storage/MemoryStore.cs`
 
 当前 `MemoryStore.SearchRecallCandidates` 使用：
 
@@ -66,7 +66,7 @@
 
 ## 5. AOT 风险控制
 
-当前 `Cortana.Plugins.Memory.csproj` 对 `win-x64` 启用：
+当前 `Madorin.Plugins.Memory.csproj` 对 `win-x64` 启用：
 
 ```xml
 <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">

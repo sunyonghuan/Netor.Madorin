@@ -4,7 +4,7 @@
 
 本次提交包含两部分主要变更：
 
-1. `Netor.Cortana.Networks` WebSocket 服务重构。
+1. `Netor.Madorin.Networks` WebSocket 服务重构。
 2. 运营平台 Web/Admin/实体模型与插件项目配置补充。
 
 ## 一、Kestrel WebSocket 服务重构
@@ -64,7 +64,7 @@
 已执行以下验证：
 
 ```text
-dotnet build Netor.Cortana.slnx
+dotnet build Netor.Madorin.slnx
 ```
 
 结果：通过。
@@ -76,7 +76,7 @@ dotnet run --project artifacts/KestrelWsProbe/KestrelWsProbe.csproj
 结果：通过，输出 `Kestrel WebSocket probe passed.`。
 
 ```text
-dotnet test Tests/Netor.Cortana.Networks.Tests/Netor.Cortana.Networks.Tests.csproj --no-build
+dotnet test Tests/Netor.Madorin.Networks.Tests/Netor.Madorin.Networks.Tests.csproj --no-build
 ```
 
 结果：通过，`9` 个测试全部成功。

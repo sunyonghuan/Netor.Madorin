@@ -4,9 +4,9 @@
 
 ```text
 Samples/PluginBusClient/
-  CortanaPluginBusClientSample.csproj
+  MadorinPluginBusClientSample.csproj
   Program.cs
-  CortanaPluginBusClient.cs
+  MadorinPluginBusClient.cs
   PluginBusContracts.cs
   PluginBusJsonContext.cs
 ```
@@ -16,7 +16,7 @@ Samples/PluginBusClient/
 ```csharp
 var endpoint = args.Length > 0 ? args[0] : "ws://localhost:52841/internal";
 
-await using var client = new CortanaPluginBusClient(endpoint);
+await using var client = new MadorinPluginBusClient(endpoint);
 await client.ConnectAsync();
 await client.SubscribeAsync(["conversation"]);
 

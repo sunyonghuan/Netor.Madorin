@@ -21,9 +21,9 @@
 - [√] 新会话创建 / 取消对话等调用路径不再重复累加
 
 ## Step 6 编译验证 : 100%
-- [√] `dotnet build Netor.Cortana.slnx` 成功（70 条历史警告，0 error）
+- [√] `dotnet build Netor.Madorin.slnx` 成功（70 条历史警告，0 error）
 
 ## 修改文件清单
-1. `Src/Netor.Cortana.AI/Providers/TokenTrackingChatClient.cs`
-2. `Src/Netor.Cortana.AI/Providers/ChatHistoryDataProvider.cs`
-3. `Src/Netor.Cortana.AI/AiChatHostedService.cs`
+1. `Src/Netor.Madorin.AI/Providers/TokenTrackingChatClient.cs`
+2. `Src/Netor.Madorin.AI/Providers/ChatHistoryDataProvider.cs`
+3. `Src/Netor.Madorin.AI/AiChatHostedService.cs`

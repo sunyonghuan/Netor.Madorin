@@ -2,7 +2,7 @@
 
 ## 当前推荐路径
 
-对于 C# Process 插件，直接使用 `Netor.Cortana.Plugin.Process` 框架。
+对于 C# Process 插件，直接使用 `Netor.Madorin.Plugin.Process` 框架。
 
 不要再手写这些胶水代码：
 
@@ -48,12 +48,12 @@ Samples/MyPlugin/
 ```xml
 <ItemGroup>
   <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
-  <PackageReference Include="Netor.Cortana.Plugin.Process" Version="1.0.16" />
+  <PackageReference Include="Netor.Madorin.Plugin.Process" Version="1.0.16" />
 </ItemGroup>
 ```
 
-`Netor.Cortana.Plugin.Process` 包内部已经带上 Generator 和 buildTransitive 目标。
-因此不需要再额外引用 `Netor.Cortana.Plugin.Process.Generator`，也不需要手写 `plugin.json`。
+`Netor.Madorin.Plugin.Process` 包内部已经带上 Generator 和 buildTransitive 目标。
+因此不需要再额外引用 `Netor.Madorin.Plugin.Process.Generator`，也不需要手写 `plugin.json`。
 
 ### 在当前仓库内联调：引用本地项目
 
@@ -62,7 +62,7 @@ Samples/MyPlugin/
 ```xml
 <ItemGroup>
   <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
-  <ProjectReference Include="..\..\Src\Plugins\Netor.Cortana.Plugin.Process\Netor.Cortana.Plugin.Process.csproj" />
+  <ProjectReference Include="..\..\Src\Plugins\Netor.Madorin.Plugin.Process\Netor.Madorin.Plugin.Process.csproj" />
 </ItemGroup>
 ```
 
@@ -124,7 +124,7 @@ internal static class SelfTest
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 
 namespace MyPlugin;
 
@@ -147,7 +147,7 @@ public static partial class Startup
 
 ```csharp
 using Microsoft.Extensions.Logging;
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 
 namespace MyPlugin;
 

@@ -8,27 +8,27 @@
 
 | 文件路径 | 大小 |
 |---------|------|
-| `Src/Netor.Cortana/Models/sherpa-onnx-zipvoice-zh-en-emilia/fm_decoder.onnx` | 455.27 MB |
-| `Src/Netor.Cortana/Models/STT/encoder.int8.onnx` | 157.80 MB |
-| `Src/Netor.Cortana/Models/sherpa-onnx-zipvoice-distill-int8-zh-en-emilia/decoder.int8.onnx` | 118.88 MB |
-| `Src/Netor.Cortana/Models/sherpa-onnx-zipvoice-zh-en-emilia/fm_decoder_int8.onnx` | 118.85 MB |
-| `Src/Netor.Cortana/Models/kokoro-int8-multi-lang-v1_1/model.int8.onnx` | 109.00 MB |
-| `Src/Netor.Cortana/Models/TTS-Kokoro/model.int8.onnx` | 109.00 MB |
+| `Src/Netor.Madorin/Models/sherpa-onnx-zipvoice-zh-en-emilia/fm_decoder.onnx` | 455.27 MB |
+| `Src/Netor.Madorin/Models/STT/encoder.int8.onnx` | 157.80 MB |
+| `Src/Netor.Madorin/Models/sherpa-onnx-zipvoice-distill-int8-zh-en-emilia/decoder.int8.onnx` | 118.88 MB |
+| `Src/Netor.Madorin/Models/sherpa-onnx-zipvoice-zh-en-emilia/fm_decoder_int8.onnx` | 118.85 MB |
+| `Src/Netor.Madorin/Models/kokoro-int8-multi-lang-v1_1/model.int8.onnx` | 109.00 MB |
+| `Src/Netor.Madorin/Models/TTS-Kokoro/model.int8.onnx` | 109.00 MB |
 
 ### 2. 模型压缩包 (1 个文件，140MB)
 
 | 文件路径 | 大小 |
 |---------|------|
-| `Src/Netor.Cortana/Models/kokoro-int8-multi-lang-v1_1.tar.bz2` | 140.22 MB |
+| `Src/Netor.Madorin/Models/kokoro-int8-multi-lang-v1_1.tar.bz2` | 140.22 MB |
 
 ### 3. 编译生成的大型文件 (4 个文件，约 600MB)
 
 | 文件路径 | 大小 |
 |---------|------|
-| `Src/Netor.Cortana.UI/bin/Release/net10.0-windows/win-x64/native/Cortana.Avalonia.pdb` | 157.11 MB |
-| `Src/Netor.Cortana.UI/obj/Release/net10.0/win-x64/native/Cortana.obj` | 146.78 MB |
-| `Src/Netor.Cortana.UI/obj/Release/net10.0-windows/win-x64/native/Cortana.obj` | 140.14 MB |
-| `Src/Netor.Cortana.UI/obj/Release/net10.0-windows/win-x64/native/Cortana.Avalonia.obj` | 139.65 MB |
+| `Src/Netor.Madorin.UI/bin/Release/net10.0-windows/win-x64/native/Madorin.Avalonia.pdb` | 157.11 MB |
+| `Src/Netor.Madorin.UI/obj/Release/net10.0/win-x64/native/Madorin.obj` | 146.78 MB |
+| `Src/Netor.Madorin.UI/obj/Release/net10.0-windows/win-x64/native/Madorin.obj` | 140.14 MB |
+| `Src/Netor.Madorin.UI/obj/Release/net10.0-windows/win-x64/native/Madorin.Avalonia.obj` | 139.65 MB |
 
 ---
 
@@ -75,11 +75,11 @@ git commit -m "Add Git LFS tracking"
 ```gitignore
 # ONNX 模型文件
 *.onnx
-Src/Netor.Cortana/Models/**/*.onnx
+Src/Netor.Madorin/Models/**/*.onnx
 
 # 模型压缩包
 *.tar.bz2
-Src/Netor.Cortana/Models/**/*.tar.bz2
+Src/Netor.Madorin/Models/**/*.tar.bz2
 
 # 编译生成的大型对象文件和符号文件
 *.obj

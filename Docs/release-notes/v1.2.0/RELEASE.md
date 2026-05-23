@@ -1,4 +1,4 @@
-# Netor.Cortana v1.2.0 发布说明
+# Netor.Madorin v1.2.0 发布说明
 
 **发布日期：** 2026 年 4 月 20 日
 **运行时：** .NET 10 | Avalonia 12 | Native AOT
@@ -8,7 +8,7 @@
 
 ## 🎯 版本亮点
 
-**这是一个里程碑版本。** Cortana 从「一个智能体对话」进化为「多智能体协作」——在聊天框输入 `@` 即可调用任意子智能体，每个子智能体携带自己独立的插件和 MCP 工具集，由主智能体自主决策何时调用、如何编排。
+**这是一个里程碑版本。** Madorin 从「一个智能体对话」进化为「多智能体协作」——在聊天框输入 `@` 即可调用任意子智能体，每个子智能体携带自己独立的插件和 MCP 工具集，由主智能体自主决策何时调用、如何编排。
 
 > 一句话总结：**你的 AI 助手现在有了自己的团队。**
 
@@ -106,22 +106,22 @@ ALTER TABLE Agents ADD COLUMN DefaultModelId TEXT NOT NULL DEFAULT ''
 ## 📋 变更文件清单
 
 ### Entity 层
-- `Src/Netor.Cortana.Entitys/Entities/AgentEntity.cs` — +3 字段
-- `Src/Netor.Cortana.Entitys/Services/AgentService.cs` — ReadEntity/BindEntity/SQL 更新 + GetByName()
-- `Src/Netor.Cortana.Entitys/CortanaDbContext.cs` — +3 行 ALTER TABLE 迁移
-- `Src/Netor.Cortana.Entitys/Interfaces/IChatTransport.cs` — 新增 AgentMention record
-- `Src/Netor.Cortana.Entitys/Interfaces/IAiChatEngine.cs` — SendMessageAsync +mentions 参数
+- `Src/Netor.Madorin.Entitys/Entities/AgentEntity.cs` — +3 字段
+- `Src/Netor.Madorin.Entitys/Services/AgentService.cs` — ReadEntity/BindEntity/SQL 更新 + GetByName()
+- `Src/Netor.Madorin.Entitys/MadorinDbContext.cs` — +3 行 ALTER TABLE 迁移
+- `Src/Netor.Madorin.Entitys/Interfaces/IChatTransport.cs` — 新增 AgentMention record
+- `Src/Netor.Madorin.Entitys/Interfaces/IAiChatEngine.cs` — SendMessageAsync +mentions 参数
 
 ### AI 层
-- `Src/Netor.Cortana.AI/AIAgentFactory.cs` — 重构：AssembleToolProviders + BuildSubAgent + BuildWithSubAgents
-- `Src/Netor.Cortana.AI/Providers/SubAgentContextProvider.cs` — **新建**
-- `Src/Netor.Cortana.AI/AiChatService.cs` — mentions 调度逻辑
+- `Src/Netor.Madorin.AI/AIAgentFactory.cs` — 重构：AssembleToolProviders + BuildSubAgent + BuildWithSubAgents
+- `Src/Netor.Madorin.AI/Providers/SubAgentContextProvider.cs` — **新建**
+- `Src/Netor.Madorin.AI/AiChatService.cs` — mentions 调度逻辑
 
 ### UI 层
-- `Src/Netor.Cortana.UI/Views/MainWindow.axaml` — AgentPopup + 输入提示更新
-- `Src/Netor.Cortana.UI/Views/MainWindow.axaml.cs` — @ 检测/键盘导航/mentions 收集
-- `Src/Netor.Cortana.UI/Views/Settings/AgentSettingsPage.axaml` — 厂商/模型 ComboBox
-- `Src/Netor.Cortana.UI/Views/Settings/AgentSettingsPage.axaml.cs` — 联动逻辑
+- `Src/Netor.Madorin.UI/Views/MainWindow.axaml` — AgentPopup + 输入提示更新
+- `Src/Netor.Madorin.UI/Views/MainWindow.axaml.cs` — @ 检测/键盘导航/mentions 收集
+- `Src/Netor.Madorin.UI/Views/Settings/AgentSettingsPage.axaml` — 厂商/模型 ComboBox
+- `Src/Netor.Madorin.UI/Views/Settings/AgentSettingsPage.axaml.cs` — 联动逻辑
 
 ---
 
@@ -141,4 +141,4 @@ ALTER TABLE Agents ADD COLUMN DefaultModelId TEXT NOT NULL DEFAULT ''
 
 ---
 
-> Netor.Cortana v1.2.0 —— 从独角戏到团队协作，你的 AI 助手进化了。🦞
+> Netor.Madorin v1.2.0 —— 从独角戏到团队协作，你的 AI 助手进化了。🦞

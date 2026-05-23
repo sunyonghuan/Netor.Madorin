@@ -1,6 +1,6 @@
 ---
 name: mcp
-description: 'Cortana MCP 通道子技能。位置：subskills/mcp。用于接入和校验外部 MCP Server 的 stdio、sse、streamable-http 配置。触发关键词：MCP、Model Context Protocol、stdio、sse、streamable-http。'
+description: 'Madorin MCP 通道子技能。位置：subskills/mcp。用于接入和校验外部 MCP Server 的 stdio、sse、streamable-http 配置。触发关键词：MCP、Model Context Protocol、stdio、sse、streamable-http。'
 version: 1
 user-invocable: true
 ---
@@ -17,7 +17,7 @@ user-invocable: true
 
 ## Rules
 
-- MCP 通道不编写 Cortana 插件代码，不生成 plugin.json，也不走 zip 安装。
+- MCP 通道不编写 Madorin 插件代码，不生成 plugin.json，也不走 zip 安装。
 - stdio 模式必须明确 Command、Arguments、EnvironmentVariables 的来源。
 - HTTP 模式必须明确 Url 和认证方式；敏感信息不写死在文档示例里。
 - 需要宿主内高性能执行或严格 AOT 约束时，不要误选 MCP，应回到 Native。

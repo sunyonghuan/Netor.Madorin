@@ -1,6 +1,6 @@
 # MCP 双入口与工具抽离方案
 
-> 2026-05-01 修订说明：本方案完成了早期“双入口、工具抽离、核心复用”的基础规划，但后续确认 MCP 模式不应继续依赖宿主插件初始化参数或 Cortana conversation-feed。MCP 模式的定位已调整为“通用独立运行模式”，用于接入其他软件。新的实例化、配置、上下文摄取和作用域策略见 [MCP通用独立运行模式方案.md](MCP通用独立运行模式方案.md)。
+> 2026-05-01 修订说明：本方案完成了早期“双入口、工具抽离、核心复用”的基础规划，但后续确认 MCP 模式不应继续依赖宿主插件初始化参数或 Madorin conversation-feed。MCP 模式的定位已调整为“通用独立运行模式”，用于接入其他软件。新的实例化、配置、上下文摄取和作用域策略见 [MCP通用独立运行模式方案.md](MCP通用独立运行模式方案.md)。
 
 ## 目标
 
@@ -36,7 +36,7 @@ MCP Tool 适配器 ┘
 ## 目录规划
 
 ```plaintext
-Src/Cortana.Plugins.Memory/
+Src/Madorin.Plugins.Memory/
 ├─ Startup.cs                              # 插件入口
 ├─ Program.cs                              # 后续 MCP 入口
 ├─ ToolHandlers/                           # 工具核心实现层
@@ -75,25 +75,25 @@ Src/Cortana.Plugins.Memory/
 插件发布：
 
 ```powershell
-dotnet publish Src/Cortana.Plugins.Memory/Cortana.Plugins.Memory.csproj -c Release -p:OutputType=Library
+dotnet publish Src/Madorin.Plugins.Memory/Madorin.Plugins.Memory.csproj -c Release -p:OutputType=Library
 ```
 
 MCP 发布：
 
 ```powershell
-dotnet publish Src/Cortana.Plugins.Memory/Cortana.Plugins.Memory.csproj -c Release -p:OutputType=Exe -r win-x64 --self-contained true
+dotnet publish Src/Madorin.Plugins.Memory/Madorin.Plugins.Memory.csproj -c Release -p:OutputType=Exe -r win-x64 --self-contained true
 ```
 
 Linux MCP 发布：
 
 ```powershell
-dotnet publish Src/Cortana.Plugins.Memory/Cortana.Plugins.Memory.csproj -c Release -p:OutputType=Exe -r linux-x64 --self-contained true
+dotnet publish Src/Madorin.Plugins.Memory/Madorin.Plugins.Memory.csproj -c Release -p:OutputType=Exe -r linux-x64 --self-contained true
 ```
 
 AOT 发布后续作为可选目标：
 
 ```powershell
-dotnet publish Src/Cortana.Plugins.Memory/Cortana.Plugins.Memory.csproj -c Release -p:OutputType=Exe -p:PublishAot=true -r linux-x64 --self-contained true
+dotnet publish Src/Madorin.Plugins.Memory/Madorin.Plugins.Memory.csproj -c Release -p:OutputType=Exe -p:PublishAot=true -r linux-x64 --self-contained true
 ```
 
 ## AOT 预留要求

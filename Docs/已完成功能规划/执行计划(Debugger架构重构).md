@@ -42,7 +42,7 @@ PluginDebugRunner.exe (独立可执行程序)
 ### 正确架构（现在）
 ```
 用户 Console.exe (F5 启动)
-  ├── 引用 Netor.Cortana.Plugin.Native.Debugger (类库)
+  ├── 引用 Netor.Madorin.Plugin.Native.Debugger (类库)
   ├── 引用 MyPlugin1 (类库)
   └── 所有程序集已在 AppDomain 中
       → AppDomain.CurrentDomain.GetAssemblies() 直接扫描

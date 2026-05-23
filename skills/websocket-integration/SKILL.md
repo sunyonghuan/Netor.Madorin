@@ -1,6 +1,6 @@
 ---
 name: websocket-integration
-description: 'Cortana PluginBus WebSocket 接入。用于生成 /internal 单端点、cortana.plugin-bus、conversation topic、chat.message.send、chat.generation.stop、system.notice、ping/pong 的 C# 客户端代码与样板。关键词：WebSocket、PluginBus、/internal、chat.message.send、ping、pong。'
+description: 'Madorin PluginBus WebSocket 接入。用于生成 /internal 单端点、madorin.plugin-bus、conversation topic、chat.message.send、chat.generation.stop、system.notice、ping/pong 的 C# 客户端代码与样板。关键词：WebSocket、PluginBus、/internal、chat.message.send、ping、pong。'
 user-invocable: true
 ---
 
@@ -9,7 +9,7 @@ user-invocable: true
 ## Scope
 
 - 端点：`ws://localhost:{pluginBusPort}/internal`
-- 协议：`cortana.plugin-bus`
+- 协议：`madorin.plugin-bus`
 - 版本：`1.0.0`
 - 主题：`conversation`
 
@@ -43,7 +43,7 @@ user-invocable: true
 ```json
 {
   "type": "subscribe",
-  "protocol": "cortana.plugin-bus",
+  "protocol": "madorin.plugin-bus",
   "version": "1.0.0",
   "topics": ["conversation"]
 }
@@ -54,7 +54,7 @@ user-invocable: true
 ```json
 {
   "type": "request",
-  "protocol": "cortana.plugin-bus",
+  "protocol": "madorin.plugin-bus",
   "version": "1.0.0",
   "topic": "conversation",
   "op": "chat.message.send",
@@ -73,7 +73,7 @@ user-invocable: true
 ```json
 {
   "type": "request",
-  "protocol": "cortana.plugin-bus",
+  "protocol": "madorin.plugin-bus",
   "version": "1.0.0",
   "topic": "conversation",
   "op": "chat.generation.stop",
@@ -88,7 +88,7 @@ user-invocable: true
 ```json
 {
   "type": "request",
-  "protocol": "cortana.plugin-bus",
+  "protocol": "madorin.plugin-bus",
   "version": "1.0.0",
   "topic": "conversation",
   "op": "system.notice",

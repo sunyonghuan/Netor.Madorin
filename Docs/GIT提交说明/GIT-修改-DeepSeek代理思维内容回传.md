@@ -20,7 +20,7 @@
 
 ### 1. DeepSeek reasoning 回放缓存
 
-- `Src/Netor.Cortana.Networks/Proxy/DeepSeekReasoningReplayCache.cs`
+- `Src/Netor.Madorin.Networks/Proxy/DeepSeekReasoningReplayCache.cs`
 
 **修改内容**:
 
@@ -34,7 +34,7 @@
 
 ### 2. DeepSeek 请求重写与响应提取
 
-- `Src/Netor.Cortana.Networks/Proxy/DeepSeekReasoningRequestRewriter.cs`
+- `Src/Netor.Madorin.Networks/Proxy/DeepSeekReasoningRequestRewriter.cs`
 
 **修改内容**:
 
@@ -58,9 +58,9 @@
 
 ### 3. OpenAI 兼容代理接入 DeepSeek 分支
 
-- `Src/Netor.Cortana.Networks/Proxy/OpenAiCompatibleRawProxy.cs`
-- `Src/Netor.Cortana.Networks/Proxy/OpenAiCompatibleEndpoints.cs`
-- `Src/Netor.Cortana.Networks/Extensions/NetworkServiceExtensions.cs`
+- `Src/Netor.Madorin.Networks/Proxy/OpenAiCompatibleRawProxy.cs`
+- `Src/Netor.Madorin.Networks/Proxy/OpenAiCompatibleEndpoints.cs`
+- `Src/Netor.Madorin.Networks/Extensions/NetworkServiceExtensions.cs`
 
 **修改内容**:
 
@@ -71,8 +71,8 @@
   - 请求上游前读取缓存 reasoning 并重写请求体。
   - 上游成功响应后提取 reasoning 并写入缓存。
 - `OpenAiCompatibleEndpoints` 新增 clientKey 解析：
-  - `X-Cortana-Session-Id`
-  - `X-Cortana-Conversation-Id`
+  - `X-Madorin-Session-Id`
+  - `X-Madorin-Conversation-Id`
   - `X-Request-Id`
   - `RemoteEndPoint`
 - DI 中注册 `DeepSeekReasoningReplayCache` 单例。
@@ -81,7 +81,7 @@
 
 ### 4. 单元测试补充
 
-- `Tests/Netor.Cortana.Networks.Tests/DeepSeekReasoningRequestRewriterTests.cs`
+- `Tests/Netor.Madorin.Networks.Tests/DeepSeekReasoningRequestRewriterTests.cs`
 
 **修改内容**:
 
@@ -99,7 +99,7 @@
 
 - OpenAI 兼容通道不受影响：只有 DeepSeek provider 会执行请求重写和 reasoning 缓存。
 - 缓存为内存级别，进程重启后清空。
-- 当前以请求头或远端地址作为客户端隔离维度；如果后续客户端能稳定传入 `X-Cortana-Session-Id`，隔离效果会更精确。
+- 当前以请求头或远端地址作为客户端隔离维度；如果后续客户端能稳定传入 `X-Madorin-Session-Id`，隔离效果会更精确。
 - 第一版不访问历史数据库，避免在 raw proxy 中引入不可靠的会话反查逻辑。
 
 ---
@@ -109,7 +109,7 @@
 已执行：
 
 ```bash
-dotnet test Tests/Netor.Cortana.Networks.Tests/Netor.Cortana.Networks.Tests.csproj
+dotnet test Tests/Netor.Madorin.Networks.Tests/Netor.Madorin.Networks.Tests.csproj
 ```
 
 结果：

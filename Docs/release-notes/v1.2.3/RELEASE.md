@@ -1,4 +1,4 @@
-# Netor.Cortana v1.2.3 发布说明
+# Netor.Madorin v1.2.3 发布说明
 
 **发布日期：** 2026 年 4 月 21 日
 **运行时：** .NET 10 | Avalonia 12 | Native AOT
@@ -36,11 +36,11 @@
 
 ## 📋 变更文件清单
 
-- `Src/Netor.Cortana.Plugin/BuiltIn/PowerShell/PowerShellExecutor.cs` — 默认后台执行、保护超时兜底
-- `Src/Netor.Cortana.Plugin/BuiltIn/PowerShell/ExecutionSession.cs` — 会话后台模式、优雅退出与强制清理
-- `Src/Netor.Cortana.Plugin/BuiltIn/PowerShell/SessionRegistry.cs` — 后台参数透传、空闲会话清理增强
-- `Src/Netor.Cortana.Plugin/BuiltIn/PowerShell/PowerShellProvider.cs` — AI 工具说明英文统一、后台参数暴露
-- `Src/Netor.Cortana.UI/Netor.Cortana.UI.csproj` — 版本号更新到 1.2.3
+- `Src/Netor.Madorin.Plugin/BuiltIn/PowerShell/PowerShellExecutor.cs` — 默认后台执行、保护超时兜底
+- `Src/Netor.Madorin.Plugin/BuiltIn/PowerShell/ExecutionSession.cs` — 会话后台模式、优雅退出与强制清理
+- `Src/Netor.Madorin.Plugin/BuiltIn/PowerShell/SessionRegistry.cs` — 后台参数透传、空闲会话清理增强
+- `Src/Netor.Madorin.Plugin/BuiltIn/PowerShell/PowerShellProvider.cs` — AI 工具说明英文统一、后台参数暴露
+- `Src/Netor.Madorin.UI/Netor.Madorin.UI.csproj` — 版本号更新到 1.2.3
 
 ---
 

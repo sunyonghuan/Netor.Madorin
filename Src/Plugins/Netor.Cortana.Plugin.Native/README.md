@@ -1,6 +1,6 @@
-# Netor.Cortana.Plugin.Native
+# Netor.Madorin.Plugin.Native
 
-Cortana 原生插件开发框架的**运行时库**，提供 Attribute 标记和运行时类型，配合 `Netor.Cortana.Plugin.Native.Generator` 源码生成器使用。
+Madorin 原生插件开发框架的**运行时库**，提供 Attribute 标记和运行时类型，配合 `Netor.Madorin.Plugin.Native.Generator` 源码生成器使用。
 
 ## 功能
 
@@ -12,7 +12,7 @@ Cortana 原生插件开发框架的**运行时库**，提供 Attribute 标记和
 ## 安装
 
 ```shell
-dotnet add package Netor.Cortana.Plugin.Native
+dotnet add package Netor.Madorin.Plugin.Native
 ```
 
 ## 快速开始
@@ -21,7 +21,7 @@ dotnet add package Netor.Cortana.Plugin.Native
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
-using Netor.Cortana.Plugin.Native;
+using Netor.Madorin.Plugin.Native;
 
 [Plugin(
     Id = "my_plugin",
@@ -40,7 +40,7 @@ public static partial class Startup
 ### 2. 编写工具类
 
 ```csharp
-using Netor.Cortana.Plugin.Native;
+using Netor.Madorin.Plugin.Native;
 
 [Tool]
 public class MyTools
@@ -118,5 +118,5 @@ public class MyTools
 ## 要求
 
 - .NET 10+
-- 配合 `Netor.Cortana.Plugin.Native.Generator` 使用
+- 配合 `Netor.Madorin.Plugin.Native.Generator` 使用
 - 项目需设置 `<PublishAot>true</PublishAot>` 以支持原生 AOT 发布
