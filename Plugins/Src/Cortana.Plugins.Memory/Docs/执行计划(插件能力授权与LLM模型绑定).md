@@ -4,7 +4,7 @@
 - [×] 确认当前插件加载、智能体绑定、工具发现和全局目录结构。
 - [×] 确认 `Memory.ModelId` 当前仅为设置端预留，未进入真实插件模型调用链路。
 - [×] 确认当前 `SystemSettingsService`、设置页和插件管理相关代码的可复用点。
-- [×] 确认当前 `/internal/conversation-feed/` 实际运行服务，避免新增控制面时出现双实现分叉。
+- [×] 确认当前 `/internal` 实际运行服务，避免新增控制面时出现双实现分叉。
 - [×] 确认 Native AOT JSON 序列化上下文边界，列出宿主可绑定的通用 DTO。
 
 ## Step 2 建立插件授权配置模型 : 0%
@@ -38,7 +38,7 @@
 - [×] 插件侧使用 `JsonDocument` / `JsonElement` 或轻量字符串解析读取授权摘要。
 
 ## Step 6 建立 model-capability WebSocket 控制面 : 0%
-- [×] 在 `MadorinWsEndpoints` 增加 `ModelCapabilityPath`、`ModelCapabilityProtocol`、`ModelCapabilityVersion`。
+- [×] 在 `CortanaWsEndpoints` 增加 `ModelCapabilityPath`、`ModelCapabilityProtocol`、`ModelCapabilityVersion`。
 - [×] 在当前实际运行的内部 WebSocket 服务中挂载 `/internal/model-capability/`。
 - [×] 增加 `/internal/plugin-push/` 或在同一控制面支持通用插件推送操作。
 - [×] 实现 connected / subscribe / subscribed / error 握手流程。
@@ -125,3 +125,4 @@
 ## 修改文件清单
 
 - [×] 待执行过程中补充。
+

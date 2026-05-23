@@ -40,9 +40,9 @@
 3. 端到端验证（OpenAI 兼容）：跑一轮 assistant tool_calls → tool result → assistant，确认无 400、链条完整、历史视图隐藏工具占位。
 
 ## 文件参考
-- 交互能力位：Src/Netor.Madorin.Entitys/Entities/ModelCapabilities.cs
-- 历史与资源：Src/Netor.Madorin.AI/Providers/ChatHistoryDataProvider.cs
-- 回传与捕获：Src/Netor.Madorin.AI/Providers/TokenTrackingChatClient.cs
-- 工具配送 gating：Src/Netor.Madorin.AI/AIAgentFactory.cs
-- 模型设置 UI：Src/Netor.Madorin.UI/Views/Settings/ModelSettingsPage.axaml(+.cs)
+- 交互能力位：Src/Netor.Cortana.Entitys/Entities/ModelCapabilities.cs
+- 历史与资源：Src/Netor.Cortana.AI/Providers/ChatHistoryDataProvider.cs
+- 回传与捕获：Src/Netor.Cortana.AI/Providers/TokenTrackingChatClient.cs
+- 工具配送 gating：Src/Netor.Cortana.AI/AIAgentFactory.cs
+- 模型设置 UI：Src/Netor.Cortana.UI/Views/Settings/ModelSettingsPage.axaml(+.cs)
 

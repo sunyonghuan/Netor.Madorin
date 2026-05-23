@@ -47,20 +47,21 @@ AI 到插件侧协议固定，插件到外部应用侧通过适配器扩展。
 
 这样可保证不同应用仅改“转换器”，不改核心路由。
 
-## 6. 固定侧协议（Madorin WebSocket）
+## 6. 固定侧协议（Madorin PluginBus）
 
-固定侧连接地址为 ws://host:52841/ws/（端口可配置）。
-编码为 UTF-8 JSON 文本帧，连接成功后服务端先下发 connected 与 clientId。
+固定侧连接地址为 ws://host:52841/internal（端口可配置）。
+编码为 UTF-8 JSON 文本帧，连接成功后服务端先下发 `connected` 与 `clientId`，协议为 `cortana.plugin-bus`，当前版本为 `1.2.0`。
 
-客户端到 Madorin 的核心消息只有两类。
-1. send：发送用户消息，可附带 attachments。
-2. stop：中止当前回复。
+客户端到 Madorin 的核心消息通过 PluginBus envelope 发送。
+1. `type=request/topic=conversation/op=chat.message.send`：发送用户消息，可附带 attachments。
+2. `type=request/topic=conversation/op=chat.generation.stop`：中止当前回复。
+3. 旧 `type=send` / `type=stop` 仍由宿主兼容解析，但不作为新实现首选格式。
 
-服务端到客户端的关键消息包括。
-1. token：流式文本片段。
-2. done：本轮完成。
-3. error：错误或 cancelled。
-4. stt_*、tts_*、chat_completed、wakeword_detected：系统事件广播。
+服务端到客户端的关键消息统一包装为 `type=event/topic=conversation`。
+1. `op=chat.token` + `payload.type=token`：流式文本片段。
+2. `op=chat.done` + `payload.type=done`：本轮完成。
+3. `op=chat.error` + `payload.type=error`：错误或 cancelled。
+4. `chat.stt_*`、`chat.tts_*`、`chat_completed`、`wakeword_detected` 等事件按 conversation topic 广播。
 
 ## 7. 中转站核心设计
 
@@ -136,19 +137,19 @@ Bridge Core 不感知应用业务字段，所有字段映射留在适配器。
 
 ## 12. 建议项目结构
 
-1. Src/Madorin.Plugins.WsBridge
+1. Src/Cortana.Plugins.WsBridge
 核心插件入口、工具暴露、配置加载。
 
-2. Src/Madorin.Plugins.WsBridge.Core
+2. Src/Cortana.Plugins.WsBridge.Core
 Envelope、Router、SessionQueue、重试与限流。
 
-3. Src/Madorin.Plugins.WsBridge.Madorin
+3. Src/Cortana.Plugins.WsBridge.Madorin
 固定侧 MadorinWsClient 与协议模型。
 
-4. Src/Madorin.Plugins.WsBridge.Adapters.AbcApp
+4. Src/Cortana.Plugins.WsBridge.Adapters.AbcApp
 某个应用的适配器实现。
 
-5. Src/Madorin.Plugins.WsBridge.Adapters.XyzApp
+5. Src/Cortana.Plugins.WsBridge.Adapters.XyzApp
 另一个应用的适配器实现。
 
 ## 13. 对外工具建议
@@ -174,6 +175,8 @@ Envelope、Router、SessionQueue、重试与限流。
 第二阶段：加入会话队列、重连、观测与错误码体系。
 第三阶段：支持附件中转与本地缓存策略。
 第四阶段：扩展多应用适配器与配置中心。
+
+
 
 
 

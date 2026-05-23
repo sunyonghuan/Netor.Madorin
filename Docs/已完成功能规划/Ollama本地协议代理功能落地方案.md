@@ -5,7 +5,7 @@
 当前主项目为：
 
 ```text
-Src\Netor.Madorin.UI
+Src\Netor.Cortana.UI
 ```
 
 目标是在不破坏现有架构、兼容 Native AOT 的前提下，将 Madorin 内部 AI 代理能力以 Ollama 本地协议形式暴露给其他软件使用。
@@ -48,7 +48,7 @@ Newtonsoft.Json
 
 - 当前桌面主程序已开启 Native AOT 发布。
 - ASP.NET Core 依赖较重，会显著增加体积和裁剪复杂度。
-- 项目中 `Netor.Madorin.Networks` 已经使用 `HttpListener` 实现 WebSocket 服务，继续扩展该项目最自然。
+- 项目中 `Netor.Cortana.Networks` 已经使用 `HttpListener` 实现 WebSocket 服务，继续扩展该项目最自然。
 - `HttpListener` + Source Generator JSON 对 AOT 更友好。
 
 ---
@@ -58,7 +58,7 @@ Newtonsoft.Json
 ### 3.1 主项目
 
 ```text
-Src\Netor.Madorin.UI\Netor.Madorin.UI.csproj
+Src\Netor.Cortana.UI\Netor.Cortana.UI.csproj
 ```
 
 主项目特点：
@@ -76,33 +76,33 @@ Src\Netor.Madorin.UI\Netor.Madorin.UI.csproj
 主项目已引用：
 
 ```text
-Netor.Madorin.Entitys
-Netor.Madorin.AI
-Netor.Madorin.Voice
-Netor.Madorin.Plugin
-Netor.Madorin.Networks
+Netor.Cortana.Entitys
+Netor.Cortana.AI
+Netor.Cortana.Voice
+Netor.Cortana.Plugin
+Netor.Cortana.Networks
 ```
 
 ### 3.2 网络项目
 
 ```text
-Src\Netor.Madorin.Networks
+Src\Netor.Cortana.Networks
 ```
 
 现有能力：
 
 - 已依赖 `Microsoft.Extensions.Hosting.Abstractions`
 - 已依赖 `Microsoft.Extensions.Logging.Abstractions`
-- 已引用 `Netor.Madorin.Entitys`
+- 已引用 `Netor.Cortana.Entitys`
 - 已存在 `WebSocketServerService`
 - `WebSocketServerService` 已经基于 `HttpListener` 实现服务监听
 
-因此，Ollama 协议 HTTP 服务放在 `Netor.Madorin.Networks` 中最合适。
+因此，Ollama 协议 HTTP 服务放在 `Netor.Cortana.Networks` 中最合适。
 
 ### 3.3 AI 项目
 
 ```text
-Src\Netor.Madorin.AI
+Src\Netor.Cortana.AI
 ```
 
 现有能力：
@@ -131,16 +131,16 @@ public event Action? TokenUsageChanged;
 ### 4.1 职责划分
 
 ```text
-Netor.Madorin.Entitys
+Netor.Cortana.Entitys
   └─ 定义代理抽象接口和通用 DTO
 
-Netor.Madorin.AI
+Netor.Cortana.AI
   └─ 实现代理后端，将 Ollama 请求转换为 Madorin AI/Agent 调用
 
-Netor.Madorin.Networks
+Netor.Cortana.Networks
   └─ HttpListener 服务、Ollama 协议路由、JSON 请求响应、NDJSON 流式输出
 
-Netor.Madorin.UI
+Netor.Cortana.UI
   └─ ProxyWindow 设置界面、状态显示、端口和厂商配置
 ```
 
@@ -170,10 +170,10 @@ Networks -> AI
 
 ### 4.3 关键抽象
 
-建议在 `Netor.Madorin.Entitys` 中新增：
+建议在 `Netor.Cortana.Entitys` 中新增：
 
 ```text
-Src\Netor.Madorin.Entitys\Proxy\
+Src\Netor.Cortana.Entitys\Proxy\
   IAiProxyAgentBackend.cs
   AiProxyModels.cs
 ```
@@ -181,7 +181,7 @@ Src\Netor.Madorin.Entitys\Proxy\
 示例接口：
 
 ```csharp
-namespace Netor.Madorin.Entitys.Proxy;
+namespace Netor.Cortana.Entitys.Proxy;
 
 public interface IAiProxyAgentBackend
 {
@@ -229,8 +229,8 @@ public sealed record AiProxyChatDelta(
 ### 5.1 Entitys 项目
 
 ```text
-Src\Netor.Madorin.Entitys\Proxy\IAiProxyAgentBackend.cs
-Src\Netor.Madorin.Entitys\Proxy\AiProxyModels.cs
+Src\Netor.Cortana.Entitys\Proxy\IAiProxyAgentBackend.cs
+Src\Netor.Cortana.Entitys\Proxy\AiProxyModels.cs
 ```
 
 职责：
@@ -243,7 +243,7 @@ Src\Netor.Madorin.Entitys\Proxy\AiProxyModels.cs
 ### 5.2 AI 项目
 
 ```text
-Src\Netor.Madorin.AI\Proxys\MadorinOllamaProxyAgentBackend.cs
+Src\Netor.Cortana.AI\Proxys\CortanaOllamaProxyAgentBackend.cs
 ```
 
 职责：
@@ -259,14 +259,14 @@ Src\Netor.Madorin.AI\Proxys\MadorinOllamaProxyAgentBackend.cs
 当前已存在：
 
 ```text
-Src\Netor.Madorin.AI\Proxys\Models.cs
-Src\Netor.Madorin.AI\Proxys\OllamaProxyService.cs
+Src\Netor.Cortana.AI\Proxys\Models.cs
+Src\Netor.Cortana.AI\Proxys\OllamaProxyService.cs
 ```
 
 其中 `OllamaProxyService.cs` 当前 namespace 为：
 
 ```csharp
-namespace Netor.Madorin.UI.Proxys;
+namespace Netor.Cortana.UI.Proxys;
 ```
 
 这个命名空间不合适，建议后续删除或重构迁移。
@@ -276,12 +276,12 @@ namespace Netor.Madorin.UI.Proxys;
 ### 5.3 Networks 项目
 
 ```text
-Src\Netor.Madorin.Networks\Proxy\OllamaProxyServerService.cs
-Src\Netor.Madorin.Networks\Proxy\OllamaProxyOptions.cs
-Src\Netor.Madorin.Networks\Proxy\OllamaProxyState.cs
-Src\Netor.Madorin.Networks\Proxy\OllamaProtocolModels.cs
-Src\Netor.Madorin.Networks\Proxy\OllamaProxyJsonContext.cs
-Src\Netor.Madorin.Networks\Proxy\OllamaHttpResponseWriter.cs
+Src\Netor.Cortana.Networks\Proxy\OllamaProxyServerService.cs
+Src\Netor.Cortana.Networks\Proxy\OllamaProxyOptions.cs
+Src\Netor.Cortana.Networks\Proxy\OllamaProxyState.cs
+Src\Netor.Cortana.Networks\Proxy\OllamaProtocolModels.cs
+Src\Netor.Cortana.Networks\Proxy\OllamaProxyJsonContext.cs
+Src\Netor.Cortana.Networks\Proxy\OllamaHttpResponseWriter.cs
 ```
 
 职责：
@@ -302,9 +302,9 @@ Src\Netor.Madorin.Networks\Proxy\OllamaHttpResponseWriter.cs
 建议新增：
 
 ```text
-Src\Netor.Madorin.UI\Views\Proxy\ProxyWindow.axaml
-Src\Netor.Madorin.UI\Views\Proxy\ProxyWindow.axaml.cs
-Src\Netor.Madorin.UI\Views\Proxy\ProxyViewModel.cs
+Src\Netor.Cortana.UI\Views\Proxy\ProxyWindow.axaml
+Src\Netor.Cortana.UI\Views\Proxy\ProxyWindow.axaml.cs
+Src\Netor.Cortana.UI\Views\Proxy\ProxyViewModel.cs
 ```
 
 职责：
@@ -589,7 +589,7 @@ public interface IAiProxyAgentBackend
 ```
 实现类建议命名：
 ```text
-MadorinOllamaProxyAgentBackend
+CortanaOllamaProxyAgentBackend
 ```
 职责：
 - 根据 Proxy 配置加载 Proxy Agent。
@@ -721,9 +721,9 @@ Proxy.Ollama.MaxConcurrentRequests = 2
 ### 10.1 文件
 
 ```text
-Src\Netor.Madorin.UI\Views\Proxy\ProxyWindow.axaml
-Src\Netor.Madorin.UI\Views\Proxy\ProxyWindow.axaml.cs
-Src\Netor.Madorin.UI\Views\Proxy\ProxyViewModel.cs
+Src\Netor.Cortana.UI\Views\Proxy\ProxyWindow.axaml
+Src\Netor.Cortana.UI\Views\Proxy\ProxyWindow.axaml.cs
+Src\Netor.Cortana.UI\Views\Proxy\ProxyViewModel.cs
 ```
 
 ### 10.2 界面元素
@@ -1004,7 +1004,7 @@ X-API-Key: {apiKey}
 修改：
 
 ```text
-Src\Netor.Madorin.Networks\NetworkServiceExtensions.cs
+Src\Netor.Cortana.Networks\NetworkServiceExtensions.cs
 ```
 
 增加：
@@ -1019,18 +1019,18 @@ services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<OllamaProxySer
 修改：
 
 ```text
-Src\Netor.Madorin.AI\AIServiceExtensions.cs
+Src\Netor.Cortana.AI\AIServiceExtensions.cs
 ```
 
 增加：
 
 ```csharp
-services.AddSingleton<IAiProxyAgentBackend, MadorinOllamaProxyAgentBackend>();
+services.AddSingleton<IAiProxyAgentBackend, CortanaOllamaProxyAgentBackend>();
 ```
 
 前提：
 
-- `IAiProxyAgentBackend` 放在 AI 和 Networks 都可引用的项目中，推荐 `Netor.Madorin.Entitys.Proxy`。
+- `IAiProxyAgentBackend` 放在 AI 和 Networks 都可引用的项目中，推荐 `Netor.Cortana.Entitys.Proxy`。
 
 ---
 
@@ -1160,7 +1160,7 @@ Ollama 是模型接口，Madorin 是 Agent 接口。
 ## 19. 推荐最终形态
 
 ```text
-Madorin.exe
+Cortana.exe
   ├─ 主聊天窗口
   ├─ 设置窗口
   ├─ Ollama Proxy 设置窗口
@@ -1186,9 +1186,9 @@ Model: madorin/default:latest
 
 最终建议：
 
-1. HTTP 服务放在 `Netor.Madorin.Networks`。
-2. Proxy Agent 调用实现放在 `Netor.Madorin.AI`，并与主聊天会话隔离。
-3. 抽象接口放在 `Netor.Madorin.Entitys.Proxy`，接口语义必须明确为独立代理通道。
+1. HTTP 服务放在 `Netor.Cortana.Networks`。
+2. Proxy Agent 调用实现放在 `Netor.Cortana.AI`，并与主聊天会话隔离。
+3. 抽象接口放在 `Netor.Cortana.Entitys.Proxy`，接口语义必须明确为独立代理通道。
 4. 设置界面放在 `UI.Views.Proxy`。
 5. 使用 `HttpListener`，不引入 ASP.NET Core。
 6. 使用 `System.Text.Json Source Generator`，确保 Native AOT 兼容。

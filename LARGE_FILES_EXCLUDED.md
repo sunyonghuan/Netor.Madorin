@@ -8,27 +8,26 @@
 
 | 文件路径 | 大小 |
 |---------|------|
-| `Src/Netor.Madorin/Models/sherpa-onnx-zipvoice-zh-en-emilia/fm_decoder.onnx` | 455.27 MB |
-| `Src/Netor.Madorin/Models/STT/encoder.int8.onnx` | 157.80 MB |
-| `Src/Netor.Madorin/Models/sherpa-onnx-zipvoice-distill-int8-zh-en-emilia/decoder.int8.onnx` | 118.88 MB |
-| `Src/Netor.Madorin/Models/sherpa-onnx-zipvoice-zh-en-emilia/fm_decoder_int8.onnx` | 118.85 MB |
-| `Src/Netor.Madorin/Models/kokoro-int8-multi-lang-v1_1/model.int8.onnx` | 109.00 MB |
-| `Src/Netor.Madorin/Models/TTS-Kokoro/model.int8.onnx` | 109.00 MB |
+| `Src/sherpa_models/TTS/sherpa-onnx-zipvoice-zh-en-emilia/fm_decoder.onnx` | 455.27 MB |
+| `Src/sherpa_models/STT/encoder.int8.onnx` | 157.80 MB |
+| `Src/sherpa_models/TTS/sherpa-onnx-zipvoice-distill-int8-zh-en-emilia/decoder.int8.onnx` | 118.88 MB |
+| `Src/sherpa_models/TTS/sherpa-onnx-zipvoice-zh-en-emilia/fm_decoder_int8.onnx` | 118.85 MB |
+| `Src/sherpa_models/TTS/kokoro-int8-multi-lang-v1_1/model.int8.onnx` | 109.00 MB |
+| `Src/sherpa_models/TTS/TTS-Kokoro/model.int8.onnx` | 109.00 MB |
 
 ### 2. 模型压缩包 (1 个文件，140MB)
 
 | 文件路径 | 大小 |
 |---------|------|
-| `Src/Netor.Madorin/Models/kokoro-int8-multi-lang-v1_1.tar.bz2` | 140.22 MB |
+| `Src/sherpa_models/TTS/kokoro-int8-multi-lang-v1_1.tar.bz2` | 140.22 MB |
 
 ### 3. 编译生成的大型文件 (4 个文件，约 600MB)
 
 | 文件路径 | 大小 |
 |---------|------|
-| `Src/Netor.Madorin.UI/bin/Release/net10.0-windows/win-x64/native/Madorin.Avalonia.pdb` | 157.11 MB |
-| `Src/Netor.Madorin.UI/obj/Release/net10.0/win-x64/native/Madorin.obj` | 146.78 MB |
-| `Src/Netor.Madorin.UI/obj/Release/net10.0-windows/win-x64/native/Madorin.obj` | 140.14 MB |
-| `Src/Netor.Madorin.UI/obj/Release/net10.0-windows/win-x64/native/Madorin.Avalonia.obj` | 139.65 MB |
+| `Src/Netor.Cortana.UI/bin/Release/net10.0/win-x64/native/Cortana.pdb` | 157.11 MB |
+| `Src/Netor.Cortana.UI/obj/Release/net10.0/win-x64/native/Cortana.obj` | 146.78 MB |
+| `Src/Netor.Cortana.UI/obj/Release/net10.0/win-x64/native/Cortana.Avalonia.obj` | 139.65 MB |
 
 ---
 
@@ -75,18 +74,18 @@ git commit -m "Add Git LFS tracking"
 ```gitignore
 # ONNX 模型文件
 *.onnx
-Src/Netor.Madorin/Models/**/*.onnx
+**/sherpa_models/**/*.onnx
 
 # 模型压缩包
 *.tar.bz2
-Src/Netor.Madorin/Models/**/*.tar.bz2
+**/sherpa_models/**/*.tar.bz2
 
 # 编译生成的大型对象文件和符号文件
 *.obj
 *.pdb
 
 # bin 和 obj 目录
-**/bin/**/sherpa_models/
+**/sherpa_models/
 **/obj/**/native/
 ```
 
@@ -95,8 +94,8 @@ Src/Netor.Madorin/Models/**/*.tar.bz2
 ## 注意事项
 
 1. **编译文件**：`bin/` 和 `obj/` 目录下的文件本就应该被排除，这些是编译生成的临时文件
-2. **模型文件**：如果项目需要这些模型才能运行，请在 README 中说明如何获取
-3. **首次克隆**：新克隆的仓库需要手动下载模型文件到对应目录
+2. **模型文件**：当前 UI 项目从 `Src/sherpa_models/{KWS,STT,TTS}` 复制模型到输出目录，运行时通过 `UserDataDirectory/sherpa_models/{KWS,STT,TTS}` 加载
+3. **首次克隆**：新克隆的仓库需要手动下载模型文件到 `Src/sherpa_models/` 对应子目录，发布产物中也需要保留输出目录下的 `sherpa_models/`
 
 ---
 

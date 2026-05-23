@@ -21,7 +21,7 @@
 
 ### 用途级模型路由（`ModelPurposeResolver`）
 
-- 新增宿主共享服务 `Netor.Madorin.AI.Providers.ModelPurposeResolver`，按「用途键」从 `SystemSettings` 解析对应模型并实例化缓存 `IChatClient`
+- 新增宿主共享服务 `Netor.Cortana.AI.Providers.ModelPurposeResolver`，按「用途键」从 `SystemSettings` 解析对应模型并实例化缓存 `IChatClient`
 - 按键缓存、配置变更自动释放旧实例，避免连接泄漏
 - `Compaction.ModelId`（会话压缩摘要）已迁移到该服务，`ChatHistoryDataProvider.ResolveCompactionClient` 改为一行调用
 - 新增系统设置 `Memory.ModelId`（分组「记忆体系」，valueType=`model`），用于插件的记忆加工任务，未配置时回退到当前对话模型
@@ -49,7 +49,7 @@
 
 - 未引入任何依赖反射的序列化路径
 - 所有新增 JSON 序列化均基于 `[JsonSerializable]` 源生成上下文（`PersistedContentJsonContext`、`PersistedArgumentsJsonContext`）
-- `dotnet build Src/Netor.Madorin.AI/Netor.Madorin.AI.csproj` 零 IL2026 / IL3050 / SYSLIB 警告
+- `dotnet build Src/Netor.Cortana.AI/Netor.Cortana.AI.csproj` 零 IL2026 / IL3050 / SYSLIB 警告
 
 ---
 
@@ -57,22 +57,22 @@
 
 ### 新增
 
-- `Src/Netor.Madorin.AI/Providers/ModelPurposeResolver.cs` — 用途级模型路由解析器
-- `Src/Netor.Madorin.AI/Persistence/PersistedContent.cs` — 结构化内容 POCO + 源生成上下文
+- `Src/Netor.Cortana.AI/Providers/ModelPurposeResolver.cs` — 用途级模型路由解析器
+- `Src/Netor.Cortana.AI/Persistence/PersistedContent.cs` — 结构化内容 POCO + 源生成上下文
 - `Docs/release-notes/v1.2.6/RELEASE.md` — 本发布说明
 
 ### 修改
 
-- `Src/Netor.Madorin.AI/AIServiceExtensions.cs` — 注册 `ModelPurposeResolver`
-- `Src/Netor.Madorin.AI/Providers/ChatHistoryDataProvider.cs` — 路由重构、INSERT 写 `ContentsJson`、`BuildContentsWithAssets` 还原结构化内容
-- `Src/Netor.Madorin.AI/AiChatHostedService.cs` — 用户消息入库写 `ContentsJson`
-- `Src/Netor.Madorin.AI/Extensions/ChatMessageExtensions.cs` — 新增 `BuildContentsJson` / `ParseContentsJson` 与 POCO 映射
-- `Src/Netor.Madorin.Entitys/Entities/ChatMessageEntity.cs` — 新增 `ContentsJson` 属性
-- `Src/Netor.Madorin.Entitys/Services/ChatMessageService.cs` — 读写 `ContentsJson` 列，老库缺列兼容
-- `Src/Netor.Madorin.Entitys/MadorinDbContext.cs` — `CREATE TABLE` 与 `EnsureMigrations` 同步新增 `ContentsJson` 列
-- `Src/Netor.Madorin.Entitys/Services/SystemSettingsService.cs` — 首次播种 `Memory.ModelId`
-- `Src/Netor.Madorin.UI/App.axaml.cs` — 启动迁移时 `EnsureSetting("Memory.ModelId", …)`
-- `Src/Netor.Madorin.UI/Netor.Madorin.UI.csproj` — 版本号升级至 1.2.6
+- `Src/Netor.Cortana.AI/AIServiceExtensions.cs` — 注册 `ModelPurposeResolver`
+- `Src/Netor.Cortana.AI/Providers/ChatHistoryDataProvider.cs` — 路由重构、INSERT 写 `ContentsJson`、`BuildContentsWithAssets` 还原结构化内容
+- `Src/Netor.Cortana.AI/AiChatHostedService.cs` — 用户消息入库写 `ContentsJson`
+- `Src/Netor.Cortana.AI/Extensions/ChatMessageExtensions.cs` — 新增 `BuildContentsJson` / `ParseContentsJson` 与 POCO 映射
+- `Src/Netor.Cortana.Entitys/Entities/ChatMessageEntity.cs` — 新增 `ContentsJson` 属性
+- `Src/Netor.Cortana.Entitys/Services/ChatMessageService.cs` — 读写 `ContentsJson` 列，老库缺列兼容
+- `Src/Netor.Cortana.Entitys/CortanaDbContext.cs` — `CREATE TABLE` 与 `EnsureMigrations` 同步新增 `ContentsJson` 列
+- `Src/Netor.Cortana.Entitys/Services/SystemSettingsService.cs` — 首次播种 `Memory.ModelId`
+- `Src/Netor.Cortana.UI/App.axaml.cs` — 启动迁移时 `EnsureSetting("Memory.ModelId", …)`
+- `Src/Netor.Cortana.UI/Netor.Cortana.UI.csproj` — 版本号升级至 1.2.6
 
 ---
 
@@ -86,5 +86,5 @@
 
 ## 📦 本地发布产物
 
-- `Realases/Netor.Madorin-v1.2.6-win-x64.zip`
-- `Realases/Netor.Madorin-v1.2.6-win-x64.sha256`
+- `Realases/Netor.Cortana-v1.2.6-win-x64.zip`
+- `Realases/Netor.Cortana-v1.2.6-win-x64.sha256`

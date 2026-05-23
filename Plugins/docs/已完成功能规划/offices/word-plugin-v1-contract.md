@@ -2,7 +2,7 @@
 
 ## 1. 文档定位
 
-本文档定义 Madorin.Plugins.Office.Word 第一版对 AI 公开的工具接口契约。
+本文档定义 Cortana.Plugins.Office.Word 第一版对 AI 公开的工具接口契约。
 契约目标是让 AI 可靠完成 Word 文档的基础新增、修改、删除与另存操作。
 本文档是开发、测试、联调和后续版本兼容的统一依据。
 

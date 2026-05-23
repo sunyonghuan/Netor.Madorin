@@ -25,8 +25,8 @@
 
 ### 1. AI 工具调用协议与历史重排修复
 
-- `Src/Netor.Madorin.AI/Providers/ChatHistoryDataProvider.cs`
-- `Src/Netor.Madorin.AI/Extensions/ChatMessageExtensions.cs`
+- `Src/Netor.Cortana.AI/Providers/ChatHistoryDataProvider.cs`
+- `Src/Netor.Cortana.AI/Extensions/ChatMessageExtensions.cs`
 
 **修改内容**:
 
@@ -42,12 +42,12 @@
 
 ### 2. AI 全量调试日志与协议诊断
 
-- `Src/Netor.Madorin.AI/Providers/TokenTrackingChatClient.cs`
-- `Src/Netor.Madorin.AI/Drivers/UserAgentOverrideHandler.cs`
-- `Src/Netor.Madorin.AI/AIAgentFactory.cs`
-- `Src/Netor.Madorin.UI/App.axaml.cs`
-- `Src/Netor.Madorin.UI/Views/Settings/SystemSettingsPage.axaml.cs`
-- `Src/Netor.Madorin.Entitys/Services/SystemSettingsService.cs`
+- `Src/Netor.Cortana.AI/Providers/TokenTrackingChatClient.cs`
+- `Src/Netor.Cortana.AI/Drivers/UserAgentOverrideHandler.cs`
+- `Src/Netor.Cortana.AI/AIAgentFactory.cs`
+- `Src/Netor.Cortana.UI/App.axaml.cs`
+- `Src/Netor.Cortana.UI/Views/Settings/SystemSettingsPage.axaml.cs`
+- `Src/Netor.Cortana.Entitys/Services/SystemSettingsService.cs`
 
 **修改内容**:
 
@@ -59,7 +59,7 @@
   - `stream-error`
 - trace 中记录消息结构、stream update、usage、异常堆栈和协议诊断信息。
 - 新增 `AnalyzeMessages(...)`，检测 orphan tool、missing tool response、non-adjacent tool message 等协议问题。
-- `AIAgentFactory` 构造 `TokenTrackingChatClient` 时传入 `IAppPaths`，用于把 trace 写入工作区 `.madorin/logs/ai-traces`。
+- `AIAgentFactory` 构造 `TokenTrackingChatClient` 时传入 `IAppPaths`，用于把 trace 写入工作区 `.cortana/logs/ai-traces`。
 - `UserAgentOverrideHandler` 改为仅在 `AI.Trace.Enabled` 或 `MADORIN_AI_TRACE_ENABLED` 开启时记录 HTTP 请求/响应原文。
 - HTTP Header 中 `Authorization: Bearer ...` 输出前脱敏。
 - 读取响应体后重新包装 `StringContent`，避免 trace 消耗 response body 导致下游无法读取。
@@ -70,8 +70,8 @@
 
 ### 3. 聊天历史显示与工具内部消息过滤
 
-- `Src/Netor.Madorin.UI/Views/Main/MainWindow.Sessions.cs`
-- `Src/Netor.Madorin.Entitys/Services/ChatMessageService.cs`
+- `Src/Netor.Cortana.UI/Views/Main/MainWindow.Sessions.cs`
+- `Src/Netor.Cortana.Entitys/Services/ChatMessageService.cs`
 
 **修改内容**:
 
@@ -85,9 +85,9 @@
 
 ### 4. 日志目录、应用名称和 UI 调整
 
-- `Src/Netor.Madorin.UI/App.axaml.cs`
-- `Src/Netor.Madorin.UI/Views/Proxy/ProxyWindow.axaml`
-- `Src/Netor.Madorin.UI/Netor.Madorin.UI.csproj`
+- `Src/Netor.Cortana.UI/App.axaml.cs`
+- `Src/Netor.Cortana.UI/Views/Proxy/ProxyWindow.axaml`
+- `Src/Netor.Cortana.UI/Netor.Cortana.UI.csproj`
 
 **修改内容**:
 
@@ -99,19 +99,19 @@
 
 ### 5. 内置插件版本更新
 
-- `Plugins/Src/Madorin.Plugins.Bt/Madorin.Plugins.Bt.csproj`
-- `Plugins/Src/Madorin.Plugins.Bt/Startup.cs`
-- `Plugins/Src/Madorin.Plugins.GoogleSearch/Madorin.Plugins.GoogleSearch.csproj`
-- `Plugins/Src/Madorin.Plugins.GoogleSearch/Startup.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Madorin.Plugins.Memory.csproj`
-- `Plugins/Src/Madorin.Plugins.Memory/Startup.cs`
-- `Plugins/Src/Madorin.Plugins.Office/Madorin.Plugins.Office.csproj`
-- `Plugins/Src/Madorin.Plugins.Office/Startup.cs`
-- `Plugins/Src/Madorin.Plugins.Reminder/Madorin.Plugins.Reminder.csproj`
-- `Plugins/Src/Madorin.Plugins.Reminder/Startup.cs`
-- `Plugins/Src/Madorin.Plugins.ScriptRunner/Madorin.Plugins.ScriptRunner.csproj`
-- `Plugins/Src/Madorin.Plugins.WsBridge/Madorin.Plugins.WsBridge.csproj`
-- `Plugins/Src/Madorin.Plugins.WsBridge/Startup.cs`
+- `Plugins/Src/Cortana.Plugins.Bt/Cortana.Plugins.Bt.csproj`
+- `Plugins/Src/Cortana.Plugins.Bt/Startup.cs`
+- `Plugins/Src/Cortana.Plugins.GoogleSearch/Cortana.Plugins.GoogleSearch.csproj`
+- `Plugins/Src/Cortana.Plugins.GoogleSearch/Startup.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Cortana.Plugins.Memory.csproj`
+- `Plugins/Src/Cortana.Plugins.Memory/Startup.cs`
+- `Plugins/Src/Cortana.Plugins.Office/Cortana.Plugins.Office.csproj`
+- `Plugins/Src/Cortana.Plugins.Office/Startup.cs`
+- `Plugins/Src/Cortana.Plugins.Reminder/Cortana.Plugins.Reminder.csproj`
+- `Plugins/Src/Cortana.Plugins.Reminder/Startup.cs`
+- `Plugins/Src/Cortana.Plugins.ScriptRunner/Cortana.Plugins.ScriptRunner.csproj`
+- `Plugins/Src/Cortana.Plugins.WsBridge/Cortana.Plugins.WsBridge.csproj`
+- `Plugins/Src/Cortana.Plugins.WsBridge/Startup.cs`
 
 **版本变化**:
 
@@ -188,16 +188,16 @@
 ## Git 命令
 
 ```bash
-git add Src/Netor.Madorin.AI
-git add Src/Netor.Madorin.UI
-git add Src/Netor.Madorin.Entitys
-git add Plugins/Src/Madorin.Plugins.Bt
-git add Plugins/Src/Madorin.Plugins.GoogleSearch
-git add Plugins/Src/Madorin.Plugins.Memory
-git add Plugins/Src/Madorin.Plugins.Office
-git add Plugins/Src/Madorin.Plugins.Reminder
-git add Plugins/Src/Madorin.Plugins.ScriptRunner
-git add Plugins/Src/Madorin.Plugins.WsBridge
+git add Src/Netor.Cortana.AI
+git add Src/Netor.Cortana.UI
+git add Src/Netor.Cortana.Entitys
+git add Plugins/Src/Cortana.Plugins.Bt
+git add Plugins/Src/Cortana.Plugins.GoogleSearch
+git add Plugins/Src/Cortana.Plugins.Memory
+git add Plugins/Src/Cortana.Plugins.Office
+git add Plugins/Src/Cortana.Plugins.Reminder
+git add Plugins/Src/Cortana.Plugins.ScriptRunner
+git add Plugins/Src/Cortana.Plugins.WsBridge
 git add skills/skill-plugin-installation/SKILL.md
 git add skills/skill-plugin-installation/scripts/install-package.ps1
 git add Docs/GIT提交说明/GIT-修改-AI工具链协议修复与调试日志治理.md

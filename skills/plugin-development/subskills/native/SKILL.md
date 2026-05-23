@@ -29,7 +29,7 @@ user-invocable: true
 
 ## Native Debugger
 
-C# Native 插件使用 `Netor.Madorin.Plugin.Native.Debugger` 调试。脚手架会生成 `Debug\{PluginName}.Debug.csproj`，该项目引用插件项目和 Debugger 包。
+C# Native 插件使用 `Netor.Cortana.Plugin.Native.Debugger` 调试。脚手架会生成 `Debug\{PluginName}.Debug.csproj`，该项目引用插件项目和 Debugger 包。
 
 调试命令：
 
@@ -41,7 +41,7 @@ dotnet run --project Debug\PluginName.Debug.csproj
 调试入口固定使用：
 
 ```csharp
-using Netor.Madorin.Plugin.Native.Debugger;
+using Netor.Cortana.Plugin.Native.Debugger;
 using PluginName;
 
 await PluginDebugRunner.RunAsync(typeof(Startup).Assembly, options =>

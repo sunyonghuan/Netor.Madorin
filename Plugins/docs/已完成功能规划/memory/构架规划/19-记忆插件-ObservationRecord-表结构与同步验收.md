@@ -1,7 +1,7 @@
 # 记忆插件 ObservationRecord 表结构与同步验收
 
 ## 范围
-- 仓库：Plugins/Src/Madorin.Plugins.Memory
+- 仓库：Plugins/Src/Cortana.Plugins.Memory
 - 表：observation_records（memory.db）
 - 目标：按照《05-记忆体系设计》补齐 ObservationRecord 所需字段，并验证批量导入/实时入库路径同步新列。
 
@@ -24,7 +24,7 @@
 ## 验证步骤
 1) 构建插件与控制台
 ```powershell
-dotnet build e:\Netor.me\Madorin\Plugins\Src\Madorin.Plugins.Memory\Madorin.Plugins.Memory.csproj -c Debug
+dotnet build e:\Netor.me\Madorin\Plugins\Src\Cortana.Plugins.Memory\Cortana.Plugins.Memory.csproj -c Debug
 dotnet build e:\Netor.me\Madorin\Tests\MemoryIngestConsole\MemoryIngestConsole.csproj -c Debug
 ```
 2) 运行控制台（启动即建库 + 打印表结构/索引）
@@ -34,7 +34,7 @@ dotnet run --project e:\Netor.me\Madorin\Tests\MemoryIngestConsole\MemoryIngestC
 
 ## 运行摘录
 - 连接 feed 失败（本地未启服务）属预期，不影响建库：
-  - 连接 conversation-feed 失败：ws://localhost:65321/internal/conversation-feed/
+  - 连接 PluginBus 失败：ws://localhost:65321/internal
 - 表结构（节选）：
   - id TEXT PK
   - sessionId TEXT NOT NULL
@@ -60,3 +60,5 @@ dotnet run --project e:\Netor.me\Madorin\Tests\MemoryIngestConsole\MemoryIngestC
 ## 后续建议
 - 若需要对 delta 片段做合并，可在召回侧基于 `messageId` 聚合 `assistant.delta`；当前保留片段利于重放与审计。
 - 预留下阶段表骨架：memory_fragments / memory_links / memory_abstractions（仅建表与索引，不改召回），便于后续迭代。
+
+

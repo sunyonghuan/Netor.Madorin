@@ -20,7 +20,7 @@
 
 ### 1. DeepSeek reasoning 回放缓存
 
-- `Src/Netor.Madorin.Networks/Proxy/DeepSeekReasoningReplayCache.cs`
+- `Src/Netor.Cortana.Networks/Proxy/DeepSeekReasoningReplayCache.cs`
 
 **修改内容**:
 
@@ -34,7 +34,7 @@
 
 ### 2. DeepSeek 请求重写与响应提取
 
-- `Src/Netor.Madorin.Networks/Proxy/DeepSeekReasoningRequestRewriter.cs`
+- `Src/Netor.Cortana.Networks/Proxy/DeepSeekReasoningRequestRewriter.cs`
 
 **修改内容**:
 
@@ -58,9 +58,9 @@
 
 ### 3. OpenAI 兼容代理接入 DeepSeek 分支
 
-- `Src/Netor.Madorin.Networks/Proxy/OpenAiCompatibleRawProxy.cs`
-- `Src/Netor.Madorin.Networks/Proxy/OpenAiCompatibleEndpoints.cs`
-- `Src/Netor.Madorin.Networks/Extensions/NetworkServiceExtensions.cs`
+- `Src/Netor.Cortana.Networks/Proxy/OpenAiCompatibleRawProxy.cs`
+- `Src/Netor.Cortana.Networks/Proxy/OpenAiCompatibleEndpoints.cs`
+- `Src/Netor.Cortana.Networks/Extensions/NetworkServiceExtensions.cs`
 
 **修改内容**:
 
@@ -81,7 +81,7 @@
 
 ### 4. 单元测试补充
 
-- `Tests/Netor.Madorin.Networks.Tests/DeepSeekReasoningRequestRewriterTests.cs`
+- `Tests/Netor.Cortana.Networks.Tests/DeepSeekReasoningRequestRewriterTests.cs`
 
 **修改内容**:
 
@@ -109,7 +109,7 @@
 已执行：
 
 ```bash
-dotnet test Tests/Netor.Madorin.Networks.Tests/Netor.Madorin.Networks.Tests.csproj
+dotnet test Tests/Netor.Cortana.Networks.Tests/Netor.Cortana.Networks.Tests.csproj
 ```
 
 结果：

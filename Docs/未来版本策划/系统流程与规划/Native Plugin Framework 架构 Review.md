@@ -138,7 +138,7 @@ Dictionary<string, Func<IServiceProvider, string, string>> s_toolRoutes
 结合问题 1 的方案 A，去掉 `GeneratedPluginBuilder` 后，Init 流程更清晰：
 
 ```csharp
-[UnmanagedCallersOnly(EntryPoint = "madorin_plugin_init")]
+[UnmanagedCallersOnly(EntryPoint = "cortana_plugin_init")]
 public static int Init(IntPtr configJsonPtr)
 {
     try
@@ -218,3 +218,4 @@ public static int Init(IntPtr configJsonPtr)
 6. **生成文件清单**（第 662-667 行）：移除 `GeneratedPluginBuilder.g.cs`
 7. **Startup.g.cs 生成结构**（第 669-858 行）：Init 方法中去掉 `GeneratedPluginBuilder`
 8. **单 Plugin 入口约束**（第 882-900 行）：`Configure` 签名更新
+

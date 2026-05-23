@@ -48,9 +48,9 @@
 
 ### 修改
 
-- `Src/Netor.Madorin.UI/Netor.Madorin.UI.csproj` — 版本号升级到 1.2.7
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs` — 文件工具统一结构化返回
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperator.cs` — 大文件写入与批量写入改为结构化结果
+- `Src/Netor.Cortana.UI/Netor.Cortana.UI.csproj` — 版本号升级到 1.2.7
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs` — 文件工具统一结构化返回
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperator.cs` — 大文件写入与批量写入改为结构化结果
 
 ---
 
@@ -64,5 +64,5 @@
 
 ## 📦 本地发布产物
 
-- `Realases/Netor.Madorin-v1.2.7-win-x64.zip`
-- `Realases/Netor.Madorin-v1.2.7-win-x64.sha256`
+- `Realases/Netor.Cortana-v1.2.7-win-x64.zip`
+- `Realases/Netor.Cortana-v1.2.7-win-x64.sha256`

@@ -1,4 +1,4 @@
-# Madorin.Plugins.Bt
+# Cortana.Plugins.Bt
 
 ## 1. 项目说明
 

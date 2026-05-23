@@ -14,7 +14,7 @@
 
 核心变化：
 
-1. 新增长期记忆上下文供应控制面 `memory.supply.request/package/error`，宿主在构建主智能体上下文前主动请求 Memory 插件供应长期记忆。
+1. 新增长期记忆上下文供应控制面 `memory.context.supply.request/package/error`，宿主在构建主智能体上下文前主动请求 Memory 插件供应长期记忆。
 2. 新增 `LongMemoryContextProvider` 和 `LongMemoryPromptFormatter`，将长期记忆分层注入到 `AIContext.Instructions`。
 3. Memory 插件接收控制面供应请求，复用 `IMemorySupplyService` 返回结构化供应包，不再依赖 AI 主动调用 `memory_supply_context`。
 4. Memory 插件补齐配置工具、删除工具、后台异步触发处理、工具使用指引、启动延迟、自动确认、衰减和召回反衰减。
@@ -32,26 +32,26 @@
 
 涉及文件：
 
-- `Src/Netor.Madorin.Entitys/MemoryContextSupplyProtocol.cs`
-- `Src/Netor.Madorin.Entitys/Memory/MemoryContextSupplyMessages.cs`
-- `Src/Netor.Madorin.AI/Memory/ILongMemorySupplyClient.cs`
-- `Src/Netor.Madorin.AI/Memory/LongMemoryContextProvider.cs`
-- `Src/Netor.Madorin.AI/Memory/LongMemoryPromptFormatter.cs`
-- `Src/Netor.Madorin.AI/AIServiceExtensions.cs`
-- `Src/Netor.Madorin.AI/AiChatHostedService.cs`
-- `Src/Netor.Madorin.Networks/WebSockets/Serialization/WebSocketJsonContext.cs`
-- `Src/Netor.Madorin.Networks/WebSockets/Servers/WebSocketServerService.cs`
-- `Src/Netor.Madorin.Networks/WebSockets/Servers/WebSocketFeedServerService.cs`
-- `Src/Netor.Madorin.Networks/Extensions/NetworkServiceExtensions.cs`
+- `Src/Netor.Cortana.Entitys/MemoryContextSupplyProtocol.cs`
+- `Src/Netor.Cortana.Entitys/Memory/MemoryContextSupplyMessages.cs`
+- `Src/Netor.Cortana.AI/Memory/ILongMemorySupplyClient.cs`
+- `Src/Netor.Cortana.AI/Memory/LongMemoryContextProvider.cs`
+- `Src/Netor.Cortana.AI/Memory/LongMemoryPromptFormatter.cs`
+- `Src/Netor.Cortana.AI/AIServiceExtensions.cs`
+- `Src/Netor.Cortana.AI/AiChatHostedService.cs`
+- `Src/Netor.Cortana.Networks/WebSockets/Serialization/WebSocketJsonContext.cs`
+- `Src/Netor.Cortana.Networks/WebSockets/Servers/WebSocketServerService.cs`
+- `Src/Netor.Cortana.Networks/WebSockets/Servers/WebSocketPluginBusServerService.cs`
+- `Src/Netor.Cortana.Networks/Extensions/NetworkServiceExtensions.cs`
 
 修改内容：
 
 - 新增协议操作：
-  - `memory.supply.request`
-  - `memory.supply.package`
-  - `memory.supply.error`
-- 宿主通过现有 `/internal/conversation-feed/` 长连接发送长期记忆供应请求。
-- `WebSocketServerService` / `WebSocketFeedServerService` 实现 `ILongMemorySupplyClient`，维护 `requestId` 到 pending response 的映射。
+  - `memory.context.supply.request`
+  - `memory.context.supply.response`
+  - `memory.context.supply.error`
+- 宿主通过现有 `/internal` 长连接发送长期记忆供应请求。
+- `WebSocketServerService` / `WebSocketPluginBusServerService` 实现 `ILongMemorySupplyClient`，维护 `requestId` 到 pending response 的映射。
 - 请求默认短超时，超时、错误、无插件连接或无命中时静默降级为空上下文。
 - `LongMemoryContextProvider` 从 session state、工作区路径和系统设置中构建供应请求。
 - `LongMemoryPromptFormatter` 将供应包格式化为两段：
@@ -69,18 +69,18 @@
 
 涉及文件：
 
-- `Plugins/Src/Madorin.Plugins.Memory/Models/MemoryContextSupplyProtocol.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Models/MemoryContextSupplyMessages.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Models/MemorySupplyModels.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Services/MemorySupplyControlHandler.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Services/MemoryIngestService.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Services/MemorySupplyService.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Startup.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Models/MemoryContextSupplyProtocol.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Models/MemoryContextSupplyMessages.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Models/MemorySupplyModels.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Services/MemorySupplyControlHandler.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Services/MemoryIngestService.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Services/MemorySupplyService.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Startup.cs`
 
 修改内容：
 
 - 插件侧新增控制面协议镜像 DTO，避免 Memory 插件直接依赖宿主实体程序集，保障 AOT 发布。
-- `MemoryIngestService` 在 feed 长连接中识别 `memory.supply.request` 并返回 package/error。
+- `MemoryIngestService` 在 feed 长连接中识别 `memory.context.supply.request` 并返回 package/error。
 - `MemorySupplyControlHandler` 将宿主请求映射到 `MemorySupplyRequest`。
 - 控制面请求中 `agentId` 必填，缺失时返回错误，不再回退到 `default`。
 - `MemorySupplyRequest` 新增 `SessionTitle`，用于宽泛主题召回。
@@ -98,18 +98,18 @@
 
 涉及文件：
 
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/IMemoryProcessingService.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/IMemorySemanticProcessor.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/IMemoryAbstractionService.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/IMemoryAbstractionGenerator.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/MemoryProcessingService.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/MemoryAbstractionService.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/HostModelMemorySemanticProcessor.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/HostModelMemoryAbstractionGenerator.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/FallbackMemorySemanticProcessor.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/FallbackMemoryAbstractionGenerator.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Services/HostModelCapabilityClient.cs`
-- `Src/Netor.Madorin.AI/Providers/PluginModelCapabilityService.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/IMemoryProcessingService.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/IMemorySemanticProcessor.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/IMemoryAbstractionService.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/IMemoryAbstractionGenerator.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/MemoryProcessingService.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/MemoryAbstractionService.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/HostModelMemorySemanticProcessor.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/HostModelMemoryAbstractionGenerator.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/FallbackMemorySemanticProcessor.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/FallbackMemoryAbstractionGenerator.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Services/HostModelCapabilityClient.cs`
+- `Src/Netor.Cortana.AI/Providers/PluginModelCapabilityService.cs`
 
 修改内容：
 
@@ -124,15 +124,15 @@
 
 涉及文件：
 
-- `Plugins/Src/Madorin.Plugins.Memory/Startup.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/ToolHandlers/IMemoryWriteToolHandler.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/ToolHandlers/MemoryWriteToolHandler.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Tools/MemoryWriteTools.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Tools/MemoryToolJsonContext.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Tools/MemoryToolResult.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/ToolHandlers/MemoryReadToolHandler.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Mcp/MemoryMcpToolHandler.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Serialization/MemoryInternalJsonContext.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Startup.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/ToolHandlers/IMemoryWriteToolHandler.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/ToolHandlers/MemoryWriteToolHandler.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Tools/MemoryWriteTools.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Tools/MemoryToolJsonContext.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Tools/MemoryToolResult.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/ToolHandlers/MemoryReadToolHandler.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Mcp/MemoryMcpToolHandler.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Serialization/MemoryInternalJsonContext.cs`
 
 修改内容：
 
@@ -150,13 +150,13 @@
 
 涉及文件：
 
-- `Plugins/Src/Madorin.Plugins.Memory/Services/MemoryIngestService.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Services/MemoryRecallService.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/MemoryProcessingHostedService.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Storage/IMemoryStore.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Storage/MemoryStore.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Storage/MemoryFragmentsTable.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Storage/MemoryAbstractionsTable.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Services/MemoryIngestService.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Services/MemoryRecallService.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/MemoryProcessingHostedService.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Storage/IMemoryStore.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Storage/MemoryStore.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Storage/MemoryFragmentsTable.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Storage/MemoryAbstractionsTable.cs`
 
 修改内容：
 
@@ -175,11 +175,11 @@
 
 涉及文件：
 
-- `Src/Netor.Madorin.Plugin/Core/ChildProcessTracker.cs`
-- `Src/Netor.Madorin.Plugin/Core/ExternalProcessPluginHostBase.cs`
-- `Src/Netor.Madorin.Plugin/PluginLoader.cs`
-- `Src/Netor.Madorin.UI/App.axaml.cs`
-- `Src/Netor.Madorin.UI/Views/MainWindow.axaml.cs`
+- `Src/Netor.Cortana.Plugin/Core/ChildProcessTracker.cs`
+- `Src/Netor.Cortana.Plugin/Core/ExternalProcessPluginHostBase.cs`
+- `Src/Netor.Cortana.Plugin/PluginLoader.cs`
+- `Src/Netor.Cortana.UI/App.axaml.cs`
+- `Src/Netor.Cortana.UI/Views/MainWindow.axaml.cs`
 
 修改内容：
 
@@ -199,11 +199,11 @@
 涉及文件：
 
 - `Docs/release-notes/v1.3.6/DRAFT.md`
-- `Plugins/Src/Madorin.Plugins.Memory/Docs/长期记忆上下文自动注入方案.md`
-- `Plugins/Src/Madorin.Plugins.Memory/Docs/执行计划(长期记忆上下文自动注入).md`
-- `Plugins/Src/Madorin.Plugins.Memory/Docs/阶段验收报告(长期记忆上下文自动注入-2026-05-10).md`
-- `Plugins/Src/Madorin.Plugins.Memory/Docs/项目总进度表(2026-05-10).md`
-- `Plugins/Src/Madorin.Plugins.Memory/Docs/AI工具暴露规划.md`
+- `Plugins/Src/Cortana.Plugins.Memory/Docs/长期记忆上下文自动注入方案.md`
+- `Plugins/Src/Cortana.Plugins.Memory/Docs/执行计划(长期记忆上下文自动注入).md`
+- `Plugins/Src/Cortana.Plugins.Memory/Docs/阶段验收报告(长期记忆上下文自动注入-2026-05-10).md`
+- `Plugins/Src/Cortana.Plugins.Memory/Docs/项目总进度表(2026-05-10).md`
+- `Plugins/Src/Cortana.Plugins.Memory/Docs/AI工具暴露规划.md`
 - `Plugins/docs/memory/构架规划/03-内部事件WebSocket协议.md`
 - `Plugins/docs/memory/执行步骤/S05-控制面通道骨架（能力申请与召回）.md`
 
@@ -212,14 +212,14 @@
 - 补充 v1.3.6 阶段发布草稿，记录长期记忆默认注入、记忆治理和插件子进程清理。
 - 新增长期记忆自动注入方案和执行计划。
 - 新增阶段验收报告和项目总进度表。
-- 更新内部 WebSocket 协议文档，加入 `memory.supply.*` 请求/响应示例。
+- 更新内部 WebSocket 协议文档，加入 `memory.context.supply.*` 请求/响应示例。
 - 更新 AI 工具暴露规划，明确 `memory_supply_context` 不承担默认注入职责。
 
 ### 8. 插件版本同步
 
 涉及文件：
 
-- 多个 `Plugins/Src/Madorin.Plugins.*/*.csproj`
+- 多个 `Plugins/Src/Cortana.Plugins.*/*.csproj`
 - 多个插件 `Startup.cs`
 
 修改内容：
@@ -234,13 +234,13 @@
 已执行：
 
 ```text
-dotnet build Plugins/Src/Madorin.Plugins.Memory/Madorin.Plugins.Memory.csproj --no-restore
+dotnet build Plugins/Src/Cortana.Plugins.Memory/Cortana.Plugins.Memory.csproj --no-restore
 ```
 
 结果：通过，0 错误 0 警告。
 
 ```text
-dotnet build Src/Netor.Madorin.Plugin/Netor.Madorin.Plugin.csproj --no-restore
+dotnet build Src/Netor.Cortana.Plugin/Netor.Cortana.Plugin.csproj --no-restore
 ```
 
 结果：通过，0 错误 0 警告。
@@ -262,7 +262,7 @@ Build/ui.publish.cmd
 - Memory 插件已连接但无命中时不注入长期记忆块。
 - 存在相关记忆时主对话上下文包含 `--long-term-memory--`。
 - `agentId`、`workspaceId`、`workspaceDirectory` 在运行态正确传递。
-- 主程序异常退出时 `Madorin.NativeHost.exe` 是否被 Job Object 自动清理。
+- 主程序异常退出时 `Cortana.NativeHost.exe` 是否被 Job Object 自动清理。
 
 ---
 
@@ -284,3 +284,5 @@ feat: 增强长期记忆默认注入与插件进程治理
 - 新增 Windows Job Object 插件子进程跟踪与统一退出流程
 - 更新 v1.3.6 阶段发布草稿和长期记忆设计/验收文档
 ```
+
+

@@ -2,7 +2,7 @@
 
 ## 1. 文档定位
 
-本文档定义 Madorin.Plugins.Office.Excel 第一版对 AI 公开的工具接口契约。
+本文档定义 Cortana.Plugins.Office.Excel 第一版对 AI 公开的工具接口契约。
 契约目标是让 AI 可靠完成 Excel 工作簿的基础创建、读取、写入、行操作与另存。
 本文档是开发、测试、联调和后续版本兼容的统一依据。
 

@@ -1,25 +1,27 @@
 # 核心类文件说明
 
-> 状态：按当前仓库实现整理。默认主线以 Netor.Madorin.UI、Native 插件通道和 MCP 通道为准。
+> 状态：按当前仓库实现整理。默认主线以 Netor.Cortana.UI、Native 插件通道和 MCP 通道为准。
 
 ## 项目一览
 
 | 项目 | 目标框架 | 当前定位 |
 |------|---------|----------|
-| Netor.Madorin.UI | net10.0 | 当前主项目 UI，默认开发、调试和发布入口 |
-| Netor.Madorin | net10.0-windows | 遗留 WinForms UI，保留兼容和历史参考 |
-| Netor.Madorin.AI | net10.0 | AI 编排、模型接入、Agent 组装 |
-| Netor.Madorin.Voice | net10.0 | KWS、STT、TTS 等语音能力 |
-| Netor.Madorin.Networks | net10.0 | WebSocket 与网络侧能力 |
-| Netor.Madorin.Plugin | net10.0 | 插件运行时、通道路由和热插拔 |
-| Netor.Madorin.Entitys | net10.0 | SQLite 持久化、实体与配置存储 |
-| Netor.Madorin.NativeHost | net10.0 | Native 插件宿主子进程 |
-| Netor.Madorin.Plugin.Native | net10.0 | Native 插件开发包 |
-| Netor.Madorin.Plugin.Native.Generator | netstandard2.0 | Native 插件源码生成器 |
+| Netor.Cortana.UI | net10.0 | 当前主项目 UI，默认开发、调试和发布入口 |
+| Netor.Cortana.AI | net10.0 | AI 编排、模型接入、Agent 组装 |
+| Netor.Cortana.Voice | net10.0 | KWS、STT、TTS 等语音能力 |
+| Netor.Cortana.Networks | net10.0 | WebSocket 与网络侧能力 |
+| Netor.Cortana.Plugin | net10.0 | 插件运行时、通道路由和热插拔 |
+| Netor.Cortana.Entitys | net10.0 | SQLite 持久化、实体与配置存储 |
+| Netor.Cortana.Platform.* | net10.0 | 运营平台 Admin / Api / Core / Entitys / Services / Web |
+| Netor.Cortana.NativeHost | net10.0 | Native 插件宿主子进程 |
+| Netor.Cortana.Plugin.Native | net10.0 | Native 插件开发包 |
+| Netor.Cortana.Plugin.Native.Generator | netstandard2.0 | Native 插件源码生成器 |
+| Netor.Cortana.Plugin.Process | net10.0 | Process 插件开发包 |
+| Netor.Cortana.Plugin.Process.Generator | netstandard2.0 | Process 插件源码生成器 |
 
 ## 当前主入口
 
-### Netor.Madorin.UI
+### Netor.Cortana.UI
 
 | 文件 | 类型 | 说明 |
 |------|------|------|
@@ -31,14 +33,14 @@
 | Controls/ | 控件 | Avalonia 自定义控件 |
 | Providers/ | 提供者 | 面向 UI 的输出通道和桥接能力 |
 
-### Netor.Madorin.AI
+### Netor.Cortana.AI
 
 | 文件/目录 | 说明 |
 |-----------|------|
 | AIAgentFactory 相关实现 | 组装聊天客户端、工具和上下文提供者 |
 | Provider 相关实现 | 模型提供商与能力接入 |
 
-### Netor.Madorin.Voice
+### Netor.Cortana.Voice
 
 | 能力 | 说明 |
 |------|------|
@@ -46,15 +48,21 @@
 | STT | 实时语音识别 |
 | TTS | 文本转语音与播放链路 |
 
-### Netor.Madorin.Networks
+### Netor.Cortana.Networks
 
 | 能力 | 说明 |
 |------|------|
-| WebSocketServer | 当前对外聊天 WebSocket 接口，负责聊天输入输出与语音事件广播 |
+| WebSocketPluginBusServerService | 当前统一 WebSocket PluginBus，监听 `CortanaWsEndpoints.PluginBusPath`，即 `/internal` |
+| PluginBusChatDispatcher | 将聊天输入输出适配为 `conversation` topic 的 PluginBus 事件 |
+| PluginBusConversationHistoryDispatcher | 支持 `conversation.history.replay` 历史回放 |
+| PluginBusWorkflowHistoryDispatcher | 支持 `workflow.history.replay` 历史回放 |
+| PluginBusMemorySupplyDispatcher | 处理长期记忆供应响应 |
+| PluginBusModelCapabilityDispatcher | 处理模型能力控制面请求 |
+| OllamaProxyServerService | Ollama / OpenAI-compatible 本地协议代理 |
 
-> 规划补充：后续将新增“内部对话事件订阅 WebSocket”，专门向插件分发宿主内部对话事实流。该内部协议与当前对外聊天 WebSocket 明确区分，不复用同一消息对象。
+当前代码已将对外聊天、内部对话事实、长期记忆供应、模型能力和 workflow 事件收口到单端点 `/internal`。旧文档中的 `/ws/`、`/internal/conversation-feed/` 属于历史端点，不是当前服务注册路径。
 
-### Netor.Madorin.Plugin
+### Netor.Cortana.Plugin
 
 | 组件 | 说明 |
 |------|------|
@@ -77,27 +85,28 @@
 
 ## 数据与配置
 
-### Netor.Madorin.Entitys
+### Netor.Cortana.Entitys
 
 | 组件 | 说明 |
 |------|------|
-| MadorinDbContext | 基于 SQLite 的轻量持久化上下文 |
+| CortanaDbContext | 基于 SQLite 的轻量持久化上下文 |
 | AgentEntity / AiProviderEntity / AiModelEntity | AI 配置与模型实体 |
 | McpServerEntity | MCP Server 连接配置实体 |
 | ChatSessionEntity / ChatMessageEntity | 对话会话和消息存储 |
 | Services/ | 基于 Microsoft.Data.Sqlite 的 CRUD 服务 |
 
-> 规划补充：主程序数据库继续作为宿主事实源之一，但不再作为插件直接访问的数据源。后续插件通过内部事件流接收对话事实，避免宿主污染和安全边界变弱。
+主程序数据库继续作为宿主事实源之一，插件不直接访问宿主 SQLite。当前通过 PluginBus 的 `conversation` / `memory` / `model` / `workflow` topic 交换事实、长期记忆供应包和控制面请求，避免宿主污染和安全边界变弱。
 
 ## 记忆体系规划补充
 
-- 当前 `FileMemoryProvider` 所提供的文件记忆将重新定位为“规则记忆”，只在当前工作区生效。
-- 面向智能体长期成长的“长期记忆体系”将独立于当前文件记忆实现。
-- 长期记忆体系计划通过独立插件 / 子进程承载，并通过内部对话事件 WebSocket 接收宿主对话事实流。
+- 宿主侧已注册 `LongMemoryContextProvider`，通过 `ILongMemorySupplyClient` 在生成前请求长期记忆上下文。
+- `WebSocketPluginBusServerService` 同时实现 `ILongMemorySupplyClient`，向订阅 `memory` topic 的插件发送 `memory.context.supply.request`。
+- `Cortana.Plugins.Memory` 当前提供 SQLite 记忆存储、对话观察记录、召回、抽象生成和长期记忆供应响应。
+- 记忆插件通过统一 PluginBus 订阅宿主事实流；长期记忆已经不是单纯的未来规划项。
 
 ## Native 基础设施
 
-### Netor.Madorin.NativeHost
+### Netor.Cortana.NativeHost
 
 | 文件 | 说明 |
 |------|------|
@@ -107,10 +116,12 @@
 
 | 项目 | 说明 |
 |------|------|
-| Netor.Madorin.Plugin.Native | Native 插件开发时引用的主包 |
-| Netor.Madorin.Plugin.Native.Generator | 自动生成工具注册、JsonContext、plugin.json 等构建产物 |
+| Netor.Cortana.Plugin.Native | Native 插件开发时引用的主包 |
+| Netor.Cortana.Plugin.Native.Generator | 自动生成工具注册、JsonContext、plugin.json 等构建产物 |
 
 ## 历史说明
 
-- 本文档不再把 Netor.Madorin 旧 WinForms UI 视为主项目。
+- 当前解决方案不再包含旧 WinForms UI 项目；`Netor.Cortana.UI` 是主程序入口。
 - 对于历史设计细节，请结合对应文档顶部的状态说明判断是否仍然适用。
+
+

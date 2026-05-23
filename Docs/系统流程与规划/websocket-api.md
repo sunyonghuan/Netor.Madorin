@@ -1,90 +1,136 @@
-# Madorin WebSocket API 接入指南
+# Madorin WebSocket / PluginBus 接入指南
 
-> 当前说明：该接口面向当前 UI 主线和整体宿主能力，对外协议与 UI 技术栈解耦。只要宿主运行，客户端即可通过 WebSocket 接入，不依赖旧 WinForms UI。
-
-> 说明补充：本文档描述的是当前对外聊天 WebSocket 协议，不包含宿主后续规划中的“内部对话事件订阅 WebSocket”。内部事件协议将单独建文档，并与当前聊天消息对象明确区分。
+> 状态：按当前代码实现整理。宿主 WebSocket 已收口为单端点 PluginBus，不再区分旧 `/ws/` 聊天端点和 `/internal/conversation-feed/` 内部事件端点。
 
 ## 概述
 
-Madorin 内置 WebSocket 服务，允许外部应用通过标准 WebSocket 协议接入 AI 对话能力。支持：
+Madorin 内置 Kestrel WebSocket 服务，统一承载：
 
-- 发送文本消息并接收 AI 流式回复
-- 发送带附件（图片/文件）的多模态消息
-- 中止正在进行的 AI 回复
-- 接收语音识别（STT）、语音合成（TTS）、唤醒词等系统事件
+- 外部客户端发送聊天消息、停止生成、发送 `system.notice`
+- `conversation` topic 的聊天 token / done / error 事件
+- `conversation.history.replay` 历史会话回放
+- `memory` topic 的长期记忆供应请求与响应
+- `model` topic 的模型能力请求与响应
+- `workflow` topic 的任务事件发布与历史回放
 
-## 连接
+端点和协议常量定义在：
 
-### 地址
-
-```
-ws://<host>:<port>/ws/
-```
-
-- **host**：Madorin 运行所在机器的 IP 地址。本机使用 `localhost` 或 `127.0.0.1`，局域网使用机器 IP。
-- **port**：默认 `52841`，可在 Madorin「设置 → 系统设置 → 网络 → WebSocket 端口」中修改。
-
-### 连接流程
-
-```
-客户端                              Madorin
-  │                                    │
-  │─── WebSocket 握手 ────────────────▶│
-  │                                    │
-  │◀── {"type":"connected",            │
-  │      "clientId":"abc123..."} ──────│
-  │                                    │
+```text
+Src/Netor.Cortana.Entitys/CortanaWsEndpoints.cs
 ```
 
-连接成功后，服务端立即发送一条 `connected` 消息，包含分配给此连接的 `clientId`。客户端应保存此 ID 用于日志排查。
+## 当前端点
 
-## 消息格式
+```text
+ws://<host>:<port>/internal
+```
 
-所有消息均为 **UTF-8 编码的 JSON 文本帧**。
+| 项 | 当前值 |
+| --- | --- |
+| 默认端口 | `52841` |
+| 端点常量 | `CortanaWsEndpoints.PluginBusPath` |
+| 端点路径 | `/internal` |
+| 协议 | `cortana.plugin-bus` |
+| 协议版本 | `1.2.0` |
 
-### 客户端 → 服务端
+端口来自系统设置 `WebSocket.Port`。如果设置值为空或端口绑定失败，服务会回退到随机可用端口。
 
-#### 发送消息（send）
+## 连接握手
+
+连接成功后，服务端会立即发送 `connected` 控制消息：
+
+```json
+{
+  "type": "connected",
+  "clientId": "3f1f2c7f3e2b4d4c9e1a7b8c9d0e1f2a",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
+  "topics": ["conversation", "memory", "model", "plugin"]
+}
+```
+
+`clientId` 是当前 WebSocket 连接标识。当前 connected 消息列出 `conversation`、`memory`、`model`、`plugin`，代码常量中还包含 `workflow` topic，客户端可按需订阅。
+
+## 订阅 topic
+
+客户端通过 `subscribe` 消息声明需要接收的 topic：
+
+```json
+{
+  "type": "subscribe",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
+  "topics": ["conversation"],
+  "capabilities": ["conversation.v1"]
+}
+```
+
+服务端返回：
+
+```json
+{
+  "type": "subscribed",
+  "clientId": "3f1f2c7f3e2b4d4c9e1a7b8c9d0e1f2a",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
+  "topics": ["conversation"]
+}
+```
+
+当前已知能力 token：
+
+| capability | 说明 |
+| --- | --- |
+| `conversation.v1` | 对话事件与历史回放 |
+| `memory.v1` | 长期记忆供应 |
+| `workflow.v1` | workflow 事件与历史回放 |
+
+未知 capability 会被忽略。订阅 `workflow` 但未声明 `workflow.v1` 时，当前实现只记录 warning，不阻断订阅。
+
+## 发送聊天消息
+
+当前服务兼容旧聊天消息格式：
 
 ```json
 {
   "type": "send",
-  "data": "今天天气怎么样？",
+  "data": "帮我总结当前项目",
   "attachments": []
 }
 ```
 
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `type` | string | 是 | 固定值 `"send"` |
-| `data` | string | 是 | 用户消息文本 |
-| `attachments` | array | 否 | 附件列表，不带附件时可省略或传空数组 |
-
-**附件格式：**
+也支持 PluginBus envelope：
 
 ```json
 {
-  "type": "send",
-  "data": "这张图片是什么？",
-  "attachments": [
-    {
-      "path": "C:\\Users\\user\\Pictures\\photo.jpg",
-      "name": "photo.jpg",
-      "type": "image/jpeg"
-    }
-  ]
+  "type": "request",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
+  "topic": "conversation",
+  "op": "chat.message.send",
+  "payload": {
+    "type": "send",
+    "data": "帮我总结当前项目",
+    "attachments": []
+  }
 }
 ```
 
-| 附件字段 | 类型 | 说明 |
-|---------|------|------|
-| `path` | string | 文件在 Madorin 所在机器上的**完整路径**（注意：是服务端本地路径） |
-| `name` | string | 文件名 |
-| `type` | string | MIME 类型，如 `image/jpeg`、`text/plain` |
+附件格式仍沿用聊天消息载荷：
 
-> **注意**：附件的 `path` 必须是 Madorin 进程能访问到的本地文件路径。如果客户端与 Madorin 不在同一台机器上，需要先将文件传输到 Madorin 机器，再提供其本地路径。
+```json
+{
+  "path": "C:\\Users\\user\\Pictures\\photo.jpg",
+  "name": "photo.jpg",
+  "type": "image/jpeg"
+}
+```
 
-#### 中止生成（stop）
+`path` 必须是 Madorin 进程所在机器可访问的本地路径。
+
+## 停止生成
+
+旧格式：
 
 ```json
 {
@@ -92,405 +138,307 @@ ws://<host>:<port>/ws/
 }
 ```
 
-发送后，Madorin 会尽快停止当前 AI 回复的生成。
-
-## 服务端 → 客户端
-
-### AI 对话消息
-
-当客户端发送 `send` 消息后，AI 开始流式生成回复，客户端将依次收到以下消息：
-
-#### token — 流式文本片段
+PluginBus envelope：
 
 ```json
 {
-  "type": "token",
-  "data": "今天"
+  "type": "request",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
+  "topic": "conversation",
+  "op": "chat.generation.stop",
+  "payload": {
+    "type": "stop"
+  }
 }
 ```
 
-AI 回复会被拆分为多个 `token` 消息逐个推送。客户端应将所有 `token` 的 `data` 字段**拼接**得到完整回复。
+## 系统通知
 
-#### done — 回复完成
+当前代码支持 `system.notice`，用于把临时系统信息送入聊天输入通道：
 
 ```json
 {
-  "type": "done",
-  "sessionId": "session_abc123"
+  "type": "system.notice",
+  "title": "构建完成",
+  "level": "info",
+  "source": "external-tool",
+  "data": "Release 包已生成。"
 }
 ```
 
-表示本轮 AI 回复已完成。`sessionId` 为会话标识（可能为 `null`）。
-
-#### error — 错误
+也可以用 envelope：
 
 ```json
 {
-  "type": "error",
-  "data": "模型调用失败：API 超时"
+  "type": "request",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
+  "topic": "conversation",
+  "op": "system.notice",
+  "payload": {
+    "type": "system.notice",
+    "title": "构建完成",
+    "level": "info",
+    "source": "external-tool",
+    "data": "Release 包已生成。"
+  }
 }
 ```
 
-#### cancelled — 回复被取消
+## 服务端聊天事件
+
+AI 输出统一包装为 PluginBus event：
 
 ```json
 {
-  "type": "error",
-  "data": "cancelled"
+  "type": "event",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
+  "topic": "conversation",
+  "op": "chat.token",
+  "source": "host",
+  "target": "3f1f2c7f3e2b4d4c9e1a7b8c9d0e1f2a",
+  "timestamp": 1770000000000,
+  "eventType": "chat.token",
+  "payload": {
+    "type": "token",
+    "data": "当前"
+  }
 }
 ```
 
-当 AI 回复被中止（用户发送 `stop` 或唤醒词打断）时收到。
+常见 `op`：
 
-### 系统事件（广播）
+| op | payload.type | 说明 |
+| --- | --- | --- |
+| `chat.token` | `token` | 流式文本片段 |
+| `chat.done` | `done` | 本轮回复完成，`payload.sessionId` 可能为空 |
+| `chat.error` | `error` | 生成失败或取消 |
+| `chat.stt_partial` 等 | 对应旧事件 type | 语音、TTS、唤醒等广播事件 |
 
-以下事件会广播给**所有**已连接的客户端，不论消息由谁发起。可按需监听，无需处理的类型直接忽略即可。
+由某个 WebSocket 客户端发起的聊天输出会定向给该客户端；宿主广播事件会发给订阅 `conversation` topic 的客户端。
 
-#### 语音识别（STT）
+## 对话历史回放
 
-| type | data | 说明 |
-|------|------|------|
-| `stt_partial` | 识别中的文本 | 语音识别中间结果（实时变化） |
-| `stt_final` | 最终识别文本 | 一句话识别完成的最终结果 |
-| `stt_stopped` | `""` | 语音识别已停止 |
+旧简写：
 
-#### 语音合成（TTS）
-
-| type | data | 说明 |
-|------|------|------|
-| `tts_started` | `""` | TTS 开始播放 |
-| `tts_subtitle` | 正在播放的文本 | TTS 播放的字幕文本（逐句推送） |
-| `tts_completed` | `""` | TTS 播放完成 |
-
-#### 其他
-
-| type | data | 说明 |
-|------|------|------|
-| `chat_completed` | `""` | 整个对话流程完成（含 TTS 播放结束） |
-| `wakeword_detected` | `""` | 检测到唤醒词 |
-
-## 完整交互时序
-
-```
-客户端                                 Madorin
-  │                                       │
-  │── ws://host:52841/ws/ ──────────────▶│  握手
-  │◀── connected {clientId} ─────────────│
-  │                                       │
-  │── send "帮我写一首诗" ──────────────▶│  发送消息
-  │                                       │
-  │◀── token "春"  ──────────────────────│  ┐
-  │◀── token "眠"  ──────────────────────│  │ 流式回复
-  │◀── token "不觉晓" ──────────────────│  │
-  │◀── token "，" ───────────────────────│  │
-  │◀── token "处处" ─────────────────────│  │
-  │◀── token "闻啼鸟" ──────────────────│  │
-  │◀── token "。" ───────────────────────│  ┘
-  │◀── done {sessionId} ────────────────│  完成
-  │                                       │
-  │◀── tts_started ─────────────────────│  ┐ TTS 播放
-  │◀── tts_subtitle "春眠不觉晓，" ────│  │ （语音朗读）
-  │◀── tts_subtitle "处处闻啼鸟。" ────│  │
-  │◀── tts_completed ───────────────────│  ┘
-  │◀── chat_completed ──────────────────│  对话流程结束
-  │                                       │
-  │── send "再来一首" ──────────────────▶│  下一轮
-  │◀── token ... ────────────────────────│
-  │◀── done ... ─────────────────────────│
-  │                                       │
-  │── stop ─────────────────────────────▶│  中止
-  │◀── error "cancelled" ───────────────│
-  │                                       │
-```
-
-## 代码示例（C#）
-
-> **AOT 注意**：所有 JSON 序列化/反序列化必须使用 Source Generator（`JsonSerializerContext`），禁止匿名类型和反射。
-> 以下示例均为 AOT 安全写法。
-
-### 消息类型定义
-
-```csharp
-using System.Text.Json.Serialization;
-
-/// <summary>客户端发送的消息。</summary>
-public sealed record WsClientMessage
+```json
 {
-    [JsonPropertyName("type")]
-    public string Type { get; init; } = string.Empty;
-
-    [JsonPropertyName("data")]
-    public string? Data { get; init; }
-
-    [JsonPropertyName("attachments")]
-    public List<WsAttachment>? Attachments { get; init; }
-}
-
-/// <summary>服务端返回的消息。</summary>
-public sealed record WsServerMessage
-{
-    [JsonPropertyName("type")]
-    public string Type { get; init; } = string.Empty;
-
-    [JsonPropertyName("data")]
-    public string? Data { get; init; }
-
-    [JsonPropertyName("clientId")]
-    public string? ClientId { get; init; }
-
-    [JsonPropertyName("sessionId")]
-    public string? SessionId { get; init; }
-}
-
-/// <summary>附件信息。</summary>
-public sealed record WsAttachment
-{
-    [JsonPropertyName("path")]
-    public string Path { get; init; } = string.Empty;
-
-    [JsonPropertyName("name")]
-    public string Name { get; init; } = string.Empty;
-
-    [JsonPropertyName("type")]
-    public string Type { get; init; } = string.Empty;
+  "type": "replay",
+  "sinceTimestamp": 0,
+  "batchSize": 500
 }
 ```
 
-### JSON Source Generator 上下文（AOT 必需）
+PluginBus envelope：
 
-```csharp
-using System.Text.Json.Serialization;
-
-// ✅ AOT 安全：编译器自动生成序列化代码，运行时零反射
-[JsonSerializable(typeof(WsClientMessage))]
-[JsonSerializable(typeof(WsServerMessage))]
-[JsonSerializable(typeof(WsAttachment))]
-[JsonSourceGenerationOptions(
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
-internal partial class MadorinJsonContext : JsonSerializerContext;
+```json
+{
+  "type": "request",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
+  "topic": "conversation",
+  "op": "conversation.history.replay",
+  "requestId": "replay-001",
+  "payload": {
+    "sinceTimestamp": 0,
+    "batchSize": 500
+  }
+}
 ```
 
-### 基础用法：连接、发送、接收
+`batchSize` 在代码中会被限制到 `100` 到 `2000` 之间。服务端会返回 `conversation.history.batch` 和 `conversation.history.completed`。
+
+## Workflow 事件
+
+Workflow 通过 `workflow` topic 接入：
+
+| op | 说明 |
+| --- | --- |
+| `workflow.event.publish` | 发布任务事件 |
+| `workflow.history.replay` | 请求 workflow 历史回放 |
+| `workflow.history.batch` | 历史批次响应 |
+| `workflow.history.completed` | 历史回放完成 |
+
+示例：
+
+```json
+{
+  "type": "request",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
+  "topic": "workflow",
+  "op": "workflow.history.replay",
+  "requestId": "workflow-replay-001",
+  "payload": {
+    "sinceTimestamp": 0,
+    "batchSize": 500
+  }
+}
+```
+
+## 长期记忆供应
+
+宿主侧 `LongMemoryContextProvider` 在需要注入长期记忆时，会通过 `ILongMemorySupplyClient` 向订阅 `memory` topic 的插件发送：
+
+```text
+memory.context.supply.request
+```
+
+记忆插件返回：
+
+```text
+memory.context.supply.response
+```
+
+失败时返回：
+
+```text
+memory.context.supply.error
+```
+
+这部分由 `WebSocketPluginBusServerService`、`MemoryContextSupplyProtocol` 和 `Cortana.Plugins.Memory` 共同实现，已经是当前运行链路，不再是规划项。
+
+## 模型能力控制面
+
+模型能力请求使用 `model` topic：
+
+```text
+model.capability.request
+model.capability.response
+```
+
+当前由 `PluginBusModelCapabilityDispatcher` 转发给宿主模型能力服务。
+
+## 心跳
+
+服务端会定期发送 PluginBus ping。客户端收到后应回复：
+
+```json
+{
+  "type": "pong"
+}
+```
+
+如果客户端长时间不响应，服务端会关闭该连接。
+
+## C# 最小示例
 
 ```csharp
 using System.Net.WebSockets;
 using System.Text;
-using System.Text.Json;
+using System.Text.Json.Nodes;
 
 using var ws = new ClientWebSocket();
-await ws.ConnectAsync(new Uri("ws://localhost:52841/ws/"), CancellationToken.None);
+await ws.ConnectAsync(new Uri("ws://localhost:52841/internal"), CancellationToken.None);
 
-var buffer = new byte[8192];
+static async Task<string> ReceiveTextAsync(ClientWebSocket ws, CancellationToken ct)
+{
+    var buffer = new byte[16 * 1024];
+    using var ms = new MemoryStream();
+    WebSocketReceiveResult result;
+    do
+    {
+        result = await ws.ReceiveAsync(buffer, ct);
+        if (result.MessageType == WebSocketMessageType.Close) return string.Empty;
+        ms.Write(buffer, 0, result.Count);
+    } while (!result.EndOfMessage);
 
-// 接收 connected
-var result = await ws.ReceiveAsync(buffer, CancellationToken.None);
-var connected = JsonSerializer.Deserialize(
-    buffer.AsSpan(0, result.Count),
-    MadorinJsonContext.Default.WsServerMessage);
-Console.WriteLine($"clientId: {connected?.ClientId}");
+    return Encoding.UTF8.GetString(ms.ToArray());
+}
 
-// ✅ AOT 安全：使用强类型 + Source Generator 序列化
-var request = new WsClientMessage { Type = "send", Data = "你好，请介绍一下你自己" };
-var json = JsonSerializer.Serialize(request, MadorinJsonContext.Default.WsClientMessage);
-await ws.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, CancellationToken.None);
+var connected = JsonNode.Parse(await ReceiveTextAsync(ws, CancellationToken.None));
+Console.WriteLine($"clientId: {connected?["clientId"]}");
 
-// 接收流式回复
-var response = new StringBuilder();
+var subscribe = """
+{
+  "type": "subscribe",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
+  "topics": ["conversation"],
+  "capabilities": ["conversation.v1"]
+}
+""";
+
+await ws.SendAsync(
+    Encoding.UTF8.GetBytes(subscribe),
+    WebSocketMessageType.Text,
+    true,
+    CancellationToken.None);
+
+var send = """
+{
+  "type": "request",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
+  "topic": "conversation",
+  "op": "chat.message.send",
+  "payload": {
+    "type": "send",
+    "data": "你好，请介绍一下当前宿主能力",
+    "attachments": []
+  }
+}
+""";
+
+await ws.SendAsync(
+    Encoding.UTF8.GetBytes(send),
+    WebSocketMessageType.Text,
+    true,
+    CancellationToken.None);
+
 while (ws.State == WebSocketState.Open)
 {
-    result = await ws.ReceiveAsync(buffer, CancellationToken.None);
-    var msg = JsonSerializer.Deserialize(
-        buffer.AsSpan(0, result.Count),
-        MadorinJsonContext.Default.WsServerMessage);
+    var text = await ReceiveTextAsync(ws, CancellationToken.None);
+    if (string.IsNullOrWhiteSpace(text)) break;
 
-    switch (msg?.Type)
+    var message = JsonNode.Parse(text);
+    if (message?["type"]?.GetValue<string>() == "ping")
     {
-        case "token":
-            response.Append(msg.Data);
-            Console.Write(msg.Data);
+        await ws.SendAsync(
+            Encoding.UTF8.GetBytes("""{"type":"pong"}"""),
+            WebSocketMessageType.Text,
+            true,
+            CancellationToken.None);
+        continue;
+    }
+
+    if (message?["topic"]?.GetValue<string>() != "conversation") continue;
+
+    var op = message?["op"]?.GetValue<string>();
+    var payload = message?["payload"];
+    switch (op)
+    {
+        case "chat.token":
+            Console.Write(payload?["data"]?.GetValue<string>());
             break;
-
-        case "done":
-            Console.WriteLine($"\n--- 回复完成 (session: {msg.SessionId}) ---");
-            goto exit;
-
-        case "error":
-            Console.WriteLine($"\n错误: {msg.Data}");
-            goto exit;
-
-        default:
-            // 忽略 stt_*, tts_*, chat_completed 等广播事件
-            break;
-    }
-}
-exit:
-Console.WriteLine($"完整回复: {response}");
-```
-
-### 封装客户端类
-
-```csharp
-using System.Net.WebSockets;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Text.Json;
-
-public sealed class MadorinWsClient : IAsyncDisposable
-{
-    private readonly ClientWebSocket _ws = new();
-    private readonly Uri _uri;
-
-    public string? ClientId { get; private set; }
-
-    public MadorinWsClient(string host = "localhost", int port = 52841)
-    {
-        _uri = new Uri($"ws://{host}:{port}/ws/");
-    }
-
-    /// <summary>建立连接并接收 clientId。</summary>
-    public async Task ConnectAsync(CancellationToken ct = default)
-    {
-        await _ws.ConnectAsync(_uri, ct);
-        var msg = await ReceiveMessageAsync(ct);
-        if (msg?.Type == "connected")
-            ClientId = msg.ClientId;
-    }
-
-    /// <summary>发送文本消息，流式接收 AI 回复。</summary>
-    public async IAsyncEnumerable<string> SendAndStreamAsync(
-        string text,
-        List<WsAttachment>? attachments = null,
-        [EnumeratorCancellation] CancellationToken ct = default)
-    {
-        var request = new WsClientMessage
-        {
-            Type = "send",
-            Data = text,
-            Attachments = attachments
-        };
-
-        // ✅ AOT 安全序列化
-        var json = JsonSerializer.Serialize(request, MadorinJsonContext.Default.WsClientMessage);
-        await _ws.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, ct);
-
-        while (!ct.IsCancellationRequested)
-        {
-            var msg = await ReceiveMessageAsync(ct);
-            if (msg is null) yield break;
-
-            switch (msg.Type)
-            {
-                case "token":
-                    if (msg.Data is not null)
-                        yield return msg.Data;
-                    break;
-
-                case "done":
-                    yield break;
-
-                case "error":
-                    throw new InvalidOperationException(msg.Data ?? "未知错误");
-            }
-        }
-    }
-
-    /// <summary>中止当前 AI 回复。</summary>
-    public async Task StopAsync(CancellationToken ct = default)
-    {
-        var request = new WsClientMessage { Type = "stop" };
-        var json = JsonSerializer.Serialize(request, MadorinJsonContext.Default.WsClientMessage);
-        await _ws.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, ct);
-    }
-
-    private async Task<WsServerMessage?> ReceiveMessageAsync(CancellationToken ct)
-    {
-        var buffer = new byte[8192];
-        using var ms = new MemoryStream();
-
-        WebSocketReceiveResult result;
-        do
-        {
-            result = await _ws.ReceiveAsync(buffer, ct);
-            if (result.MessageType == WebSocketMessageType.Close) return null;
-            ms.Write(buffer, 0, result.Count);
-        } while (!result.EndOfMessage);
-
-        // ✅ AOT 安全反序列化
-        return JsonSerializer.Deserialize(ms.ToArray(), MadorinJsonContext.Default.WsServerMessage);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_ws.State == WebSocketState.Open)
-            await _ws.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
-        _ws.Dispose();
+        case "chat.done":
+            Console.WriteLine();
+            return;
+        case "chat.error":
+            throw new InvalidOperationException(payload?["data"]?.GetValue<string>());
     }
 }
 ```
 
-### 使用封装类
+正式 Native AOT 客户端建议改用强类型 record 和 `JsonSerializerContext`，避免运行时反射序列化。
 
-```csharp
-await using var client = new MadorinWsClient("localhost", 52841);
-await client.ConnectAsync();
+## 迁移说明
 
-// 流式打印 AI 回复
-await foreach (var token in client.SendAndStreamAsync("帮我写一首七言绝句"))
-{
-    Console.Write(token);
-}
-Console.WriteLine();
-
-// 带附件的消息
-var attachments = new List<WsAttachment>
-{
-    new() { Path = @"C:\Photos\cat.jpg", Name = "cat.jpg", Type = "image/jpeg" }
-};
-await foreach (var token in client.SendAndStreamAsync("描述这张图片", attachments))
-{
-    Console.Write(token);
-}
-
-// 中止生成
-await client.StopAsync();
-```
-
-### csproj 配置（AOT 发布）
-
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <PublishAot>true</PublishAot>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <!-- 编译期检测遗漏的反射序列化调用 -->
-    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
-  </PropertyGroup>
-</Project>
-```
-
-### AOT 常见陷阱
-
-| 陷阱 | 症状 | 修复 |
-|------|------|------|
-| 匿名类型序列化 `new { type = "send" }` | 运行时 `NotSupportedException` | 改为强类型 record + `JsonSerializerContext` |
-| 遗漏 `[JsonSerializable(typeof(T))]` | 序列化输出 `{}` 或反序列化全为 null | 在上下文类上补充注册 |
-| 使用 `JsonSerializer.Serialize<T>(obj)` | 走反射路径，AOT 失败 | 改用 `JsonSerializer.Serialize(obj, Context.Default.T)` |
-| `dynamic` / `ExpandoObject` | 编译警告 + 运行时崩溃 | 改为强类型 |
+| 历史写法 | 当前写法 |
+| --- | --- |
+| `ws://localhost:52841/ws/` | `ws://localhost:52841/internal` |
+| `ws://localhost:52841/internal/conversation-feed/` | `ws://localhost:52841/internal` + `subscribe` |
+| 裸 `token` / `done` / `error` 输出 | PluginBus `type=event` + `topic=conversation` + `op=chat.*` |
+| 多端点内部事件 | 单端点 PluginBus topic / op |
 
 ## 注意事项
 
-1. **消息定向**：由 WebSocket 客户端发起的 `send` 请求，AI 回复（`token` / `done` / `error`）只会发送给**发起请求的那个客户端**。由主界面或语音发起的对话，AI 回复会广播给所有 WebSocket 客户端。
+1. 客户端应忽略未知 `type`、`topic`、`op`，保证向前兼容。
+2. 需要接收服务端广播事件时，必须先订阅对应 topic。
+3. 附件路径必须是宿主进程可访问的本地路径。
+4. `/ws/` 和 `/internal/conversation-feed/` 不是当前代码注册的端点。
 
-2. **共享上下文**：所有客户端共享同一个 AI 对话上下文。客户端 A 的对话历史对客户端 B 可见，下一轮对话会基于之前的完整历史。
 
-3. **并发请求**：同一时刻只有一个 AI 请求在处理。如果 AI 正在生成回复，新的 `send` 请求会等待当前回复完成或被 `stop` 中止后才会被处理。
 
-4. **端口配置**：默认端口 `52841`，修改后立即生效但建议重启 Madorin 以确保所有插件同步更新。
-
-5. **未知消息类型**：客户端应忽略无法识别的 `type`，保证向前兼容。后续版本可能新增事件类型。
-
-6. **心跳 / 保活**：当前未实现应用层心跳。如果需要检测连接存活，客户端可依赖 WebSocket 协议层的 Ping/Pong 帧，或定期发送任意消息并忽略未知类型的响应。
-
-7. **附件路径**：`attachments` 中的 `path` 必须是 Madorin 进程所在机器的本地路径，远程客户端需要先将文件传输到服务端机器。

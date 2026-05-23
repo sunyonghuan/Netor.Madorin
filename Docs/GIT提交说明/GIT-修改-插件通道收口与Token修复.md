@@ -13,7 +13,7 @@
 本次提交主要完成四类收口工作：
 
 1. 将旧 Dotnet / Abstractions 插件通道整体退场，运行时与示例、文档、脚本统一切换到 Native + Process + MCP 三通道口径。
-2. 为 C# Process 插件补齐正式框架路径，新增脚手架与发布脚本，技能链改为默认教会 AI 使用 `Netor.Madorin.Plugin.Process`，不再手写协议层。
+2. 为 C# Process 插件补齐正式框架路径，新增脚手架与发布脚本，技能链改为默认教会 AI 使用 `Netor.Cortana.Plugin.Process`，不再手写协议层。
 3. 修复 AI 会话中 Token 进度条被后台 LLM 调用污染、切会话不清零、流式统计跳变的问题。
 4. 收紧工作目录相关工具的边界说明，明确只有在用户明确同意后才能切换工作区或越界访问文件。
 
@@ -23,21 +23,21 @@
 
 ### 1. 插件体系收口与 Abstractions 退场
 
-- `Netor.Madorin.slnx`
-- `Src/Netor.Madorin.Plugin/PluginLoader.cs`
-- `Src/Netor.Madorin.Plugin/Netor.Madorin.Plugin.csproj`
-- `Src/Netor.Madorin.Plugin/Core/IPlugin.cs`
-- `Src/Netor.Madorin.Plugin/Core/IPluginContext.cs`
-- `Src/Plugins/Netor.Madorin.Plugin.Abstractions/`（整项目删除）
-- `Src/Netor.Madorin.Plugin/Dotnet/`（旧宿主实现删除）
+- `Netor.Cortana.slnx`
+- `Src/Netor.Cortana.Plugin/PluginLoader.cs`
+- `Src/Netor.Cortana.Plugin/Netor.Cortana.Plugin.csproj`
+- `Src/Netor.Cortana.Plugin/Core/IPlugin.cs`
+- `Src/Netor.Cortana.Plugin/Core/IPluginContext.cs`
+- `Src/Plugins/Netor.Cortana.Plugin.Abstractions/`（整项目删除）
+- `Src/Netor.Cortana.Plugin/Dotnet/`（旧宿主实现删除）
 - `Samples/NativeTestPlugin/NativeTestPlugin.csproj`
 - `Samples/ReminderPlugin/ReminderPlugin.csproj`
-- `Src/Plugins/Netor.Madorin.Plugin.Native.Debuger/Netor.Madorin.Plugin.Native.Debugger.csproj`
-- `Src/Plugins/Netor.Madorin.Plugin.Native.Debuger/PluginDebugRunner.cs`
+- `Src/Plugins/Netor.Cortana.Plugin.Native.Debuger/Netor.Cortana.Plugin.Native.Debugger.csproj`
+- `Src/Plugins/Netor.Cortana.Plugin.Native.Debuger/PluginDebugRunner.cs`
 
 **修改内容**:
 
-- 移除 `Netor.Madorin.Plugin.Abstractions` 项目及旧 Dotnet 插件宿主实现。
+- 移除 `Netor.Cortana.Plugin.Abstractions` 项目及旧 Dotnet 插件宿主实现。
 - 将 `IPlugin`、`IPluginContext` 收回宿主侧核心目录。
 - Native / Process 框架所需 Attribute 与 `PluginSettings` 分别内聚到各自运行时包。
 - 示例插件改为直接引用当前仓库内的 Native 运行时与 Generator，并显式导入 Generator targets。
@@ -56,9 +56,9 @@
 - `.github/skills/plugin-development/SKILL.md`
 - `.github/skills/plugin-development/scripts/create-process-plugin.ps1`
 - `.github/skills/plugin-development/scripts/publish-process-plugin.ps1`
-- `Plugins/.madorin/skills/plugin-development/SKILL.md`
-- `Src/Plugins/Netor.Madorin.Plugin.Process/README.md`
-- `Src/Plugins/Netor.Madorin.Plugin.Process.Generator/README.md`
+- `Plugins/.cortana/skills/plugin-development/SKILL.md`
+- `Src/Plugins/Netor.Cortana.Plugin.Process/README.md`
+- `Src/Plugins/Netor.Cortana.Plugin.Process.Generator/README.md`
 
 **修改内容**:
 
@@ -66,15 +66,15 @@
 - 新增 root 级 `create-process-plugin.ps1` 与 `publish-process-plugin.ps1`，支持 JIT self-contained、framework-dependent 和 AOT 三种发布模式。
 - 修复共享脚本的仓库根目录解析逻辑，避免脚手架错误生成到 `skills/Samples`。
 - `.github` 下旧 Process 模板目录与手写协议入口全部移除，改为代理 root 脚本。
-- README 明确：消费方只需引用 `Netor.Madorin.Plugin.Process` 一个包，Generator 会随包自动带上。
+- README 明确：消费方只需引用 `Netor.Cortana.Plugin.Process` 一个包，Generator 会随包自动带上。
 
 **影响功能**: AI 在 C# Process 插件场景下会默认生成框架化工程、自动产出 `plugin.json` 与 `StartupDebugger`，不再回退到手写协议胶水代码。
 
 ### 3. Token 进度条与会话状态修复
 
-- `Src/Netor.Madorin.AI/Providers/TokenTrackingChatClient.cs`
-- `Src/Netor.Madorin.AI/Providers/ChatHistoryDataProvider.cs`
-- `Src/Netor.Madorin.AI/AiChatHostedService.cs`
+- `Src/Netor.Cortana.AI/Providers/TokenTrackingChatClient.cs`
+- `Src/Netor.Cortana.AI/Providers/ChatHistoryDataProvider.cs`
+- `Src/Netor.Cortana.AI/AiChatHostedService.cs`
 - `Docs/执行计划(Token进度条修复).md`
 
 **修改内容**:
@@ -88,9 +88,9 @@
 
 ### 4. 工作区边界与工具说明收紧
 
-- `Src/Netor.Madorin.UI/Providers/WindowToolProvider.cs`
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileBrowserProvider.cs`
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs`
+- `Src/Netor.Cortana.UI/Providers/WindowToolProvider.cs`
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileBrowserProvider.cs`
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs`
 
 **修改内容**:
 
@@ -150,14 +150,14 @@ git add Docs/GIT-修改-插件通道收口与Token修复.md
 git add Docs/执行计划\(Token进度条修复\).md
 git add skills/plugin-development
 git add .github/skills/plugin-development
-git add Plugins/.madorin/skills/plugin-development
-git add README.md Netor.Madorin.slnx plugin.publish.ps1
+git add Plugins/.cortana/skills/plugin-development
+git add README.md Netor.Cortana.slnx plugin.publish.ps1
 git add Samples/NativeTestPlugin/NativeTestPlugin.csproj
 git add Samples/ReminderPlugin/ReminderPlugin.csproj
 git add Samples/ReminderPlugin/.github/skills/plugin-development
-git add Src/Netor.Madorin.AI
-git add Src/Netor.Madorin.UI/Providers/WindowToolProvider.cs
-git add Src/Netor.Madorin.Plugin
+git add Src/Netor.Cortana.AI
+git add Src/Netor.Cortana.UI/Providers/WindowToolProvider.cs
+git add Src/Netor.Cortana.Plugin
 git add Src/Plugins
 
 git commit -m "refactor(plugin): retire dotnet plugin path and add process framework workflow"

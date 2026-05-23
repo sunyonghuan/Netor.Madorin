@@ -50,6 +50,6 @@
 
 ### 移除废弃的 Netor.Madorin 旧项目
 
-从解决方案中移除已废弃的 `Src/Netor.Madorin` 项目（旧版 WinForm + WebView2 架构），该项目已被 `Netor.Madorin.UI` 完全替代。
+从解决方案中移除已废弃的 `Src/Netor.Cortana` 项目（旧版 WinForm + WebView2 架构），该项目已被 `Netor.Cortana.UI` 完全替代。
 
 ---

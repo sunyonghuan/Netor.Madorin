@@ -216,13 +216,13 @@ Madorin 把模型调度入口开放出来，成本和能力都由用户自己控
 验证结果：
 
 ```powershell
-dotnet build Src\Netor.Madorin.Networks\Netor.Madorin.Networks.csproj --no-restore
+dotnet build Src\Netor.Cortana.Networks\Netor.Cortana.Networks.csproj --no-restore
 ```
 
 结果：0 error
 
 ```powershell
-dotnet build Src\Netor.Madorin.Networks\Netor.Madorin.Networks.csproj `
+dotnet build Src\Netor.Cortana.Networks\Netor.Cortana.Networks.csproj `
   --no-restore `
   /p:EnableAotAnalyzer=true `
   /p:EnableTrimAnalyzer=true `
@@ -232,7 +232,7 @@ dotnet build Src\Netor.Madorin.Networks\Netor.Madorin.Networks.csproj `
 结果：0 error，0 IL2xxx / IL3xxx warning
 
 ```powershell
-dotnet build Src\Netor.Madorin.UI\Netor.Madorin.UI.csproj --no-restore
+dotnet build Src\Netor.Cortana.UI\Netor.Cortana.UI.csproj --no-restore
 ```
 
 结果：0 error

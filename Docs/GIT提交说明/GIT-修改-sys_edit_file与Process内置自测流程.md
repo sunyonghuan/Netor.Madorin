@@ -37,11 +37,11 @@
 
 ### 1. 文件读取与按行编辑增强
 
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperator.cs`
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileBrowser.cs`
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileBrowserProvider.cs`
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs`
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileItemInfo.cs`
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperator.cs`
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileBrowser.cs`
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileBrowserProvider.cs`
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs`
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileItemInfo.cs`
 
 **修改内容**:
 
@@ -90,7 +90,7 @@
 
 ## 验证记录
 
-- [x] `Src/Netor.Madorin.Plugin/Netor.Madorin.Plugin.csproj` 执行 `dotnet build -c Debug -v m` 通过。
+- [x] `Src/Netor.Cortana.Plugin/Netor.Cortana.Plugin.csproj` 执行 `dotnet build -c Debug -v m` 通过。
 - [x] 新增 `sys_edit_file` / 增强 `sys_read_file` 相关源码无编译错误或新增警告。
 - [x] `skills/plugin-development/scripts/create-process-plugin.ps1` 的 PowerShell 语法已校验通过。
 - [x] 技能文档与参考文档错误检查通过。
@@ -106,11 +106,11 @@
 
 本次建议只提交以下文件：
 
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperator.cs`
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileBrowser.cs`
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileBrowserProvider.cs`
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs`
-- `Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileItemInfo.cs`
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperator.cs`
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileBrowser.cs`
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileBrowserProvider.cs`
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs`
+- `Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileItemInfo.cs`
 - `.github/skills/plugin-development/SKILL.md`
 - `skills/plugin-development/subskills/process/SKILL.md`
 - `skills/plugin-development/subskills/process/resources/csharp-process-plugin.md`
@@ -141,11 +141,11 @@ feat(plugin): add safe line editing and process self-test workflow
 ## Git 命令
 
 ```bash
-git add Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperator.cs
-git add Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileBrowser.cs
-git add Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileBrowserProvider.cs
-git add Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs
-git add Src/Netor.Madorin.Plugin/BuiltIn/FileBrowser/FileItemInfo.cs
+git add Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperator.cs
+git add Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileBrowser.cs
+git add Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileBrowserProvider.cs
+git add Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileOperationProvider.cs
+git add Src/Netor.Cortana.Plugin/BuiltIn/FileBrowser/FileItemInfo.cs
 git add .github/skills/plugin-development/SKILL.md
 git add skills/plugin-development/subskills/process/SKILL.md
 git add skills/plugin-development/subskills/process/resources/csharp-process-plugin.md

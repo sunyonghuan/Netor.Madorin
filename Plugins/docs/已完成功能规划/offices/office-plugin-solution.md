@@ -54,7 +54,7 @@ PPT 建议公开 create_ppt_document、list_ppt_slides、add_ppt_slide、update_
 
 ## 7. 项目分层建议
 
-建议单独创建一个办公插件项目，例如 Madorin.Plugins.Office。
+建议单独创建一个办公插件项目，例如 Cortana.Plugins.Office。
 Startup 只负责注册日志、配置对象、文件系统安全服务和三个文档服务。
 OfficeTools 负责暴露工具入口，不直接处理底层 XML 细节。
 WordDocumentService、ExcelWorkbookService、PowerPointService 分别处理各自文件类型。

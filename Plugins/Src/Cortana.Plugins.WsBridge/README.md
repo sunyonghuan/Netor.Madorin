@@ -1,4 +1,4 @@
-# Madorin.Plugins.WsBridge
+# Cortana.Plugins.WsBridge
 
 ## 1. 项目说明
 

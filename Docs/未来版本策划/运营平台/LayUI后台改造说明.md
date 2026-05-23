@@ -4,7 +4,7 @@
 
 ## 目标
 
-将 `Netor.Madorin.Platform.Admin` 后台界面改造成基于 LayUI 的管理后台，并尽量复用 `Netor.Operates.Admin` 的本地资源与布局结构。
+将 `Netor.Cortana.Platform.Admin` 后台界面改造成基于 LayUI 的管理后台，并尽量复用 `Netor.Operates.Admin` 的本地资源与布局结构。
 
 ## 改造范围
 

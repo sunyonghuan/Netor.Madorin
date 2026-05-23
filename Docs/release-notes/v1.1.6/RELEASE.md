@@ -73,7 +73,7 @@
 
 ## 已知事项
 
-- 仓库中的旧 WinForms 项目 `Src/Netor.Madorin` 仍存在历史依赖版本冲突，不影响当前 UI 主线发布。
+- 仓库中的旧 WinForms 项目 `Src/Netor.Cortana` 仍存在历史依赖版本冲突，不影响当前 UI 主线发布。
 - Avalonia 编译仍会提示少量已知过时 API 警告，不影响当前版本运行与发布。
 
 ---

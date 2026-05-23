@@ -1,6 +1,6 @@
 # AI 工具暴露规划
 
-> 职责边界更新：`memory_supply_context` 是 AI 主动查询、MCP、调试和验收工具，不作为主对话默认长期记忆注入链路。默认注入已改由宿主 `LongMemoryContextProvider` 通过内部 WebSocket/feed 控制面 `memory.supply.request` 请求 Memory 插件完成。
+> 职责边界更新：`memory_supply_context` 是 AI 主动查询、MCP、调试和验收工具，不作为主对话默认长期记忆注入链路。默认注入已改由宿主 `LongMemoryContextProvider` 通过内部 WebSocket/feed 控制面 `memory.context.supply.request` 请求 Memory 插件完成。
 
 ## 1. 规划背景
 
@@ -265,3 +265,4 @@ workspaceId: string?
 3. 暂不实现 AI 工具代码。
 4. 暂不暴露写入、删除、同步、重建能力。
 5. 后续 AI 工具必须复用服务层和审计链路。
+

@@ -29,12 +29,12 @@
 
 - `Docs/system.notice临时系统信息协议方案.md`
 - `Docs/执行计划(system.notice临时系统信息协议实现).md`
-- `Src/Netor.Madorin.Entitys/Events.cs`
-- `Src/Netor.Madorin.Entitys/Interfaces/IChatTransport.cs`
-- `Src/Netor.Madorin.Networks/WebSockets/Channels/WebSocketInputChannel.cs`
-- `Src/Netor.Madorin.Networks/WebSockets/Servers/WebSocketServerService.cs`
-- `Src/Netor.Madorin.UI/Views/MainWindow.axaml.cs`
-- `Src/Netor.Madorin.UI/Views/Main/MainWindow.Messaging.cs`
+- `Src/Netor.Cortana.Entitys/Events.cs`
+- `Src/Netor.Cortana.Entitys/Interfaces/IChatTransport.cs`
+- `Src/Netor.Cortana.Networks/WebSockets/Channels/WebSocketInputChannel.cs`
+- `Src/Netor.Cortana.Networks/WebSockets/Servers/WebSocketServerService.cs`
+- `Src/Netor.Cortana.UI/Views/MainWindow.axaml.cs`
+- `Src/Netor.Cortana.UI/Views/Main/MainWindow.Messaging.cs`
 - `skills/websocket-integration/SKILL.md`
 
 修改内容：
@@ -66,16 +66,16 @@
 
 涉及文件：
 
-- `Src/Netor.Madorin.Entitys/ModelCapabilityProtocol.cs`
-- `Src/Netor.Madorin.Entitys/ModelCapability/ModelCapabilityMessages.cs`
-- `Src/Netor.Madorin.Entitys/MadorinWsEndpoints.cs`
-- `Src/Netor.Madorin.AI/Providers/IPluginModelCapabilityService.cs`
-- `Src/Netor.Madorin.AI/Providers/PluginModelCapabilityService.cs`
-- `Src/Netor.Madorin.AI/AIServiceExtensions.cs`
-- `Src/Netor.Madorin.Networks/WebSockets/Serialization/WebSocketJsonContext.cs`
-- `Src/Netor.Madorin.Networks/WebSockets/Servers/WebSocketServerService.cs`
-- `Src/Netor.Madorin.Networks/WebSockets/Servers/WebSocketFeedServerService.cs`
-- `Src/Netor.Madorin.Plugin/Core/ExternalProcessPluginHostBase.cs`
+- `Src/Netor.Cortana.Entitys/ModelCapabilityProtocol.cs`
+- `Src/Netor.Cortana.Entitys/ModelCapability/ModelCapabilityMessages.cs`
+- `Src/Netor.Cortana.Entitys/CortanaWsEndpoints.cs`
+- `Src/Netor.Cortana.AI/Providers/IPluginModelCapabilityService.cs`
+- `Src/Netor.Cortana.AI/Providers/PluginModelCapabilityService.cs`
+- `Src/Netor.Cortana.AI/AIServiceExtensions.cs`
+- `Src/Netor.Cortana.Networks/WebSockets/Serialization/WebSocketJsonContext.cs`
+- `Src/Netor.Cortana.Networks/WebSockets/Servers/WebSocketServerService.cs`
+- `Src/Netor.Cortana.Networks/WebSockets/Servers/WebSocketPluginBusServerService.cs`
+- `Src/Netor.Cortana.Plugin/Core/ExternalProcessPluginHostBase.cs`
 
 修改内容：
 
@@ -100,13 +100,13 @@
 
 涉及文件：
 
-- `Plugins/Src/Madorin.Plugins.Memory/Startup.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Services/HostModelCapabilityClient.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Services/HostModelCapabilityMessages.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/HostModelMemorySemanticProcessor.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/HostModelMemoryAbstractionGenerator.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/HostSemanticCandidate.cs`
-- `Plugins/Src/Madorin.Plugins.Memory/Processing/HostAbstractionResult.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Startup.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Services/HostModelCapabilityClient.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Services/HostModelCapabilityMessages.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/HostModelMemorySemanticProcessor.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/HostModelMemoryAbstractionGenerator.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/HostSemanticCandidate.cs`
+- `Plugins/Src/Cortana.Plugins.Memory/Processing/HostAbstractionResult.cs`
 
 修改内容：
 
@@ -125,11 +125,11 @@
 
 涉及文件：
 
-- `Src/Netor.Madorin.UI/Views/SettingsWindow.axaml`
-- `Src/Netor.Madorin.UI/Views/SettingsWindow.axaml.cs`
-- `Src/Netor.Madorin.UI/Views/Settings/PluginAuthorizationPage.axaml`
-- `Src/Netor.Madorin.UI/Views/Settings/PluginAuthorizationPage.axaml.cs`
-- `Src/Netor.Madorin.UI/Assets/qx.png`
+- `Src/Netor.Cortana.UI/Views/SettingsWindow.axaml`
+- `Src/Netor.Cortana.UI/Views/SettingsWindow.axaml.cs`
+- `Src/Netor.Cortana.UI/Views/Settings/PluginAuthorizationPage.axaml`
+- `Src/Netor.Cortana.UI/Views/Settings/PluginAuthorizationPage.axaml.cs`
+- `Src/Netor.Cortana.UI/Assets/qx.png`
 
 修改内容：
 
@@ -156,12 +156,12 @@
 
 涉及文件：
 
-- `Src/Netor.Madorin.UI/Views/MainWindow.axaml`
-- `Src/Netor.Madorin.UI/Views/Main/MainWindow.Messaging.cs`
-- `Src/Netor.Madorin.UI/App.axaml.cs`
-- `Src/Netor.Madorin.UI/Assets/send.png`
-- `Src/Netor.Madorin.UI/Assets/send.bak.png`
-- `Src/Netor.Madorin.UI/Netor.Madorin.UI.csproj`
+- `Src/Netor.Cortana.UI/Views/MainWindow.axaml`
+- `Src/Netor.Cortana.UI/Views/Main/MainWindow.Messaging.cs`
+- `Src/Netor.Cortana.UI/App.axaml.cs`
+- `Src/Netor.Cortana.UI/Assets/send.png`
+- `Src/Netor.Cortana.UI/Assets/send.bak.png`
+- `Src/Netor.Cortana.UI/Netor.Cortana.UI.csproj`
 
 修改内容：
 
@@ -196,18 +196,18 @@
 
 涉及文件：
 
-- `Src/Netor.Madorin.AI/AIAgentFactory.cs`
-- `Src/Netor.Madorin.Networks/Netor.Madorin.Networks.csproj`
-- `Src/Netor.Madorin.Networks/WebSocketFeedServerService.cs`
-- `Src/Netor.Madorin.Platform/Netor.Madorin.Platform.Api/Netor.Madorin.Platform.Api.sln`
+- `Src/Netor.Cortana.AI/AIAgentFactory.cs`
+- `Src/Netor.Cortana.Networks/Netor.Cortana.Networks.csproj`
+- `Src/Netor.Cortana.Networks/WebSocketPluginBusServerService.cs`
+- `Src/Netor.Cortana.Platform/Netor.Cortana.Platform.Api/Netor.Cortana.Platform.Api.sln`
 - `Docs/【未解决】智能体创建时机与工具上下文刷新问题讨论.md`
 - `Docs/执行计划(模型能力协议简化与插件元数据读取).md`
 
 修改内容：
 
 - `AIAgentFactory` 跳过与主智能体相同的子智能体，避免重复挂载同一智能体。
-- `Netor.Madorin.Networks` 引入 AI 项目引用以调用插件模型能力服务。
-- 删除旧位置的 `WebSocketFeedServerService.cs`，保留 `WebSockets/Servers/` 下实现。
+- `Netor.Cortana.Networks` 引入 AI 项目引用以调用插件模型能力服务。
+- 删除旧位置的 `WebSocketPluginBusServerService.cs`，保留 `WebSockets/Servers/` 下实现。
 - 记录智能体工具上下文刷新问题，后续倾向通过工具上下文版本号和懒重建解决。
 - 新增平台 API 独立解决方案文件。
 
@@ -226,7 +226,7 @@
 
 已执行或记录的验证：
 
-- `dotnet build .\Src\Netor.Madorin.UI\Netor.Madorin.UI.csproj`：构建通过。
+- `dotnet build .\Src\Netor.Cortana.UI\Netor.Cortana.UI.csproj`：构建通过。
 - system.notice 代码路径验证：仅显示临时系统提示，不触发 AI 对话。
 - Memory 插件与主程序模型能力代码构建通过。
 
@@ -255,3 +255,4 @@ feat(plugin): add model capability authorization and system notices
 - update plugin development, installation and websocket skills
 - document unresolved agent tool context refresh strategy
 ```
+

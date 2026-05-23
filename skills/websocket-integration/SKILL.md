@@ -1,6 +1,6 @@
 ---
 name: websocket-integration
-description: 'Madorin PluginBus WebSocket 接入。用于生成 /internal 单端点、madorin.plugin-bus、conversation topic、chat.message.send、chat.generation.stop、system.notice、ping/pong 的 C# 客户端代码与样板。关键词：WebSocket、PluginBus、/internal、chat.message.send、ping、pong。'
+description: 'Madorin PluginBus WebSocket 接入。用于生成 /internal 单端点、cortana.plugin-bus、conversation topic、chat.message.send、chat.generation.stop、system.notice、ping/pong 的 C# 客户端代码与样板。关键词：WebSocket、PluginBus、/internal、chat.message.send、ping、pong。'
 user-invocable: true
 ---
 
@@ -9,9 +9,9 @@ user-invocable: true
 ## Scope
 
 - 端点：`ws://localhost:{pluginBusPort}/internal`
-- 协议：`madorin.plugin-bus`
-- 版本：`1.0.0`
-- 主题：`conversation`
+- 协议：`cortana.plugin-bus`
+- 版本：`1.2.0`
+- 主题：`conversation`，按需订阅 `memory` / `model` / `plugin` / `workflow`
 
 ## Init Fields
 
@@ -43,9 +43,10 @@ user-invocable: true
 ```json
 {
   "type": "subscribe",
-  "protocol": "madorin.plugin-bus",
-  "version": "1.0.0",
-  "topics": ["conversation"]
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
+  "topics": ["conversation"],
+  "capabilities": ["conversation.v1"]
 }
 ```
 
@@ -54,8 +55,8 @@ user-invocable: true
 ```json
 {
   "type": "request",
-  "protocol": "madorin.plugin-bus",
-  "version": "1.0.0",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
   "topic": "conversation",
   "op": "chat.message.send",
   "source": "client",
@@ -73,8 +74,8 @@ user-invocable: true
 ```json
 {
   "type": "request",
-  "protocol": "madorin.plugin-bus",
-  "version": "1.0.0",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
   "topic": "conversation",
   "op": "chat.generation.stop",
   "payload": {
@@ -88,8 +89,8 @@ user-invocable: true
 ```json
 {
   "type": "request",
-  "protocol": "madorin.plugin-bus",
-  "version": "1.0.0",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.2.0",
   "topic": "conversation",
   "op": "system.notice",
   "payload": {
@@ -126,3 +127,5 @@ user-invocable: true
 - `resources/ws-message-samples.json`
 - `resources/client-checklist.md`
 - `resources/csharp-client-template.md`
+
+

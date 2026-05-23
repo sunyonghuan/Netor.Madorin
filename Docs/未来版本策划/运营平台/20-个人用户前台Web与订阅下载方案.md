@@ -17,11 +17,11 @@
 
 本阶段继续遵循现有项目原则：
 
-- 使用 `Netor.Madorin.Platform.Web` 承载个人前台和官方网站页面。
+- 使用 `Netor.Cortana.Platform.Web` 承载个人前台和官方网站页面。
 - 使用 ASP.NET Core MVC + Razor。
 - 不使用 Vue、React、Blazor。
 - Web 可以直接调用 `Services` 渲染页面。
-- 复杂业务逻辑放到 `Netor.Madorin.Platform.Services`。
+- 复杂业务逻辑放到 `Netor.Cortana.Platform.Services`。
 - 文件下载通过服务校验后返回，不直接暴露磁盘路径。
 
 ## 2. 官网与个人前台是否合并
@@ -29,7 +29,7 @@
 第一阶段建议 **官方网站和个人用户前台放在同一个项目**：
 
 ```text
-Netor.Madorin.Platform.Web
+Netor.Cortana.Platform.Web
 ```
 
 原因：
@@ -37,21 +37,21 @@ Netor.Madorin.Platform.Web
 - 官网首页、市场首页、登录注册、个人中心都是面向普通用户的公开 Web 入口。
 - 第一阶段不需要拆出独立官网项目，避免项目数量过多。
 - 当前架构已规划 `Web` 负责个人用户前台、市场、详情、登录注册和个人中心。
-- 后续如果官网内容变重、需要独立部署或 SEO 运营，再拆出 `Netor.Madorin.Platform.Portal` 也不迟。
+- 后续如果官网内容变重、需要独立部署或 SEO 运营，再拆出 `Netor.Cortana.Platform.Portal` 也不迟。
 
 当前边界建议：
 
 | 页面类型 | 所属项目 | 建议 Controller |
 |---|---|---|
-| 官网首页 | `Netor.Madorin.Platform.Web` | `HomeController` |
-| 产品介绍 | `Netor.Madorin.Platform.Web` | `HomeController` |
-| 市场首页 | `Netor.Madorin.Platform.Web` | `MarketController` |
-| 资源列表 | `Netor.Madorin.Platform.Web` | `MarketController` |
-| 资源详情 | `Netor.Madorin.Platform.Web` | `MarketController` |
-| 登录注册 | `Netor.Madorin.Platform.Web` | `AccountController` |
-| 个人中心 | `Netor.Madorin.Platform.Web` | `UserCenterController` |
-| 订单支付 | `Netor.Madorin.Platform.Web` | `OrdersController` |
-| 下载入口 | `Netor.Madorin.Platform.Web` | `DownloadsController` 或 `MarketController` |
+| 官网首页 | `Netor.Cortana.Platform.Web` | `HomeController` |
+| 产品介绍 | `Netor.Cortana.Platform.Web` | `HomeController` |
+| 市场首页 | `Netor.Cortana.Platform.Web` | `MarketController` |
+| 资源列表 | `Netor.Cortana.Platform.Web` | `MarketController` |
+| 资源详情 | `Netor.Cortana.Platform.Web` | `MarketController` |
+| 登录注册 | `Netor.Cortana.Platform.Web` | `AccountController` |
+| 个人中心 | `Netor.Cortana.Platform.Web` | `UserCenterController` |
+| 订单支付 | `Netor.Cortana.Platform.Web` | `OrdersController` |
+| 下载入口 | `Netor.Cortana.Platform.Web` | `DownloadsController` 或 `MarketController` |
 
 ## 3. 前台 Web 页面范围
 
@@ -462,7 +462,7 @@ flowchart TD
 
 ## 8. Services 设计
 
-第一阶段建议在 `Netor.Madorin.Platform.Services` 中补充以下服务。
+第一阶段建议在 `Netor.Cortana.Platform.Services` 中补充以下服务。
 
 ### 8.1 AuthService
 
@@ -873,7 +873,7 @@ Data/packages/plugins/google-search/1.0.0/google-search.zip
 
 ## 17. 结论
 
-第一阶段个人用户前台应以 `Netor.Madorin.Platform.Web` 为统一入口，把官网介绍、市场浏览、账号登录、个人中心、订单订阅和下载闭环放在一个 MVC 项目内完成。
+第一阶段个人用户前台应以 `Netor.Cortana.Platform.Web` 为统一入口，把官网介绍、市场浏览、账号登录、个人中心、订单订阅和下载闭环放在一个 MVC 项目内完成。
 
 业务复杂度集中在 `Services`：
 

@@ -1,11 +1,11 @@
-# Madorin.Plugins.Office
+# Cortana.Plugins.Office
 
 办公文档插件 — 提供 Word / Excel / PowerPoint 文档的创建、结构读取、内容编辑和另存操作。
 
 ## 项目结构
 
 ```
-Madorin.Plugins.Office/
+Cortana.Plugins.Office/
 │
 ├── Startup.cs                       # 插件入口，[Plugin] 标记，DI 容器注册
 ├── PluginJsonContext.cs              # JSON 源码生成上下文（AOT 安全，所有序列化类型在此注册）

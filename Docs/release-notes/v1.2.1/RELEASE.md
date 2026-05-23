@@ -56,14 +56,14 @@
 ## 📋 变更文件清单
 
 ### AI 层
-- `Src/Netor.Madorin.AI/Providers/ChatHistoryDataProvider.cs` — 压缩客户端缓存 + IDisposable + 老版摘要失败回退 + 提示词重写
+- `Src/Netor.Cortana.AI/Providers/ChatHistoryDataProvider.cs` — 压缩客户端缓存 + IDisposable + 老版摘要失败回退 + 提示词重写
 
 ### Entity 层
-- `Src/Netor.Madorin.Entitys/Entities/ChatSessionEntity.cs` — TotalTokenCount 注释修正
+- `Src/Netor.Cortana.Entitys/Entities/ChatSessionEntity.cs` — TotalTokenCount 注释修正
 
 ### UI 层
-- `Src/Netor.Madorin.UI/Views/Settings/SystemSettingsPage.axaml.cs` — 输入控件右对齐
-- `Src/Netor.Madorin.UI/Views/Settings/ToolManagementPage.axaml.cs` — 移除工具名称列表显示
+- `Src/Netor.Cortana.UI/Views/Settings/SystemSettingsPage.axaml.cs` — 输入控件右对齐
+- `Src/Netor.Cortana.UI/Views/Settings/ToolManagementPage.axaml.cs` — 移除工具名称列表显示
 
 ---
 

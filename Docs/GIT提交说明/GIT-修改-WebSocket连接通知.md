@@ -22,7 +22,7 @@
 
 ## 修改文件清单
 
-### 1. Src/Netor.Madorin.Entitys/Events.cs
+### 1. Src/Netor.Cortana.Entitys/Events.cs
 
 **修改内容**:
 - 新增 `OnWebSocketClientConnectionChanged` 事件定义。
@@ -31,7 +31,7 @@
 
 **影响功能**: 为网络层和 UI 层之间提供统一的连接状态事件通道。
 
-### 2. Src/Netor.Madorin.Networks/WebSocketServerService.cs
+### 2. Src/Netor.Cortana.Networks/WebSocketServerService.cs
 
 **修改内容**:
 - 在客户端接入时记录远端 IP 和端口。
@@ -41,7 +41,7 @@
 
 **影响功能**: WebSocket 服务能够主动向上层广播客户端连接状态变化。
 
-### 3. Src/Netor.Madorin.UI/App.axaml.cs
+### 3. Src/Netor.Cortana.UI/App.axaml.cs
 
 **修改内容**:
 - 应用初始化阶段订阅全局 WebSocket 连接状态事件。
@@ -50,7 +50,7 @@
 
 **影响功能**: App 层统一协调主窗口与浮动气泡窗口的通知呈现逻辑。
 
-### 4. Src/Netor.Madorin.UI/Views/BubbleWindow.axaml.cs
+### 4. Src/Netor.Cortana.UI/Views/BubbleWindow.axaml.cs
 
 **修改内容**:
 - 新增 `ShowSystemNotification` 方法。

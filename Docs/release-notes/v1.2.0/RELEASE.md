@@ -106,22 +106,22 @@ ALTER TABLE Agents ADD COLUMN DefaultModelId TEXT NOT NULL DEFAULT ''
 ## 📋 变更文件清单
 
 ### Entity 层
-- `Src/Netor.Madorin.Entitys/Entities/AgentEntity.cs` — +3 字段
-- `Src/Netor.Madorin.Entitys/Services/AgentService.cs` — ReadEntity/BindEntity/SQL 更新 + GetByName()
-- `Src/Netor.Madorin.Entitys/MadorinDbContext.cs` — +3 行 ALTER TABLE 迁移
-- `Src/Netor.Madorin.Entitys/Interfaces/IChatTransport.cs` — 新增 AgentMention record
-- `Src/Netor.Madorin.Entitys/Interfaces/IAiChatEngine.cs` — SendMessageAsync +mentions 参数
+- `Src/Netor.Cortana.Entitys/Entities/AgentEntity.cs` — +3 字段
+- `Src/Netor.Cortana.Entitys/Services/AgentService.cs` — ReadEntity/BindEntity/SQL 更新 + GetByName()
+- `Src/Netor.Cortana.Entitys/CortanaDbContext.cs` — +3 行 ALTER TABLE 迁移
+- `Src/Netor.Cortana.Entitys/Interfaces/IChatTransport.cs` — 新增 AgentMention record
+- `Src/Netor.Cortana.Entitys/Interfaces/IAiChatEngine.cs` — SendMessageAsync +mentions 参数
 
 ### AI 层
-- `Src/Netor.Madorin.AI/AIAgentFactory.cs` — 重构：AssembleToolProviders + BuildSubAgent + BuildWithSubAgents
-- `Src/Netor.Madorin.AI/Providers/SubAgentContextProvider.cs` — **新建**
-- `Src/Netor.Madorin.AI/AiChatService.cs` — mentions 调度逻辑
+- `Src/Netor.Cortana.AI/AIAgentFactory.cs` — 重构：AssembleToolProviders + BuildSubAgent + BuildWithSubAgents
+- `Src/Netor.Cortana.AI/Providers/SubAgentContextProvider.cs` — **新建**
+- `Src/Netor.Cortana.AI/AiChatService.cs` — mentions 调度逻辑
 
 ### UI 层
-- `Src/Netor.Madorin.UI/Views/MainWindow.axaml` — AgentPopup + 输入提示更新
-- `Src/Netor.Madorin.UI/Views/MainWindow.axaml.cs` — @ 检测/键盘导航/mentions 收集
-- `Src/Netor.Madorin.UI/Views/Settings/AgentSettingsPage.axaml` — 厂商/模型 ComboBox
-- `Src/Netor.Madorin.UI/Views/Settings/AgentSettingsPage.axaml.cs` — 联动逻辑
+- `Src/Netor.Cortana.UI/Views/MainWindow.axaml` — AgentPopup + 输入提示更新
+- `Src/Netor.Cortana.UI/Views/MainWindow.axaml.cs` — @ 检测/键盘导航/mentions 收集
+- `Src/Netor.Cortana.UI/Views/Settings/AgentSettingsPage.axaml` — 厂商/模型 ComboBox
+- `Src/Netor.Cortana.UI/Views/Settings/AgentSettingsPage.axaml.cs` — 联动逻辑
 
 ---
 

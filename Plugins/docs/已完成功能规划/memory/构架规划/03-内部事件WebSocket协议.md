@@ -1,8 +1,8 @@
 # 03 - 内部事件 WebSocket 协议
 
 > 状态：已被 S08 单端点 PluginBus 方案取代  
-> 当前主线：`ws://localhost:{pluginBusPort}/internal`，协议 `madorin.plugin-bus`  
-> 说明：本文保留为历史设计记录，旧 `/internal/conversation-feed/`、`conversation-feed` 协议和 `memory.supply.*` 操作名不再作为当前实现依据。
+> 当前主线：`ws://localhost:{pluginBusPort}/internal`，协议 `cortana.plugin-bus`  
+> 说明：本文保留为历史设计记录，旧 `/internal`、`PluginBus` 协议和 `memory.context.supply.*` 操作名不再作为当前实现依据。
 
 ## 目标
 
@@ -23,20 +23,20 @@
 
 历史地址已废弃：
 
-- `ws://localhost:{ChatWsPort}/ws/`：不再作为 Memory 插件内部通信入口。
-- `ws://localhost:{ChatWsPort}/internal/conversation-feed/`：已废弃，不再注册独立服务。
+- `ws://localhost:{ChatWsPort}/internal`：不再作为 Memory 插件内部通信入口。
+- `ws://localhost:{ChatWsPort}/internal`：已废弃，不再注册独立服务。
 
 ## 握手消息
 
-当前实现使用 `madorin.plugin-bus`：
+当前实现使用 `cortana.plugin-bus`：
 
 ```json
 {
 	"type": "connected",
 	"clientId": "plugin-bus-client-id",
 	"topics": ["conversation", "memory", "model", "plugin"],
-	"protocol": "madorin.plugin-bus",
-	"version": "1.0.0"
+	"protocol": "cortana.plugin-bus",
+	"version": "1.2.0"
 }
 ```
 
@@ -47,8 +47,8 @@
 	"type": "connected",
 	"clientId": "feed-client-id",
 	"topics": ["conversation"],
-	"protocol": "conversation-feed",
-	"version": "1.0.0"
+	"protocol": "PluginBus",
+	"version": "1.2.0"
 }
 ```
 
@@ -60,8 +60,8 @@
 {
 	"type": "subscribe",
 	"topics": ["conversation", "memory", "model"],
-	"protocol": "madorin.plugin-bus",
-	"version": "1.0.0"
+	"protocol": "cortana.plugin-bus",
+	"version": "1.2.0"
 }
 ```
 
@@ -71,8 +71,8 @@
 {
 	"type": "subscribe",
 	"topics": ["conversation"],
-	"protocol": "conversation-feed",
-	"version": "1.0.0"
+	"protocol": "PluginBus",
+	"version": "1.2.0"
 }
 ```
 
@@ -80,29 +80,29 @@
 
 ## 订阅确认
 
-当前实现使用 `madorin.plugin-bus`，并回传实际订阅的 topic。以下旧示例仅作历史记录：
+当前实现使用 `cortana.plugin-bus`，并回传实际订阅的 topic。以下旧示例仅作历史记录：
 
 ```json
 {
 	"type": "subscribed",
 	"clientId": "feed-client-id",
 	"topics": ["conversation"],
-	"protocol": "conversation-feed",
-	"version": "1.0.0"
+	"protocol": "PluginBus",
+	"version": "1.2.0"
 }
 ```
 
 ## 错误消息
 
-当前实现错误帧使用 `protocol = "madorin.plugin-bus"`。结构化 `error` 对象仍属于 S08-25 后续标准化范围。以下旧示例仅作历史记录：
+当前实现错误帧使用 `protocol = "cortana.plugin-bus"`。结构化 `error` 对象仍属于 S08-25 后续标准化范围。以下旧示例仅作历史记录：
 
 ```json
 {
 	"type": "error",
 	"clientId": "feed-client-id",
 	"message": "protocol 不匹配",
-	"protocol": "conversation-feed",
-	"version": "1.0.0"
+	"protocol": "PluginBus",
+	"version": "1.2.0"
 }
 ```
 
@@ -113,8 +113,8 @@
 ```json
 {
 	"type": "event",
-	"protocol": "madorin.plugin-bus",
-	"version": "1.0.0",
+	"protocol": "cortana.plugin-bus",
+	"version": "1.2.0",
 	"topic": "conversation",
 	"op": "conversation.event.publish",
 	"source": "host",
@@ -131,8 +131,8 @@
 	"topic": "conversation",
 	"eventType": "conversation.turn.started",
 	"payload": {},
-	"protocol": "conversation-feed",
-	"version": "1.0.0"
+	"protocol": "PluginBus",
+	"version": "1.2.0"
 }
 ```
 
@@ -152,7 +152,7 @@
 - 参数缺失、异常或不可处理时返回 `memory.context.supply.error`。
 - 宿主按 `requestId` 等待响应，默认短超时，超时或错误时降级为空上下文。
 
-当前代码中的 Memory supply 业务字段仍以顶层 DTO 兼容形式生成；完全迁移到 envelope `payload` 是 S08-25 的剩余标准化工作。以下旧 `memory.supply.*` 示例仅作历史记录：
+当前代码中的 Memory supply 业务字段仍以顶层 DTO 兼容形式生成；完全迁移到 envelope `payload` 是 S08-25 的剩余标准化工作。以下旧 `memory.context.supply.*` 示例仅作历史记录：
 
 请求示例：
 
@@ -160,8 +160,8 @@
 {
 	"type": "request",
 	"protocol": "memory-context-supply",
-	"version": "1.0.0",
-	"op": "memory.supply.request",
+	"version": "1.2.0",
+	"op": "memory.context.supply.request",
 	"requestId": "uuid",
 	"agentId": "agent-1",
 	"agentName": "默认智能体",
@@ -189,8 +189,8 @@
 {
 	"type": "response",
 	"protocol": "memory-context-supply",
-	"version": "1.0.0",
-	"op": "memory.supply.package",
+	"version": "1.2.0",
+	"op": "memory.context.supply.response",
 	"requestId": "uuid",
 	"enabled": true,
 	"summary": "命中 2 条长期记忆",
@@ -210,8 +210,8 @@
 {
 	"type": "error",
 	"protocol": "memory-context-supply",
-	"version": "1.0.0",
-	"op": "memory.supply.error",
+	"version": "1.2.0",
+	"op": "memory.context.supply.error",
 	"requestId": "uuid",
 	"traceId": "trace",
 	"code": "INVALID_ARGUMENT",
@@ -233,4 +233,9 @@
 - `LongMemoryContextProvider`：在宿主构建主智能体上下文前请求长期记忆供应包并注入 `AIContext.Instructions`。
 - `MemoryIngestService` / `MemoryPluginBusConnection`：Memory 插件持久连接 PluginBus，断开后自动重连。
 - `MemoryPluginBusDispatcher` / `MemoryConversationEventHandler` / `MemorySupplyRequestHandler`：插件端按 `type/topic/op` 分发并处理 conversation、memory、model、ping/pong。
+
+
+
+
+
 

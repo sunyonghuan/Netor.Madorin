@@ -1,10 +1,10 @@
-# Netor.Madorin.Plugin.Native.Debugger
+# Netor.Cortana.Plugin.Native.Debugger
 
 > Netor Madorin 原生插件调试器模块 — 为插件开发者提供本地交互式调试能力
 
 ## 📖 简介
 
-`Netor.Madorin.Plugin.Native.Debugger` 是一个 **类库**（非可执行程序），用于在开发阶段对 Madorin 原生插件进行本地交互式调试。
+`Netor.Cortana.Plugin.Native.Debugger` 是一个 **类库**（非可执行程序），用于在开发阶段对 Madorin 原生插件进行本地交互式调试。
 
 它通过一个控制台宿主模拟真实运行环境，让开发者可以在 **不启动主程序** 的情况下：
 
@@ -19,13 +19,13 @@
 ### NuGet 安装
 
 ```bash
-dotnet add package Netor.Madorin.Plugin.Native.Debugger
+dotnet add package Netor.Cortana.Plugin.Native.Debugger
 ```
 
 ### PackageReference
 
 ```xml
-<PackageReference Include="Netor.Madorin.Plugin.Native.Debugger" Version="1.0.0" />
+<PackageReference Include="Netor.Cortana.Plugin.Native.Debugger" Version="1.0.0" />
 ```
 
 ## 🚀 快速开始
@@ -36,13 +36,13 @@ dotnet add package Netor.Madorin.Plugin.Native.Debugger
 dotnet new console -n MyPlugin.Debug
 cd MyPlugin.Debug
 dotnet add reference ../MyPlugin/MyPlugin.csproj
-dotnet add package Netor.Madorin.Plugin.Native.Debugger
+dotnet add package Netor.Cortana.Plugin.Native.Debugger
 ```
 
 ### 2. 编写入口代码
 
 ```csharp
-using Netor.Madorin.Plugin.Native.Debugger;
+using Netor.Cortana.Plugin.Native.Debugger;
 
 // 创建调试宿主（自动发现 AppDomain 中的唯一插件）
 var host = PluginDebugRunner.CreateHost();
@@ -84,7 +84,7 @@ Debug> exit
 ### 项目结构
 
 ```
-Netor.Madorin.Plugin.Native.Debuger/
+Netor.Cortana.Plugin.Native.Debuger/
 ├── PluginDebugRunner.cs              # 入口工具类（静态）
 ├── Discovery/
 │   ├── PluginScanner.cs              # 插件扫描器 + PluginMetadata
@@ -100,9 +100,9 @@ Netor.Madorin.Plugin.Native.Debuger/
 ### 依赖关系
 
 ```
-Netor.Madorin.Plugin.Native.Debugger
-├── Netor.Madorin.Plugin.Native       ([Plugin]、[Tool] 特性定义)
-├── Netor.Madorin.Plugin              (IPluginContext 接口)
+Netor.Cortana.Plugin.Native.Debugger
+├── Netor.Cortana.Plugin.Native       ([Plugin]、[Tool] 特性定义)
+├── Netor.Cortana.Plugin              (IPluginContext 接口)
 ├── Microsoft.Extensions.Hosting      (宿主框架)
 ├── Microsoft.Extensions.Logging.Console (控制台日志)
 └── Microsoft.Extensions.Http         (HTTP 客户端)
@@ -112,7 +112,7 @@ Netor.Madorin.Plugin.Native.Debugger
 
 | 类名 | 命名空间 | 职责 |
 |------|----------|------|
-| `PluginDebugRunner` | `Netor.Madorin.Plugin.Native.Debugger` | 静态入口类，提供 `DiscoverPlugins()`、`CreateHost()`、`RunInteractiveAsync()` |
+| `PluginDebugRunner` | `Netor.Cortana.Plugin.Native.Debugger` | 静态入口类，提供 `DiscoverPlugins()`、`CreateHost()`、`RunInteractiveAsync()` |
 | `PluginScanner` | `...Debugger.Discovery` | 扫描程序集中的 `[Plugin]` 标记类，验证唯一性 |
 | `ToolScanner` | `...Debugger.Discovery` | 扫描程序集中的 `[Tool]` 标记方法，构建工具注册表 |
 | `DebugPluginHost` | `...Debugger.Hosting` | 调试宿主，负责服务容器构建、插件加载、工具调用 |

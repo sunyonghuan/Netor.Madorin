@@ -4,7 +4,7 @@
 
 本次提交包含两部分主要变更：
 
-1. `Netor.Madorin.Networks` WebSocket 服务重构。
+1. `Netor.Cortana.Networks` WebSocket 服务重构。
 2. 运营平台 Web/Admin/实体模型与插件项目配置补充。
 
 ## 一、Kestrel WebSocket 服务重构
@@ -16,7 +16,7 @@
 ### 主要改动
 
 - 使用 Kestrel 替换原 `HttpListener` + 裸线程模式。
-- 将原 `WebSocketServerService` 重命名并重构为 `WebSocketInteractionServerService`，更准确表达其交互通道职责。
+- 将原 `WebSocketServerService` 重命名并重构为 `WebSocketPluginBusServerService`，更准确表达其交互通道职责。
 - 新增并接入公共 WebSocket 基础设施：
   - `WebSockets/Hosting/KestrelWebSocketHost.cs`
   - `WebSockets/Connections/WebSocketConnection.cs`
@@ -24,12 +24,12 @@
   - `WebSockets/Connections/WebSocketSendQueue.cs`
   - `WebSockets/Connections/WebSocketHeartbeatLoop.cs`
   - `WebSockets/Connections/WebSocketClosePolicy.cs`
-- 新增 `IConversationFeedBroadcaster`，将 conversation-feed 广播能力从具体服务解耦。
-- `WebSocketInteractionServerService` 已接入公共 Host、连接管理器、发送队列与心跳循环。
-- `WebSocketFeedServerService` 已接入公共 Host、连接管理器、发送队列与心跳循环。
+- 新增 `IPluginBusBroadcaster`，将 PluginBus 广播能力从具体服务解耦。
+- `WebSocketPluginBusServerService` 已接入公共 Host、连接管理器、发送队列与心跳循环。
+- `WebSocketPluginBusServerService` 已接入公共 Host、连接管理器、发送队列与心跳循环。
 - 保持旧端口、旧路径、旧消息类型兼容：
-  - `/ws/`
-  - `/internal/conversation-feed/`
+  - `/internal`
+  - `/internal`
   - `ModelCapabilityProtocol.Path`
 - 保留迁移期 legacy 入口，避免破坏既有插件和已连接服务。
 - 广播改为客户端级隔离，慢客户端不再阻塞整体广播。
@@ -64,7 +64,7 @@
 已执行以下验证：
 
 ```text
-dotnet build Netor.Madorin.slnx
+dotnet build Netor.Cortana.slnx
 ```
 
 结果：通过。
@@ -76,7 +76,7 @@ dotnet run --project artifacts/KestrelWsProbe/KestrelWsProbe.csproj
 结果：通过，输出 `Kestrel WebSocket probe passed.`。
 
 ```text
-dotnet test Tests/Netor.Madorin.Networks.Tests/Netor.Madorin.Networks.Tests.csproj --no-build
+dotnet test Tests/Netor.Cortana.Networks.Tests/Netor.Cortana.Networks.Tests.csproj --no-build
 ```
 
 结果：通过，`9` 个测试全部成功。
@@ -84,6 +84,8 @@ dotnet test Tests/Netor.Madorin.Networks.Tests/Netor.Madorin.Networks.Tests.cspr
 ## 四、兼容性说明
 
 - 不更改既有 WebSocket 外部协议入口。
-- 不删除 legacy conversation-feed / model-capability 入口。
+- 不删除 legacy PluginBus / model-capability 入口。
 - Feed 目标职责为会话事实广播，但迁移期继续保留旧协议兼容。
 - Kestrel 使用限定在轻量 WebSocket、显式路径、源生成 JSON、显式 DI 范围内，避免引入 MVC/Razor/动态扫描等 AOT 风险。
+
+
