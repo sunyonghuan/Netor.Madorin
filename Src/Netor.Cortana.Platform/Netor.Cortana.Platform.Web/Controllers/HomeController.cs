@@ -54,6 +54,16 @@ public class HomeController(PlatformDbContext dbContext) : Controller
         return View();
     }
 
+    public IActionResult Help()
+    {
+        return View();
+    }
+
+    public IActionResult Docs()
+    {
+        return View();
+    }
+
     public IActionResult Privacy()
     {
         return View();

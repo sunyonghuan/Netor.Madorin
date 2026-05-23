@@ -1,0 +1,44 @@
+@{
+    ViewData["Title"] = "帮助中心";
+}
+
+<section class="official-hero help-hero reveal-on-scroll">
+    <div>
+        <span class="eyebrow">HELP CENTER</span>
+        <h1>遇到问题，从这里继续。</h1>
+        <p>安装、账号、资源中心、会议模式和工作流操作，都可以在帮助中心找到入口。先看文档，仍然卡住就联系我们。</p>
+        <div class="hero-actions">
+            <a class="btn btn-madorin-primary btn-lg" asp-controller="Home" asp-action="Docs">打开文档中心</a>
+            <a class="btn btn-madorin-secondary btn-lg" asp-controller="Home" asp-action="Contact">联系支持</a>
+        </div>
+    </div>
+    <div class="help-visual" aria-hidden="true">
+        <div class="help-search">搜索：如何加载资源？</div>
+        <div class="help-result active"><span>01</span><strong>资源中心订阅与缓存</strong></div>
+        <div class="help-result"><span>02</span><strong>会议模式如何生成方案</strong></div>
+        <div class="help-result"><span>03</span><strong>工作流如何推进任务</strong></div>
+    </div>
+</section>
+
+<section class="help-grid">
+    <a class="content-panel help-card" asp-controller="Home" asp-action="Docs">
+        <span class="policy-index">START</span>
+        <h2>快速开始</h2>
+        <p>下载、登录、创建目标、选择模式。</p>
+    </a>
+    <a class="content-panel help-card" asp-controller="Home" asp-action="Docs" asp-fragment="resources">
+        <span class="policy-index">RESOURCE</span>
+        <h2>资源中心</h2>
+        <p>订阅技能、插件、智能体和解决方案。</p>
+    </a>
+    <a class="content-panel help-card" asp-controller="Home" asp-action="Docs" asp-fragment="meeting">
+        <span class="policy-index">MEETING</span>
+        <h2>会议模式</h2>
+        <p>让多个专家智能体讨论并形成文档。</p>
+    </a>
+    <a class="content-panel help-card" asp-controller="Home" asp-action="Contact">
+        <span class="policy-index">SUPPORT</span>
+        <h2>人工支持</h2>
+        <p>账号、订阅、合作和资源入驻咨询。</p>
+    </a>
+</section>

@@ -3,10 +3,19 @@
     ViewData["Title"] = "资源列表";
 }
 
-<section class="page-heading compact reveal-up resource-list-heading">
-    <span class="eyebrow">ASSETS</span>
-    <h1>全部资源</h1>
-    <p>@Model.TotalCount 个能力。按岗位、价格和热度筛选，把合适的资源加入 Madorin。</p>
+<section class="resource-list-hero reveal-up">
+    <div>
+        <span class="eyebrow">ASSETS</span>
+        <h1>全部资源</h1>
+        <p>@Model.TotalCount 个能力。按岗位、价格和热度筛选，把合适的资源加入 Madorin。</p>
+    </div>
+    <div class="resource-flow-visual" aria-hidden="true">
+        <div class="resource-chip">技能</div>
+        <div class="resource-chip">插件</div>
+        <div class="resource-chip">智能体</div>
+        <span></span>
+        <strong>Madorin 工作流</strong>
+    </div>
 </section>
 
 <form class="filter-panel mb-4 resource-filter" method="get">

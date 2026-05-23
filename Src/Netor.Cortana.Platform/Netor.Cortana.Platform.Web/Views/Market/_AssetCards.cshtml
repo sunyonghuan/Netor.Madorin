@@ -9,24 +9,31 @@
 }
 else
 {
-    <div class="row g-3">
+    <div class="row g-3 asset-grid">
         @foreach (var item in Model)
         {
             <div class="col-md-6 col-xl-4">
-                <a class="asset-card" asp-controller="Market" asp-action="Details" asp-route-slug="@item.Slug">
-                    <div class="asset-cover">
+                <a class="asset-card compact-asset-card" asp-controller="Market" asp-action="Details" asp-route-slug="@item.Slug">
+                    <div class="asset-card-head">
                         @if (!string.IsNullOrWhiteSpace(item.CoverUrl))
                         {
-                            <img src="@item.CoverUrl" alt="@item.Name" />
+                            <img class="asset-thumb" src="@item.CoverUrl" alt="@item.Name" />
                         }
                         else
                         {
-                            <span class="asset-placeholder">@item.TypeName</span>
+                            <div class="asset-signal" aria-hidden="true">
+                                <i></i>
+                                <i></i>
+                                <i></i>
+                            </div>
                         }
+                        <div>
+                            <span class="asset-badge">@item.TypeName</span>
+                            <h3>@item.Name</h3>
+                        </div>
                     </div>
                     <div class="asset-body">
                         <div class="asset-badges">
-                            <span class="asset-badge">@item.TypeName</span>
                             @if (item.HasFreePlan)
                             {
                                 <span class="asset-badge success">免费</span>
@@ -36,7 +43,6 @@ else
                                 <span class="asset-badge price">¥@item.LowestPrice</span>
                             }
                         </div>
-                        <h3>@item.Name</h3>
                         <p>@item.ShortDescription</p>
                         <div class="asset-meta">
                             <span>@item.DeveloperName</span>
