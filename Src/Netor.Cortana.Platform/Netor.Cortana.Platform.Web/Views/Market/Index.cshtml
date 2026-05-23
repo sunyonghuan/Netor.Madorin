@@ -1,17 +1,23 @@
 @model Netor.Cortana.Platform.Web.Models.Market.MarketIndexViewModel
 @{
-    ViewData["Title"] = "市场";
+    ViewData["Title"] = "资源中心";
 }
 
-<div class="page-heading">
-    <span class="eyebrow">Market</span>
-    <h1>Cortana 能力市场</h1>
-    <p>浏览插件、技能、智能体和解决方案。当前先搭场景与路由，视觉后续统一升级。</p>
-</div>
+<section class="market-hero reveal-up">
+    <div>
+        <span class="eyebrow">RESOURCE CENTER</span>
+        <h1>把成熟能力直接装进 Madorin。</h1>
+        <p>插件、技能、智能体、解决方案集中管理。少造轮子，更快把任务跑起来。</p>
+    </div>
+    <a class="btn btn-madorin-primary btn-lg" asp-controller="Market" asp-action="Assets">浏览全部资源</a>
+</section>
 
-<section class="mb-5">
+<section class="section-block">
     <div class="section-title">
-        <h2>分类导航</h2>
+        <div>
+            <span class="eyebrow">CATEGORIES</span>
+            <h2>按工作方式选择能力</h2>
+        </div>
         <a asp-controller="Market" asp-action="Assets">全部资源</a>
     </div>
     <div class="row g-3">
@@ -28,17 +34,23 @@
     </div>
 </section>
 
-<section class="mb-5">
+<section class="section-block">
     <div class="section-title">
-        <h2>推荐资源</h2>
+        <div>
+            <span class="eyebrow">FEATURED</span>
+            <h2>优先尝试这些资源</h2>
+        </div>
         <a asp-controller="Market" asp-action="Assets" asp-route-sort="featured">更多推荐</a>
     </div>
     <partial name="_AssetCards" model="Model.FeaturedAssets" />
 </section>
 
-<section>
+<section class="section-block">
     <div class="section-title">
-        <h2>最新发布</h2>
+        <div>
+            <span class="eyebrow">NEW</span>
+            <h2>新上架能力</h2>
+        </div>
         <a asp-controller="Market" asp-action="Assets">查看全部</a>
     </div>
     <partial name="_AssetCards" model="Model.LatestAssets" />

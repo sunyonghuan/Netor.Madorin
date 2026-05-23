@@ -3,16 +3,16 @@
     ViewData["Title"] = "资源列表";
 }
 
-<div class="page-heading compact">
-    <span class="eyebrow">Assets</span>
-    <h1>资源列表</h1>
-    <p>共 @Model.TotalCount 个资源。</p>
-</div>
+<section class="page-heading compact reveal-up">
+    <span class="eyebrow">ASSETS</span>
+    <h1>资源库</h1>
+    <p>@Model.TotalCount 个能力，按任务直接检索。</p>
+</section>
 
 <form class="filter-panel mb-4" method="get">
     <div class="row g-2">
         <div class="col-md-4">
-            <input class="form-control" name="keyword" value="@Model.Keyword" placeholder="搜索资源" />
+            <input class="form-control" name="keyword" value="@Model.Keyword" placeholder="搜索插件、技能、智能体" />
         </div>
         <div class="col-md-2">
             <select class="form-select" name="pricing">
@@ -29,10 +29,10 @@
             </select>
         </div>
         <div class="col-md-2">
-            <button class="btn btn-primary w-100" type="submit">筛选</button>
+            <button class="btn btn-madorin-primary w-100" type="submit">筛选</button>
         </div>
         <div class="col-md-2">
-            <a class="btn btn-outline-secondary w-100" asp-controller="Market" asp-action="Assets">重置</a>
+            <a class="btn btn-madorin-secondary w-100" asp-controller="Market" asp-action="Assets">重置</a>
         </div>
     </div>
 </form>

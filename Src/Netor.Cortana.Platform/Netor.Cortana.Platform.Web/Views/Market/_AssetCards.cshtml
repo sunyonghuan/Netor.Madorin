@@ -3,8 +3,8 @@
 @if (Model.Count == 0)
 {
     <div class="empty-state">
-        <h2>暂无资源</h2>
-        <p>后台上架资源后会显示在这里。</p>
+        <h2>这里会展示可用能力</h2>
+        <p>资源发布后，用户可以在这里搜索、订阅并加载到 Madorin。</p>
     </div>
 }
 else
@@ -21,19 +21,19 @@ else
                         }
                         else
                         {
-                            <span>@item.TypeName</span>
+                            <span class="asset-placeholder">@item.TypeName</span>
                         }
                     </div>
                     <div class="asset-body">
-                        <div class="d-flex justify-content-between gap-2">
-                            <span class="badge text-bg-light">@item.TypeName</span>
+                        <div class="asset-badges">
+                            <span class="asset-badge">@item.TypeName</span>
                             @if (item.HasFreePlan)
                             {
-                                <span class="badge text-bg-success">免费</span>
+                                <span class="asset-badge success">免费</span>
                             }
                             else if (item.LowestPrice is not null)
                             {
-                                <span class="badge text-bg-primary">¥@item.LowestPrice</span>
+                                <span class="asset-badge price">¥@item.LowestPrice</span>
                             }
                         </div>
                         <h3>@item.Name</h3>

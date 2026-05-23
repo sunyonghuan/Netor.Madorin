@@ -1,52 +1,234 @@
-﻿@model Netor.Cortana.Platform.Web.Models.Home.HomeIndexViewModel
+@model Netor.Cortana.Platform.Web.Models.Home.HomeIndexViewModel
 @{
-    ViewData["Title"] = "首页";
+    ViewData["Title"] = "个人 AI 公司操作系统";
+    ViewData["BodyClass"] = "marketing-home";
 }
 
-<section class="hero-panel mb-5">
-    <div class="row align-items-center g-4">
-        <div class="col-lg-7">
-            <span class="eyebrow">Cortana AI 能力市场</span>
-            <h1 class="display-5 fw-bold mt-3">发现、订阅和下载 Cortana 生态能力</h1>
-            <p class="lead text-secondary mt-3">面向个人用户的插件、技能、智能体和解决方案市场。当前先搭建页面场景，后续继续升级视觉设计和业务闭环。</p>
-            <div class="d-flex flex-wrap gap-2 mt-4">
-                <a class="btn btn-primary btn-lg" asp-controller="Market" asp-action="Index">进入市场</a>
-                <a class="btn btn-outline-primary btn-lg" asp-controller="Home" asp-action="Download">下载客户端</a>
+<div class="landing-page">
+    <section class="landing-hero">
+        <div class="hero-shell">
+            <div class="hero-copy reveal-on-scroll">
+                <span class="eyebrow">AI COMPANY OS</span>
+                <h1>
+                    <span>一个人，</span>
+                    <span>也能指挥</span>
+                    <span>一家公司。</span>
+                </h1>
+                <p class="hero-lead">Madorin 把技术、营销、客服、策划和管理变成可指挥的 AI 部门。你不需要懂 AI，也不需要先招齐团队，只要说出目标，它会组织专家开会、表决方案、拆成工作流，并交付文档、脚本和执行结果。</p>
+                <div class="hero-actions">
+                    <a class="btn btn-madorin-primary btn-lg" asp-controller="Home" asp-action="Download">立即下载</a>
+                    <a class="btn btn-madorin-secondary btn-lg" href="#company">看看它能做什么</a>
+                </div>
+                <div class="hero-proof">
+                    <span>打开就能用</span>
+                    <span>AI 部门协同</span>
+                    <span>专家会议表决</span>
+                    <span>方案进入工作流</span>
+                    <span>技能持续进化</span>
+                </div>
+            </div>
+
+            <div class="hero-stage reveal-on-scroll delay-1" aria-label="Madorin 软件截图占位">
+                <div class="screen-placeholder company-screen">
+                    <div class="screen-topbar">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <strong>Madorin 公司作战室</strong>
+                    </div>
+                    <div class="screen-body company-body">
+                        <aside class="screen-sidebar">
+                            <b>AI 部门</b>
+                            <span>技术部</span>
+                            <span>市场增长部</span>
+                            <span>客服部</span>
+                            <span>运营管理部</span>
+                            <b>会议议题</b>
+                            <span>产品上线战役</span>
+                            <span>客户增长计划</span>
+                        </aside>
+                        <main class="screen-main company-main">
+                            <div class="meeting-topic">议题：如何用 30 天完成一次产品发布？</div>
+                            <div class="company-vote-grid">
+                                <div><span>技术部</span><strong>排开发、部署、监控任务</strong></div>
+                                <div><span>市场增长部</span><strong>定内容、视频、获客节奏</strong></div>
+                                <div><span>客服部</span><strong>准备问答、话术、反馈入口</strong></div>
+                                <div><span>运营管理部</span><strong>生成里程碑与执行清单</strong></div>
+                            </div>
+                            <div class="screen-response">专家会议已完成表决，正在生成《产品发布作战方案》和工作流任务。</div>
+                        </main>
+                    </div>
+                    <div class="shot-note">截图占位 · 可替换为真实界面</div>
+                </div>
             </div>
         </div>
-        <div class="col-lg-5">
-            <div class="hero-card">
-                <div class="small text-secondary">MVP 当前能力</div>
-                <div class="display-6 fw-bold mt-2">4 类资源</div>
-                <p class="text-secondary mb-0">插件 / 技能 / 智能体 / 解决方案统一接入市场、订阅和下载流程。</p>
+        <div class="scroll-cue" aria-hidden="true"><span></span></div>
+    </section>
+
+    <section class="pain-section" id="company">
+        <div class="wide-section">
+            <div class="section-kicker reveal-on-scroll">WHAT IT CHANGES</div>
+            <h2 class="display-line reveal-on-scroll">创业最累的不是没有想法，是每件事都要你亲自扛。</h2>
+            <div class="pain-grid">
+                <article class="pain-card reveal-on-scroll">
+                    <span>01</span>
+                    <h3>不用再一个人扮演所有岗位</h3>
+                    <p>服务器、开发、营销、客服、计划、复盘都可以交给不同 AI 角色协作，你只保留最关键的判断权。</p>
+                </article>
+                <article class="pain-card reveal-on-scroll delay-1">
+                    <span>02</span>
+                    <h3>重要决策不是问一个 AI 猜答案</h3>
+                    <p>技术、市场、客服、策划等专家智能体可以围绕同一议题讨论、补充、反驳、表决，最终沉淀成方案。</p>
+                </article>
+                <article class="pain-card reveal-on-scroll delay-2">
+                    <span>03</span>
+                    <h3>结果不是停在聊天记录里</h3>
+                    <p>会议结论会继续进入工作流，变成文档、脚本、待办、检查清单和下一步动作，而不是一段看完就忘的回答。</p>
+                </article>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<section class="mb-5">
-    <div class="section-title">
-        <h2>能力入口</h2>
-        <p>先搭建官网与前台入口，后续替换成正式设计。</p>
-    </div>
-    <div class="row g-3">
-        @foreach (var item in Model.Features)
-        {
-            <div class="col-md-6 col-xl-3">
-                <a class="feature-card" href="@item.Url">
-                    <div class="feature-icon">@item.Icon</div>
-                    <h3>@item.Title</h3>
-                    <p>@item.Description</p>
-                </a>
+    <section class="showcase-section">
+        <div class="showcase-grid">
+            <div class="showcase-copy reveal-on-scroll">
+                <span class="eyebrow">CEO MODE</span>
+                <h2>你像 CEO 一样定方向，Madorin 像公司一样调团队。</h2>
+                <p>输入“我要上线一个产品”“我要维护客户”“我要做一轮营销”，Madorin 会把目标拆给合适的 AI 岗位：有人调研，有人写方案，有人检查风险，有人调用工具执行。你看到的是一套推进过程，而不只是一次对话。</p>
             </div>
-        }
-    </div>
-</section>
+            <div class="team-board reveal-on-scroll delay-1">
+                <div class="team-card lead">
+                    <span>你 / CEO</span>
+                    <strong>定义目标，审批方向，选择最终方案</strong>
+                </div>
+                <div class="team-card"><span>技术部</span><strong>开发软件、维护服务器、编写脚本</strong></div>
+                <div class="team-card"><span>市场增长部</span><strong>找客户、做内容、处理视频和投放节奏</strong></div>
+                <div class="team-card"><span>客服部</span><strong>维护客户、整理问题、生成服务话术</strong></div>
+                <div class="team-card"><span>运营管理部</span><strong>拆任务、排优先级、追踪进度</strong></div>
+            </div>
+        </div>
+    </section>
 
-<section>
-    <div class="section-title">
-        <h2>官方精选</h2>
-        <a asp-controller="Market" asp-action="Assets">查看全部</a>
-    </div>
-    <partial name="~/Views/Market/_AssetCards.cshtml" model="Model.FeaturedAssets" />
-</section>
+    <section class="department-section">
+        <div class="wide-section">
+            <div class="section-kicker reveal-on-scroll">AI DEPARTMENTS</div>
+            <h2 class="display-line reveal-on-scroll">把公司里的关键岗位，变成随时待命的 AI 部门。</h2>
+            <div class="department-grid">
+                <article class="department-card reveal-on-scroll">
+                    <span>技术部</span>
+                    <h3>开发、运维、脚本和自动化</h3>
+                    <p>维护服务器、分析报错、生成部署脚本、辅助开发软件，让技术任务不再只能等“有程序员再说”。</p>
+                </article>
+                <article class="department-card reveal-on-scroll delay-1">
+                    <span>市场增长部</span>
+                    <h3>内容、视频、活动和获客</h3>
+                    <p>围绕产品定位生成营销方案、短视频脚本、发布节奏、客户增长计划和复盘报告。</p>
+                </article>
+                <article class="department-card reveal-on-scroll delay-2">
+                    <span>客服部</span>
+                    <h3>客户服务、问题归纳和话术维护</h3>
+                    <p>整理用户反馈，生成回复话术，发现常见问题，把客户维护从临时应付变成可沉淀流程。</p>
+                </article>
+                <article class="department-card reveal-on-scroll">
+                    <span>产品策划部</span>
+                    <h3>从想法到可执行方案</h3>
+                    <p>把模糊想法拆成目标、路径、资源、风险和里程碑，输出可以直接执行的计划。</p>
+                </article>
+                <article class="department-card reveal-on-scroll delay-1">
+                    <span>运营管理部</span>
+                    <h3>任务拆解、会议纪要和进度追踪</h3>
+                    <p>让复杂项目按步骤推进，自动沉淀会议结论、责任事项、待办清单和下一轮动作。</p>
+                </article>
+                <article class="department-card reveal-on-scroll delay-2">
+                    <span>能力扩展部</span>
+                    <h3>技能、插件、脚本和自我进化</h3>
+                    <p>当现有能力不够时，它可以通过技能、插件和脚本补齐新能力，逐步成长为你的专属公司系统。</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="feature-runway">
+        <div class="wide-section">
+            <div class="section-kicker reveal-on-scroll">WORK MODES</div>
+            <h2 class="display-line reveal-on-scroll">从一句目标，到一次专家会议，再到一条执行工作流。</h2>
+            <div class="mode-grid">
+                <article class="mode-card reveal-on-scroll">
+                    <span>对话模式</span>
+                    <h3>像叫助理一样随时开始。</h3>
+                    <p>写文案、整理资料、解释问题、生成初稿，打开就能用。新手不需要先学习模型、智能体或复杂配置。</p>
+                </article>
+                <article class="mode-card reveal-on-scroll delay-1">
+                    <span>会议模式</span>
+                    <h3>让专家智能体一起开会表决。</h3>
+                    <p>适合做决策、找风险、定方案。技术、市场、客服、策划从不同角度讨论，最终形成会议纪要和最终文档。</p>
+                </article>
+                <article class="mode-card reveal-on-scroll delay-2">
+                    <span>工作流模式</span>
+                    <h3>把目标拆成步骤并持续推进。</h3>
+                    <p>适合产品上线、内容发布、客户维护、软件开发。任务不止停在建议，而是一步步推进到交付结果。</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="advantage-section">
+        <div class="wide-section">
+            <div class="section-kicker reveal-on-scroll">WHY MADORIN</div>
+            <h2 class="display-line reveal-on-scroll">它不是另一个聊天窗口，而是一个会成长的个人组织。</h2>
+            <div class="advantage-grid">
+                <article class="advantage-card reveal-on-scroll">
+                    <h3>小白打开就能用</h3>
+                    <p>不要求你先懂 AI、模型、智能体或插件。你只要说清楚想完成什么，它会把复杂能力包装成普通人能操作的流程。</p>
+                </article>
+                <article class="advantage-card reveal-on-scroll">
+                    <h3>智能体就是岗位</h3>
+                    <p>每个智能体可以扮演一个岗位：技术、营销、客服、策划、管理、写作、分析。你可以像组建团队一样组织它们。</p>
+                </article>
+                <article class="advantage-card reveal-on-scroll">
+                    <h3>会议能产出最终方案</h3>
+                    <p>多个专家智能体围绕议题发言、补充、反驳、表决，最后生成会议纪要、执行清单和可交付文档。</p>
+                </article>
+                <article class="advantage-card reveal-on-scroll">
+                    <h3>技能沉淀方法论</h3>
+                    <p>反复做的事情可以沉淀成技能。你的经验、流程和提示策略不会散落在一次次聊天里。</p>
+                </article>
+                <article class="advantage-card reveal-on-scroll">
+                    <h3>插件补齐新能力</h3>
+                    <p>当它还不会做某件事，可以通过插件、脚本和外部工具扩展。它不是封闭工具，而是会进化的平台。</p>
+                </article>
+                <article class="advantage-card reveal-on-scroll">
+                    <h3>多模型兼容</h3>
+                    <p>不被单一 AI 平台锁死。不同模型可以进入同一个工作台，用户只关心任务效果，不用被复杂配置困住。</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="flow-section">
+        <div class="wide-section flow-layout">
+            <div class="flow-copy reveal-on-scroll">
+                <span class="eyebrow">FROM IDEA TO COMPANY</span>
+                <h2>你提出一个业务目标，它组织一个团队来完成。</h2>
+                <p>创业者、小团队、独立开发者、自由职业者，都可以用 Madorin 把想法拆成部门、会议、工作流和交付物。</p>
+            </div>
+            <div class="flow-steps">
+                <div class="flow-step reveal-on-scroll"><span>1</span><strong>说出业务目标</strong><p>例如：我要上线一个产品、维护客户、发布一轮营销内容。</p></div>
+                <div class="flow-step reveal-on-scroll"><span>2</span><strong>选择 AI 部门</strong><p>技术、营销、客服、策划、管理等智能体参与任务。</p></div>
+                <div class="flow-step reveal-on-scroll"><span>3</span><strong>开会并形成方案</strong><p>多个专家讨论、表决、补充风险，输出最终执行文档。</p></div>
+                <div class="flow-step reveal-on-scroll"><span>4</span><strong>进入工作流交付</strong><p>调用插件、脚本、文件和外部工具，把方案推进成实际结果。</p></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="final-cta">
+        <div class="wide-section final-cta-inner reveal-on-scroll">
+            <div>
+                <span class="eyebrow">READY</span>
+                <h2>从一个人开始，搭建你的 AI 公司。</h2>
+                <p>下载 Madorin，把技术、市场、客服、策划和管理团队放进同一个软件里。</p>
+            </div>
+            <a class="btn btn-madorin-primary btn-lg" asp-controller="Home" asp-action="Download">立即下载</a>
+        </div>
+    </section>
+</div>

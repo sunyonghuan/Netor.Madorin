@@ -4,23 +4,23 @@ for details on configuring this project to bundle and minify static web assets. 
 a.navbar-brand {
   white-space: normal;
   text-align: center;
-  word-break: break-all;
+  word-break: normal;
 }
 
 a {
-  color: #0077cc;
+  color: inherit;
 }
 
 .btn-primary {
   color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
+  background-color: #12b8c8;
+  border-color: #12b8c8;
 }
 
 .nav-pills .nav-link.active, .nav-pills .show > .nav-link {
   color: #fff;
-  background-color: #1b6ec2;
-  border-color: #1861ac;
+  background-color: #12b8c8;
+  border-color: #12b8c8;
 }
 
 .border-top {

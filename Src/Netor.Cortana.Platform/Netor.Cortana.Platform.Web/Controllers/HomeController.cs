@@ -29,10 +29,10 @@ public class HomeController(PlatformDbContext dbContext) : Controller
             FeaturedAssets = featuredAssets,
             Features =
             [
-                new HomeFeatureItem("插件市场", "扩展本地能力、系统能力和第三方服务。", "插件", Url.Action("Assets", "Market", new { type = AssetType.Plugin }) ?? "/market/assets"),
-                new HomeFeatureItem("技能中心", "复用提示词、流程和场景策略。", "技能", Url.Action("Assets", "Market", new { type = AssetType.Skill }) ?? "/market/assets"),
-                new HomeFeatureItem("智能体", "封装角色、工具和长期任务流程。", "智能体", Url.Action("Assets", "Market", new { type = AssetType.Agent }) ?? "/market/assets"),
-                new HomeFeatureItem("解决方案", "组合插件、技能和智能体的一站式能力包。", "方案", Url.Action("Assets", "Market", new { type = AssetType.Solution }) ?? "/market/assets")
+                new HomeFeatureItem("插件", "把文件、窗口、Office、运维和外部系统接进 AI。", "PL", Url.Action("Assets", "Market", new { type = AssetType.Plugin }) ?? "/market/assets"),
+                new HomeFeatureItem("技能", "沉淀提示词、流程和工作策略，用时即取。", "SK", Url.Action("Assets", "Market", new { type = AssetType.Skill }) ?? "/market/assets"),
+                new HomeFeatureItem("智能体", "让不同角色分工协作，不再让一个模型硬撑全场。", "AG", Url.Action("Assets", "Market", new { type = AssetType.Agent }) ?? "/market/assets"),
+                new HomeFeatureItem("解决方案", "把插件、技能和智能体打包成可复用的完整工作流。", "SO", Url.Action("Assets", "Market", new { type = AssetType.Solution }) ?? "/market/assets")
             ]
         };
 

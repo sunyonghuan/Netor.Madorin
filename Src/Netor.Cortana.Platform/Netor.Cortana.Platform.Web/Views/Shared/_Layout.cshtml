@@ -3,17 +3,20 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Cortana 能力市场</title>
+    <title>@ViewData["Title"] - Madorin</title>
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/Netor.Cortana.Platform.Web.styles.css" asp-append-version="true" />
 </head>
-<body>
+<body class="@ViewData["BodyClass"]">
     <header>
-        <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top cortana-nav">
-            <div class="container">
-                <a class="navbar-brand fw-bold" asp-area="" asp-controller="Home" asp-action="Index">Cortana Market</a>
+        <nav class="navbar navbar-expand-lg sticky-top madorin-nav">
+            <div class="container-fluid nav-frame">
+                <a class="navbar-brand brand-mark" asp-area="" asp-controller="Home" asp-action="Index">
+                    <span class="brand-glyph">M</span>
+                    <span>Madorin</span>
+                </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
                         aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
@@ -24,29 +27,28 @@
                             <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Index">首页</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Market" asp-action="Index">市场</a>
+                            <a class="nav-link" asp-area="" asp-controller="Market" asp-action="Index">资源中心</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" asp-area="" asp-controller="Market" asp-action="Assets">资源</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Download">客户端下载</a>
+                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Download">下载</a>
                         </li>
                     </ul>
                     <div class="d-flex gap-2 align-items-center">
                         @if (User.Identity?.IsAuthenticated == true)
                         {
-                            <a class="btn btn-light btn-sm" asp-controller="UserCenter" asp-action="Index">@User.Identity.Name</a>
+                            <a class="btn btn-nav-secondary btn-sm" asp-controller="UserCenter" asp-action="Index">@User.Identity.Name</a>
                             <form asp-controller="Account" asp-action="Logout" method="post">
                                 @Html.AntiForgeryToken()
-                                <button class="btn btn-outline-secondary btn-sm" type="submit">退出</button>
+                                <button class="btn btn-nav-ghost btn-sm" type="submit">退出</button>
                             </form>
                         }
                         else
                         {
-                            <a class="btn btn-outline-primary btn-sm" asp-controller="Account" asp-action="Login">登录</a>
-                            <a class="btn btn-primary btn-sm" asp-controller="Account" asp-action="Register">注册</a>
-                            <a class="btn btn-light btn-sm" asp-controller="UserCenter" asp-action="Index">个人中心</a>
+                            <a class="btn btn-nav-ghost btn-sm" asp-controller="Account" asp-action="Login">登录</a>
+                            <a class="btn btn-nav-primary btn-sm" asp-controller="Account" asp-action="Register">注册</a>
                         }
                     </div>
                 </div>
@@ -59,16 +61,16 @@
             <div class="alert alert-info mb-0">@toast</div>
         </div>
     }
-    <div class="container py-4">
+    <div class="page-shell">
         <main role="main" class="pb-3">
             @RenderBody()
         </main>
     </div>
 
-    <footer class="border-top footer text-muted py-4">
-        <div class="container d-flex flex-wrap justify-content-between gap-2">
-            <span>&copy; 2026 - Cortana 能力市场</span>
-            <span>插件 · 技能 · 智能体 · 解决方案</span>
+    <footer class="site-footer py-4">
+        <div class="container-fluid nav-frame d-flex flex-wrap justify-content-between gap-2">
+            <span>&copy; 2026 Madorin</span>
+            <span>本地优先 · 模型自由 · 插件扩展</span>
         </div>
     </footer>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>

@@ -5,8 +5,8 @@
 
 <div class="auth-shell">
     <div class="auth-card">
-        <span class="eyebrow">Account</span>
-        <h1>登录 Cortana 市场</h1>
+        <span class="eyebrow">ACCOUNT</span>
+        <h1>登录 Madorin</h1>
         <form method="post">
             @Html.AntiForgeryToken()
             <input type="hidden" asp-for="ReturnUrl" />
@@ -20,9 +20,9 @@
                 <input asp-for="Password" class="form-control" />
                 <span asp-validation-for="Password" class="text-danger small"></span>
             </div>
-            <button class="btn btn-primary w-100" type="submit">登录</button>
+            <button class="btn btn-madorin-primary w-100" type="submit">登录</button>
         </form>
-        <p class="text-secondary mt-3 mb-0">还没有账号？<a asp-action="Register">立即注册</a></p>
+        <p class="muted-line mt-3 mb-0">还没有账号？<a asp-action="Register">立即注册</a></p>
     </div>
 </div>
 

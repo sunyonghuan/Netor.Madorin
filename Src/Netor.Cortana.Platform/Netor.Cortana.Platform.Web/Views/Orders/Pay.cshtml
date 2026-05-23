@@ -1,12 +1,12 @@
 @model Netor.Cortana.Platform.Web.Models.Orders.OrderPayViewModel
 @{
-    ViewData["Title"] = "模拟支付";
+    ViewData["Title"] = "支付确认";
 }
 
 <div class="content-panel mx-auto" style="max-width: 720px;">
-    <span class="eyebrow">Payment</span>
-    <h1>模拟支付</h1>
-    <p class="text-secondary">第一阶段使用模拟支付，后续再接入真实支付渠道。</p>
+    <span class="eyebrow">PAYMENT</span>
+    <h1>支付确认</h1>
+    <p class="muted-line">确认订单后即可完成资源订阅。</p>
     <dl class="row mt-4">
         <dt class="col-sm-3">订单号</dt><dd class="col-sm-9">@Model.OrderNo</dd>
         <dt class="col-sm-3">订单标题</dt><dd class="col-sm-9">@Model.Title</dd>
@@ -14,6 +14,6 @@
     </dl>
     <form method="post">
         @Html.AntiForgeryToken()
-        <button class="btn btn-primary" type="submit">模拟支付成功</button>
+        <button class="btn btn-madorin-primary" type="submit">确认支付</button>
     </form>
 </div>
