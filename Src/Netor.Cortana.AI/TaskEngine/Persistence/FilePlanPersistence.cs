@@ -89,6 +89,9 @@ public sealed class FilePlanPersistence : IPlanPersistence
         return runId;
     }
 
+    /// <inheritdoc/>
+    public IReadOnlyList<string> ListTaskIds() => _resolver.ListTaskIds();
+
     // ══════════════════════════════════════════════════════════════════════
     // Plan
     // ══════════════════════════════════════════════════════════════════════

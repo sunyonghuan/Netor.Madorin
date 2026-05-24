@@ -60,14 +60,77 @@ public sealed class TaskExecutionEngine : IHostedService
 
     /// <summary>
     /// 应用启动时调用。扫描持久化目录中未完成的任务，尝试恢复或标记为失败。
+    /// P4-7 收尾：实现断点恢复逻辑。
     /// </summary>
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("P4 任务执行引擎已启动（MaxParallel={MaxParallel}, MaxLlm={MaxLlm}）",
             _options.MaxParallelSteps, _options.MaxLlmConcurrency);
 
-        // TODO [P4-2]: 实现断点恢复 — 扫描 checkpoint.json 并恢复中断的任务
-        return Task.CompletedTask;
+        await RecoverInterruptedTasksAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 扫描所有任务的 checkpoint.json，找到中断的任务并标记为失败。
+    /// 当前策略：中断的任务不自动恢复执行（避免用户未在场时意外消耗资源），
+    /// 而是标记为 Paused 状态，等待用户手动恢复。
+    /// </summary>
+    private async Task RecoverInterruptedTasksAsync(CancellationToken ct)
+    {
+        try
+        {
+            var taskIds = _persistence.ListTaskIds();
+            var recoveredCount = 0;
+
+            foreach (var taskId in taskIds)
+            {
+                if (ct.IsCancellationRequested) break;
+
+                var checkpoint = await _persistence.LoadCheckpointAsync(taskId, ct).ConfigureAwait(false);
+                if (checkpoint is null) continue;
+
+                // 加载计划检查是否在执行中被中断
+                var plan = await _persistence.LoadPlanAsync(taskId, ct).ConfigureAwait(false);
+                if (plan is null) continue;
+
+                // 只恢复 Executing 状态的计划（Running/Retrying 步骤说明是被中断的）
+                if (plan.Status is not PlanStatus.Executing) continue;
+
+                // 将中断的执行步骤标记为 Pending（下次恢复时重跑）
+                var hasInterruptedSteps = false;
+                foreach (var step in plan.Steps)
+                {
+                    if (step.Status is PlanStepStatus.Running or PlanStepStatus.Retrying)
+                    {
+                        step.Status = PlanStepStatus.Pending;
+                        step.RetryCount = 0; // 重置重试计数
+                        hasInterruptedSteps = true;
+                    }
+                }
+
+                if (!hasInterruptedSteps) continue;
+
+                // 标记计划为暂停（等待用户手动恢复）
+                plan.Status = PlanStatus.Paused;
+                plan.LastModifiedAt = DateTimeOffset.UtcNow;
+                await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
+
+                recoveredCount++;
+                _logger.LogInformation(
+                    "P4 断点恢复：任务 {TaskId} 已标记为暂停（中断于 {Phase} 阶段，{SavedAt}）",
+                    taskId, checkpoint.CurrentPhase, checkpoint.SavedAt);
+            }
+
+            if (recoveredCount > 0)
+            {
+                _logger.LogInformation("P4 断点恢复完成：共处理 {Count} 个中断任务", recoveredCount);
+            }
+        }
+        catch (Exception ex)
+        {
+            // 恢复失败不应阻止引擎启动
+            _logger.LogError(ex, "P4 断点恢复扫描失败（不影响引擎正常启动）");
+        }
     }
 
     /// <summary>

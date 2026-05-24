@@ -59,4 +59,7 @@ public interface IPlanPersistence
     /// 返回 null 表示该任务无活跃 run。
     /// </summary>
     string? GetActiveRunId(string taskId);
+
+    /// <summary>列出所有任务 ID（用于启动时断点恢复扫描）。</summary>
+    IReadOnlyList<string> ListTaskIds();
 }
