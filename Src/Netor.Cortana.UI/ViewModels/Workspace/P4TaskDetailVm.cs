@@ -7,6 +7,8 @@ using Avalonia.Threading;
 
 using Microsoft.Extensions.DependencyInjection;
 
+using Netor.Cortana.AI.TaskEngine;
+using Netor.Cortana.AI.TaskEngine.Models;
 using Netor.Cortana.Entitys;
 using Netor.EventHub;
 
@@ -157,20 +159,117 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
 
     /// <summary>
     /// 异步加载任务详情（兼容 WorkspaceTabVm 切换选中时调用）。
-    /// 当前简单实现：仅切换 taskId 并清空旧状态；后续 P4 阶段 3 接入真正的持久化加载。
+    /// 从持久化层恢复完整任务状态（标题/状态/计划步骤/验证结果）。
     /// </summary>
-    public Task LoadAsync(string? taskId)
+    public async Task LoadAsync(string? taskId)
     {
         if (string.IsNullOrEmpty(taskId))
         {
             Clear();
-            return Task.CompletedTask;
+            return;
         }
 
-        if (taskId == _taskId) return Task.CompletedTask;
+        if (taskId == _taskId) return;
 
-        LoadTask(taskId, $"任务 {taskId[..Math.Min(8, taskId.Length)]}…");
-        return Task.CompletedTask;
+        Clear();
+        _taskId = taskId;
+
+        // 从 TaskExecutionEngine 加载完整详情
+        var engine = App.Services.GetRequiredService<TaskExecutionEngine>();
+        var detail = await engine.GetTaskDetailAsync(taskId, CancellationToken.None).ConfigureAwait(false);
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            if (detail is null)
+            {
+                // 未找到任务 → 显示占位
+                TaskTitle = $"任务 {taskId[..Math.Min(8, taskId.Length)]}…";
+                StatusText = "未知";
+                StatusColor = "#858585";
+                return;
+            }
+
+            TaskTitle = detail.Title;
+            _startedAt = detail.CreatedAt;
+
+            // 状态映射
+            switch (detail.Status)
+            {
+                case "completed":
+                    StatusText = "已完成";
+                    StatusColor = "#73c991";
+                    break;
+                case "failed":
+                    StatusText = "失败";
+                    StatusColor = "#f48771";
+                    break;
+                case "paused":
+                    StatusText = "已暂停";
+                    StatusColor = "#e0c074";
+                    break;
+                case "running":
+                    StatusText = "运行中";
+                    StatusColor = "#007acc";
+                    break;
+                case "cancelled":
+                    StatusText = "已取消";
+                    StatusColor = "#858585";
+                    break;
+                default:
+                    StatusText = detail.Status;
+                    StatusColor = "#858585";
+                    break;
+            }
+
+            // 恢复计划步骤
+            if (detail.Plan?.Steps is { Count: > 0 })
+            {
+                PlanSteps.Clear();
+                foreach (var step in detail.Plan.Steps.OrderBy(s => s.Sequence))
+                {
+                    var (icon, color) = step.Status switch
+                    {
+                        PlanStepStatus.Completed => ("✅", "#73c991"),
+                        PlanStepStatus.Failed => ("❌", "#f48771"),
+                        PlanStepStatus.Running => ("🔄", "#007acc"),
+                        PlanStepStatus.Retrying => ("🔄", "#e0c074"),
+                        PlanStepStatus.Skipped => ("⏭", "#858585"),
+                        _ => ("⏳", "#858585"),
+                    };
+
+                    PlanSteps.Add(new PlanStepOverviewVm
+                    {
+                        Sequence = step.Sequence,
+                        Title = step.Title,
+                        StatusIcon = icon,
+                        StatusColor = color,
+                    });
+                }
+
+                IsPlanOverviewExpanded = true;
+            }
+
+            // 恢复验证结果
+            if (detail.Validation is not null)
+            {
+                ValidationScore = detail.Validation.Score;
+                ValidationPassed = detail.Validation.Passed;
+                FinalReport = detail.Validation.Summary;
+                OnPropertyChanged(nameof(ValidationScore));
+                OnPropertyChanged(nameof(ValidationPassed));
+                OnPropertyChanged(nameof(FinalReport));
+            }
+
+            // 恢复耗时
+            UpdateDuration();
+
+            // 通知 UI 状态属性变化
+            OnPropertyChanged(nameof(IsCompleted));
+            OnPropertyChanged(nameof(IsRunning));
+            OnPropertyChanged(nameof(IsPaused));
+            OnPropertyChanged(nameof(IsFailed));
+            OnPropertyChanged(nameof(IsCancelled));
+        });
     }
 
     /// <summary>清空所有状态（切换任务时）。</summary>
