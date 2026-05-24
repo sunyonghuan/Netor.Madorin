@@ -7,7 +7,7 @@ namespace Netor.Cortana.AI.Providers;
 /// <summary>
 /// 默认 <see cref="IChatCompactionClientResolver"/> 实现。
 /// 把 <see cref="ChatHistoryDataProvider.ResolveCompactionClient"/> 的逻辑搬到公共组件，
-/// Chat 路径与 Workflow 路径（WorkflowTitleGenerator）共享同一解析链路。
+/// Chat 路径与 TaskEngine 路径（SubAgentRunner）共享同一解析链路。
 /// </summary>
 public sealed class ChatCompactionClientResolver(IServiceProvider services) : IChatCompactionClientResolver
 {

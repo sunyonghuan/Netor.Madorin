@@ -16,8 +16,8 @@ namespace Netor.Cortana.UI.ViewModels.Workspace;
 /// 职责：
 /// - 维护输入框状态（InitialInput / SelectedAgents 多选 / HighRiskTools / Attachments）
 /// - 维护任务运行状态（IsRunning / CurrentTaskId）切换发送/停止按钮 + 走马灯动画显示
-/// - 调用 <see cref="IWorkflowExecutor.StartTaskAsync"/> 启动任务（SubMode 固定 "groupchat"）
-/// - 调用 <see cref="IWorkflowExecutor.CancelTaskAsync"/> 停止运行中任务
+/// - 调用 <see cref="TaskExecutionEngine.StartTaskAsync"/> 启动任务（SubMode 固定 "groupchat"）
+/// - 调用 <see cref="TaskExecutionEngine.CancelTaskAsync"/> 停止运行中任务
 ///
 /// 与 WorkflowInputVm 的差异（条款 11 + 群聊澄清 A）：
 /// - 没有 SelectedManager / SelectedProvider / SelectedModel（用户澄清 A：群聊不显示厂商/模型，

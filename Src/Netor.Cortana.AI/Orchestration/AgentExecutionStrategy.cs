@@ -3,7 +3,7 @@ namespace Netor.Cortana.AI.Orchestration;
 /// <summary>
 /// 子任务执行策略：是顺序串行还是并发执行。
 /// 阶段 2A 默认 Sequential；阶段 3A+ HandoffChat 始终 Sequential；
-/// 阶段 3B+ Workflow 模式（GroupChat/Magentic）由 IWorkflowExecutor 决定，不走此枚举。
+/// 阶段 3B+ Workflow 模式由 TaskExecutionEngine 决定，不走此枚举。
 /// </summary>
 public enum AgentExecutionStrategy
 {

@@ -6,7 +6,7 @@ namespace Netor.Cortana.AI.Providers;
 /// <summary>
 /// 解析"压缩 / 标题生成 / 摘要等次要 LLM 用途"使用的 <see cref="IChatClient"/>。
 /// 阶段 2B：从 ChatHistoryDataProvider.ResolveCompactionClient 抽出来的公共组件。
-/// Chat 路径（ChatHistoryDataProvider）和 Workflow 路径（WorkflowTitleGenerator）都依赖本接口。
+/// Chat 路径（ChatHistoryDataProvider）和 TaskEngine 路径（SubAgentRunner）都依赖本接口。
 ///
 /// 解析顺序：
 /// 1. 若 SystemSettings 配置了 Compaction.ModelId，复用 <see cref="ModelPurposeResolver"/> 缓存的 IChatClient；

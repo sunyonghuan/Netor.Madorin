@@ -90,16 +90,27 @@ public partial class TaskListPanel : UserControl
     // ──── 顶部操作 ────
 
     /// <summary>
-    /// "+ 新建任务" 按钮。
-    /// TODO P4: NewTaskDialog 已随 Workflow 目录删除，需用 P4 新建任务流程替代。
+    /// "+ 新建任务" 按钮。P4：聚焦到 WorkflowDetailView 的输入框（新建任务通过输入框发起）。
     /// </summary>
     private void OnNewTaskClick(object? sender, RoutedEventArgs e)
     {
         _logger.LogInformation("[TaskListPanel] OnNewTaskClick: WorkspaceId={WorkspaceId}, SubModeFilter={SubModes}",
             _vm.List.WorkspaceId, _vm.List.SubModeFilter is null ? "(null)" : string.Join(",", _vm.List.SubModeFilter));
 
-        // TODO P4: 原 NewTaskDialog 已删除，需接入 TaskExecutionEngine.StartTaskAsync 新流程
-        _logger.LogWarning("[TaskListPanel] NewTaskDialog 尚未迁移至 P4，新建任务暂不可用");
+        // P4: 新建任务通过右侧 WorkflowDetailView 输入框发起，这里聚焦到输入框
+        // 查找当前视觉树中的 WorkflowDetailView 并聚焦其 InputBox
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel is Window window)
+        {
+            var inputBox = window.FindControl<TextBox>("InputBox");
+            if (inputBox is not null)
+            {
+                inputBox.Focus();
+                return;
+            }
+        }
+
+        _logger.LogDebug("[TaskListPanel] 未找到 InputBox，可能尚未加载");
     }
 
     /// <summary>

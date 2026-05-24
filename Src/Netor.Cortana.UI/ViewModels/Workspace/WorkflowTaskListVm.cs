@@ -13,21 +13,19 @@ using Netor.EventHub;
 namespace Netor.Cortana.UI.ViewModels.Workspace;
 
 /// <summary>
-/// 阶段 3B：Workflow 任务列表的 ViewModel。
+/// P4 重写：任务列表 ViewModel。
 ///
-/// 订阅以下 5 个 workflow 事件，转换为 <see cref="Items"/>（ObservableCollection）的增量更新，
-/// 保证 View 层数据驱动渲染、单点刷新（满足 [06] §5.8.7 验收）：
-///
-/// - <see cref="Events.OnWorkflowTaskStarted"/>          → Items.Insert(0, item)
-/// - <see cref="Events.OnWorkflowTaskCompleted"/>        → 局部更新 item.Status
-/// - <see cref="Events.OnWorkflowTaskFailed"/>           → 局部更新 item.Status
-/// - <see cref="Events.OnWorkflowTaskTitleUpdated"/>     → 局部更新 item.Title（不重排列表）
-/// - <see cref="Events.OnWorkflowStepCompleted"/>        → 更新 LastActiveTimestamp
+/// 数据源：<see cref="TaskExecutionEngine.ListTasksAsync"/>（文件系统持久化）。
+/// 增量更新订阅 P4 事件：
+/// - <see cref="Events.OnTaskEngineCompleted"/>  → 局部更新 item.Status
+/// - <see cref="Events.OnTaskEngineFailed"/>     → 局部更新 item.Status
+/// - <see cref="Events.OnTaskEnginePaused"/>     → 局部更新 item.Status
+/// - <see cref="Events.OnTaskEngineResumed"/>    → 局部更新 item.Status
+/// - <see cref="Events.OnTaskStepCompleted"/>    → 更新 LastActiveTimestamp
+/// - <see cref="Events.OnTaskPhaseStarted"/>     → 首次出现时 Insert 新条目
 ///
 /// 订阅永不取消（与 WorkspaceExplorer 模式一致）；Tab 切走后仅 IsVisible=false，
 /// 但 VM 仍正常接收事件，下次切回时 UI 已最新。
-///
-/// 详见：docs/未来版本策划/多智能体编排模式策划/06-工作模式独立模块设计.md §5.8.4。
 /// </summary>
 public sealed class WorkflowTaskListVm : INotifyPropertyChanged
 {
@@ -174,31 +172,34 @@ public sealed class WorkflowTaskListVm : INotifyPropertyChanged
     // ──── 列表加载与刷新 ────
 
     /// <summary>
-    /// 重新从数据库加载列表。决策 8-A：不自动选中历史任务；若调用方明确请求 taskId，则保留该选中项。
+    /// P4 重写：从 TaskExecutionEngine.ListTasksAsync 加载任务列表。
+    /// 决策 8-A：不自动选中历史任务；若调用方明确请求 taskId，则保留该选中项。
     /// </summary>
     public async Task LoadAsync()
     {
         IsLoading = true;
         try
         {
-            // P4 过渡：直接使用 WorkflowTaskRepository.ListByWorkspace 查询
-            var repo = App.Services.GetRequiredService<Netor.Cortana.Entitys.Services.WorkflowTaskRepository>();
-            var rows = repo.ListByWorkspace(
-                _workspaceId,
-                includeArchived: false,
-                statuses: null,
-                limit: 30,
-                offset: 0,
-                keyword: string.IsNullOrEmpty(_keyword) ? null : _keyword,
-                subModes: _subModeFilter);
+            var allTasks = await _engine.ListTasksAsync(CancellationToken.None).ConfigureAwait(false);
+
+            // 客户端过滤（keyword）
+            var filtered = allTasks.AsEnumerable();
+            if (!string.IsNullOrEmpty(_keyword))
+            {
+                filtered = filtered.Where(t =>
+                    t.Title is not null &&
+                    t.Title.Contains(_keyword, StringComparison.OrdinalIgnoreCase));
+            }
+
+            var taskList = filtered.Take(30).ToList();
 
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 var selectedTaskId = _pendingSelectedTaskId ?? _selectedItem?.TaskId;
                 Items.Clear();
-                foreach (var entity in rows)
+                foreach (var info in taskList)
                 {
-                    Items.Add(new WorkflowTaskItemVm(entity));
+                    Items.Add(new WorkflowTaskItemVm(info));
                 }
 
                 var selectedItem = string.IsNullOrEmpty(selectedTaskId)
@@ -215,74 +216,72 @@ public sealed class WorkflowTaskListVm : INotifyPropertyChanged
         }
     }
 
-    // ──── 事件订阅 ────
+    // ──── P4 事件订阅 ────
 
     private void SubscribeEvents()
     {
-        _subscriber.Subscribe<WorkflowTaskStartedArgs>(Events.OnWorkflowTaskStarted, (_, args) =>
+        // P4: 任务阶段开始（首次出现 requirements 阶段 = 新任务开始）→ Insert 列表项
+        _subscriber.Subscribe<TaskPhaseEventArgs>(Events.OnTaskPhaseStarted, (_, args) =>
         {
-            Dispatcher.UIThread.Post(() => OnTaskStarted(args));
+            if (args.Phase != "requirements") return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() => OnTaskStarted(args.TaskId));
             return Task.FromResult(false);
         });
 
-        _subscriber.Subscribe<WorkflowTaskCompletedArgs>(Events.OnWorkflowTaskCompleted, (_, args) =>
+        // P4: 任务完成
+        _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineCompleted, (_, args) =>
         {
             Dispatcher.UIThread.Post(() => OnTaskCompletedOrFailed(args.TaskId, TaskItemStatus.Completed));
             return Task.FromResult(false);
         });
 
-        _subscriber.Subscribe<WorkflowTaskFailedArgs>(Events.OnWorkflowTaskFailed, (_, args) =>
+        // P4: 任务失败（含取消）
+        _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineFailed, (_, args) =>
         {
-            var status = args.FailureReason == "cancelled"
+            var status = args.Reason == "cancelled"
                 ? TaskItemStatus.Cancelled
                 : TaskItemStatus.Failed;
             Dispatcher.UIThread.Post(() => OnTaskCompletedOrFailed(args.TaskId, status));
             return Task.FromResult(false);
         });
 
-        _subscriber.Subscribe<WorkflowTaskTitleUpdatedArgs>(Events.OnWorkflowTaskTitleUpdated, (_, args) =>
+        // P4: 任务暂停
+        _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEnginePaused, (_, args) =>
         {
-            Dispatcher.UIThread.Post(() => OnTitleUpdated(args));
+            Dispatcher.UIThread.Post(() => OnTaskStatusChanged(args.TaskId, TaskItemStatus.Paused));
             return Task.FromResult(false);
         });
 
-        _subscriber.Subscribe<WorkflowStepCompletedArgs>(Events.OnWorkflowStepCompleted, (_, args) =>
+        // P4: 任务恢复
+        _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineResumed, (_, args) =>
         {
-            Dispatcher.UIThread.Post(() => OnStepCompleted(args));
+            Dispatcher.UIThread.Post(() => OnTaskStatusChanged(args.TaskId, TaskItemStatus.Running));
+            return Task.FromResult(false);
+        });
+
+        // P4: 步骤完成 → 更新 LastActiveTimestamp
+        _subscriber.Subscribe<TaskStepEventArgs>(Events.OnTaskStepCompleted, (_, args) =>
+        {
+            Dispatcher.UIThread.Post(() => OnStepCompleted(args.TaskId));
             return Task.FromResult(false);
         });
     }
 
-    private void OnTaskStarted(WorkflowTaskStartedArgs args)
+    private void OnTaskStarted(string taskId)
     {
-        // 当前工作区过滤
-        if (!IsCurrentWorkspace(args.WorkspaceId)) return;
-        // P1 群聊真实化：SubMode 过滤（防止其他 SubMode 任务串到当前 tab 的列表）
-        if (!IsMatchingSubMode(args.SubMode)) return;
         // 已存在则跳过（防重）
-        if (Items.Any(x => x.TaskId == args.TaskId)) return;
+        if (Items.Any(x => x.TaskId == taskId)) return;
 
-        var entity = new OrchestrationTaskEntity
+        var item = new WorkflowTaskItemVm(new AI.TaskEngine.Models.TaskStatusInfo
         {
-            Id = args.TaskId,
-            Title = args.Title ?? string.Empty,
-            IsTitleAutoGenerated = string.IsNullOrEmpty(args.Title),
-            Mode = args.Mode,
-            SubMode = args.SubMode,
-            Status = TaskItemStatus.Running.ToDbValue(),
-            StartedAt = args.StartedAt,
-            LastActiveTimestamp = args.StartedAt,
-            WorkspaceId = args.WorkspaceId,
-            TraceId = args.TraceId,
-            SourceSessionId = args.SourceSessionId,
-            ManagerAgentId = args.ManagerAgentId,
-            ManagerAgentName = args.ManagerAgentName,
-            InitialInput = args.InitialInput,
-        };
-        var item = new WorkflowTaskItemVm(entity);
+            TaskId = taskId,
+            Status = "running",
+            Title = null,
+            StartedAt = DateTimeOffset.UtcNow,
+        });
         Items.Insert(0, item);
 
-        if (string.Equals(_pendingSelectedTaskId, args.TaskId, StringComparison.Ordinal))
+        if (string.Equals(_pendingSelectedTaskId, taskId, StringComparison.Ordinal))
         {
             _pendingSelectedTaskId = null;
             SelectedItem = item;
@@ -297,36 +296,18 @@ public sealed class WorkflowTaskListVm : INotifyPropertyChanged
         item.LastActiveTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 
-    private void OnTitleUpdated(WorkflowTaskTitleUpdatedArgs args)
+    private void OnTaskStatusChanged(string taskId, TaskItemStatus status)
     {
-        var item = Items.FirstOrDefault(x => x.TaskId == args.TaskId);
+        var item = Items.FirstOrDefault(x => x.TaskId == taskId);
         if (item is null) return;
-        // 决策 [06] §5.8.4：仅 1 处 TextBlock 局部刷新，不重排列表
-        item.Title = args.NewTitle;
-        item.IsTitleAutoGenerated = args.IsAutoGenerated;
+        item.Status = status;
     }
 
-    private void OnStepCompleted(WorkflowStepCompletedArgs args)
+    private void OnStepCompleted(string taskId)
     {
-        var item = Items.FirstOrDefault(x => x.TaskId == args.TaskId);
+        var item = Items.FirstOrDefault(x => x.TaskId == taskId);
         if (item is null) return;
         item.LastActiveTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-    }
-
-    private bool IsCurrentWorkspace(string workspaceId)
-        => string.IsNullOrEmpty(_workspaceId) || _workspaceId == workspaceId;
-
-    /// <summary>
-    /// P1 群聊真实化：检查事件携带的 SubMode 是否在当前过滤集合中（收尾决策 DT-9）。
-    /// _subModeFilter null 或空 = 不过滤（兼容启动时未指定 SubMode 的场景）。
-    /// 注：仅 <see cref="OnTaskStarted"/> 需要校验（决定是否往列表 Insert）；
-    /// 其他事件（Completed/Failed/TitleUpdated/StepCompleted）都先 FirstOrDefault 查 Items，
-    /// 任务不在列表内自然 no-op，无需重复校验 SubMode。
-    /// </summary>
-    private bool IsMatchingSubMode(string subMode)
-    {
-        if (_subModeFilter is null || _subModeFilter.Count == 0) return true;
-        return _subModeFilter.Contains(subMode, StringComparer.OrdinalIgnoreCase);
     }
 
     // ──── INotifyPropertyChanged ────

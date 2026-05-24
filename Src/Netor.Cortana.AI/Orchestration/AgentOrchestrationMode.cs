@@ -1,7 +1,7 @@
 namespace Netor.Cortana.AI.Orchestration;
 
 /// <summary>
-/// Chat 模式下的编排模式（仅服务 Chat 范畴；Workflow 模式由 IWorkflowExecutor 承接）。
+/// Chat 模式下的编排模式（仅服务 Chat 范畴；Workflow 模式由 TaskExecutionEngine 承接）。
 /// 详见 docs/未来版本策划/多智能体编排模式策划/03-编排模式与边界约束.md §1。
 /// </summary>
 public enum AgentOrchestrationMode

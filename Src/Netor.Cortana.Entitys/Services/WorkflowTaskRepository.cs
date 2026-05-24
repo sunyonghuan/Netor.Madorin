@@ -283,7 +283,7 @@ namespace Netor.Cortana.Entitys.Services
         /// <summary>
         /// 更新任务为 paused 状态（HITL 暂停，阶段 5B 新增）。
         /// 仅修改 Status + LastActiveTimestamp + UpdatedTimestamp。
-        /// HITL 上下文（RequestId / RequestPayloadJson）存在 <c>WorkflowExecutor._pausedTasks</c> 内存字典中，
+        /// HITL 上下文（RequestId / RequestPayloadJson）存在运行时内存中，
         /// 不持久化到表（避免引入 schema migration；UI 通过实时 event 获取详情）。
         /// </summary>
         public void UpdatePaused(string id, long pausedAt)

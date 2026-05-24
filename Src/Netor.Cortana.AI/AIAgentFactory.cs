@@ -87,7 +87,7 @@ public sealed class AIAgentFactory(
     /// <item><b>不</b>写主对话的 <c>_lastInputTokens</c> / <c>_maxContextTokens</c>（避免子 agent 用量覆盖主 Chat 顶栏进度条）；</item>
     /// <item>仍然触发 <see cref="TokenUsageChanged"/> 让 UI 知道 token 在动（决策 6-1-C：复用现有事件，不引入新事件类型）；</item>
     /// <item>tracker 本身仍提供 <see cref="TokenTrackingChatClient.LastInputTokens"/> / <see cref="TokenTrackingChatClient.TotalOutputTokens"/>，
-    /// 供 <see cref="Workflow.WorkflowExecutor"/> 在 step 完成时取数。</item>
+    /// 供 <see cref="TaskEngine.TaskExecutionEngine"/> 在 step 完成时取数。</item>
     /// </list>
     /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #2。
     /// </summary>
@@ -583,7 +583,7 @@ public sealed class AIAgentFactory(
     /// 阶段 6 Phase 1：构建子智能体（轻量），并通过 out 参数回传其 <see cref="TokenTrackingChatClient"/>，
     /// 让调用方（如 Workflow）在 step 完成时取 token 数据持久化到 OrchestrationStep。
     /// 阶段 6 Phase 2 新增：可选 taskBlacklist 参数，按 "pluginId:toolName" 在工具组装阶段过滤掉本次任务屏蔽的高风险工具。
-    /// P2-2 新增：当 <paramref name="isManager"/> 为 true 时注入动态子智能体能力（DynamicAgentToolsProvider + create_subagent 工具）。
+    /// P2-2 新增：当 <paramref name="isManager"/> 为 true 时注入动态子智能体能力（P4 已迁移到 TaskEngine.OrchestratorAgent）。
     /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #1 #2 +
     /// docs/未来版本策划/聊天式任务发起与动态智能体/01-P2方案设计.md §2-B/C。
     /// </summary>

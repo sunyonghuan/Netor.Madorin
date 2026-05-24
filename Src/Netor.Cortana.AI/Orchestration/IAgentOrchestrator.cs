@@ -4,7 +4,7 @@ namespace Netor.Cortana.AI.Orchestration;
 
 /// <summary>
 /// Chat 模式编排器接口。仅服务 None / ToolDelegation / HandoffChat 三种 Chat 范畴的编排模式。
-/// Workflow 模式（Magentic / GroupChat / ParallelAnalysis）由 IWorkflowExecutor 承接，不走此接口。
+/// Workflow 模式由 <see cref="TaskEngine.TaskExecutionEngine"/> 承接，不走此接口。
 /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §2A.2 / §2A.6。
 /// </summary>
 public interface IAgentOrchestrator
