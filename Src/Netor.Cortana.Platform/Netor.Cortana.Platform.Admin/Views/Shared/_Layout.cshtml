@@ -1,12 +1,14 @@
-﻿@{
+@inject Netor.Cortana.Platform.Admin.Services.AdminBrandingService BrandingService
+@{
     var title = ViewData["Title"] as string ?? "控制台";
+    var adminTitle = await BrandingService.GetAdminTitleAsync();
 }
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@title - Cortana 运营后台</title>
+    <title>@title - @adminTitle</title>
     <link rel="stylesheet" href="~/lib/layui/css/layui.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
@@ -14,7 +16,7 @@
     <div class="layui-layout layui-layout-admin admin-layout">
         <div class="layui-header admin-header">
             <div class="layui-logo admin-logo">
-                <a asp-controller="Home" asp-action="Index">Cortana 运营后台</a>
+                <a asp-controller="Home" asp-action="Index">@adminTitle</a>
             </div>
             <ul class="layui-nav layui-layout-left admin-header-nav">
                 <li class="layui-nav-item">
@@ -23,7 +25,7 @@
                     </a>
                 </li>
                 <li class="layui-nav-item admin-breadcrumb-item">
-                    @await Html.PartialAsync("_ContentHeader", new[] { "Cortana 运营后台", title })
+                    @await Html.PartialAsync("_ContentHeader", new[] { title })
                 </li>
             </ul>
             <ul class="layui-nav layui-layout-right admin-header-nav">
@@ -36,9 +38,8 @@
                 <li class="layui-nav-item">
                     <form asp-controller="Auth" asp-action="Logout" method="post" class="admin-logout-form">
                         @Html.AntiForgeryToken()
-                        <button type="submit">
+                        <button type="submit" aria-label="退出登录" title="退出登录">
                             <i class="layui-icon layui-icon-logout"></i>
-                            退出
                         </button>
                     </form>
                 </li>

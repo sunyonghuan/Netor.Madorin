@@ -3,6 +3,24 @@
     ViewData["Title"] = "控制台";
 }
 
+<section class="dashboard-hero admin-card mb-4">
+    <div class="admin-card-body dashboard-hero-body">
+        <div class="dashboard-hero-copy">
+            <span class="dashboard-kicker">运营工作台</span>
+            <h1>今天先把关键事项处理清楚</h1>
+            <p>统一查看资源上架、订阅变化、订单状态和平台配置，把高频运营动作集中在一个界面里完成。</p>
+        </div>
+        <div class="dashboard-hero-panel">
+            <strong>本日建议</strong>
+            <ul class="dashboard-hero-list">
+                <li>优先处理待上架资源的资料完整性。</li>
+                <li>关注异常订单和失效订阅回补。</li>
+                <li>统一核对推荐资源与分类展示效果。</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
 <section class="metric-grid mb-4">
     @foreach (var metric in Model.Metrics)
     {
@@ -18,15 +36,18 @@
 <section class="admin-card mb-4">
     <div class="admin-card-header">
         <h2 class="admin-card-title">常用管理入口</h2>
-        <span class="text-secondary">复用 MVC 控制器和通用布局逐步补齐</span>
+        <span class="text-secondary">直接进入最常用的运营动作</span>
     </div>
     <div class="admin-card-body">
         <div class="quick-grid">
             @foreach (var link in Model.QuickLinks)
             {
                 <a class="admin-card quick-link layui-card" asp-controller="@link.Controller" asp-action="@link.Action">
-                    <h3 class="h5">@link.Icon @link.Title</h3>
-                    <small>@link.Description</small>
+                    <span class="quick-link-badge" aria-hidden="true">@link.Icon</span>
+                    <div class="quick-link-copy">
+                        <h3 class="h5">@link.Title</h3>
+                        <small>@link.Description</small>
+                    </div>
                 </a>
             }
         </div>
@@ -35,24 +56,24 @@
 
 <section class="admin-card">
     <div class="admin-card-header">
-        <h2 class="admin-card-title">第一阶段后台范围</h2>
+        <h2 class="admin-card-title">运营关注事项</h2>
     </div>
     <div class="admin-card-body">
-        <div class="row g-3">
-            <div class="col-md-6">
-                <h3 class="h5">可直接复用</h3>
+        <div class="dashboard-notes-grid">
+            <div class="dashboard-note-card">
+                <h3 class="h5">今日优先处理</h3>
                 <ul class="mb-0">
-                    <li>后台通用布局、菜单、顶部栏。</li>
-                    <li>MVC Controller + Razor View 页面组织方式。</li>
-                    <li>Netor 账号、管理员、角色、订单、交易、钱包实体模型。</li>
+                    <li>检查待发布资源的分类、版本包与定价方案是否完整。</li>
+                    <li>跟进异常订单、失败支付和失效订阅的处理结果。</li>
+                    <li>关注近期下载记录、资源热度和推荐位效果。</li>
                 </ul>
             </div>
-            <div class="col-md-6">
-                <h3 class="h5">下一步补齐</h3>
+            <div class="dashboard-note-card">
+                <h3 class="h5">平台治理原则</h3>
                 <ul class="mb-0">
-                    <li>资源、分类、版本、定价方案 CRUD。</li>
-                    <li>订阅、下载记录、订单交易列表。</li>
-                    <li>管理员登录和权限菜单。</li>
+                    <li>支付与订阅类状态变更优先通过业务流程驱动，避免直接批量改写。</li>
+                    <li>系统配置修改前先评估影响范围，敏感项保留审批与审计记录。</li>
+                    <li>资源上架、推荐与下架动作应保持统一标准和可追溯记录。</li>
                 </ul>
             </div>
         </div>

@@ -1,7 +1,12 @@
 @model Netor.Cortana.Platform.Admin.Models.Auth.LoginViewModel
+@inject Netor.Cortana.Platform.Admin.Services.AdminBrandingService BrandingService
 @{
     ViewData["Title"] = "后台登录";
     Layout = null;
+    var adminTitle = await BrandingService.GetAdminTitleAsync();
+    var platformName = await BrandingService.GetPlatformNameAsync();
+    var systemCode = await BrandingService.GetSystemCodeAsync();
+    var logoText = platformName.Length > 0 ? platformName[..1] : "N";
 }
 
 <!DOCTYPE html>
@@ -9,31 +14,24 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>后台登录 - Cortana 运营后台</title>
+    <title>后台登录 - @adminTitle</title>
     <link rel="stylesheet" href="~/lib/layui/css/layui.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
 </head>
 <body class="admin-login-body">
     <main class="admin-login-wrapper">
         <section class="admin-login-slogan" aria-label="平台介绍">
-            <span class="system-name">NETOR CORTANA PLATFORM</span>
-            <h1>运营平台</h1>
-            <p>统一管理插件、技能、智能体与解决方案，构建可发布、可订阅、可追踪的 Cortana 生态后台。</p>
+            <span class="system-name">@systemCode</span>
+            <h1>@platformName</h1>
+            <p>统一管理资源、订阅、订单与平台配置，面向运营交付、内容审核和商业化流程提供稳定的后台支撑。</p>
         </section>
-
-        <div class="admin-login-key" aria-hidden="true">
-            <span class="ring"></span>
-            <span class="stem"></span>
-            <span class="tooth-one"></span>
-            <span class="tooth-two"></span>
-        </div>
 
         <section class="admin-login-box" aria-label="后台登录">
             <div class="login-heading">
-                <span class="login-logo">C</span>
+                <span class="login-logo">@logoText</span>
                 <div>
                     <h2>后台登录</h2>
-                    <div class="login-subtitle">请输入管理员账号和密码</div>
+                    <div class="login-subtitle">请使用已授权的管理员账号登录</div>
                 </div>
             </div>
 
@@ -86,7 +84,7 @@
                 <button class="login-button" type="submit" data-login-submit>
                     登录后台
                 </button>
-                <p class="login-tips">默认管理员：<code>admin</code> / <code>123456</code></p>
+                <p class="login-tips">仅限平台运营与管理人员访问。</p>
             </form>
         </section>
     </main>

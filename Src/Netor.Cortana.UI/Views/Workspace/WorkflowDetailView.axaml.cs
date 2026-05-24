@@ -74,6 +74,69 @@ public partial class WorkflowDetailView : UserControl
     }
 
     // ══════════════════════════════════════════════════════════════════════
+    // 输入框：发送 / 停止 / 快捷键
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>"▶ 发送" 按钮：调 _inputVm.StartAsync 启动任务。</summary>
+    private async void OnSendClick(object? sender, RoutedEventArgs e)
+    {
+        // NativeAOT 下绑定可能滞后，显式同步一次
+        if (InputBox is not null)
+            _inputVm.InitialInput = InputBox.Text ?? string.Empty;
+
+        _logger.LogInformation(
+            "[WorkflowDetailView] OnSendClick: WorkspaceId={WorkspaceId}, Manager={Manager}, Provider={Provider}, Model={Model}, Input.Len={InputLen}",
+            _vm.List.WorkspaceId,
+            _inputVm.SelectedManager?.Name ?? "(null)",
+            _inputVm.SelectedProvider?.Name ?? "(null)",
+            _inputVm.SelectedModel?.Name ?? "(null)",
+            (_inputVm.InitialInput ?? string.Empty).Length);
+
+        try
+        {
+            _inputVm.WorkspaceId = _vm.List.WorkspaceId ?? string.Empty;
+            var taskId = await _inputVm.StartAsync(CancellationToken.None);
+            if (string.IsNullOrEmpty(taskId))
+            {
+                var hint = !string.IsNullOrWhiteSpace(_inputVm.ValidationError)
+                    ? _inputVm.ValidationError
+                    : "无法启动任务：请检查智能体 / 厂商 / 模型是否已选 + 输入内容是否为空。";
+                _logger.LogWarning("[WorkflowDetailView] StartAsync 返回 null（校验失败）：{Hint}", hint);
+                return;
+            }
+
+            // 清空输入框
+            if (InputBox is not null)
+                InputBox.Text = string.Empty;
+
+            await _vm.ShowTaskAsync(taskId);
+            _logger.LogInformation("[WorkflowDetailView] Workflow task started: taskId={TaskId}", taskId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[WorkflowDetailView] 启动任务失败");
+        }
+    }
+
+    /// <summary>"⏹ 停止" 按钮。</summary>
+    private async void OnStopClick(object? sender, RoutedEventArgs e)
+    {
+        try { await _inputVm.StopAsync(CancellationToken.None); }
+        catch (Exception ex) { _logger.LogError(ex, "[WorkflowDetailView] 停止任务失败"); }
+    }
+
+    /// <summary>Enter 发送 / Shift+Enter 换行。</summary>
+    private void OnInputBoxKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) return;
+
+        e.Handled = true;
+        if (_inputVm.IsIdle && _inputVm.CanSubmit)
+            OnSendClick(sender, new RoutedEventArgs());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // 任务操作按钮
     // ══════════════════════════════════════════════════════════════════════
 

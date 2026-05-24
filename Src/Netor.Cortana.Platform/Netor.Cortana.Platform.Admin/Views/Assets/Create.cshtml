@@ -8,122 +8,227 @@
     <div class="admin-card-header">
         <div>
             <h2 class="admin-card-title">上传资源</h2>
-            <div class="text-secondary">创建插件、技能、智能体或解决方案，并上传首个版本包。</div>
+            <div class="text-secondary">按资源信息、版本包和定价策略三个阶段完成创建，保存后即可进入审核或直接发布。</div>
         </div>
         <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Index">返回列表</a>
     </div>
-    <div class="admin-card-body">
-        <form asp-action="Create" method="post" enctype="multipart/form-data" class="layui-form admin-edit-form">
-            @Html.AntiForgeryToken()
-            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label asp-for="Name" class="form-label">资源名称</label>
-                    <input asp-for="Name" class="form-control layui-input" placeholder="例如：Google 搜索插件" />
-                    <span asp-validation-for="Name" class="text-danger"></span>
-                </div>
-                <div class="col-md-6">
-                    <label asp-for="Slug" class="form-label">资源标识</label>
-                    <input asp-for="Slug" class="form-control layui-input" placeholder="例如：google-search-plugin" />
-                    <span asp-validation-for="Slug" class="text-danger"></span>
-                </div>
-                <div class="col-md-3">
-                    <label asp-for="Type" class="form-label">类型</label>
-                    <select asp-for="Type" class="form-select layui-select" asp-items="Html.GetEnumSelectList<AssetType>()"></select>
-                </div>
-                <div class="col-md-3">
-                    <label asp-for="CategoryId" class="form-label">分类</label>
-                    <select asp-for="CategoryId" class="form-select layui-select">
-                        <option value="">未分类</option>
-                        @foreach (var category in Model.Categories)
-                        {
-                            <option value="@category.Id">@category.Name</option>
-                        }
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label asp-for="DeveloperName" class="form-label">开发者</label>
-                    <input asp-for="DeveloperName" class="form-control layui-input" />
-                    <span asp-validation-for="DeveloperName" class="text-danger"></span>
-                </div>
-                <div class="col-md-3 d-flex align-items-end gap-3">
-                    <div class="form-check">
-                        <input asp-for="IsFeatured" class="form-check-input" />
-                        <label asp-for="IsFeatured" class="form-check-label">推荐资源</label>
+    <form asp-action="Create" method="post" enctype="multipart/form-data" class="layui-form">
+        @Html.AntiForgeryToken()
+
+        <div class="admin-card-body asset-create-grid">
+            <div class="asset-create-main">
+                <section class="asset-intro-panel">
+                    <div class="asset-intro-copy">
+                        <span class="asset-intro-kicker">资源录入流程</span>
+                        <h3>先定义资源，再补版本，最后确认定价</h3>
+                        <p>这个页面现在按运营动作拆成了更顺手的录入路径，减少来回滚动和信息混在一起的感觉。</p>
                     </div>
-                    <div class="form-check">
-                        <input asp-for="PublishNow" class="form-check-input" />
-                        <label asp-for="PublishNow" class="form-check-label">立即发布</label>
+                    <ol class="asset-intro-steps">
+                        <li><strong>01</strong><span>资源基础信息</span></li>
+                        <li><strong>02</strong><span>版本与安装包</span></li>
+                        <li><strong>03</strong><span>定价与有效期</span></li>
+                    </ol>
+                </section>
+
+                <section class="admin-card">
+                    <div class="admin-card-body">
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                        <div class="asset-section-header">
+                            <div>
+                                <h3>资源基础信息</h3>
+                                <p>先定义资源对外展示的名称、标识、分类和简介，这些内容会直接影响搜索、列表和详情页呈现。</p>
+                            </div>
+                        </div>
+
+                        <div class="asset-form-grid cols-2">
+                            <div class="asset-form-field">
+                                <label asp-for="Name" class="form-label">资源名称</label>
+                                <input asp-for="Name" class="form-control layui-input" placeholder="例如：Google 搜索插件" />
+                                <p class="asset-form-hint">建议控制在 20 个字以内，便于列表展示。</p>
+                                <span asp-validation-for="Name" class="text-danger"></span>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="Slug" class="form-label">资源标识</label>
+                                <input asp-for="Slug" class="form-control layui-input" placeholder="例如：google-search-plugin" />
+                                <p class="asset-form-hint">仅支持小写字母、数字和连字符，保存后作为下载目录和外部标识使用。</p>
+                                <span asp-validation-for="Slug" class="text-danger"></span>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="Type" class="form-label">资源类型</label>
+                                <select asp-for="Type" class="form-select layui-select" asp-items="Html.GetEnumSelectList<AssetType>()"></select>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="CategoryId" class="form-label">所属分类</label>
+                                <select asp-for="CategoryId" class="form-select layui-select">
+                                    <option value="">未分类</option>
+                                    @foreach (var category in Model.Categories)
+                                    {
+                                        <option value="@category.Id">@category.Name</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="DeveloperName" class="form-label">开发者名称</label>
+                                <input asp-for="DeveloperName" class="form-control layui-input" placeholder="例如：Netor 官方" />
+                                <span asp-validation-for="DeveloperName" class="text-danger"></span>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="Tags" class="form-label">标签</label>
+                                <input asp-for="Tags" class="form-control layui-input" placeholder="多个标签用逗号分隔" />
+                                <p class="asset-form-hint">例如：搜索, 插件, 效率工具</p>
+                            </div>
+
+                            <div class="asset-form-field is-span-2">
+                                <label asp-for="ShortDescription" class="form-label">简短描述</label>
+                                <input asp-for="ShortDescription" class="form-control layui-input" placeholder="一句话说明资源的核心用途和场景" />
+                                <span asp-validation-for="ShortDescription" class="text-danger"></span>
+                            </div>
+
+                            <div class="asset-form-field is-span-2">
+                                <label asp-for="Description" class="form-label">详细说明</label>
+                                <textarea asp-for="Description" class="form-control layui-textarea" rows="6" placeholder="补充说明功能特点、能力边界、适用对象或交付说明"></textarea>
+                            </div>
+
+                            <div class="asset-form-field is-span-2">
+                                <div class="asset-form-checks">
+                                    <div class="form-check">
+                                        <input asp-for="IsFeatured" class="form-check-input" />
+                                        <label asp-for="IsFeatured" class="form-check-label">加入推荐资源</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input asp-for="PublishNow" class="form-check-input" />
+                                        <label asp-for="PublishNow" class="form-check-label">保存后立即发布</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="col-12">
-                    <label asp-for="ShortDescription" class="form-label">简短描述</label>
-                    <input asp-for="ShortDescription" class="form-control layui-input" />
-                    <span asp-validation-for="ShortDescription" class="text-danger"></span>
-                </div>
-                <div class="col-12">
-                    <label asp-for="Description" class="form-label">详细说明</label>
-                    <textarea asp-for="Description" class="form-control layui-textarea" rows="5"></textarea>
-                </div>
-                <div class="col-12">
-                    <label asp-for="Tags" class="form-label">标签</label>
-                    <input asp-for="Tags" class="form-control layui-input" placeholder="多个标签用逗号分隔" />
-                </div>
+                </section>
+
+                <section class="admin-card">
+                    <div class="admin-card-body">
+                        <div class="asset-section-header">
+                            <div>
+                                <h3>版本与安装包</h3>
+                                <p>这里决定用户首次可下载的版本内容。建议先上传可直接安装的正式包，再补充清晰的发布说明。</p>
+                            </div>
+                        </div>
+
+                        <div class="asset-form-grid">
+                            <div class="asset-meta-grid">
+                                <div class="asset-form-field">
+                                    <label asp-for="VersionName" class="form-label">版本号</label>
+                                    <input asp-for="VersionName" class="form-control layui-input" placeholder="例如：1.0.0" />
+                                    <span asp-validation-for="VersionName" class="text-danger"></span>
+                                </div>
+
+                                <div class="asset-upload-note">
+                                    <p>首次版本会作为默认下载包入库，并写入资源详情页的版本记录。</p>
+                                </div>
+                            </div>
+
+                            <div class="asset-upload-dropzone">
+                                <div class="asset-upload-head">
+                                    <div class="asset-upload-title">上传资源包</div>
+                                    <span class="asset-upload-badge">仅支持 .zip</span>
+                                </div>
+
+                                <input asp-for="PackageFile" class="form-control layui-input" type="file" accept=".zip" />
+                                <span asp-validation-for="PackageFile" class="text-danger"></span>
+
+                                <dl class="asset-upload-meta">
+                                    <dt>保存路径</dt>
+                                    <dd>Data/packages/{类型}/{标识}/{版本}/</dd>
+                                    <dt>文件建议</dt>
+                                    <dd>统一放置运行包、清单文件及必要资源，避免上传临时文件。</dd>
+                                </dl>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="ReleaseNotes" class="form-label">发布说明</label>
+                                <textarea asp-for="ReleaseNotes" class="form-control layui-textarea" rows="4" placeholder="例如：新增能力、适配范围、已知限制、升级注意事项"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="admin-card">
+                    <div class="admin-card-body">
+                        <div class="asset-section-header">
+                            <div>
+                                <h3>定价与有效期</h3>
+                                <p>定价方案会影响订阅生成和订单流程，建议先确定收费模型，再补充价格和时长。</p>
+                            </div>
+                        </div>
+
+                        <div class="asset-form-grid cols-2">
+                            <div class="asset-form-field">
+                                <label asp-for="PlanType" class="form-label">方案类型</label>
+                                <select asp-for="PlanType" class="form-select layui-select" asp-items="Html.GetEnumSelectList<PricingPlanType>()"></select>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="Price" class="form-label">价格</label>
+                                <input asp-for="Price" class="form-control layui-input" type="number" step="0.01" />
+                                <span asp-validation-for="Price" class="text-danger"></span>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="Currency" class="form-label">货币单位</label>
+                                <input asp-for="Currency" class="form-control layui-input" placeholder="例如：CNY" />
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="DurationDays" class="form-label">有效天数</label>
+                                <input asp-for="DurationDays" class="form-control layui-input" type="number" />
+                                <p class="asset-form-hint">免费为 0，月付建议 30，年付建议 365。</p>
+                                <span asp-validation-for="DurationDays" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
             </div>
 
-            <hr />
+            <aside class="asset-create-aside">
+                <section class="asset-aside-card">
+                    <h3>录入建议</h3>
+                    <p>把必须先确认的内容放前面，避免包都传完了才发现资源信息需要返工。</p>
+                    <ol class="asset-timeline">
+                        <li>先定义资源主体信息，确认名称、标识和分类。</li>
+                        <li>再上传首发版本包，保证文件和版本号一致。</li>
+                        <li>最后设定价格和有效期，避免后续订阅规则错误。</li>
+                    </ol>
+                </section>
 
-            <h3 class="h5 mb-3">版本包</h3>
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label asp-for="VersionName" class="form-label">版本号</label>
-                    <input asp-for="VersionName" class="form-control layui-input" />
-                    <span asp-validation-for="VersionName" class="text-danger"></span>
-                </div>
-                <div class="col-md-8">
-                    <label asp-for="PackageFile" class="form-label">资源包</label>
-                    <input asp-for="PackageFile" class="form-control layui-input" type="file" accept=".zip" />
-                    <span asp-validation-for="PackageFile" class="text-danger"></span>
-                    <div class="form-text">当前只支持 .zip 包。保存目录：Data/packages/{类型}/{标识}/{版本}/</div>
-                </div>
-                <div class="col-12">
-                    <label asp-for="ReleaseNotes" class="form-label">发布说明</label>
-                    <textarea asp-for="ReleaseNotes" class="form-control layui-textarea" rows="3"></textarea>
-                </div>
+                <section class="asset-aside-card">
+                    <h3>上线前检查</h3>
+                    <ul class="asset-aside-note">
+                        <li><strong>资源标识</strong> 建议一次定准，后续改动会影响包路径与外部引用。</li>
+                        <li><strong>发布说明</strong> 建议写清升级差异，方便客服和运营跟进。</li>
+                        <li><strong>定价方案</strong> 免费资源应保持价格和时长为 0，付费资源需设置明确周期。</li>
+                    </ul>
+                </section>
+            </aside>
+        </div>
+
+        <div class="asset-submit-bar">
+            <div class="asset-submit-copy">
+                <strong>保存后将创建资源、首个版本记录与默认定价方案。</strong>
+                <p>如果勾选“立即发布”，资源会以已发布状态进入平台列表。</p>
             </div>
-
-            <hr />
-
-            <h3 class="h5 mb-3">定价方案</h3>
-            <div class="row g-3">
-                <div class="col-md-3">
-                    <label asp-for="PlanType" class="form-label">方案类型</label>
-                    <select asp-for="PlanType" class="form-select layui-select" asp-items="Html.GetEnumSelectList<PricingPlanType>()"></select>
-                </div>
-                <div class="col-md-3">
-                    <label asp-for="Price" class="form-label">价格</label>
-                    <input asp-for="Price" class="form-control layui-input" type="number" step="0.01" />
-                    <span asp-validation-for="Price" class="text-danger"></span>
-                </div>
-                <div class="col-md-3">
-                    <label asp-for="Currency" class="form-label">货币</label>
-                    <input asp-for="Currency" class="form-control layui-input" />
-                </div>
-                <div class="col-md-3">
-                    <label asp-for="DurationDays" class="form-label">有效天数</label>
-                    <input asp-for="DurationDays" class="form-control layui-input" type="number" />
-                    <span asp-validation-for="DurationDays" class="text-danger"></span>
-                    <div class="form-text">免费为 0，月付建议 30，年付建议 365。</div>
-                </div>
-            </div>
-
-            <div class="mt-4 d-flex gap-2">
+            <div class="admin-form-actions">
                 <button class="layui-btn layui-btn-normal" type="submit">保存并上传</button>
                 <a class="layui-btn layui-btn-primary" asp-action="Index">取消</a>
             </div>
-        </form>
-    </div>
+        </div>
+    </form>
 </section>
 
 @section Scripts {

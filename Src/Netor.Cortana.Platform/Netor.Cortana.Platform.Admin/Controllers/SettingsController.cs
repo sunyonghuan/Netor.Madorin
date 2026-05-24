@@ -255,7 +255,7 @@ public sealed class SettingsController(PlatformDbContext dbContext) : Controller
     {
         return key switch
         {
-            "platform.name" => "Cortana 运营平台",
+            "platform.name" => "Madorin",
             "platform.storage.root" => "Data",
             "platform.download.anonymous" => "false",
             "finance.currency.unit" => "CNY",

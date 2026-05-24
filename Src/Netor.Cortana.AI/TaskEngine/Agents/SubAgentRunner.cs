@@ -5,7 +5,9 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
+using Netor.Cortana.AI.Drivers;
 using Netor.Cortana.AI.Providers;
+using Netor.Cortana.Entitys.Services;
 
 namespace Netor.Cortana.AI.TaskEngine.Agents;
 
@@ -14,24 +16,45 @@ namespace Netor.Cortana.AI.TaskEngine.Agents;
 /// 不创建 AIAgent 实例，直接通过 IChatClient.GetResponseAsync 发送消息。
 /// 每次调用独立（无状态），适合 P4 编排器的无状态决策模型（doc 05 §1）。
 ///
-/// 模型解析优先级：TaskEngine.ModelId → Compaction.ModelId → AIAgentFactory.ChatClient。
+/// 模型解析优先级：
+///   TaskEngine.ModelId → Compaction.ModelId → AIAgentFactory.ChatClient → 工作流默认 Provider/Model。
 /// </summary>
 internal sealed partial class SubAgentRunner
 {
     private const string TaskEngineModelKey = "TaskEngine.ModelId";
     private const string CompactionModelKey = "Compaction.ModelId";
 
+    /// <summary>工作流默认 Provider / Model 配置键（与 WorkflowInputVm 保持一致）。</summary>
+    private const string WorkflowDefaultProviderKey = "Workflow.DefaultProviderId";
+    private const string WorkflowDefaultModelKey = "Workflow.DefaultModelId";
+
     private readonly ModelPurposeResolver _resolver;
     private readonly AIAgentFactory _agentFactory;
+    private readonly AiProviderDriverRegistry _driverRegistry;
+    private readonly AiProviderService _providerService;
+    private readonly AiModelService _modelService;
+    private readonly SystemSettingsService _systemSettings;
     private readonly ILogger<SubAgentRunner> _logger;
+
+    /// <summary>缓存的回退客户端（从工作流默认配置构建）。</summary>
+    private IChatClient? _cachedFallbackClient;
+    private string? _cachedFallbackModelId;
 
     public SubAgentRunner(
         ModelPurposeResolver resolver,
         AIAgentFactory agentFactory,
+        AiProviderDriverRegistry driverRegistry,
+        AiProviderService providerService,
+        AiModelService modelService,
+        SystemSettingsService systemSettings,
         ILogger<SubAgentRunner> logger)
     {
         _resolver = resolver;
         _agentFactory = agentFactory;
+        _driverRegistry = driverRegistry;
+        _providerService = providerService;
+        _modelService = modelService;
+        _systemSettings = systemSettings;
         _logger = logger;
     }
 
@@ -211,7 +234,7 @@ internal sealed partial class SubAgentRunner
 
     /// <summary>
     /// 解析可用的 IChatClient。
-    /// 优先级：TaskEngine.ModelId → Compaction.ModelId → AIAgentFactory.ChatClient。
+    /// 优先级：TaskEngine.ModelId → Compaction.ModelId → AIAgentFactory.ChatClient → 工作流默认 Provider/Model。
     /// </summary>
     private IChatClient ResolveClient()
     {
@@ -223,13 +246,79 @@ internal sealed partial class SubAgentRunner
         client = _resolver.TryResolve(CompactionModelKey);
         if (client is not null) return client;
 
-        // 3. 当前主对话模型
+        // 3. 当前主对话模型（仅当用户已发起过对话时可用）
         if (_agentFactory.ChatClient is not null)
             return _agentFactory.ChatClient;
 
+        // 4. 从工作流默认 Provider/Model 配置直接构建 IChatClient
+        //    （用户在 UI 上选择的默认厂商/模型，即使未发起过对话也可用）
+        client = ResolveFromWorkflowDefaults();
+        if (client is not null) return client;
+
         throw new InvalidOperationException(
             "P4 任务引擎无可用的 LLM 客户端。请在设置中配置 TaskEngine.ModelId 或 Compaction.ModelId，" +
-            "或确保当前有活跃的对话智能体。");
+            "或确保当前有活跃的对话智能体，或在工作流中选择默认厂商和模型。");
+    }
+
+    /// <summary>
+    /// 从工作流默认 Provider/Model 配置构建 IChatClient（第 4 回退路径）。
+    /// 读取 SystemSettings 中 Workflow.DefaultProviderId / Workflow.DefaultModelId，
+    /// 通过 AiProviderDriverRegistry 直接构建。结果按 ModelId 缓存，配置变更时重建。
+    /// </summary>
+    private IChatClient? ResolveFromWorkflowDefaults()
+    {
+        try
+        {
+            var modelId = _systemSettings.GetValue<string>(WorkflowDefaultModelKey, string.Empty);
+            if (string.IsNullOrEmpty(modelId))
+            {
+                // 无显式配置 → 尝试取第一个可用模型
+                var defaultProvider = _providerService.GetAll().FirstOrDefault(p => p.IsDefault)
+                                     ?? _providerService.GetAll().FirstOrDefault();
+                if (defaultProvider is null) return null;
+
+                var defaultModel = _modelService.GetByProviderId(defaultProvider.Id).FirstOrDefault(m => m.IsDefault)
+                                   ?? _modelService.GetByProviderId(defaultProvider.Id).FirstOrDefault();
+                if (defaultModel is null) return null;
+
+                modelId = defaultModel.Id;
+            }
+
+            // 缓存命中
+            if (_cachedFallbackClient is not null &&
+                string.Equals(_cachedFallbackModelId, modelId, StringComparison.Ordinal))
+            {
+                return _cachedFallbackClient;
+            }
+
+            var model = _modelService.GetById(modelId);
+            if (model is null) return null;
+
+            var providerId = _systemSettings.GetValue<string>(WorkflowDefaultProviderKey, string.Empty);
+            var provider = !string.IsNullOrEmpty(providerId)
+                ? _providerService.GetById(providerId)
+                : _providerService.GetById(model.ProviderId);
+            if (provider is null) return null;
+
+            var driver = _driverRegistry.Resolve(provider);
+            var newClient = driver.CreateChatClient(provider, model);
+
+            // 替换缓存（释放旧实例）
+            _cachedFallbackClient?.Dispose();
+            _cachedFallbackClient = newClient;
+            _cachedFallbackModelId = modelId;
+
+            _logger.LogInformation(
+                "P4 SubAgentRunner 从工作流默认配置构建 IChatClient: Provider={Provider}, Model={Model}",
+                provider.Name, model.Name);
+
+            return newClient;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "P4 SubAgentRunner 从工作流默认配置构建 IChatClient 失败");
+            return null;
+        }
     }
 
     /// <summary>

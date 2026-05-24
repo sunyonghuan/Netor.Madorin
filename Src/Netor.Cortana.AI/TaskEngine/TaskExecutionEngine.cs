@@ -222,7 +222,8 @@ public sealed class TaskExecutionEngine : IHostedService
     public async Task<string> StartTaskAsync(string userInput, string workspaceId, string? templateId, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userInput);
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+        // workspaceId 允许为空（默认工作区场景）
+        workspaceId ??= string.Empty;
 
         var taskId = Guid.NewGuid().ToString("N");
 

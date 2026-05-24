@@ -441,14 +441,45 @@
 		<Border Grid.Row="2" x:Name="InputArea"
 		        Background="#1e1e1e"
 		        BorderBrush="#3c3c3c" BorderThickness="0,1,0,0"
-		        Padding="4,4"
+		        Padding="8,6"
 		        x:CompileBindings="False">
-			<StackPanel Spacing="4">
+			<StackPanel Spacing="6">
 				<!-- 校验错误提示 -->
 				<TextBlock Text="{Binding ValidationError}"
 				           Foreground="#f48771" FontSize="11"
 				           IsVisible="{Binding ValidationError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-				           Margin="4,0,0,4" />
+				           Margin="4,0,0,0" />
+
+				<!-- 输入框 + 发送/停止按钮 -->
+				<Border Background="#252526" CornerRadius="3"
+				        BorderBrush="#3c3c3c" BorderThickness="1"
+				        Padding="10">
+					<Grid ColumnDefinitions="*,Auto">
+						<TextBox x:Name="InputBox" Grid.Column="0"
+						         Classes="chat-input"
+						         Text="{Binding InitialInput, Mode=TwoWay}"
+						         PlaceholderText="输入任务描述 (Enter 发送, Shift+Enter 换行) ..."
+						         TextWrapping="Wrap"
+						         AcceptsReturn="True"
+						         MinHeight="60" MaxHeight="200"
+						         KeyDown="OnInputBoxKeyDown"
+						         IsEnabled="{Binding IsIdle}" />
+						<Panel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
+							<!-- 发送按钮（空闲时显示） -->
+							<Button x:Name="SendButton" Classes="titlebar-btn"
+							        ToolTip.Tip="发送" Click="OnSendClick"
+							        IsVisible="{Binding IsIdle}">
+								<Image Source="avares://Cortana/Assets/send.png" Width="16" Height="16" />
+							</Button>
+							<!-- 停止按钮（运行中显示） -->
+							<Button x:Name="StopButton" Classes="titlebar-btn titlebar-btn-warn"
+							        ToolTip.Tip="停止任务" Click="OnStopClick"
+							        IsVisible="{Binding IsRunning}">
+								<Image Source="avares://Cortana/Assets/refresh.png" Width="16" Height="16" />
+							</Button>
+						</Panel>
+					</Grid>
+				</Border>
 
 				<!-- 工具栏选择器 -->
 				<StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0">

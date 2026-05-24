@@ -6,9 +6,9 @@ body {
 
 body.admin-login-body {
     margin: 0;
-    overflow: hidden;
-    background: #0f1c2e;
-    font-family: "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    overflow: auto;
+    background: #102128;
+    font-family: "Segoe UI Variable", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
 }
 
 .admin-login-wrapper {
@@ -19,9 +19,10 @@ body.admin-login-body {
     min-height: 100vh;
     padding-right: 12%;
     background:
-        linear-gradient(90deg, rgba(15, 28, 46, 0.38), rgba(15, 28, 46, 0.92)),
-        radial-gradient(circle at 22% 25%, rgba(30, 159, 255, 0.35), transparent 30%),
-        linear-gradient(135deg, #152238 0%, #0f1c2e 58%, #08111f 100%);
+        linear-gradient(105deg, rgba(8, 23, 31, 0.28), rgba(8, 23, 31, 0.72)),
+        radial-gradient(circle at 20% 22%, rgba(15, 118, 110, 0.38), transparent 30%),
+        radial-gradient(circle at 34% 72%, rgba(197, 107, 45, 0.18), transparent 24%),
+        linear-gradient(135deg, #15313d 0%, #11232e 56%, #0c1921 100%);
 }
 
 .admin-login-wrapper::before {
@@ -31,12 +32,12 @@ body.admin-login-body {
     top: 50%;
     width: 390px;
     height: 390px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 50%;
     transform: translateY(-50%);
     box-shadow:
-        0 0 0 64px rgba(255, 255, 255, 0.025),
-        0 0 0 128px rgba(255, 255, 255, 0.018);
+        0 0 0 72px rgba(255, 255, 255, 0.02),
+        0 0 0 138px rgba(255, 255, 255, 0.014);
 }
 
 .admin-login-slogan {
@@ -53,84 +54,36 @@ body.admin-login-body {
     display: inline-block;
     padding: 8px 16px;
     margin-bottom: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 999px;
-    color: #b7dcff;
-    background: rgba(255, 255, 255, 0.08);
+    color: #bde8e0;
+    background: rgba(255, 255, 255, 0.06);
     letter-spacing: 0.08em;
 }
 
 .admin-login-slogan h1 {
     margin: 0 0 18px;
-    font-size: 56px;
+    font-size: 58px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.04em;
 }
 
 .admin-login-slogan p {
     margin: 0;
-    color: rgba(255, 255, 255, 0.72);
+    color: rgba(255, 255, 255, 0.74);
     font-size: 18px;
     line-height: 1.8;
-}
-
-.admin-login-key {
-    position: absolute;
-    left: 17%;
-    top: calc(50% - 208px);
-    width: 148px;
-    height: 74px;
-    transform: rotate(-28deg);
-    z-index: 3;
-    filter: drop-shadow(0 18px 20px rgba(0, 0, 0, 0.28));
-}
-
-.admin-login-key .ring {
-    position: absolute;
-    left: 0;
-    top: 5px;
-    width: 64px;
-    height: 64px;
-    border: 13px solid #ffcf33;
-    border-radius: 50%;
-}
-
-.admin-login-key .stem {
-    position: absolute;
-    left: 58px;
-    top: 31px;
-    width: 84px;
-    height: 13px;
-    border-radius: 999px;
-    background: #ffcf33;
-}
-
-.admin-login-key .tooth-one,
-.admin-login-key .tooth-two {
-    position: absolute;
-    top: 42px;
-    width: 15px;
-    border-radius: 0 0 5px 5px;
-    background: #ffcf33;
-}
-
-.admin-login-key .tooth-one {
-    right: 14px;
-    height: 30px;
-}
-
-.admin-login-key .tooth-two {
-    right: 37px;
-    height: 22px;
 }
 
 .admin-login-box {
     position: relative;
     width: 390px;
-    padding: 38px 38px 32px;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.98);
-    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28);
+    padding: 40px 40px 32px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 30px 90px rgba(7, 20, 27, 0.3);
+    backdrop-filter: blur(14px);
     z-index: 5;
 }
 
@@ -146,12 +99,12 @@ body.admin-login-body {
     place-items: center;
     width: 46px;
     height: 46px;
-    border-radius: 12px;
+    border-radius: 14px;
     color: #fff;
-    background: linear-gradient(135deg, #1e9fff, #2563eb);
+    background: linear-gradient(135deg, #0f766e, #1d4ed8);
     font-size: 22px;
     font-weight: 800;
-    box-shadow: 0 12px 28px rgba(30, 159, 255, 0.32);
+    box-shadow: 0 14px 30px rgba(15, 118, 110, 0.26);
 }
 
 .admin-login-box h2 {
@@ -162,7 +115,7 @@ body.admin-login-body {
 }
 
 .admin-login-box .login-subtitle {
-    margin-bottom: 28px;
+    margin-bottom: 24px;
     color: #8b95a5;
 }
 
@@ -207,14 +160,14 @@ body.admin-login-body {
     border-color: #e6e8ef;
     border-style: solid;
     border-width: 1px;
-    border-radius: 4px;
-    background: #fff;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.96);
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .admin-login-form .layui-input:focus {
-    border-color: #1e9fff !important;
-    box-shadow: 0 0 0 3px rgba(30, 159, 255, 0.12);
+    border-color: #0f766e !important;
+    box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
 }
 
 .admin-login-form .password-toggle {
@@ -227,14 +180,14 @@ body.admin-login-body {
     height: 30px;
     padding: 0;
     border: 0;
-    color: #1e9fff;
+    color: #0f766e;
     background: transparent;
     border-radius: 50%;
     transform: translateY(-50%);
 }
 
 .admin-login-form .password-toggle:hover {
-    background: rgba(30, 159, 255, 0.08);
+    background: rgba(15, 118, 110, 0.08);
 }
 
 .admin-login-form .password-toggle .eye-closed,
@@ -265,7 +218,7 @@ body.admin-login-body {
 .remember-check input {
     width: 15px;
     height: 15px;
-    accent-color: #1e9fff;
+    accent-color: #0f766e;
 }
 
 .admin-login-form .login-button {
@@ -275,19 +228,19 @@ body.admin-login-body {
     line-height: 44px;
     padding: 0;
     border: 0;
-    border-radius: 4px;
+    border-radius: 14px;
     color: #fff;
-    background: linear-gradient(135deg, #1e9fff, #2563eb);
+    background: linear-gradient(135deg, #0f766e, #1d4ed8);
     font-size: 16px;
     font-weight: 700;
     letter-spacing: 0.08em;
-    box-shadow: 0 12px 28px rgba(30, 159, 255, 0.26);
+    box-shadow: 0 16px 34px rgba(15, 118, 110, 0.24);
     transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
 }
 
 .admin-login-form .login-button:hover {
     transform: translateY(-1px);
-    box-shadow: 0 16px 34px rgba(30, 159, 255, 0.34);
+    box-shadow: 0 18px 36px rgba(15, 118, 110, 0.32);
 }
 
 .admin-login-form .login-button:disabled {
@@ -312,7 +265,7 @@ body.admin-login-body {
 .login-validation ul {
     margin: 0 0 14px;
     padding: 10px 12px;
-    border-radius: 4px;
+    border-radius: 12px;
     background: #fef2f2;
     list-style: none;
 }
@@ -322,18 +275,17 @@ body.admin-login-body {
 }
 
 @media (max-width: 960px) {
-    body.admin-login-body {
-        overflow: auto;
-    }
-
     .admin-login-wrapper {
         justify-content: center;
         padding: 32px 16px;
     }
 
     .admin-login-wrapper::before,
-    .admin-login-slogan,
-    .admin-login-key {
+    .admin-login-slogan {
         display: none;
+    }
+
+    .admin-login-box {
+        width: min(100%, 420px);
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Netor.Cortana.Platform.Admin.Services;
 using Netor.Cortana.Platform.Entitys;
 using Netor.Cortana.Platform.Entitys.Data;
 using Netor.Cortana.Platform.Services;
@@ -24,6 +25,7 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 builder.Services.AddControllersWithViews();
+builder.Services.AddScoped<AdminBrandingService>();
 builder.Services.AddPlatformDbContext(builder.Configuration);
 builder.Services.AddPlatformServices(builder.Configuration);
 

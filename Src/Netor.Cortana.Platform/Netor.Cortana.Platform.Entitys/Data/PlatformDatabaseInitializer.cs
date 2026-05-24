@@ -73,7 +73,7 @@ public static class PlatformDatabaseInitializer
         if (!hasSettings)
         {
             dbContext.SystemSettings.AddRange(
-                new SystemSetting { Key = "platform.name", Value = "Cortana 运营平台", Name = "平台名称", Display = "平台名称", Type = NetorDataType.Text, Group = "平台设置" },
+                new SystemSetting { Key = "platform.name", Value = "Madorin", Name = "平台名称", Display = "平台名称", Type = NetorDataType.Text, Group = "平台设置" },
                 new SystemSetting { Key = "platform.storage.root", Value = "Data", Name = "本地存储根目录", Display = "本地存储根目录", Type = NetorDataType.Text, Group = "平台设置" },
                 new SystemSetting { Key = "platform.download.anonymous", Value = "false", Name = "是否允许匿名下载", Display = "是否允许匿名下载", Type = NetorDataType.Boolean, Group = "下载设置" },
                 new SystemSetting { Key = "finance.currency.unit", Value = "CNY", Name = "货币单位", Display = "货币单位", Type = NetorDataType.Text, Group = "财务设置" });
