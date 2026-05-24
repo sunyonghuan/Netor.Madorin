@@ -119,32 +119,7 @@ public static class Events
     /// <summary>本轮对话已结束，状态可能是成功、取消或失败。</summary>
     public static ConversationTurnCompletedEvent OnConversationTurnCompleted = new("conversation.turn.completed");
 
-    // ──────── Workflow 任务事件（阶段 2B 起） ────────
-
-    /// <summary>Workflow 任务已启动，进入 running 状态。</summary>
-    public static WorkflowTaskStartedEvent OnWorkflowTaskStarted = new("workflow.task.started");
-
-    /// <summary>Workflow 任务的某个步骤已完成。</summary>
-    public static WorkflowStepCompletedEvent OnWorkflowStepCompleted = new("workflow.step.completed");
-
-    /// <summary>Workflow 任务已成功完成，FinalReport 可用。</summary>
-    public static WorkflowTaskCompletedEvent OnWorkflowTaskCompleted = new("workflow.task.completed");
-
-    /// <summary>Workflow 任务失败（含宿主重启孤儿清理场景）。</summary>
-    public static WorkflowTaskFailedEvent OnWorkflowTaskFailed = new("workflow.task.failed");
-
-    /// <summary>Workflow 任务标题已由 LLM 兜底生成（决策 6-A）。</summary>
-    public static WorkflowTaskTitleUpdatedEvent OnWorkflowTaskTitleUpdated = new("workflow.task.title.updated");
-
-    // ──────── 阶段 5B 新增：HITL 暂停 / 恢复 ────────
-
-    /// <summary>Workflow 任务因 HITL（如 Magentic 计划批准）暂停，等待用户响应。</summary>
-    public static WorkflowTaskPausedEvent OnWorkflowTaskPaused = new("workflow.task.paused");
-
-    /// <summary>Workflow 任务从 HITL 暂停状态恢复执行。</summary>
-    public static WorkflowTaskResumedEvent OnWorkflowTaskResumed = new("workflow.task.resumed");
-
-    // ──────── 阶段 5B Phase 3：Chat↔Workflow 桥接 ────────
+    // ──────── Chat↔Workflow 桥接（阶段 5B Phase 3） ────────
 
     /// <summary>
     /// Chat 端基于启发式检测到当前 user input 像是复杂任务，建议切到 Workflow 工作模式。
@@ -153,23 +128,6 @@ public static class Events
     /// 走 conversation topic（不是 workflow topic），因为这是 chat 端的提示。
     /// </summary>
     public static WorkflowSuggestionEvent OnWorkflowSuggestion = new("conversation.workflow.suggestion");
-
-    // ──────── P2-4 新增：动态子智能体创建审批 ────────
-
-    /// <summary>
-    /// Magentic Manager 通过 <c>create_subagent</c> 工具发起动态子智能体创建请求，等待用户审批。
-    /// 由 <c>CreateSubAgentTool.CreateSubAgentAsync</c> 发布，由 <c>DynamicAgentCreationApprovalVm</c> 订阅展示卡片。
-    /// 用户响应通过 <c>DynamicAgentCreationGate.ResolveDecision</c> 解锁工具的 await。
-    /// </summary>
-    public static DynamicAgentCreationRequestedEvent OnDynamicAgentCreationRequested
-        = new("workflow.dynamic.agent.creation.requested");
-
-    /// <summary>
-    /// 动态子智能体创建审批已被用户决策（Approved / ApprovedAll / Rejected）。
-    /// UI 可订阅此事件清空审批卡片或记录审计日志。
-    /// </summary>
-    public static DynamicAgentCreationResolvedEvent OnDynamicAgentCreationResolved
-        = new("workflow.dynamic.agent.creation.resolved");
 
     // ──────── P4 任务执行引擎事件 ────────
 
@@ -284,42 +242,13 @@ public record SystemNoticeEvent(string Eventid) : EventID<SystemNoticeArgs>(Even
 /// <summary>MCP 服务器连接状态变更事件</summary>
 public record McpConnectionStateChangedEvent(string Eventid) : EventID<McpConnectionStateChangedArgs>(Eventid);
 
-// ──────── Workflow 任务事件类型（阶段 2B 起） ────────
-
-/// <summary>Workflow 任务启动事件（task.started）</summary>
-public record WorkflowTaskStartedEvent(string Eventid) : EventID<WorkflowTaskStartedArgs>(Eventid);
-
-/// <summary>Workflow 任务步骤完成事件（step.completed）</summary>
-public record WorkflowStepCompletedEvent(string Eventid) : EventID<WorkflowStepCompletedArgs>(Eventid);
-
-/// <summary>Workflow 任务完成事件（task.completed）</summary>
-public record WorkflowTaskCompletedEvent(string Eventid) : EventID<WorkflowTaskCompletedArgs>(Eventid);
-
-/// <summary>Workflow 任务失败事件（task.failed，含宿主重启孤儿清理）</summary>
-public record WorkflowTaskFailedEvent(string Eventid) : EventID<WorkflowTaskFailedArgs>(Eventid);
-
-/// <summary>Workflow 任务标题更新事件（task.title.updated，决策 6-A）</summary>
-public record WorkflowTaskTitleUpdatedEvent(string Eventid) : EventID<WorkflowTaskTitleUpdatedArgs>(Eventid);
-
-/// <summary>Workflow 任务 HITL 暂停事件（task.paused，阶段 5B 新增）</summary>
-public record WorkflowTaskPausedEvent(string Eventid) : EventID<WorkflowTaskPausedArgs>(Eventid);
-
-/// <summary>Workflow 任务 HITL 恢复事件（task.resumed，阶段 5B 新增）</summary>
-public record WorkflowTaskResumedEvent(string Eventid) : EventID<WorkflowTaskResumedArgs>(Eventid);
+// ──────── Chat↔Workflow 桥接事件类型 ────────
 
 /// <summary>
 /// Chat→Workflow 启发式建议事件（conversation.workflow.suggestion，阶段 5B Phase 3 新增）。
 /// 由 <c>AiChatHostedService</c> 在 user input 命中"复杂任务"启发式时发布，UI 端弹 banner 引导切到工作模式。
 /// </summary>
 public record WorkflowSuggestionEvent(string Eventid) : EventID<WorkflowSuggestionArgs>(Eventid);
-
-/// <summary>P2-4：动态子智能体创建请求事件类型（workflow.dynamic.agent.creation.requested）。</summary>
-public record DynamicAgentCreationRequestedEvent(string Eventid)
-    : EventID<DynamicAgentCreationRequestedArgs>(Eventid);
-
-/// <summary>P2-4：动态子智能体创建审批已决策事件类型（workflow.dynamic.agent.creation.resolved）。</summary>
-public record DynamicAgentCreationResolvedEvent(string Eventid)
-    : EventID<DynamicAgentCreationResolvedArgs>(Eventid);
 
 // ──────── 事件参数类型 ────────
 
@@ -582,233 +511,18 @@ public record McpConnectionStateChangedArgs(
     bool IsReconnecting) : EventArgs;
 
 // ════════════════════════════════════════════════════════════════════════
-// Workflow 任务事件参数（阶段 2B 起）
-// 详见 docs/未来版本策划/多智能体编排模式策划/07-事件分流与插件兼容设计.md §3.4
-// 所有 Workflow Args 共享以下定位字段：
-//   TaskId / SourceSessionId / TraceId / WorkspaceId / Mode / SubMode / OccurredAt
-// 这套字段允许 Memory 插件按工作区、追踪 ID、源会话进行任意聚合。
+// Chat↔Workflow 桥接事件参数（阶段 5B Phase 3，保留）
 // ════════════════════════════════════════════════════════════════════════
 
 /// <summary>
-/// Workflow 任务通用基类。所有 Workflow 事件继承该基类，复用统一定位字段。
-/// </summary>
-public abstract record WorkflowEventArgs(
-    string TaskId,
-    string? SourceSessionId,
-    string TraceId,
-    string WorkspaceId,
-    string Mode,
-    string SubMode,
-    DateTimeOffset OccurredAt) : EventArgs;
-
-/// <summary>
-/// Workflow 任务已启动事件参数（workflow.task.started）。
-/// </summary>
-public record WorkflowTaskStartedArgs(
-    string TaskId,
-    string? SourceSessionId,
-    string TraceId,
-    string WorkspaceId,
-    string Mode,
-    string SubMode,
-    DateTimeOffset OccurredAt,
-    string Title,
-    string? ManagerAgentId,
-    string? ManagerAgentName,
-    string InitialInput,
-    IReadOnlyList<string> ParticipantAgentIds,
-    long StartedAt) : WorkflowEventArgs(
-        TaskId,
-        SourceSessionId,
-        TraceId,
-        WorkspaceId,
-        Mode,
-        SubMode,
-        OccurredAt);
-
-/// <summary>
-/// Workflow 任务步骤完成事件参数（workflow.step.completed）。
-/// </summary>
-public record WorkflowStepCompletedArgs(
-    string TaskId,
-    string? SourceSessionId,
-    string TraceId,
-    string WorkspaceId,
-    string Mode,
-    string SubMode,
-    DateTimeOffset OccurredAt,
-    string StepId,
-    string? ParentStepId,
-    int Sequence,
-    string? AgentId,
-    string? AgentName,
-    string Action,
-    string Status,
-    long StartedAt,
-    long? CompletedAt,
-    long? DurationMs,
-    int? TokenInputCount,
-    int? TokenOutputCount,
-    string? ErrorMessage,
-    string? SummaryJson) : WorkflowEventArgs(
-        TaskId,
-        SourceSessionId,
-        TraceId,
-        WorkspaceId,
-        Mode,
-        SubMode,
-        OccurredAt);
-
-/// <summary>
-/// Workflow 任务完成事件参数（workflow.task.completed）。FinalReport 可用。
-/// 阶段 6 Phase 4：新增 <see cref="AllowMemoryIngest"/> 字段（决策 6-4-A 修订）。
-/// host 端在发布事件前查 <c>AgentService.GetById(ManagerAgentId).AllowWorkflowMemory</c> 填充该字段；
-/// Memory 插件 <c>MemoryWorkflowEventHandler</c> 检查 false 时跳过入库（事件正常发，仅丢弃 ingest 副作用）。
-/// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #5。
-/// </summary>
-public record WorkflowTaskCompletedArgs(
-    string TaskId,
-    string? SourceSessionId,
-    string TraceId,
-    string WorkspaceId,
-    string Mode,
-    string SubMode,
-    DateTimeOffset OccurredAt,
-    string Title,
-    string? ManagerAgentId,
-    string? ManagerAgentName,
-    string? FinalReport,
-    int StepCount,
-    long? TotalDurationMs,
-    long TotalTokenInputCount,
-    long TotalTokenOutputCount,
-    IReadOnlyList<string> ParticipantAgentIds,
-    long CompletedAt,
-    bool AllowMemoryIngest = true) : WorkflowEventArgs(
-        TaskId,
-        SourceSessionId,
-        TraceId,
-        WorkspaceId,
-        Mode,
-        SubMode,
-        OccurredAt);
-
-/// <summary>
-/// Workflow 任务失败事件参数（workflow.task.failed，含宿主重启孤儿清理场景）。
-/// </summary>
-public record WorkflowTaskFailedArgs(
-    string TaskId,
-    string? SourceSessionId,
-    string TraceId,
-    string WorkspaceId,
-    string Mode,
-    string SubMode,
-    DateTimeOffset OccurredAt,
-    string Title,
-    string ErrorMessage,
-    string FailureReason,           // "exception" / "timeout" / "host_restart_orphan" / "cancelled"
-    long FailedAt) : WorkflowEventArgs(
-        TaskId,
-        SourceSessionId,
-        TraceId,
-        WorkspaceId,
-        Mode,
-        SubMode,
-        OccurredAt);
-
-/// <summary>
-/// Workflow 任务标题更新事件参数（workflow.task.title.updated，决策 6-A）。
-/// </summary>
-public record WorkflowTaskTitleUpdatedArgs(
-    string TaskId,
-    string? SourceSessionId,
-    string TraceId,
-    string WorkspaceId,
-    string Mode,
-    string SubMode,
-    DateTimeOffset OccurredAt,
-    string OldTitle,
-    string NewTitle,
-    bool IsAutoGenerated) : WorkflowEventArgs(
-        TaskId,
-        SourceSessionId,
-        TraceId,
-        WorkspaceId,
-        Mode,
-        SubMode,
-        OccurredAt);
-
-/// <summary>
-/// Workflow 任务 HITL 暂停事件参数（workflow.task.paused，阶段 5B 新增）。
-///
-/// 触发场景：Magentic <c>RequirePlanSignoff(true)</c> 在每次产出计划后等待用户批准；
-/// 未来可扩展到其他 HITL 节点（如关键工具调用前的确认）。
-///
-/// <see cref="RequestId"/> 是 SDK <c>ExternalRequest.RequestId</c> 的回带，
-/// 用于在 <c>ResumeAsync</c> 时把用户响应与原始请求配对，防止旧响应误生效。
-/// </summary>
-public record WorkflowTaskPausedArgs(
-    string TaskId,
-    string? SourceSessionId,
-    string TraceId,
-    string WorkspaceId,
-    string Mode,
-    string SubMode,
-    DateTimeOffset OccurredAt,
-    string Title,
-    string PauseReason,
-    string RequestId,
-    string? RequestPayloadJson,
-    long PausedAt) : WorkflowEventArgs(
-        TaskId,
-        SourceSessionId,
-        TraceId,
-        WorkspaceId,
-        Mode,
-        SubMode,
-        OccurredAt);
-
-/// <summary>
-/// Workflow 任务 HITL 恢复事件参数（workflow.task.resumed，阶段 5B 新增）。
-///
-/// <see cref="ResumeAction"/> 取值：
-/// <list type="bullet">
-///   <item><c>"approved"</c> - 用户批准，发送空 ChatMessage 列表（Magentic 视为通过）</item>
-///   <item><c>"revised"</c> - 用户提供修改建议，<see cref="RevisionPayloadJson"/> 含 ChatMessage 列表 JSON</item>
-///   <item><c>"rejected"</c> - 用户拒绝，触发 OperationCanceledException 走 HandleTaskCancelled 路径</item>
-/// </list>
-/// </summary>
-public record WorkflowTaskResumedArgs(
-    string TaskId,
-    string? SourceSessionId,
-    string TraceId,
-    string WorkspaceId,
-    string Mode,
-    string SubMode,
-    DateTimeOffset OccurredAt,
-    string Title,
-    string RequestId,
-    string ResumeAction,
-    string? RevisionPayloadJson,
-    long ResumedAt) : WorkflowEventArgs(
-        TaskId,
-        SourceSessionId,
-        TraceId,
-        WorkspaceId,
-        Mode,
-        SubMode,
-        OccurredAt);
-
-/// <summary>
-/// 阶段 5B Phase 3 新增：Chat→Workflow 启发式建议参数。
+/// 阶段 5B Phase 3：Chat→Workflow 启发式建议参数。
 /// 由 <c>AiChatHostedService.SendMessageAsync</c> 在 <c>mentions.Count==0</c> 且 user input 命中复杂任务关键词时发布。
-/// 走 conversation topic（不是 workflow topic），由 UI Banner 订阅展示，用户点击后跳工作台 + 预填 NewTaskDialog。
-/// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §5B.3 / Phase 3 实施计划 §4.1。
+/// 走 conversation topic（不是 workflow topic），由 UI Banner 订阅展示，用户点击后跳工作台 + 预填任务输入框。
 /// </summary>
-/// <param name="SourceSessionId">触发建议的 chat 会话 ID（用户点[切到工作模式]后会作为 NewTaskDialog 的 SourceSessionId 字段）。</param>
+/// <param name="SourceSessionId">触发建议的 chat 会话 ID。</param>
 /// <param name="TraceId">分布式追踪 ID。</param>
-/// <param name="OriginalInput">触发建议的 user input 全文（点击后预填到 NewTaskDialog.InitialInput）。</param>
-/// <param name="SuggestedSubMode">推荐的 Workflow 子模式：当前一期固定为 "Magentic"（最通用），后续可按关键词分流。</param>
+/// <param name="OriginalInput">触发建议的 user input 全文（点击后预填到工作流输入框）。</param>
+/// <param name="SuggestedSubMode">推荐的 Workflow 子模式：当前固定为 "Magentic"。</param>
 /// <param name="Reason">展示给用户的说明文本（中文，可由 UI 直接渲染）。</param>
 /// <param name="OccurredAt">建议生成时间。</param>
 public record WorkflowSuggestionArgs(
@@ -818,63 +532,6 @@ public record WorkflowSuggestionArgs(
     string SuggestedSubMode,
     string Reason,
     DateTimeOffset OccurredAt) : EventArgs;
-
-/// <summary>
-/// P2-4：动态子智能体创建审批请求事件参数。
-///
-/// 由 <c>CreateSubAgentTool.CreateSubAgentAsync</c> 在每次 Manager 调用 <c>create_subagent</c> 时发布
-/// （除非该任务已通过 ApprovedAll 进入 auto-approve 模式）。UI 收到事件后展示审批卡片，
-/// 用户点击 Approve / ApproveAll / Reject 后通过 <c>DynamicAgentCreationGate.ResolveDecision(RequestId, ...)</c>
-/// 解锁工具内 await。
-/// </summary>
-/// <param name="TaskId">所属工作流任务 ID。</param>
-/// <param name="RequestId">本次审批请求唯一标识，用于在 Gate 中配对响应。</param>
-/// <param name="ManagerAgentId">发起请求的 Manager AgentId，便于审计。</param>
-/// <param name="ProposedName">Manager 提议的子智能体名称（已通过命名正则与唯一性校验）。</param>
-/// <param name="ProposedResponsibility">Manager 提议的职责描述（一句话简介）。</param>
-/// <param name="ProposedInstructions">Manager 提议的子智能体系统提示词。</param>
-/// <param name="ProposedRequiredTools">Manager 提议的必需工具白名单（已通过工具存在性校验）。</param>
-/// <param name="CurrentCount">本任务当前已创建的动态子智能体数量。</param>
-/// <param name="MaxSubAgents">本任务允许创建的子智能体上限。</param>
-public record DynamicAgentCreationRequestedArgs(
-    string TaskId,
-    string RequestId,
-    string ManagerAgentId,
-    string ProposedName,
-    string ProposedResponsibility,
-    string ProposedInstructions,
-    IReadOnlyList<string> ProposedRequiredTools,
-    int CurrentCount,
-    int MaxSubAgents) : WorkflowEventArgs(
-        TaskId,
-        null,
-        string.Empty,
-        string.Empty,
-        "discussion",
-        "magentic",
-        DateTimeOffset.UtcNow);
-
-/// <summary>
-/// P2-4：动态子智能体创建审批已决策事件参数。
-///
-/// <see cref="Decision"/> 取值：
-/// <list type="bullet">
-///   <item><c>"approved"</c> - 单次批准，下次 create_subagent 仍会再次询问</item>
-///   <item><c>"approved_all"</c> - 本任务后续 create_subagent 不再询问（auto-approve）</item>
-///   <item><c>"rejected"</c> - 用户拒绝，工具返回失败字符串给 Manager</item>
-/// </list>
-/// </summary>
-public record DynamicAgentCreationResolvedArgs(
-    string TaskId,
-    string RequestId,
-    string Decision) : WorkflowEventArgs(
-        TaskId,
-        null,
-        string.Empty,
-        string.Empty,
-        "discussion",
-        "magentic",
-        DateTimeOffset.UtcNow);
 
 // ════════════════════════════════════════════════════════════════════════
 // P4 任务执行引擎事件类型 + 事件参数

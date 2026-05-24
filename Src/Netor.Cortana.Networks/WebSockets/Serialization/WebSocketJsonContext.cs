@@ -27,14 +27,7 @@ namespace Netor.Cortana.Networks;
 [JsonSerializable(typeof(MemoryContextSupplyRequest))]
 [JsonSerializable(typeof(MemoryContextSupplyPackage))]
 [JsonSerializable(typeof(MemoryContextSupplyError))]
-// 阶段 2B 新增：Workflow 任务事件 Args（保留用于历史兼容）
-[JsonSerializable(typeof(WorkflowTaskStartedArgs))]
-[JsonSerializable(typeof(WorkflowStepCompletedArgs))]
-[JsonSerializable(typeof(WorkflowTaskCompletedArgs))]
-[JsonSerializable(typeof(WorkflowTaskFailedArgs))]
-[JsonSerializable(typeof(WorkflowTaskTitleUpdatedArgs))]
-[JsonSerializable(typeof(WorkflowTaskPausedArgs))]
-[JsonSerializable(typeof(WorkflowTaskResumedArgs))]
+// Chat↔Workflow 桥接事件（保留）
 [JsonSerializable(typeof(WorkflowSuggestionArgs))]
 // P4 任务执行引擎事件 Args
 [JsonSerializable(typeof(TaskPhaseEventArgs))]

@@ -35,22 +35,6 @@ public class StepItemVm : INotifyPropertyChanged
         _summary = args.ResultSummary;
     }
 
-    /// <summary>从老 step.completed 事件构造（兼容历史数据加载）。</summary>
-    public StepItemVm(WorkflowStepCompletedArgs args)
-    {
-        ArgumentNullException.ThrowIfNull(args);
-        StepId = args.StepId;
-        Sequence = args.Sequence;
-        AgentId = args.AgentId ?? string.Empty;
-        AgentName = args.AgentName ?? args.AgentId ?? "(未知)";
-        Action = args.Action;
-        StartedAt = args.StartedAt;
-        _status = args.Status;
-        _completedAt = args.CompletedAt;
-        _durationMs = args.DurationMs;
-        _summary = args.SummaryJson;
-    }
-
     /// <summary>步骤主键。</summary>
     public string StepId { get; }
 
