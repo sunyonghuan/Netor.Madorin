@@ -313,7 +313,31 @@ public sealed class AiChatHostedService(
                 var assetEntities = new List<ChatMessageAssetEntity>();
                 var sortOrder = 0;
 
+                // P3-2：展开文件夹附件为单文件列表，统一后续处理逻辑
+                var expandedAttachments = new List<AttachmentInfo>();
                 foreach (var attachment in attachments)
+                {
+                    if (attachment.IsFolder)
+                    {
+                        // 文件夹附件：用 FolderAttachmentScanner 展开为具体文件
+                        var scanner = new FolderAttachmentScanner();
+                        var scanResult = scanner.Scan(attachment.Path);
+                        foreach (var filePath in scanResult.IncludedFiles)
+                        {
+                            var fileName = Path.GetFileName(filePath);
+                            var mime = GuessMimeFromExtension(filePath);
+                            expandedAttachments.Add(new AttachmentInfo(filePath, fileName, mime));
+                        }
+                        logger.LogInformation("文件夹附件已展开：{Name}（{FileCount} 文件，{TotalBytes} 字节）",
+                            attachment.Name, scanResult.FileCount, scanResult.TotalBytes);
+                    }
+                    else
+                    {
+                        expandedAttachments.Add(attachment);
+                    }
+                }
+
+                foreach (var attachment in expandedAttachments)
                 {
                     try
                     {
@@ -1027,6 +1051,35 @@ public sealed class AiChatHostedService(
     /// </summary>
     private static bool IsImageMimeType(string mimeType) =>
         mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// P3-2：根据文件扩展名猜测 MIME 类型（用于文件夹展开后的单文件）。
+    /// </summary>
+    private static string GuessMimeFromExtension(string path)
+    {
+        var ext = Path.GetExtension(path);
+        if (string.IsNullOrEmpty(ext)) return "application/octet-stream";
+
+        return ext.ToLowerInvariant() switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".gif" => "image/gif",
+            ".bmp" => "image/bmp",
+            ".webp" => "image/webp",
+            ".svg" => "image/svg+xml",
+            ".pdf" => "application/pdf",
+            ".txt" or ".md" or ".log" => "text/plain",
+            ".json" => "application/json",
+            ".xml" => "application/xml",
+            ".html" or ".htm" => "text/html",
+            ".cs" or ".py" or ".js" or ".ts" or ".java" or ".go" or ".rs" => "text/plain",
+            ".css" or ".scss" or ".less" => "text/css",
+            ".yaml" or ".yml" => "text/yaml",
+            ".csv" => "text/csv",
+            _ => "application/octet-stream",
+        };
+    }
 
     /// <summary>
     /// 根据 MIME 类型判断资源分组。

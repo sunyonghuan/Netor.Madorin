@@ -2,11 +2,21 @@ namespace Netor.Cortana.Entitys;
 
 /// <summary>
 /// 附件信息，包含文件路径、文件名和 MIME 类型。
+/// P3-2 扩展：支持文件夹附件（IsFolder + FileCount + TotalBytes）。
 /// </summary>
-/// <param name="Path">文件完整路径。</param>
-/// <param name="Name">文件名。</param>
-/// <param name="MimeType">MIME 类型。</param>
-public sealed record AttachmentInfo(string Path, string Name, string MimeType);
+/// <param name="Path">文件或文件夹完整路径。</param>
+/// <param name="Name">文件名或文件夹名。</param>
+/// <param name="MimeType">MIME 类型（文件夹为 "inode/directory"）。</param>
+/// <param name="IsFolder">是否为文件夹附件。</param>
+/// <param name="FileCount">文件夹下有效文件数（仅 IsFolder=true 时有意义）。</param>
+/// <param name="TotalBytes">文件夹下有效文件总大小（仅 IsFolder=true 时有意义）。</param>
+public sealed record AttachmentInfo(
+    string Path,
+    string Name,
+    string MimeType,
+    bool IsFolder = false,
+    int FileCount = 0,
+    long TotalBytes = 0);
 
 /// <summary>
 /// 用户消息中 @智能体 的提及信息。

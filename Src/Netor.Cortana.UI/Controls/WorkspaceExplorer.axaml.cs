@@ -84,6 +84,16 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
     public event Action<IReadOnlyList<string>>? AttachmentRequested;
 
     /// <summary>
+    /// P3-2：请求将文件路径列表添加为工作流附件，由 MainWindow 订阅。
+    /// </summary>
+    public event Action<IReadOnlyList<string>>? WorkflowAttachmentRequested;
+
+    /// <summary>
+    /// P3-2：请求将文件路径列表添加为群聊附件，由 MainWindow 订阅。
+    /// </summary>
+    public event Action<IReadOnlyList<string>>? GroupChatAttachmentRequested;
+
+    /// <summary>
     /// 初始化工作区文件浏览器控件，并注册拖放处理和工作目录变更事件订阅。
     /// </summary>
     public WorkspaceExplorer()
@@ -500,8 +510,10 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         MenuOpenInExplorer.IsVisible = true;
         // 在终端中打开：仅单选文件夹
         MenuOpenInTerminal.IsVisible = isSingle && singleNode!.IsDirectory;
-        // 发送到聊天附件：有文件时可用
-        MenuSendToChat.IsVisible = hasFile;
+        // 发送到聊天/工作流/群聊附件：P3-2 支持文件和文件夹
+        MenuSendToChat.IsVisible = true;
+        MenuSendToWorkflow.IsVisible = true;
+        MenuSendToGroupChat.IsVisible = true;
         // 新建文件/文件夹：仅单选文件夹
         MenuNewFile.IsVisible = isSingle && singleNode!.IsDirectory;
         MenuNewFolder.IsVisible = isSingle && singleNode!.IsDirectory;
@@ -556,13 +568,24 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
 
     private void OnMenuSendToChatClick(object? sender, RoutedEventArgs e)
     {
-        var filePaths = GetSelectedNodes()
-            .Where(n => !n.IsDirectory)
-            .Select(n => n.FullPath)
-            .ToList();
+        // P3-2：支持文件和文件夹
+        var paths = GetSelectedNodes().Select(n => n.FullPath).ToList();
+        if (paths.Count > 0)
+            AttachmentRequested?.Invoke(paths);
+    }
 
-        if (filePaths.Count > 0)
-            AttachmentRequested?.Invoke(filePaths);
+    private void OnMenuSendToWorkflowClick(object? sender, RoutedEventArgs e)
+    {
+        var paths = GetSelectedNodes().Select(n => n.FullPath).ToList();
+        if (paths.Count > 0)
+            WorkflowAttachmentRequested?.Invoke(paths);
+    }
+
+    private void OnMenuSendToGroupChatClick(object? sender, RoutedEventArgs e)
+    {
+        var paths = GetSelectedNodes().Select(n => n.FullPath).ToList();
+        if (paths.Count > 0)
+            GroupChatAttachmentRequested?.Invoke(paths);
     }
 
     private async void OnMenuNewFileClick(object? sender, RoutedEventArgs e)

@@ -79,7 +79,9 @@
 					<MenuItem x:Name="MenuOpenInTerminal"  Header="在终端中打开"       Click="OnMenuOpenInTerminalClick" />
 					<Separator />
 					<MenuItem x:Name="MenuSendToChat"      Header="发送到聊天附件"     Click="OnMenuSendToChatClick" />
-					<!-- <Separator /> -->
+					<MenuItem x:Name="MenuSendToWorkflow"  Header="发送到工作流附件"   Click="OnMenuSendToWorkflowClick" />
+					<MenuItem x:Name="MenuSendToGroupChat" Header="发送到群聊附件"     Click="OnMenuSendToGroupChatClick" />
+					<Separator />
 					<MenuItem x:Name="MenuNewFile"         Header="新建文件"           Click="OnMenuNewFileClick" />
 					<MenuItem x:Name="MenuNewFolder"       Header="新建文件夹"         Click="OnMenuNewFolderClick" />
 					<!-- <Separator /> -->

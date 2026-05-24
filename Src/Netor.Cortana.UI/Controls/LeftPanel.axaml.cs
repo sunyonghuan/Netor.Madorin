@@ -44,6 +44,8 @@ public partial class LeftPanel : UserControl
 
         // 内部 WorkspaceExplorer 的事件转发到本控件对外暴露的 event
         FileExplorerHost.AttachmentRequested += paths => AttachmentRequested?.Invoke(paths);
+        FileExplorerHost.WorkflowAttachmentRequested += paths => WorkflowAttachmentRequested?.Invoke(paths);
+        FileExplorerHost.GroupChatAttachmentRequested += paths => GroupChatAttachmentRequested?.Invoke(paths);
 
         // 内部 ChatHistoryPanel 的事件转发到本控件对外暴露的 event（C5 引入，决策 R2/R3）。
         // 让 MainWindow 无感切换：事件签名 + 调用方式不变，只是路径从原 HistoryPanel.X 改为 LeftPanelHost.X。
@@ -64,6 +66,16 @@ public partial class LeftPanel : UserControl
     /// 用户在文件树右键选择 "引用为附件" 时触发。转发自内部 <see cref="WorkspaceExplorer"/>。
     /// </summary>
     public event Action<IReadOnlyList<string>>? AttachmentRequested;
+
+    /// <summary>
+    /// P3-2：用户在文件树右键选择 "发送到工作流附件" 时触发。转发自内部 <see cref="WorkspaceExplorer"/>。
+    /// </summary>
+    public event Action<IReadOnlyList<string>>? WorkflowAttachmentRequested;
+
+    /// <summary>
+    /// P3-2：用户在文件树右键选择 "发送到群聊附件" 时触发。转发自内部 <see cref="WorkspaceExplorer"/>。
+    /// </summary>
+    public event Action<IReadOnlyList<string>>? GroupChatAttachmentRequested;
 
     // ──── C5：ChatHistoryPanel 转发 API（决策 R2/R3） ────
 

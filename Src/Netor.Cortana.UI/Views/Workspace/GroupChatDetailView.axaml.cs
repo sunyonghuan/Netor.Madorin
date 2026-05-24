@@ -17,6 +17,7 @@ using Microsoft.Extensions.Logging;
 using Netor.Cortana.AI.Workflow.Bridges;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Extensions;
+using Netor.Cortana.Entitys.Services;
 using Netor.Cortana.UI.ViewModels.Workspace;
 using Netor.EventHub;
 
@@ -316,6 +317,34 @@ public partial class GroupChatDetailView : UserControl
         }
     }
 
+    /// <summary>P3-2：外部（WorkspaceExplorer 右键菜单）将文件/文件夹路径列表推送到群聊附件。</summary>
+    public void AddExternalAttachments(IReadOnlyList<string> paths)
+    {
+        var added = false;
+        foreach (var path in paths)
+        {
+            if (_inputVm.Attachments.Any(a => string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            if (Directory.Exists(path))
+            {
+                var scanner = new Entitys.Services.FolderAttachmentScanner();
+                var result = scanner.Scan(path);
+                var folderName = System.IO.Path.GetFileName(path.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
+                _inputVm.Attachments.Add(new AttachmentInfo(path, folderName, "inode/directory",
+                    IsFolder: true, FileCount: result.FileCount, TotalBytes: result.TotalBytes));
+                added = true;
+            }
+            else if (System.IO.File.Exists(path))
+            {
+                _inputVm.Attachments.Add(new AttachmentInfo(path, System.IO.Path.GetFileName(path), FileContentTypeResolver.GetMimeType(path)));
+                added = true;
+            }
+        }
+        // CollectionChanged 自动触发 RenderAttachments（无需显式调用）
+        _ = added; // suppress unused warning
+    }
+
     /// <summary>"工具" 按钮（条款 4）：弹 Popup。</summary>
     private void OnToolPopupOpenClick(object? sender, RoutedEventArgs e)
     {
@@ -527,11 +556,13 @@ public partial class GroupChatDetailView : UserControl
                     {
                         new TextBlock
                         {
-                            Text = $"📎 {attachment.Name}",
+                            Text = attachment.IsFolder
+                                ? $"📁 {attachment.Name} ({attachment.FileCount} 文件, {FormatBytes(attachment.TotalBytes)})"
+                                : $"📎 {attachment.Name}",
                             FontSize = 12,
                             Foreground = new SolidColorBrush(Color.Parse("#cccccc")),
                             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                            MaxWidth = 180,
+                            MaxWidth = 240,
                             TextTrimming = TextTrimming.CharacterEllipsis,
                         },
                         removeBtn,
@@ -574,7 +605,7 @@ public partial class GroupChatDetailView : UserControl
         e.Handled = true;
     }
 
-    /// <summary>拖放完成 → 把文件添加到 _inputVm.Attachments。</summary>
+    /// <summary>拖放完成 → 把文件/文件夹添加到 _inputVm.Attachments。P3-2：支持文件夹拖放。</summary>
     private void OnDrop(object? sender, DragEventArgs e)
     {
         _isDragOver = false;
@@ -586,13 +617,26 @@ public partial class GroupChatDetailView : UserControl
         foreach (var item in files)
         {
             var path = item.Path?.LocalPath;
-            if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path)) continue;
-            // Bug B 修复 2026-05-17：按 path 去重，避免同一文件重复添加
+            if (string.IsNullOrEmpty(path)) continue;
+
+            // 按 path 去重，避免同一文件/文件夹重复添加
             if (_inputVm.Attachments.Any(a => string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
 
-            var name = System.IO.Path.GetFileName(path);
-            var mimeType = FileContentTypeResolver.GetMimeType(path);
-            _inputVm.Attachments.Add(new AttachmentInfo(path, name, mimeType));
+            // P3-2：支持文件夹拖放
+            if (Directory.Exists(path))
+            {
+                var scanner = new FolderAttachmentScanner();
+                var result = scanner.Scan(path);
+                var folderName = System.IO.Path.GetFileName(path.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
+                _inputVm.Attachments.Add(new AttachmentInfo(path, folderName, "inode/directory",
+                    IsFolder: true, FileCount: result.FileCount, TotalBytes: result.TotalBytes));
+            }
+            else if (System.IO.File.Exists(path))
+            {
+                var name = System.IO.Path.GetFileName(path);
+                var mimeType = FileContentTypeResolver.GetMimeType(path);
+                _inputVm.Attachments.Add(new AttachmentInfo(path, name, mimeType));
+            }
             // CollectionChanged 自动触发 RenderAttachments
         }
         e.Handled = true;
@@ -744,5 +788,13 @@ public partial class GroupChatDetailView : UserControl
         var text = InputBox.Text ?? string.Empty;
         if (!string.Equals(_inputVm.InitialInput, text, StringComparison.Ordinal))
             _inputVm.InitialInput = text;
+    }
+
+    /// <summary>P3-2：人类可读的字节数格式化。</summary>
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes}B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1}KB";
+        return $"{bytes / 1024.0 / 1024.0:F1}MB";
     }
 }

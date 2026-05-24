@@ -6,6 +6,7 @@ using Avalonia.Media;
 
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Extensions;
+using Netor.Cortana.Entitys.Services;
 
 namespace Netor.Cortana.UI.Views;
 
@@ -108,11 +109,13 @@ public partial class MainWindow
                     {
                         new TextBlock
                         {
-                            Text = $"📎 {attachment.Name}",
+                            Text = attachment.IsFolder
+                                ? $"📁 {attachment.Name} ({attachment.FileCount} 文件, {FormatBytes(attachment.TotalBytes)})"
+                                : $"📎 {attachment.Name}",
                             FontSize = 12,
                             Foreground = new SolidColorBrush(Color.Parse("#cccccc")),
                             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                            MaxWidth = 180,
+                            MaxWidth = 240,
                             TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
                         },
                         removeBtn
@@ -146,21 +149,40 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// 工作台文件树"发送到聊天附件"回调。
+    /// 工作台文件树"发送到聊天附件"回调。P3-2：同时支持文件和文件夹。
     /// </summary>
     private void OnWorkspaceAttachmentRequested(IReadOnlyList<string> filePaths)
     {
         var added = false;
         foreach (var path in filePaths)
         {
-            if (!File.Exists(path)) continue;
-            // 避免重复添加
             if (_attachments.Any(a => string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase)))
                 continue;
-            _attachments.Add(new AttachmentInfo(path, Path.GetFileName(path), FileContentTypeResolver.GetMimeType(path)));
-            added = true;
+
+            if (Directory.Exists(path))
+            {
+                var scanner = new FolderAttachmentScanner();
+                var result = scanner.Scan(path);
+                var folderName = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                _attachments.Add(new AttachmentInfo(path, folderName, "inode/directory",
+                    IsFolder: true, FileCount: result.FileCount, TotalBytes: result.TotalBytes));
+                added = true;
+            }
+            else if (File.Exists(path))
+            {
+                _attachments.Add(new AttachmentInfo(path, Path.GetFileName(path), FileContentTypeResolver.GetMimeType(path)));
+                added = true;
+            }
         }
         if (added) RenderAttachments();
+    }
+
+    /// <summary>P3-2：人类可读的字节数格式化。</summary>
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes}B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1}KB";
+        return $"{bytes / 1024.0 / 1024.0:F1}MB";
     }
 
     // ──────── 拖放文件 ────────
@@ -207,12 +229,27 @@ public partial class MainWindow
         foreach (var item in files)
         {
             var path = item.Path?.LocalPath;
-            if (string.IsNullOrEmpty(path) || !File.Exists(path)) continue;
+            if (string.IsNullOrEmpty(path)) continue;
 
-            var name = Path.GetFileName(path);
-            var mimeType = FileContentTypeResolver.GetMimeType(path);
-            _attachments.Add(new AttachmentInfo(path, name, mimeType));
-            added = true;
+            // P3-2：支持文件夹拖放
+            if (Directory.Exists(path))
+            {
+                if (_attachments.Any(a => a.Path == path)) continue; // 去重
+                var scanner = new FolderAttachmentScanner();
+                var result = scanner.Scan(path);
+                var folderName = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                _attachments.Add(new AttachmentInfo(path, folderName, "inode/directory",
+                    IsFolder: true, FileCount: result.FileCount, TotalBytes: result.TotalBytes));
+                added = true;
+            }
+            else if (File.Exists(path))
+            {
+                if (_attachments.Any(a => a.Path == path)) continue; // 去重
+                var name = Path.GetFileName(path);
+                var mimeType = FileContentTypeResolver.GetMimeType(path);
+                _attachments.Add(new AttachmentInfo(path, name, mimeType));
+                added = true;
+            }
         }
 
         if (added)

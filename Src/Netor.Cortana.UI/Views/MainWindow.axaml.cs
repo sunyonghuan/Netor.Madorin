@@ -121,6 +121,8 @@ public partial class MainWindow : Window
         LeftPanelHost.DataContext = App.Services.GetRequiredService<Netor.Cortana.UI.ViewModels.LeftPanelVm>();
         LeftPanelHost.WorkspaceDirectory = App.WorkspaceDirectory;
         LeftPanelHost.AttachmentRequested += OnWorkspaceAttachmentRequested;
+        LeftPanelHost.WorkflowAttachmentRequested += paths => WorkflowTabContent.AddExternalAttachments(paths);
+        LeftPanelHost.GroupChatAttachmentRequested += paths => GroupChatTabContent.AddExternalAttachments(paths);
 
         // 界面重设计 C5：会话历史面板事件订阅（决策 R2/R3）。
         // 原 HistoryPanel.X → LeftPanelHost.X：ChatHistoryPanel 已挪到 LeftPanel.Tab2 内部，
