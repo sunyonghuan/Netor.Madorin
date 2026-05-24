@@ -29,7 +29,6 @@ public sealed class TaskExecutionEngine : IHostedService
     private readonly IStepScheduler _scheduler;
     private readonly IPlanPersistence _persistence;
     private readonly IPublisher _publisher;
-    private readonly GlobalLlmThrottle _throttle;
     private readonly TaskEngineOptions _options;
     private readonly ILogger<TaskExecutionEngine> _logger;
 
@@ -41,7 +40,6 @@ public sealed class TaskExecutionEngine : IHostedService
         IStepScheduler scheduler,
         IPlanPersistence persistence,
         IPublisher publisher,
-        GlobalLlmThrottle throttle,
         TaskEngineOptions options,
         ILogger<TaskExecutionEngine> logger)
     {
@@ -49,7 +47,6 @@ public sealed class TaskExecutionEngine : IHostedService
         _scheduler = scheduler;
         _persistence = persistence;
         _publisher = publisher;
-        _throttle = throttle;
         _options = options;
         _logger = logger;
     }
@@ -1218,35 +1215,32 @@ public sealed class TaskExecutionEngine : IHostedService
         {
             try
             {
-                // 通过 LLM 限流器获取槽位
-                using (await _throttle.AcquireAsync(ct).ConfigureAwait(false))
-                {
-                    // 单步超时
-                    using var stepCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    stepCts.CancelAfter(_options.PerStepTimeout);
+                // 单步超时
+                using var stepCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                stepCts.CancelAfter(_options.PerStepTimeout);
 
-                    // 主智能体为这个步骤创建子智能体并委托执行
-                    var result = await _orchestrator.ExecuteStepAsync(taskId, plan, step, stepCts.Token)
-                        .ConfigureAwait(false);
+                // 主智能体为这个步骤创建子智能体并委托执行
+                // 注：LLM 并发节流已在 SubAgentRunner 层处理（每次 LLM 调用都通过 GlobalLlmThrottle）
+                var result = await _orchestrator.ExecuteStepAsync(taskId, plan, step, stepCts.Token)
+                    .ConfigureAwait(false);
 
-                    // 成功
-                    step.Status = PlanStepStatus.Completed;
-                    step.CompletedAt = DateTimeOffset.UtcNow;
-                    step.ResultSummary = result.Summary;
-                    step.ResultDetail = result.Detail;
-                    step.ProgressPercent = 100;
+                // 成功
+                step.Status = PlanStepStatus.Completed;
+                step.CompletedAt = DateTimeOffset.UtcNow;
+                step.ResultSummary = result.Summary;
+                step.ResultDetail = result.Detail;
+                step.ProgressPercent = 100;
 
-                    _publisher.Publish(Events.OnTaskStepCompleted, new TaskStepEventArgs(
-                        taskId, DateTimeOffset.UtcNow, step.StepId, step.Sequence,
-                        step.Title, "completed", result.Summary));
+                _publisher.Publish(Events.OnTaskStepCompleted, new TaskStepEventArgs(
+                    taskId, DateTimeOffset.UtcNow, step.StepId, step.Sequence,
+                    step.Title, "completed", result.Summary));
 
-                    await _persistence.SaveStepResultAsync(taskId, step.StepId, result, ct)
-                        .ConfigureAwait(false);
+                await _persistence.SaveStepResultAsync(taskId, step.StepId, result, ct)
+                    .ConfigureAwait(false);
 
-                    _logger.LogInformation("P4 步骤完成: {TaskId}/{StepId} ({Title})",
-                        taskId, step.StepId, step.Title);
-                    break;
-                }
+                _logger.LogInformation("P4 步骤完成: {TaskId}/{StepId} ({Title})",
+                    taskId, step.StepId, step.Title);
+                break;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
