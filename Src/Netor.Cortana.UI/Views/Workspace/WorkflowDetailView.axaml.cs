@@ -262,12 +262,26 @@ public partial class WorkflowDetailView : UserControl
 
     // ──── P4 时间线预览 ────
 
+    /// <summary>P4-4：当前活跃的 P4 实时详情 ViewModel（任务级生命周期）。</summary>
+    private P4TaskDetailVm? _p4DetailVm;
+
     private void OnP4PreviewClick(object? sender, RoutedEventArgs e)
     {
         // 在 Row 0 的 Panel 中添加 P4 预览视图
         if (DetailRoot.Children[0] is Panel panel)
         {
-            panel.Children.Add(new P4TimelinePreviewView());
+            // 如果当前有选中的任务，使用实时 ViewModel；否则使用 mock 预览
+            var taskId = _vm.Detail.TaskId;
+            if (!string.IsNullOrEmpty(taskId))
+            {
+                _p4DetailVm ??= new P4TaskDetailVm();
+                _p4DetailVm.LoadTask(taskId, _vm.Detail.Title ?? "P4 任务");
+                panel.Children.Add(new P4TimelinePreviewView(_p4DetailVm));
+            }
+            else
+            {
+                panel.Children.Add(new P4TimelinePreviewView());
+            }
         }
     }
 

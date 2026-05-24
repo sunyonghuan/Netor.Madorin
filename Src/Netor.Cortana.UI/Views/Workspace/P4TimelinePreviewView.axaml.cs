@@ -6,30 +6,51 @@ using Netor.Cortana.UI.ViewModels.Workspace;
 namespace Netor.Cortana.UI.Views.Workspace;
 
 /// <summary>
-/// P4 时间线 UI 预览视图的 code-behind。
-/// 纯预览用途，不依赖任何生产服务。
+/// P4 时间线 UI 视图的 code-behind。
+/// 支持两种 DataContext：
+/// - <see cref="P4TimelinePreviewVm"/>：mock 数据预览（设计验证）
+/// - <see cref="P4TaskDetailVm"/>：实时事件驱动（生产模式）
 /// </summary>
 public partial class P4TimelinePreviewView : UserControl
 {
+    /// <summary>
+    /// 默认构造函数：使用 mock 数据（设计预览入口）。
+    /// </summary>
     public P4TimelinePreviewView()
     {
         InitializeComponent();
         DataContext = new P4TimelinePreviewVm();
     }
 
+    /// <summary>
+    /// 带参构造函数：使用实时 ViewModel（P4 任务详情入口）。
+    /// </summary>
+    public P4TimelinePreviewView(P4TaskDetailVm vm)
+    {
+        InitializeComponent();
+        DataContext = vm;
+    }
+
     /// <summary>切换计划概览面板展开/折叠。</summary>
     private void OnTogglePlanOverview(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is P4TimelinePreviewVm vm)
-            vm.IsPlanOverviewExpanded = !vm.IsPlanOverviewExpanded;
+        switch (DataContext)
+        {
+            case P4TimelinePreviewVm mockVm:
+                mockVm.IsPlanOverviewExpanded = !mockVm.IsPlanOverviewExpanded;
+                break;
+            case P4TaskDetailVm liveVm:
+                liveVm.IsPlanOverviewExpanded = !liveVm.IsPlanOverviewExpanded;
+                break;
+        }
     }
 
-    /// <summary>卡片内按钮点击（mock，仅 Debug 输出）。</summary>
+    /// <summary>卡片内按钮点击。</summary>
     private void OnCardActionClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.Tag is string actionId)
         {
-            System.Diagnostics.Debug.WriteLine($"[P4 Preview] Card action clicked: {actionId}");
+            System.Diagnostics.Debug.WriteLine($"[P4 Timeline] Card action clicked: {actionId}");
         }
     }
 
