@@ -486,8 +486,8 @@ namespace Netor.Cortana.Entitys
             // 阶段 6 Phase 4：长期记忆 owner 控制（决策 6-4-A/B/C）。
             // 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #5。
             // 默认 1（允许），保持向后兼容；旧 Agent + 新创建 Agent 都允许 Workflow 结果入长期记忆。
-            // 0 时该 Agent 作为 Workflow 任务 Manager 完成任务后，
-            // WorkflowTaskCompletedArgs.AllowMemoryIngest=false，Memory 插件 MemoryWorkflowEventHandler 跳过入库。
+            // 0 时该 Agent 作为任务 Manager 完成任务后，
+            // P4 TaskLifecycleEventArgs 完成事件中 Memory 插件检查该字段后跳过入库。
             TryAddColumn("ALTER TABLE Agents ADD COLUMN AllowWorkflowMemory INTEGER NOT NULL DEFAULT 1");
         }
 

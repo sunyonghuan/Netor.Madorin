@@ -147,10 +147,9 @@ public class AgentEntity : BaseEntity
     /// <summary>
     /// 阶段 6 Phase 4：是否允许 Workflow 任务结果进入此智能体的长期记忆（决策 6-4-A/B/C）。
     /// 默认 true 保持向后兼容（旧 Agent + 新创建的 Agent 都允许，与 4B 入库行为一致）。
-    /// false 时该 Agent 作为 Workflow 任务的 Manager 完成任务后，
-    /// host 端在发布 <c>workflow.task.completed</c> 事件时把
-    /// <c>WorkflowTaskCompletedArgs.AllowMemoryIngest = false</c>，
-    /// Memory 插件 <c>MemoryWorkflowEventHandler</c> 检查该字段后跳过入库。
+    /// false 时该 Agent 作为任务的 Manager 完成任务后，
+    /// host 端在发布 <c>task.engine.completed</c> 事件时携带 AllowMemoryIngest=false，
+    /// Memory 插件检查该字段后跳过入库。
     ///
     /// 决策 6-4-A 修订（plan §4.3 副作用复核）：
     /// 不在 host 端"直接不发事件"，因为该事件还驱动 UI 任务列表 / 详情面板 / PluginBus relay 等订阅者。
