@@ -675,13 +675,31 @@ public sealed class WorkflowExecutor(
                         totalTokens += stepIn + stepOut;
                         break;
 
-                    case AgentResponseEvent agentResponse
-                        when !string.IsNullOrWhiteSpace(agentResponse.Response.Text):
-                        // P2-2-Bug-E 修复 2026-05-17：仅在文本非空时记录候选 finalReport（避免空字符串覆盖）。
-                        // SDK Magentic 模式下，agent 仅做 tool call 时 Response.Text 可能为空字符串，
-                        // 之前每次都覆盖会让真正的总结被空字符串冲掉。
-                        // 这只是后备候选 — WorkflowOutputEvent (case 2) 才是 SDK 真正的 FinalAnswer。
-                        finalReport = agentResponse.Response.Text;
+                    case AgentResponseEvent agentResponse:
+                        // P3-1 修复 2026-05-24：AgentResponseEvent 也持久化为时间线步骤。
+                        // SDK Magentic 模式下，每个子智能体的回复都会触发此事件。
+                        // 之前仅用于更新 finalReport 候选，导致时间线只显示 1 条 ExecutorCompletedEvent。
+                        // 现在：(1) 每条 AgentResponseEvent 写入步骤表 + 发 step.completed 事件
+                        //       (2) 非空文本仍更新 finalReport 候选
+                        {
+                            var responseText = agentResponse.Response.Text;
+                            var agentId = agentResponse.ExecutorId ?? "unknown";
+
+                            // 构建结构化 SummaryJson（让 WorkflowTimelineStepVm.ParseSummaryContent 可解析）
+                            var summaryJson = BuildAgentResponseSummaryJson(agentResponse);
+
+                            // 持久化为时间线步骤
+                            var (arStepIn, arStepOut) = PersistAndPublishAgentResponseStep(
+                                taskId, request, traceId, agentId, summaryJson, ++stepIndex, trackers, outputSnapshot);
+                            stepCount++;
+                            totalTokens += arStepIn + arStepOut;
+
+                            // 更新 finalReport 候选（仅非空时）
+                            if (!string.IsNullOrWhiteSpace(responseText))
+                            {
+                                finalReport = responseText;
+                            }
+                        }
                         break;
 
                     case WorkflowOutputEvent output:
@@ -819,15 +837,30 @@ public sealed class WorkflowExecutor(
     /// <summary>
     /// 从 WorkflowOutputEvent.Data 里尝试提取最终回复文本。
     /// </summary>
+    /// <summary>
+    /// P3-1 改进 2026-05-24：从 WorkflowOutputEvent.Data 里尝试提取最终回复文本。
+    /// 增加 IList / IEnumerable 兼容（SDK 可能返回不同集合类型），
+    /// 并过滤 raw type name fallback（避免把 "System.Collections.Generic.List`1[...]" 当作 finalReport）。
+    /// </summary>
     private static string? ExtractFinalReportFromOutput(WorkflowOutputEvent output)
     {
         if (output.Data is AgentResponse resp) return resp.Text;
-        if (output.Data is List<ChatMessage> messages)
+        // 兼容 List<ChatMessage> / IList<ChatMessage> / IEnumerable<ChatMessage>
+        if (output.Data is IEnumerable<ChatMessage> messages)
         {
             return messages.LastOrDefault(m => m.Role == ChatRole.Assistant)?.Text;
         }
         if (output.Data is ChatMessage single) return single.Text;
-        return output.Data?.ToString();
+
+        // fallback：仅当 .ToString() 产出有意义的文本时使用（过滤掉 raw type name）
+        var raw = output.Data?.ToString();
+        if (!string.IsNullOrWhiteSpace(raw)
+            && !raw.StartsWith("System.", StringComparison.Ordinal)
+            && !raw.StartsWith("Microsoft.", StringComparison.Ordinal))
+        {
+            return raw;
+        }
+        return null;
     }
 
     /// <summary>
@@ -847,7 +880,8 @@ public sealed class WorkflowExecutor(
     {
         var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var stepId = Guid.NewGuid().ToString("N");
-        var resultText = completed.Data?.ToString() ?? string.Empty;
+        // P3-1 修复 2026-05-24：改进 SummaryJson 格式 — 尝试结构化输出而非 raw .ToString()
+        var resultText = BuildExecutorCompletedSummaryJson(completed);
 
         // 阶段 6 Phase 1：从对应 agent 的 TokenTrackingChatClient 读取 token 数据。
         // - LastInputTokens 直接是本步骤调用的输入 token（每次 LLM 调用都被覆盖）
@@ -920,6 +954,213 @@ public sealed class WorkflowExecutor(
 
         // 阶段 6 Phase 1：返回 step 级 token 让 RunWorkflowAsync 累加到 task 级 TotalTokenCount
         return (stepInputTokens, stepOutputTokens);
+    }
+
+    /// <summary>
+    /// P3-1 修复 2026-05-24：把 AgentResponseEvent 持久化为时间线步骤。
+    /// 与 <see cref="PersistAndPublishStep"/> 类似，但数据源是 AgentResponseEvent 而非 ExecutorCompletedEvent。
+    /// SDK Magentic 模式下，每个子智能体回复都触发 AgentResponseEvent，这是时间线的主要数据来源。
+    /// </summary>
+    private (int InputTokens, int OutputTokens) PersistAndPublishAgentResponseStep(
+        string taskId,
+        WorkflowTaskRequest request,
+        string traceId,
+        string agentId,
+        string summaryJson,
+        int sequence,
+        IReadOnlyDictionary<string, TokenTrackingChatClient> trackers,
+        IDictionary<string, long> outputSnapshot)
+    {
+        var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var stepId = Guid.NewGuid().ToString("N");
+
+        // 从对应 agent 的 TokenTrackingChatClient 读取 token 数据
+        var stepInputTokens = 0;
+        var stepOutputTokens = 0;
+        if (!string.IsNullOrEmpty(agentId)
+            && trackers.TryGetValue(agentId, out var tracker))
+        {
+            stepInputTokens = (int)Math.Min(int.MaxValue, tracker.LastInputTokens);
+
+            var currentOutput = tracker.TotalOutputTokens;
+            var previousOutput = outputSnapshot.TryGetValue(agentId, out var snap) ? snap : 0L;
+            var deltaOutput = Math.Max(0, currentOutput - previousOutput);
+            stepOutputTokens = (int)Math.Min(int.MaxValue, deltaOutput);
+            outputSnapshot[agentId] = currentOutput;
+        }
+
+        var stepEntity = new OrchestrationStepEntity
+        {
+            Id = stepId,
+            TaskId = taskId,
+            ParentStepId = null,
+            Sequence = sequence,
+            AgentId = agentId,
+            AgentName = agentId,
+            Action = "speak",
+            Status = "completed",
+            StartedAt = nowMs,
+            CompletedAt = nowMs,
+            DurationMs = 0,
+            TokenInputCount = stepInputTokens,
+            TokenOutputCount = stepOutputTokens,
+            ErrorMessage = null,
+            SummaryJson = summaryJson,
+        };
+
+        try
+        {
+            stepRepo.InsertStep(stepEntity);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "写入 AgentResponse OrchestrationStep 失败：taskId={TaskId}, stepId={StepId}", taskId, stepId);
+        }
+
+        publisher.Publish(Events.OnWorkflowStepCompleted, new WorkflowStepCompletedArgs(
+            TaskId: taskId,
+            SourceSessionId: request.SourceSessionId,
+            TraceId: traceId,
+            WorkspaceId: request.WorkspaceId,
+            Mode: request.Mode,
+            SubMode: request.SubMode,
+            OccurredAt: DateTimeOffset.UtcNow,
+            StepId: stepId,
+            ParentStepId: null,
+            Sequence: sequence,
+            AgentId: agentId,
+            AgentName: agentId,
+            Action: "speak",
+            Status: "completed",
+            StartedAt: nowMs,
+            CompletedAt: nowMs,
+            DurationMs: 0,
+            TokenInputCount: stepInputTokens,
+            TokenOutputCount: stepOutputTokens,
+            ErrorMessage: null,
+            SummaryJson: summaryJson));
+
+        return (stepInputTokens, stepOutputTokens);
+    }
+
+    /// <summary>
+    /// P3-1 修复 2026-05-24：从 ExecutorCompletedEvent 构建结构化 SummaryJson。
+    /// ExecutorCompletedEvent.Data 可能是 AgentResponse / string / 其他对象。
+    /// 尝试提取有意义的文本放入 { "content": "..." } 格式。
+    /// </summary>
+    private static string BuildExecutorCompletedSummaryJson(ExecutorCompletedEvent completed)
+    {
+        var obj = new JsonObject();
+
+        if (completed.Data is AgentResponse agentResp)
+        {
+            if (!string.IsNullOrWhiteSpace(agentResp.Text))
+                obj["content"] = agentResp.Text;
+        }
+        else if (completed.Data is string str && !string.IsNullOrWhiteSpace(str))
+        {
+            obj["content"] = str;
+        }
+        else if (completed.Data is not null)
+        {
+            var raw = completed.Data.ToString();
+            if (!string.IsNullOrWhiteSpace(raw))
+                obj["content"] = raw;
+        }
+
+        if (obj.Count == 0)
+        {
+            obj["content"] = $"[{completed.ExecutorId ?? "Orchestrator"} 执行完成]";
+        }
+
+        return obj.ToJsonString();
+    }
+
+    /// <summary>
+    /// P3-1 修复 2026-05-24：从 AgentResponseEvent 构建结构化 SummaryJson。
+    /// 输出格式：<c>{ "content": "...", "thinking": "...", "tool_calls": [...] }</c>
+    /// 供 <see cref="ViewModels.Workspace.WorkflowTimelineStepVm.ParseSummaryContent"/> 解析。
+    /// </summary>
+    private static string BuildAgentResponseSummaryJson(AgentResponseEvent agentResponse)
+    {
+        var response = agentResponse.Response;
+
+        // 提取 tool calls（如果有）
+        var toolCallsJson = string.Empty;
+        if (response.Messages is { Count: > 0 })
+        {
+            var toolCalls = new JsonArray();
+            foreach (var msg in response.Messages)
+            {
+                if (msg.Contents is null) continue;
+                foreach (var content in msg.Contents)
+                {
+                    if (content is FunctionCallContent fc)
+                    {
+                        var tcObj = new JsonObject
+                        {
+                            ["name"] = fc.Name ?? "unknown",
+                        };
+                        if (fc.Arguments is { Count: > 0 })
+                        {
+                            var argsObj = new JsonObject();
+                            foreach (var kvp in fc.Arguments)
+                            {
+                                argsObj[kvp.Key] = kvp.Value?.ToString();
+                            }
+                            tcObj["arguments"] = argsObj.ToJsonString();
+                        }
+                        toolCalls.Add(tcObj);
+                    }
+                    else if (content is FunctionResultContent fr)
+                    {
+                        // 尝试在最后一个 tool call 中补上 result
+                        if (toolCalls.Count > 0)
+                        {
+                            var lastTc = toolCalls[toolCalls.Count - 1]?.AsObject();
+                            if (lastTc is not null)
+                            {
+                                lastTc["result"] = fr.Result?.ToString()?.Length > 500
+                                    ? fr.Result?.ToString()?[..500] + "..."
+                                    : fr.Result?.ToString();
+                            }
+                        }
+                    }
+                }
+            }
+            if (toolCalls.Count > 0)
+            {
+                toolCallsJson = toolCalls.ToJsonString();
+            }
+        }
+
+        // 构建结构化 JSON
+        var obj = new JsonObject();
+
+        // content = 主体文本
+        var text = response.Text;
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            obj["content"] = text;
+        }
+
+        // thinking = 思考过程（如果模型支持 extended thinking）
+        // SDK AgentResponse 没有直接的 thinking 字段，但某些模型在 Text 前面嵌入 <think>...</think>
+        // 暂不解析，留给未来扩展
+
+        // tool_calls
+        if (!string.IsNullOrEmpty(toolCallsJson))
+        {
+            obj["tool_calls"] = JsonNode.Parse(toolCallsJson);
+        }
+
+        // 如果完全为空（agent 只回了空字符串且没有 tool calls），返回占位
+        if (obj.Count == 0)
+        {
+            obj["content"] = "[无输出内容]";
+        }
+
+        return obj.ToJsonString();
     }
 
     private void HandleTaskCompleted(
