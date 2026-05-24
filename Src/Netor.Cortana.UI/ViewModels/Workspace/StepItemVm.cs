@@ -19,22 +19,23 @@ public class StepItemVm : INotifyPropertyChanged
     private long? _durationMs;
     private string? _summary;
 
-    public StepItemVm(OrchestrationStepEntity entity)
+    /// <summary>P4 构造：从 TaskStepEventArgs 构造步骤项。</summary>
+    public StepItemVm(TaskStepEventArgs args)
     {
-        ArgumentNullException.ThrowIfNull(entity);
-        StepId = entity.Id;
-        Sequence = entity.Sequence;
-        AgentId = entity.AgentId ?? string.Empty;
-        AgentName = entity.AgentName ?? entity.AgentId ?? "(未知)";
-        Action = entity.Action;
-        StartedAt = entity.StartedAt;
-        _status = entity.Status;
-        _completedAt = entity.CompletedAt;
-        _durationMs = entity.DurationMs;
-        _summary = entity.SummaryJson;
+        ArgumentNullException.ThrowIfNull(args);
+        StepId = args.StepId;
+        Sequence = args.StepSequence;
+        AgentId = string.Empty;
+        AgentName = string.Empty;
+        Action = args.Title;
+        StartedAt = args.OccurredAt.ToUnixTimeMilliseconds();
+        _status = args.Status;
+        _completedAt = null;
+        _durationMs = null;
+        _summary = args.ResultSummary;
     }
 
-    /// <summary>从已落库的 step.completed 事件构造（用于异步追加场景）。</summary>
+    /// <summary>从老 step.completed 事件构造（兼容历史数据加载）。</summary>
     public StepItemVm(WorkflowStepCompletedArgs args)
     {
         ArgumentNullException.ThrowIfNull(args);
