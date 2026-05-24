@@ -7,10 +7,9 @@ using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-using Netor.Cortana.AI.Workflow;
+using Netor.Cortana.AI.TaskEngine;
 using Netor.Cortana.UI.ViewModels.Workspace;
 using Netor.Cortana.UI.Views.Workspace;
-using Netor.Cortana.UI.Views.Workspace.Controls;
 
 namespace Netor.Cortana.UI.Controls;
 
@@ -29,7 +28,7 @@ namespace Netor.Cortana.UI.Controls;
 /// </summary>
 public partial class TaskListPanel : UserControl
 {
-    private readonly IWorkflowExecutor _executor;
+    private readonly TaskExecutionEngine _engine;
 
     /// <summary>
     /// 当前控件持有的 VM 引用（构造时从 DI 解析；Singleton，与 WorkflowDetailView 同源）。
@@ -44,12 +43,12 @@ public partial class TaskListPanel : UserControl
     private readonly ILogger<TaskListPanel> _logger;
 
     /// <summary>
-    /// 初始化。从 DI 解析 IWorkflowExecutor + WorkspaceTabVm，并自行设置 DataContext。
+    /// 初始化。从 DI 解析 TaskExecutionEngine + WorkspaceTabVm，并自行设置 DataContext。
     /// </summary>
     public TaskListPanel()
     {
         InitializeComponent();
-        _executor = App.Services.GetRequiredService<IWorkflowExecutor>();
+        _engine = App.Services.GetRequiredService<TaskExecutionEngine>();
         _vm = App.Services.GetRequiredService<WorkspaceTabVm>();
         _logger = App.Services.GetRequiredService<ILogger<TaskListPanel>>();
         DataContext = _vm;
@@ -91,39 +90,16 @@ public partial class TaskListPanel : UserControl
     // ──── 顶部操作 ────
 
     /// <summary>
-    /// "+ 新建任务" 按钮：弹出 NewTaskDialog 模态框。
+    /// "+ 新建任务" 按钮。
+    /// TODO P4: NewTaskDialog 已随 Workflow 目录删除，需用 P4 新建任务流程替代。
     /// </summary>
-    private async void OnNewTaskClick(object? sender, RoutedEventArgs e)
+    private void OnNewTaskClick(object? sender, RoutedEventArgs e)
     {
-        // Bug 诊断：入口日志确认按钮事件触发（Release/AOT 模式下 Debug.WriteLine 不可见）
         _logger.LogInformation("[TaskListPanel] OnNewTaskClick: WorkspaceId={WorkspaceId}, SubModeFilter={SubModes}",
             _vm.List.WorkspaceId, _vm.List.SubModeFilter is null ? "(null)" : string.Join(",", _vm.List.SubModeFilter));
 
-        if (_vm is null) return;
-
-        try
-        {
-            var dialog = new NewTaskDialog
-            {
-                WorkspaceId = _vm.List.WorkspaceId,
-            };
-
-            if (TopLevel.GetTopLevel(this) is Window owner)
-            {
-                _logger.LogInformation("[TaskListPanel] Showing NewTaskDialog with owner={OwnerType}", owner.GetType().Name);
-                await dialog.ShowDialog(owner);
-                _logger.LogInformation("[TaskListPanel] NewTaskDialog closed, CreatedTaskId={TaskId}",
-                    dialog.CreatedTaskId ?? "(null)");
-            }
-            else
-            {
-                _logger.LogWarning("[TaskListPanel] TopLevel.GetTopLevel(this) returned null — dialog NOT shown");
-            }
-        }
-        catch (Exception ex)
-        {
-            ShowError($"新建任务失败：{ex.Message}", ex);
-        }
+        // TODO P4: 原 NewTaskDialog 已删除，需接入 TaskExecutionEngine.StartTaskAsync 新流程
+        _logger.LogWarning("[TaskListPanel] NewTaskDialog 尚未迁移至 P4，新建任务暂不可用");
     }
 
     /// <summary>
@@ -148,7 +124,9 @@ public partial class TaskListPanel : UserControl
 
         try
         {
-            await _executor.RenameTitleAsync(taskId, newTitle.Trim(), CancellationToken.None);
+            // TODO P4: TaskExecutionEngine 尚未实现 RenameTitleAsync，待 P4-任务元数据管理 补充
+            // await _engine.RenameTitleAsync(taskId, newTitle.Trim(), CancellationToken.None);
+            _logger.LogWarning("[TaskListPanel] RenameTitleAsync 尚未实现 (TaskId={TaskId})", taskId);
         }
         catch (Exception ex)
         {
@@ -156,7 +134,7 @@ public partial class TaskListPanel : UserControl
         }
     }
 
-    private async void OnTogglePinClick(object? sender, RoutedEventArgs e)
+    private void OnTogglePinClick(object? sender, RoutedEventArgs e)
     {
         if (_vm is null) return;
         if (sender is not MenuItem { Tag: string taskId }) return;
@@ -165,7 +143,9 @@ public partial class TaskListPanel : UserControl
 
         try
         {
-            await _executor.SetPinnedAsync(taskId, !item.IsPinned, CancellationToken.None);
+            // TODO P4: TaskExecutionEngine 尚未实现 SetPinnedAsync，待 P4-任务元数据管理 补充
+            // await _engine.SetPinnedAsync(taskId, !item.IsPinned, CancellationToken.None);
+            _logger.LogWarning("[TaskListPanel] SetPinnedAsync 尚未实现 (TaskId={TaskId})", taskId);
             item.IsPinned = !item.IsPinned;
         }
         catch (Exception ex)
@@ -181,7 +161,9 @@ public partial class TaskListPanel : UserControl
 
         try
         {
-            await _executor.SetArchivedAsync(taskId, true, CancellationToken.None);
+            // TODO P4: TaskExecutionEngine 尚未实现 SetArchivedAsync，待 P4-任务元数据管理 补充
+            // await _engine.SetArchivedAsync(taskId, true, CancellationToken.None);
+            _logger.LogWarning("[TaskListPanel] SetArchivedAsync 尚未实现 (TaskId={TaskId})", taskId);
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 var item = _vm.List.Items.FirstOrDefault(x => x.TaskId == taskId);
@@ -194,15 +176,16 @@ public partial class TaskListPanel : UserControl
         }
     }
 
-    private async void OnDuplicateClick(object? sender, RoutedEventArgs e)
+    private void OnDuplicateClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem { Tag: string taskId }) return;
 
         try
         {
-            // 决策 10-A：基于源任务构造新请求 → 直接启动（与原 WorkspaceTab 行为一致）。
-            var template = await _executor.BuildRequestFromTemplateAsync(taskId, CancellationToken.None);
-            await _executor.StartTaskAsync(template, CancellationToken.None);
+            // TODO P4: TaskExecutionEngine 尚未实现 BuildRequestFromTemplateAsync，待 P4-模板复制 补充
+            // 原逻辑：var template = await _engine.BuildRequestFromTemplateAsync(taskId, CancellationToken.None);
+            //         await _engine.StartTaskAsync(template, CancellationToken.None);
+            _logger.LogWarning("[TaskListPanel] BuildRequestFromTemplateAsync / 复制任务尚未实现 (TaskId={TaskId})", taskId);
         }
         catch (Exception ex)
         {
@@ -217,7 +200,9 @@ public partial class TaskListPanel : UserControl
 
         try
         {
-            await _executor.DeleteTaskAsync(taskId, CancellationToken.None);
+            // TODO P4: TaskExecutionEngine 尚未实现 DeleteTaskAsync，待 P4-任务元数据管理 补充
+            // await _engine.DeleteTaskAsync(taskId, CancellationToken.None);
+            _logger.LogWarning("[TaskListPanel] DeleteTaskAsync 尚未实现 (TaskId={TaskId})", taskId);
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 var item = _vm.List.Items.FirstOrDefault(x => x.TaskId == taskId);

@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 using Microsoft.Extensions.DependencyInjection;
 
-using Netor.Cortana.AI.Workflow;
+using Netor.Cortana.AI.TaskEngine;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 
@@ -34,7 +34,7 @@ namespace Netor.Cortana.UI.ViewModels.Workspace;
 public sealed class GroupChatInputVm : INotifyPropertyChanged
 {
     private readonly AgentService _agentService;
-    private readonly IWorkflowExecutor _executor;
+    private readonly TaskExecutionEngine _engine;
     private readonly SystemSettingsService _systemSettings;
 
     private string _initialInput = string.Empty;
@@ -49,7 +49,7 @@ public sealed class GroupChatInputVm : INotifyPropertyChanged
     public GroupChatInputVm()
     {
         _agentService = App.Services.GetRequiredService<AgentService>();
-        _executor = App.Services.GetRequiredService<IWorkflowExecutor>();
+        _engine = App.Services.GetRequiredService<TaskExecutionEngine>();
         _systemSettings = App.Services.GetRequiredService<SystemSettingsService>();
 
         // 监听多选变化 → 通知 UI 刷新 CanSubmit / 标签文本
@@ -268,39 +268,12 @@ public sealed class GroupChatInputVm : INotifyPropertyChanged
         IsRunning = true;
         try
         {
-            // 收集勾选的高风险工具
-            List<string>? blacklist = null;
-            foreach (var tool in HighRiskTools)
-            {
-                if (tool.IsBlocked)
-                {
-                    blacklist ??= [];
-                    blacklist.Add(tool.BlacklistKey);
-                }
-            }
-
-            // 群聊模式：第一个智能体临时充当 Manager（决策 TP-5 A：GroupChat 不需要真实 Manager），
-            // 其余作为 MemberAgentIds（与原 NewTaskDialogVm 行为一致）。
-            // 用户澄清 A：Agent 未设置 DefaultProviderId / DefaultModelId 时，
-            // 由后端 AIAgentFactory.BuildSubAgent 用全局默认 Provider / Model 兜底（已有逻辑）。
-            var firstAgent = SelectedAgents[0];
-            var memberIds = SelectedAgents.Skip(1).Select(a => a.Id).ToList();
-
-            var request = new WorkflowTaskRequest
-            {
-                Title = null,                                  // 决策 TP-7：保持现状，任务完成时 LLM 生成
-                Mode = "discussion",
-                SubMode = "groupchat",                          // GroupChat 模式固定
-                InitialInput = _initialInput.Trim(),
-                WorkspaceId = _workspaceId,
-                CreatedBy = "user",
-                ManagerAgentId = firstAgent.Id,
-                ManagerAgentName = firstAgent.Name,
-                MemberAgentIds = memberIds,
-                ToolBlacklist = blacklist,
-            };
-
-            var taskId = await _executor.StartTaskAsync(request, cancellationToken);
+            // P4 过渡：使用 TaskExecutionEngine.StartTaskAsync 启动任务
+            var taskId = await _engine.StartTaskAsync(
+                _initialInput.Trim(),
+                _workspaceId,
+                templateId: null,
+                cancellationToken);
             CurrentTaskId = taskId;
 
             // 启动成功：清空输入框（用户可继续输入下一个任务）+ 保留已选 Agent（便于连续发起多个群聊）
@@ -326,7 +299,7 @@ public sealed class GroupChatInputVm : INotifyPropertyChanged
 
         try
         {
-            return await _executor.CancelTaskAsync(_currentTaskId, cancellationToken);
+            return await _engine.CancelTaskAsync(_currentTaskId, cancellationToken);
         }
         catch (Exception ex)
         {

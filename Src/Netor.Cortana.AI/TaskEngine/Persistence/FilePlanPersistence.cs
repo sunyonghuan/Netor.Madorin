@@ -93,6 +93,59 @@ public sealed class FilePlanPersistence : IPlanPersistence
     public IReadOnlyList<string> ListTaskIds() => _resolver.ListTaskIds();
 
     // ══════════════════════════════════════════════════════════════════════
+    // TaskMeta CRUD
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <inheritdoc/>
+    public Task<TaskMeta?> LoadTaskMetaAsync(string taskId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var path = _resolver.GetTaskMetaPath(taskId);
+        return Task.FromResult(ReadJsonOrNull<TaskMeta>(path, TaskEngineJsonContext.Default.TaskMeta));
+    }
+
+    /// <inheritdoc/>
+    public Task SaveTaskMetaAsync(TaskMeta meta, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var path = _resolver.GetTaskMetaPath(meta.TaskId);
+        WriteJsonAtomic(path, meta, TaskEngineJsonContext.Default.TaskMeta);
+        _logger.LogDebug("P4 任务元信息已保存: {TaskId}", meta.TaskId);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public Task<IReadOnlyList<TaskMeta>> ListTaskMetasAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        var metas = new List<TaskMeta>();
+        foreach (var taskId in _resolver.ListTaskIds())
+        {
+            var path = _resolver.GetTaskMetaPath(taskId);
+            var meta = ReadJsonOrNull<TaskMeta>(path, TaskEngineJsonContext.Default.TaskMeta);
+            if (meta is not null)
+                metas.Add(meta);
+        }
+
+        // 按创建时间倒序
+        metas.Sort((a, b) => b.CreatedAt.CompareTo(a.CreatedAt));
+        return Task.FromResult<IReadOnlyList<TaskMeta>>(metas);
+    }
+
+    /// <inheritdoc/>
+    public Task DeleteTaskAsync(string taskId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var taskDir = _resolver.GetTaskDir(taskId);
+        if (Directory.Exists(taskDir))
+            Directory.Delete(taskDir, recursive: true);
+        _activeRuns.TryRemove(taskId, out _);
+        _logger.LogInformation("P4 任务已删除: {TaskId}", taskId);
+        return Task.CompletedTask;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // Plan
     // ══════════════════════════════════════════════════════════════════════
 

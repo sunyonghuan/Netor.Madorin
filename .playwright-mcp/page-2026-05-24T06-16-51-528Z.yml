@@ -1,0 +1,31 @@
+- main [ref=e2]:
+  - region "平台介绍" [ref=e3]:
+    - generic [ref=e4]: NETOR CORTANA PLATFORM
+    - heading "运营平台" [level=1] [ref=e5]
+    - paragraph [ref=e6]: 统一管理插件、技能、智能体与解决方案，构建可发布、可订阅、可追踪的 Cortana 生态后台。
+  - region "后台登录" [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: C
+      - generic [ref=e15]:
+        - heading "后台登录" [level=2] [ref=e16]
+        - generic [ref=e17]: 请输入管理员账号和密码
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - img [ref=e21]
+        - textbox "管理员账号" [active] [ref=e24]
+      - generic [ref=e25]:
+        - img [ref=e27]
+        - textbox "登录密码" [ref=e30]
+        - button "显示或隐藏密码" [ref=e31]:
+          - img [ref=e32]
+      - generic [ref=e35]:
+        - generic [ref=e36] [cursor=pointer]:
+          - checkbox "记住登录" [ref=e37]
+          - generic [ref=e38]: 记住登录
+        - generic [ref=e39]: Cookie 安全登录
+      - button "登录后台" [ref=e40]
+      - paragraph [ref=e41]:
+        - text: 默认管理员：
+        - code [ref=e42]: admin
+        - text: /
+        - code [ref=e43]: "123456"

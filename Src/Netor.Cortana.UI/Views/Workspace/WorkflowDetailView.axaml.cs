@@ -13,7 +13,6 @@ using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-using Netor.Cortana.AI.Workflow.Bridges;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Extensions;
 using Netor.Cortana.UI.ViewModels.Workspace;
@@ -41,8 +40,6 @@ namespace Netor.Cortana.UI.Views.Workspace;
 /// </summary>
 public partial class WorkflowDetailView : UserControl
 {
-    private readonly WorkflowToChatBackflowService _backflowService;
-
     /// <summary>当前控件持有的 VM 引用（与 TaskListPanel 同源 Singleton）。</summary>
     private readonly WorkspaceTabVm _vm;
 
@@ -92,7 +89,6 @@ public partial class WorkflowDetailView : UserControl
     public WorkflowDetailView()
     {
         InitializeComponent();
-        _backflowService = App.Services.GetRequiredService<WorkflowToChatBackflowService>();
         _vm = App.Services.GetRequiredService<WorkspaceTabVm>();
         _inputVm = App.Services.GetRequiredService<WorkflowInputVm>();
         _subscriber = App.Services.GetRequiredService<ISubscriber>();
@@ -117,40 +113,7 @@ public partial class WorkflowDetailView : UserControl
             if (args.TaskId == _inputVm.CurrentTaskId)
                 Dispatcher.UIThread.Post(() => _inputVm.OnTaskFinished());
 
-            // P2-4：任务结束 → 弹"保存常用 Agent"对话框（仅当本任务期间创建过动态子智能体）。
-            // 关键：在订阅回调入口同步拷贝 records 到本地，避免 finally ClearTask 先于异步 ShowDialog 执行。
-            // 仅当本 Detail 当前展示的 task 与事件 task 匹配时才弹（避免另一个 Detail 实例重复弹）。
-            if (args.TaskId == _vm.Detail.TaskId)
-            {
-                var registry = App.Services.GetRequiredService<
-                    Netor.Cortana.AI.Workflow.DynamicAgents.DynamicAgentRegistry>();
-                var snapshot = registry.GetByTask(args.TaskId);
-                if (snapshot.Count > 0)
-                {
-                    var taskId = args.TaskId;
-                    // 沿用 Manager 的 Provider/Model 作为新 Agent 默认（与运行时一致）
-                    var managerProviderId = _inputVm.SelectedProvider?.Id ?? string.Empty;
-                    var managerModelId = _inputVm.SelectedModel?.Id ?? string.Empty;
-
-                    Dispatcher.UIThread.Post(async () =>
-                    {
-                        try
-                        {
-                            if (TopLevel.GetTopLevel(this) is Window owner)
-                            {
-                                var dlg = new SaveAgentDialog(
-                                    snapshot, taskId, managerProviderId, managerModelId);
-                                await dlg.ShowDialog(owner);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex,
-                                "弹出 SaveAgentDialog 失败 (taskId={TaskId})", taskId);
-                        }
-                    });
-                }
-            }
+            // TODO P4: DynamicAgentRegistry 已删除，SaveAgentDialog 弹窗逻辑待 P4 重新实现
             return Task.FromResult(false);
         });
         _subscriber.Subscribe<WorkflowTaskFailedArgs>(Events.OnWorkflowTaskFailed, (_, args) =>
@@ -185,80 +148,16 @@ public partial class WorkflowDetailView : UserControl
         };
     }
 
-    // ──── 详情区（C4 / 5B 保留逻辑） ────
+    // ──── 详情区（P4 重构：老 Approval/DynamicAgentCreationApproval 已移除） ────
 
-    private async void OnCancelTaskClick(object? sender, RoutedEventArgs e)
+    private void OnCancelTaskClick(object? sender, RoutedEventArgs e)
     {
-        if (_vm is null) return;
-        try { await _vm.Detail.CancelAsync(CancellationToken.None); }
-        catch (Exception ex) { ShowError($"取消任务失败：{ex.Message}", ex); }
+        // TODO P4: 接入 TaskExecutionEngine.CancelTaskAsync
+        _logger.LogWarning("P4 取消任务功能待实现");
     }
 
-    private async void OnApprovalApproveClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var ok = await _vm.Detail.Approval.ApproveAsync(CancellationToken.None);
-            if (!ok) ShowError("批准失败：任务不在等待状态或 RequestId 不匹配");
-        }
-        catch (Exception ex) { ShowError($"批准失败：{ex.Message}", ex); }
-    }
-
-    private async void OnApprovalReviseClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(_vm.Detail.Approval.RevisionInput))
-            {
-                ShowError("请先在文本框输入修改建议再点击[提交修改]");
-                return;
-            }
-            var ok = await _vm.Detail.Approval.SubmitRevisionAsync(CancellationToken.None);
-            if (!ok) ShowError("提交修改失败：任务不在等待状态或 RequestId 不匹配");
-        }
-        catch (Exception ex) { ShowError($"提交修改失败：{ex.Message}", ex); }
-    }
-
-    private async void OnApprovalRejectClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var ok = await _vm.Detail.Approval.RejectAsync(CancellationToken.None);
-            if (!ok) ShowError("取消任务失败：任务不在等待状态或 RequestId 不匹配");
-        }
-        catch (Exception ex) { ShowError($"取消任务失败：{ex.Message}", ex); }
-    }
-
-    // P2-4：动态子智能体创建审批
-    private async void OnDynamicAgentApproveClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var ok = await _vm.Detail.DynamicAgentCreationApproval.ApproveAsync();
-            if (!ok) ShowError("批准失败：审批请求已不存在（可能已超时或被取消）");
-        }
-        catch (Exception ex) { ShowError($"批准失败：{ex.Message}", ex); }
-    }
-
-    private async void OnDynamicAgentApproveAllClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var ok = await _vm.Detail.DynamicAgentCreationApproval.ApproveAllAsync();
-            if (!ok) ShowError("批准失败：审批请求已不存在（可能已超时或被取消）");
-        }
-        catch (Exception ex) { ShowError($"批准失败：{ex.Message}", ex); }
-    }
-
-    private async void OnDynamicAgentRejectClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var ok = await _vm.Detail.DynamicAgentCreationApproval.RejectAsync();
-            if (!ok) ShowError("拒绝失败：审批请求已不存在（可能已超时或被取消）");
-        }
-        catch (Exception ex) { ShowError($"拒绝失败：{ex.Message}", ex); }
-    }
+    // TODO P4: 老 HITL 审批按钮（Approve/Revise/Reject）和动态子智能体审批按钮已移除。
+    // P4 的用户确认/暂停/恢复将在第 3 步 UI 重做时实现。
 
     // ──── P4 时间线预览 ────
 
@@ -270,33 +169,11 @@ public partial class WorkflowDetailView : UserControl
         // 在 Row 0 的 Panel 中添加 P4 预览视图
         if (DetailRoot.Children[0] is Panel panel)
         {
-            // 如果当前有选中的任务，使用实时 ViewModel；否则使用 mock 预览
-            var taskId = _vm.Detail.TaskId;
-            if (!string.IsNullOrEmpty(taskId))
-            {
-                _p4DetailVm ??= new P4TaskDetailVm();
-                _p4DetailVm.LoadTask(taskId, _vm.Detail.Title ?? "P4 任务");
-                panel.Children.Add(new P4TimelinePreviewView(_p4DetailVm));
-            }
-            else
-            {
-                panel.Children.Add(new P4TimelinePreviewView());
-            }
+            _p4DetailVm ??= new P4TaskDetailVm();
+            var taskTitle = _vm.Detail?.TaskTitle ?? "P4 任务";
+            _p4DetailVm.LoadTask(string.Empty, taskTitle);
+            panel.Children.Add(new P4TimelinePreviewView(_p4DetailVm));
         }
-    }
-
-    // ──── P3-1：时间线折叠 toggle + 自动滚动 ────
-
-    private void OnToggleThinking(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.Tag is WorkflowTimelineStepVm vm)
-            vm.IsThinkingExpanded = !vm.IsThinkingExpanded;
-    }
-
-    private void OnToggleToolCalls(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.Tag is WorkflowTimelineStepVm vm)
-            vm.IsToolCallsExpanded = !vm.IsToolCallsExpanded;
     }
 
     /// <summary>P3-1：步骤追加后自动滚动到底部（由事件回调触发）。</summary>
@@ -304,23 +181,6 @@ public partial class WorkflowDetailView : UserControl
     {
         if (StepsScrollViewer is not null)
             StepsScrollViewer.ScrollToEnd();
-    }
-
-    private async void OnAttachToConversationClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var taskId = _vm.Detail.TaskId;
-            if (string.IsNullOrEmpty(taskId)) { ShowError("未选中任务"); return; }
-            var sessionId = await _backflowService.AttachToConversationAsync(taskId, targetSessionId: null, CancellationToken.None);
-            if (string.IsNullOrEmpty(sessionId))
-            {
-                ShowError("附加失败：可能无来源会话或回灌服务返回空");
-                return;
-            }
-            ShowError($"已附加到会话 {sessionId[..Math.Min(8, sessionId.Length)]}…");
-        }
-        catch (Exception ex) { ShowError($"附加到对话失败：{ex.Message}", ex); }
     }
 
     // ──── P2-1：聊天式输入框 - 核心动作 ────

@@ -1,0 +1,101 @@
+- generic [active]:
+  - generic:
+    - generic [ref=e1]:
+      - link "Cortana 运营后台" [ref=e3] [cursor=pointer]:
+        - /url: /
+      - list [ref=e4]:
+        - listitem [ref=e5]:
+          - link "展开或收起菜单" [ref=e6] [cursor=pointer]:
+            - /url: javascript:;
+            - generic [ref=e7]: 
+        - listitem [ref=e8]:
+          - generic [ref=e9]:
+            - link "Cortana 运营后台" [ref=e10] [cursor=pointer]:
+              - /url: javascript:;
+            - text: /
+            - link "新增系统设置" [ref=e11] [cursor=pointer]:
+              - /url: javascript:;
+      - list [ref=e12]:
+        - listitem [ref=e13]:
+          - link " admin" [ref=e14] [cursor=pointer]:
+            - /url: javascript:;
+            - generic [ref=e15]: 
+            - text: admin
+        - listitem [ref=e16]:
+          - button " 退出" [ref=e18] [cursor=pointer]:
+            - generic [ref=e19]: 
+            - text: 退出
+    - list [ref=e22]:
+      - listitem [ref=e23]:
+        - link " 控制台" [ref=e24] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e25]: 
+          - generic [ref=e26]: 控制台
+      - listitem [ref=e27]:
+        - link " 资源管理" [ref=e28] [cursor=pointer]:
+          - /url: /Assets
+          - generic [ref=e29]: 
+          - generic [ref=e30]: 资源管理
+      - listitem [ref=e31]:
+        - link " 分类管理" [ref=e32] [cursor=pointer]:
+          - /url: /Categories
+          - generic [ref=e33]: 
+          - generic [ref=e34]: 分类管理
+      - listitem [ref=e35]:
+        - link " 订阅管理" [ref=e36] [cursor=pointer]:
+          - /url: /Subscriptions
+          - generic [ref=e37]: 
+          - generic [ref=e38]: 订阅管理
+      - listitem [ref=e39]:
+        - link " 订单交易" [ref=e40] [cursor=pointer]:
+          - /url: /Orders
+          - generic [ref=e41]: 
+          - generic [ref=e42]: 订单交易
+      - listitem [ref=e43]:
+        - link " 用户账户" [ref=e44] [cursor=pointer]:
+          - /url: /Accounts
+          - generic [ref=e45]: 
+          - generic [ref=e46]: 用户账户
+      - listitem [ref=e47]:
+        - link " 系统设置" [ref=e48] [cursor=pointer]:
+          - /url: /Settings
+          - generic [ref=e49]: 
+          - generic [ref=e50]: 系统设置
+    - main [ref=e52]:
+      - generic [ref=e53]:
+        - generic [ref=e54]:
+          - generic [ref=e55]:
+            - heading "新增系统设置" [level=2] [ref=e56]
+            - text: 配置项会按分组展示在系统设置页，保护项只能编辑元数据，不能在列表中直接改值。
+          - link "返回设置" [ref=e57] [cursor=pointer]:
+            - /url: /Settings?group=%E5%B9%B3%E5%8F%B0%E8%AE%BE%E7%BD%AE
+        - generic [ref=e59]:
+          - generic [ref=e60]:
+            - generic [ref=e61]:
+              - text: 设置键
+              - textbox "设置键" [ref=e62]:
+                - /placeholder: 例如 platform.name
+            - generic [ref=e63]:
+              - text: 设置名称
+              - textbox "设置名称" [ref=e64]:
+                - /placeholder: 例如 平台名称
+            - generic [ref=e65]:
+              - text: 设置分组
+              - combobox "设置分组" [ref=e66]: 平台设置
+            - generic [ref=e67]:
+              - text: 值类型
+              - textbox "请选择" [ref=e70] [cursor=pointer]: 文本
+            - generic [ref=e72]:
+              - text: 设置说明
+              - textbox "设置说明" [ref=e73]:
+                - /placeholder: 说明这个配置影响哪些业务
+            - generic [ref=e74]:
+              - text: 设置值
+              - textbox "设置值" [ref=e75]
+            - generic [ref=e77]:
+              - generic [ref=e79] [cursor=pointer]: 
+              - text: 保护设置，禁止在列表中直接修改或删除
+          - generic [ref=e80]:
+            - button "保存设置" [ref=e81] [cursor=pointer]
+            - link "取消" [ref=e82] [cursor=pointer]:
+              - /url: /Settings?group=%E5%B9%B3%E5%8F%B0%E8%AE%BE%E7%BD%AE

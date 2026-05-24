@@ -21,7 +21,7 @@ public sealed class WorkspaceTabVm : INotifyPropertyChanged
     public WorkspaceTabVm()
     {
         List = new WorkflowTaskListVm();
-        Detail = new TaskDetailVm();
+        Detail = new P4TaskDetailVm();
 
         // 监听列表选中切换 → 同步切换详情
         List.PropertyChanged += OnListPropertyChanged;
@@ -30,8 +30,8 @@ public sealed class WorkspaceTabVm : INotifyPropertyChanged
     /// <summary>任务列表 VM。</summary>
     public WorkflowTaskListVm List { get; }
 
-    /// <summary>任务详情 VM。</summary>
-    public TaskDetailVm Detail { get; }
+    /// <summary>任务详情 VM（P4 过渡：替代已删除的 TaskDetailVm）。</summary>
+    public P4TaskDetailVm Detail { get; }
 
     /// <summary>
     /// Tab 切换时调用：刷新工作区 ID + SubMode 过滤 + 拉取列表（保证最新对齐）。

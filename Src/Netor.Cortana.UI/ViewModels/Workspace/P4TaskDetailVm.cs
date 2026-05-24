@@ -116,6 +116,24 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         AppendEvent("task_started", "primary", "任务开始", title, "running");
     }
 
+    /// <summary>
+    /// 异步加载任务详情（兼容 WorkspaceTabVm 切换选中时调用）。
+    /// 当前简单实现：仅切换 taskId 并清空旧状态；后续 P4 阶段 3 接入真正的持久化加载。
+    /// </summary>
+    public Task LoadAsync(string? taskId)
+    {
+        if (string.IsNullOrEmpty(taskId))
+        {
+            Clear();
+            return Task.CompletedTask;
+        }
+
+        if (taskId == _taskId) return Task.CompletedTask;
+
+        LoadTask(taskId, $"任务 {taskId[..Math.Min(8, taskId.Length)]}…");
+        return Task.CompletedTask;
+    }
+
     /// <summary>清空所有状态（切换任务时）。</summary>
     public void Clear()
     {

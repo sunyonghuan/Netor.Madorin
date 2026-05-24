@@ -1,13 +1,11 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-using Netor.Cortana.AI.Workflow.DynamicAgents;
-
 namespace Netor.Cortana.UI.ViewModels.Workspace;
 
 /// <summary>
 /// P2-4：保存常用 Agent 对话框中的单行 ViewModel。
-/// 一行对应任务期间创建的一个 <see cref="DynamicAgentRecord"/>，用户可勾选 + 改名 + 保存。
+/// P4 过渡：DynamicAgentRecord 已删除，改用简单的构造参数传入。
 /// </summary>
 public sealed class SaveAgentItemVm : INotifyPropertyChanged
 {
@@ -15,18 +13,16 @@ public sealed class SaveAgentItemVm : INotifyPropertyChanged
     private string _newName;
     private string _nameError = string.Empty;
 
-    public SaveAgentItemVm(DynamicAgentRecord source)
+    public SaveAgentItemVm(string name, string responsibility, string instructions, IReadOnlyList<string> requiredTools)
     {
-        ArgumentNullException.ThrowIfNull(source);
-
-        OriginalName = source.Name;
-        OriginalResponsibility = source.Responsibility;
-        OriginalInstructions = source.Instructions;
-        RequiredTools = source.RequiredTools;
+        OriginalName = name ?? string.Empty;
+        OriginalResponsibility = responsibility ?? string.Empty;
+        OriginalInstructions = instructions ?? string.Empty;
+        RequiredTools = requiredTools ?? [];
         ToolsHint = RequiredTools is { Count: > 0 }
             ? $"工具：{string.Join(", ", RequiredTools)}"
             : "工具：（无）";
-        _newName = source.Name;
+        _newName = OriginalName;
     }
 
     public string OriginalName { get; }

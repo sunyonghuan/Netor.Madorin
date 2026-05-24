@@ -62,4 +62,18 @@ public interface IPlanPersistence
 
     /// <summary>列出所有任务 ID（用于启动时断点恢复扫描）。</summary>
     IReadOnlyList<string> ListTaskIds();
+
+    // ──── TaskMeta CRUD（P4 新增） ────
+
+    /// <summary>加载任务元信息。</summary>
+    Task<TaskMeta?> LoadTaskMetaAsync(string taskId, CancellationToken ct);
+
+    /// <summary>保存/更新任务元信息。</summary>
+    Task SaveTaskMetaAsync(TaskMeta meta, CancellationToken ct);
+
+    /// <summary>列出所有任务的元信息（按创建时间倒序）。</summary>
+    Task<IReadOnlyList<TaskMeta>> ListTaskMetasAsync(CancellationToken ct);
+
+    /// <summary>删除任务及其所有运行数据。</summary>
+    Task DeleteTaskAsync(string taskId, CancellationToken ct);
 }

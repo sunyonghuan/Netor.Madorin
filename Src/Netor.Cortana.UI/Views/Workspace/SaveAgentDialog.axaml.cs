@@ -4,7 +4,6 @@ using Avalonia.Interactivity;
 
 using Microsoft.Extensions.DependencyInjection;
 
-using Netor.Cortana.AI.Workflow.DynamicAgents;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.Cortana.UI.ViewModels.Workspace;
@@ -34,7 +33,7 @@ public partial class SaveAgentDialog : Window
     public SaveAgentDialog() : this([], string.Empty, string.Empty, string.Empty) { }
 
     public SaveAgentDialog(
-        IReadOnlyList<DynamicAgentRecord> records,
+        IReadOnlyList<SaveAgentItemVm> items,
         string taskId,
         string managerProviderId,
         string managerModelId)
@@ -45,9 +44,9 @@ public partial class SaveAgentDialog : Window
         _managerProviderId = managerProviderId ?? string.Empty;
         _managerModelId = managerModelId ?? string.Empty;
 
-        foreach (var record in records ?? [])
+        foreach (var item in items ?? [])
         {
-            _items.Add(new SaveAgentItemVm(record));
+            _items.Add(item);
         }
 
         ItemsList.ItemsSource = _items;

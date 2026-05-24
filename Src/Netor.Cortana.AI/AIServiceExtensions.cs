@@ -10,8 +10,6 @@ using Netor.Cortana.AI.TaskEngine;
 using Netor.Cortana.AI.TaskEngine.Agents;
 using Netor.Cortana.AI.TaskEngine.Persistence;
 using Netor.Cortana.AI.TaskEngine.Scheduling;
-using Netor.Cortana.AI.Workflow;
-using Netor.Cortana.AI.Workflow.Title;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.Cortana.AI.Proxys;
@@ -68,38 +66,8 @@ public static class AIServiceExtensions
         services.AddSingleton(new AgentOrchestratorOptions());
         services.AddSingleton<IAgentOrchestrator, AgentOrchestrator>();
 
-        // 阶段 2B：Workflow 模式后端骨架
+        // 摘要/压缩模型解析器（TaskEngine SubAgentRunner 也依赖此服务）
         services.AddSingleton<IChatCompactionClientResolver, ChatCompactionClientResolver>();
-        services.AddSingleton<WorkflowTaskRepository>();
-        services.AddSingleton<WorkflowStepRepository>();
-        services.AddSingleton<IWorkflowTitleGenerator, WorkflowTitleGenerator>();
-        services.AddSingleton(new WorkflowExecutorOptions());
-
-        // 阶段 5B Phase 2：Checkpoint 持久化（SDK CheckpointManager 注入到 WorkflowExecutor）
-        // 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §5B.2
-        services.AddSingleton<WorkflowCheckpointRepository>();
-        services.AddSingleton<Workflow.Checkpointing.SqliteCheckpointStore>();
-        services.AddSingleton<Microsoft.Agents.AI.Workflows.CheckpointManager>(sp =>
-            Microsoft.Agents.AI.Workflows.CheckpointManager.CreateJson(
-                sp.GetRequiredService<Workflow.Checkpointing.SqliteCheckpointStore>()));
-
-        // P2-2：动态子智能体 Registry（任务级生命周期，Manager 通过 create_subagent 工具创建临时子智能体）
-        // 详见 Docs/未来版本策划/聊天式任务发起与动态智能体/01-P2方案设计.md §2-A
-        services.AddSingleton<Workflow.DynamicAgents.DynamicAgentRegistry>();
-
-        // P2-4：动态子智能体创建审批闸（与 Registry 同生命周期；CreateSubAgentTool 内 await 用户决策）
-        // 详见 Docs/未来版本策划/聊天式任务发起与动态智能体/03-实施阶段.md §4 plan §A.2
-        services.AddSingleton<Workflow.DynamicAgents.DynamicAgentCreationGate>();
-
-        services.AddSingleton<WorkflowExecutor>();
-        services.AddSingleton<IWorkflowExecutor>(sp => sp.GetRequiredService<WorkflowExecutor>());
-        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WorkflowExecutor>());
-
-        // 阶段 5B Phase 3：Chat↔Workflow 桥接（详见 04-实施阶段.md §5B.3）
-        // - SuggestionDetector：启发式判断复杂任务，由 AiChatHostedService 调用
-        // - BackflowService：把 Workflow FinalReport 回灌到 Chat 会话，由 WorkspaceTab UI 调用
-        services.AddSingleton<Workflow.Bridges.WorkflowSuggestionDetector>();
-        services.AddSingleton<Workflow.Bridges.WorkflowToChatBackflowService>();
 
         // Proxy 独立外部调用通道：不复用主聊天会话。
         services.AddSingleton<ProxyUsageTracker>();

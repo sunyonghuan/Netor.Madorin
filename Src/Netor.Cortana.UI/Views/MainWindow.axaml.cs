@@ -7,7 +7,6 @@ using Avalonia.Threading;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.Cortana.UI.Models;
-using Netor.Cortana.UI.Views.Workspace.Controls;
 using Netor.EventHub;
 
 using System.Globalization;
@@ -41,7 +40,7 @@ public partial class MainWindow : Window
     private bool _debugSystemNoticeShown;
 #endif
 
-    // 阶段 5B Phase 3：当前展示中的 Workflow 建议数据（用于"切到工作模式"按钮预填 NewTaskDialog）
+    // 阶段 5B Phase 3：当前展示中的 Workflow 建议数据（用于"切到工作模式"按钮预填任务）
     // 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §5B.3。
     private string? _pendingSuggestionInput;
     private string? _pendingSuggestionSubMode;
@@ -617,7 +616,8 @@ public partial class MainWindow : Window
     // ──────── 阶段 5B Phase 3：Chat→Workflow 启发式建议 banner ────────
 
     /// <summary>
-    /// 用户点击 [切到工作模式]：跳转到工作台 Tab + 弹 NewTaskDialog 预填 InitialInput / SubMode。
+    /// 用户点击 [切到工作模式]：跳转到工作台 Tab + 启动新任务。
+    /// TODO P4: 原 NewTaskDialog 已删除，需接入 TaskExecutionEngine.StartTaskAsync 新流程。
     /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §5B.3。
     /// </summary>
     private async void OnWorkflowSuggestionAcceptClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -633,21 +633,13 @@ public partial class MainWindow : Window
         try
         {
             // 2) 切到工作流 Tab（界面重设计 C2：复用 ApplyModeToUI + VM 设值，与 OnTabSwitchClick 一致）
-            //    注意：本路径无需弹未保存确认对话框，因为入口是用户主动点 Banner "切到工作模式"，
-            //          已隐含了"我要切走"的意图，且 input 已被 _pendingSuggestionInput 持有，
-            //          后续会预填到 NewTaskDialog（不依赖 InputBox 文本）。
             if (_currentTab != "workflow")
             {
                 ApplyModeToUI(Netor.Cortana.UI.Models.WorkMode.Workflow);
                 _mainVm.CurrentMode = Netor.Cortana.UI.Models.WorkMode.Workflow;
 
-                // C5 决策 R1：HistoryPopup 已删除（顶栏 "最近 ▼" 按钮 + 浮窗式历史列表全部砍掉）。
-                // OnWorkflowSuggestion accept 时不再需要关闭历史下拉。
-
                 try
                 {
-                    // P1 群聊真实化（收尾决策 DT-9）：用户点 banner "切到工作模式" 明确意图是 Workflow，
-                    // 传入 WorkflowSubModes 仅过滤 magentic / parallelanalysis 任务。
                     await _workspaceTabVm.OnAttachedAsync(workspaceId: string.Empty, WorkflowSubModes);
                 }
                 catch (Exception innerEx)
@@ -657,14 +649,9 @@ public partial class MainWindow : Window
                 }
             }
 
-            // 3) 弹 NewTaskDialog 并预填 InitialInput / SubMode
-            var dialog = new NewTaskDialog
-            {
-                WorkspaceId = string.Empty,
-                InitialInput = input,
-                SubMode = subMode,
-            };
-            await dialog.ShowDialog(this);
+            // TODO P4: 原 NewTaskDialog 已删除，需通过 TaskExecutionEngine.StartTaskAsync 启动任务
+            System.Diagnostics.Debug.WriteLine(
+                $"[MainWindow] OnWorkflowSuggestionAcceptClick: NewTaskDialog 已删除，input='{input}', subMode='{subMode}'");
         }
         catch (Exception ex)
         {

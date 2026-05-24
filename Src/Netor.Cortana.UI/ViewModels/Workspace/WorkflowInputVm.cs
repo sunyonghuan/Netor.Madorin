@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 using Microsoft.Extensions.DependencyInjection;
 
-using Netor.Cortana.AI.Workflow;
+using Netor.Cortana.AI.TaskEngine;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 
@@ -17,8 +17,8 @@ namespace Netor.Cortana.UI.ViewModels.Workspace;
 /// - 维护输入框状态（InitialInput / SelectedManager / SelectedProvider / SelectedModel /
 ///   SubMode / MaxSubAgents / HighRiskTools / Attachments）
 /// - 维护任务运行状态（IsRunning / CurrentTaskId）切换发送/停止按钮显示
-/// - 调用 <see cref="IWorkflowExecutor.StartTaskAsync"/> 启动任务
-/// - 调用 <see cref="IWorkflowExecutor.CancelTaskAsync"/> 停止运行中任务
+/// - 调用 <see cref="TaskExecutionEngine.StartTaskAsync"/> 启动任务
+/// - 调用 <see cref="TaskExecutionEngine.CancelTaskAsync"/> 停止运行中任务
 ///
 /// 设计要点（条款 1-12，详见用户 2026-05-17 反馈）：
 /// - 与 <see cref="NewTaskDialogVm"/> 不同：不显式 SelectedMembers（决策 TP-3 / TP-4 由 Manager 自主创建子智能体）
@@ -37,7 +37,7 @@ public sealed class WorkflowInputVm : INotifyPropertyChanged
     private readonly AgentService _agentService;
     private readonly AiProviderService _providerService;
     private readonly AiModelService _modelService;
-    private readonly IWorkflowExecutor _executor;
+    private readonly TaskExecutionEngine _engine;
     private readonly SystemSettingsService _systemSettings;
 
     private string _initialInput = string.Empty;
@@ -71,7 +71,7 @@ public sealed class WorkflowInputVm : INotifyPropertyChanged
         _agentService = App.Services.GetRequiredService<AgentService>();
         _providerService = App.Services.GetRequiredService<AiProviderService>();
         _modelService = App.Services.GetRequiredService<AiModelService>();
-        _executor = App.Services.GetRequiredService<IWorkflowExecutor>();
+        _engine = App.Services.GetRequiredService<TaskExecutionEngine>();
         _systemSettings = App.Services.GetRequiredService<SystemSettingsService>();
 
         // 启动时一次性读取 SystemSettings 持久化值
@@ -461,37 +461,13 @@ public sealed class WorkflowInputVm : INotifyPropertyChanged
         IsRunning = true;
         try
         {
-            // 收集勾选的高风险工具
-            List<string>? blacklist = null;
-            foreach (var tool in HighRiskTools)
-            {
-                if (tool.IsBlocked)
-                {
-                    blacklist ??= [];
-                    blacklist.Add(tool.BlacklistKey);
-                }
-            }
-
-            var request = new WorkflowTaskRequest
-            {
-                Title = null,                                  // 决策 TP-7：保持现状，任务完成时由 LLM 生成
-                Mode = "discussion",
-                SubMode = _subMode,
-                InitialInput = _initialInput.Trim(),
-                WorkspaceId = _workspaceId,
-                CreatedBy = "user",
-                ManagerAgentId = _selectedManager!.Id,
-                ManagerAgentName = _selectedManager!.Name,
-                MemberAgentIds = [],                            // P2：决策 TP-3 / TP-4 由 Manager 自主创建
-                // P2-2 修复 2026-05-17：把 UI 选的 Provider/Model 显式传给后端，覆盖 Manager Agent 自身的
-                // DefaultProviderId/DefaultModelId（解决 Manager Agent 数据库里的 Provider 已删除/失效的场景）。
-                // 决策 D-甲：仅作用于 Manager + 动态子智能体（详见 WorkflowTaskRequest.OverrideProviderId 注释）。
-                OverrideProviderId = _selectedProvider!.Id,
-                OverrideModelId = _selectedModel!.Id,
-                ToolBlacklist = blacklist,
-            };
-
-            var taskId = await _executor.StartTaskAsync(request, cancellationToken);
+            // P4：直接调用 TaskExecutionEngine.StartTaskAsync（不再构造 WorkflowTaskRequest）
+            // templateId 暂时为 null（后续 P4-6 模板功能接入时从 UI 传入）
+            var taskId = await _engine.StartTaskAsync(
+                _initialInput.Trim(),
+                _workspaceId,
+                templateId: null,
+                cancellationToken);
             CurrentTaskId = taskId;
 
             // 启动成功：清空输入框（用户可继续输入下一个任务）
@@ -517,7 +493,7 @@ public sealed class WorkflowInputVm : INotifyPropertyChanged
 
         try
         {
-            return await _executor.CancelTaskAsync(_currentTaskId, cancellationToken);
+            return await _engine.CancelTaskAsync(_currentTaskId, cancellationToken);
         }
         catch (Exception ex)
         {

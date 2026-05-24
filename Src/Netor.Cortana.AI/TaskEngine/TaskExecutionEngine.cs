@@ -324,6 +324,148 @@ public sealed class TaskExecutionEngine : IHostedService
     public IReadOnlyList<string> GetRunningTaskIds() => [.. _runningTasks.Keys];
 
     // ══════════════════════════════════════════════════════════════════════
+    // P4 任务元数据管理 API
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 获取任务状态信息。
+    /// 优先从运行时上下文获取（运行中任务），回退到持久化的 TaskMeta。
+    /// </summary>
+    public async Task<TaskStatusInfo?> GetTaskStatusAsync(string taskId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
+
+        // 运行中任务：从内存上下文获取实时状态
+        if (_runningTasks.TryGetValue(taskId, out var ctx))
+        {
+            var plan = await _persistence.LoadPlanAsync(taskId, ct).ConfigureAwait(false);
+            return new TaskStatusInfo
+            {
+                TaskId = taskId,
+                Status = ctx.PauseRequested ? "paused" : "running",
+                PlanStatus = plan?.Status,
+                StartedAt = ctx.StartedAt,
+                CompletedSteps = plan?.Steps.Count(s => s.Status == PlanStepStatus.Completed) ?? 0,
+                TotalSteps = plan?.Steps.Count ?? 0,
+            };
+        }
+
+        // 已结束任务：从持久化 TaskMeta 获取
+        var meta = await _persistence.LoadTaskMetaAsync(taskId, ct).ConfigureAwait(false);
+        if (meta is null) return null;
+
+        return new TaskStatusInfo
+        {
+            TaskId = taskId,
+            Status = meta.Status,
+            StartedAt = meta.CreatedAt,
+            Title = meta.Title,
+        };
+    }
+
+    /// <summary>
+    /// 列出所有任务（按创建时间倒序）。
+    /// </summary>
+    public async Task<IReadOnlyList<TaskStatusInfo>> ListTasksAsync(CancellationToken ct)
+    {
+        var metas = await _persistence.ListTaskMetasAsync(ct).ConfigureAwait(false);
+        var result = new List<TaskStatusInfo>(metas.Count);
+
+        foreach (var meta in metas)
+        {
+            // 如果任务正在运行中，用运行时状态覆盖
+            if (_runningTasks.TryGetValue(meta.TaskId, out var ctx))
+            {
+                result.Add(new TaskStatusInfo
+                {
+                    TaskId = meta.TaskId,
+                    Status = ctx.PauseRequested ? "paused" : "running",
+                    Title = meta.Title,
+                    StartedAt = ctx.StartedAt,
+                });
+            }
+            else
+            {
+                result.Add(new TaskStatusInfo
+                {
+                    TaskId = meta.TaskId,
+                    Status = meta.Status,
+                    Title = meta.Title,
+                    StartedAt = meta.CreatedAt,
+                });
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 获取任务详情（包含执行计划）。
+    /// </summary>
+    public async Task<TaskDetailInfo?> GetTaskDetailAsync(string taskId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
+
+        var meta = await _persistence.LoadTaskMetaAsync(taskId, ct).ConfigureAwait(false);
+        if (meta is null) return null;
+
+        var plan = await _persistence.LoadPlanAsync(taskId, ct).ConfigureAwait(false);
+        var requirements = await _persistence.LoadRequirementsAsync(taskId, ct).ConfigureAwait(false);
+
+        return new TaskDetailInfo
+        {
+            TaskId = taskId,
+            Title = meta.Title,
+            Status = _runningTasks.TryGetValue(taskId, out var ctx)
+                ? (ctx.PauseRequested ? "paused" : "running")
+                : meta.Status,
+            CreatedAt = meta.CreatedAt,
+            Plan = plan,
+            Requirements = requirements,
+        };
+    }
+
+    /// <summary>
+    /// 删除已完成/失败的任务。运行中的任务不可删除（需先取消）。
+    /// </summary>
+    /// <returns>true 表示删除成功；false 表示任务不存在或正在运行中。</returns>
+    public async Task<bool> DeleteTaskAsync(string taskId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
+
+        // 运行中的任务不可直接删除
+        if (_runningTasks.ContainsKey(taskId))
+        {
+            _logger.LogWarning("P4 删除失败：任务 {TaskId} 正在运行中，需先取消", taskId);
+            return false;
+        }
+
+        await _persistence.DeleteTaskAsync(taskId, ct).ConfigureAwait(false);
+        _logger.LogInformation("P4 任务已删除: {TaskId}", taskId);
+        return true;
+    }
+
+    /// <summary>
+    /// 重命名任务标题。
+    /// </summary>
+    /// <returns>true 表示重命名成功；false 表示任务不存在。</returns>
+    public async Task<bool> RenameTaskAsync(string taskId, string newTitle, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newTitle);
+
+        var meta = await _persistence.LoadTaskMetaAsync(taskId, ct).ConfigureAwait(false);
+        if (meta is null) return false;
+
+        meta.Title = newTitle.Trim();
+        meta.LastModifiedAt = DateTimeOffset.UtcNow;
+        await _persistence.SaveTaskMetaAsync(meta, ct).ConfigureAwait(false);
+
+        _logger.LogInformation("P4 任务已重命名: {TaskId} → {Title}", taskId, meta.Title);
+        return true;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // P4-6: 模板管理 API
     // ══════════════════════════════════════════════════════════════════════
 

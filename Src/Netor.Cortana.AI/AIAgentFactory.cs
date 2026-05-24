@@ -605,38 +605,8 @@ public sealed class AIAgentFactory(
         {
             AssembleToolProviders(agent, providers, registeredTools, taskBlacklist);
 
-            // P2-2：Manager 角色注入动态子智能体能力
-            if (isManager && !string.IsNullOrEmpty(taskId))
-            {
-                var registry = services.GetRequiredService<Workflow.DynamicAgents.DynamicAgentRegistry>();
-                var creationGate = services.GetRequiredService<Workflow.DynamicAgents.DynamicAgentCreationGate>();
-                var publisher = services.GetRequiredService<IPublisher>();
-                var systemSettings = services.GetRequiredService<SystemSettingsService>();
-                var requireApproval = systemSettings.GetValue("workflow.dynamicAgent.requireApproval", true);
-
-                // 1) 注入 DynamicAgentToolsProvider（每次 invocation 暴露已创建的 dynamic agents）
-#pragma warning disable MAAI001
-                providers.Add(new DynamicAgentToolsProvider(registry, taskId, logger));
-#pragma warning restore MAAI001
-
-                // 2) 注入 create_subagent 工具（让 Manager 创建新 dynamic agent）
-                var createTool = Workflow.DynamicAgents.CreateSubAgentTool.Create(
-                    registry, this, provider, model, taskId, agent.Id, maxSubAgents,
-                    creationGate, publisher, requireApproval, logger);
-#pragma warning disable MAAI001
-                providers.Add(new SubAgentContextProvider([createTool]));
-#pragma warning restore MAAI001
-
-                // 3) P2-3：注入"如何使用 create_subagent / dynamic_agent_xxx"教学指令
-                //    详见 Docs/未来版本策划/聊天式任务发起与动态智能体/01-P2方案设计.md §2.3。
-#pragma warning disable MAAI001
-                providers.Add(new MagenticDynamicCreationInstructionsProvider(maxSubAgents, logger));
-#pragma warning restore MAAI001
-
-                logger.LogInformation(
-                    "Manager [{Name}] 已注入动态子智能体能力（taskId={TaskId}, maxSubAgents={Max}, requireApproval={Approval}）",
-                    agent.Name, taskId, maxSubAgents, requireApproval);
-            }
+            // P4：动态子智能体能力已迁移到 TaskEngine.OrchestratorAgent（由编排器自主创建子智能体）。
+            // 老 P2 的 DynamicAgentToolsProvider / CreateSubAgentTool / DynamicAgentCreationGate 已移除。
         }
         else
         {

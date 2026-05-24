@@ -14,7 +14,6 @@ using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-using Netor.Cortana.AI.Workflow.Bridges;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Extensions;
 using Netor.Cortana.Entitys.Services;
@@ -43,7 +42,6 @@ namespace Netor.Cortana.UI.Views.Workspace;
 /// </summary>
 public partial class GroupChatDetailView : UserControl
 {
-    private readonly WorkflowToChatBackflowService _backflowService;
     private readonly WorkspaceTabVm _vm;
     private readonly GroupChatInputVm _inputVm;
     private readonly ISubscriber _subscriber;
@@ -86,7 +84,6 @@ public partial class GroupChatDetailView : UserControl
     public GroupChatDetailView()
     {
         InitializeComponent();
-        _backflowService = App.Services.GetRequiredService<WorkflowToChatBackflowService>();
         _vm = App.Services.GetRequiredService<WorkspaceTabVm>();
         _inputVm = App.Services.GetRequiredService<GroupChatInputVm>();
         _subscriber = App.Services.GetRequiredService<ISubscriber>();
@@ -146,65 +143,20 @@ public partial class GroupChatDetailView : UserControl
         };
     }
 
-    // ──── 详情区（与 WorkflowDetailView 一致） ────
+    // ──── 详情区（P4 重构：老 Approval/BackflowService 已移除） ────
 
-    private async void OnCancelTaskClick(object? sender, RoutedEventArgs e)
+    private void OnCancelTaskClick(object? sender, RoutedEventArgs e)
     {
-        if (_vm is null) return;
-        try { await _vm.Detail.CancelAsync(CancellationToken.None); }
-        catch (Exception ex) { ShowError($"取消任务失败：{ex.Message}", ex); }
+        // TODO P4: 接入 TaskExecutionEngine.CancelTaskAsync
+        _logger.LogWarning("P4 取消任务功能待实现");
     }
 
-    private async void OnApprovalApproveClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var ok = await _vm.Detail.Approval.ApproveAsync(CancellationToken.None);
-            if (!ok) ShowError("批准失败：任务不在等待状态或 RequestId 不匹配");
-        }
-        catch (Exception ex) { ShowError($"批准失败：{ex.Message}", ex); }
-    }
+    // TODO P4: 老 HITL 审批按钮和 BackflowService 已移除，P4 阶段 3 UI 重做时实现。
 
-    private async void OnApprovalReviseClick(object? sender, RoutedEventArgs e)
+    private void OnAttachToConversationClick(object? sender, RoutedEventArgs e)
     {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(_vm.Detail.Approval.RevisionInput))
-            {
-                ShowError("请先在文本框输入修改建议再点击[提交修改]");
-                return;
-            }
-            var ok = await _vm.Detail.Approval.SubmitRevisionAsync(CancellationToken.None);
-            if (!ok) ShowError("提交修改失败：任务不在等待状态或 RequestId 不匹配");
-        }
-        catch (Exception ex) { ShowError($"提交修改失败：{ex.Message}", ex); }
-    }
-
-    private async void OnApprovalRejectClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var ok = await _vm.Detail.Approval.RejectAsync(CancellationToken.None);
-            if (!ok) ShowError("取消任务失败：任务不在等待状态或 RequestId 不匹配");
-        }
-        catch (Exception ex) { ShowError($"取消任务失败：{ex.Message}", ex); }
-    }
-
-    private async void OnAttachToConversationClick(object? sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var taskId = _vm.Detail.TaskId;
-            if (string.IsNullOrEmpty(taskId)) { ShowError("未选中任务"); return; }
-            var sessionId = await _backflowService.AttachToConversationAsync(taskId, targetSessionId: null, CancellationToken.None);
-            if (string.IsNullOrEmpty(sessionId))
-            {
-                ShowError("附加失败：可能无来源会话或回灌服务返回空");
-                return;
-            }
-            ShowError($"已附加到会话 {sessionId[..Math.Min(8, sessionId.Length)]}…");
-        }
-        catch (Exception ex) { ShowError($"附加到对话失败：{ex.Message}", ex); }
+        // TODO P4: BackflowService 已移除，此功能待 P4 重新实现
+        _logger.LogWarning("P4 附加到对话功能待实现");
     }
 
     // ──── P3-1：自动滚动到底部 ────

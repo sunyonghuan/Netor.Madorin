@@ -1,0 +1,140 @@
+- generic [active]:
+  - generic:
+    - generic [ref=e1]:
+      - link "Cortana 运营后台" [ref=e3] [cursor=pointer]:
+        - /url: /
+      - list [ref=e4]:
+        - listitem [ref=e5]:
+          - link "展开或收起菜单" [ref=e6] [cursor=pointer]:
+            - /url: javascript:;
+            - generic [ref=e7]: 
+        - listitem [ref=e8]:
+          - generic [ref=e9]:
+            - link "Cortana 运营后台" [ref=e10] [cursor=pointer]:
+              - /url: javascript:;
+            - text: /
+            - link "上传资源" [ref=e11] [cursor=pointer]:
+              - /url: javascript:;
+      - list [ref=e12]:
+        - listitem [ref=e13]:
+          - link " admin" [ref=e14] [cursor=pointer]:
+            - /url: javascript:;
+            - generic [ref=e15]: 
+            - text: admin
+        - listitem [ref=e16]:
+          - button " 退出" [ref=e18] [cursor=pointer]:
+            - generic [ref=e19]: 
+            - text: 退出
+    - list [ref=e22]:
+      - listitem [ref=e23]:
+        - link " 控制台" [ref=e24] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e25]: 
+          - generic [ref=e26]: 控制台
+      - listitem [ref=e27]:
+        - link " 资源管理" [ref=e28] [cursor=pointer]:
+          - /url: /Assets
+          - generic [ref=e29]: 
+          - generic [ref=e30]: 资源管理
+      - listitem [ref=e31]:
+        - link " 分类管理" [ref=e32] [cursor=pointer]:
+          - /url: /Categories
+          - generic [ref=e33]: 
+          - generic [ref=e34]: 分类管理
+      - listitem [ref=e35]:
+        - link " 订阅管理" [ref=e36] [cursor=pointer]:
+          - /url: /Subscriptions
+          - generic [ref=e37]: 
+          - generic [ref=e38]: 订阅管理
+      - listitem [ref=e39]:
+        - link " 订单交易" [ref=e40] [cursor=pointer]:
+          - /url: /Orders
+          - generic [ref=e41]: 
+          - generic [ref=e42]: 订单交易
+      - listitem [ref=e43]:
+        - link " 用户账户" [ref=e44] [cursor=pointer]:
+          - /url: /Accounts
+          - generic [ref=e45]: 
+          - generic [ref=e46]: 用户账户
+      - listitem [ref=e47]:
+        - link " 系统设置" [ref=e48] [cursor=pointer]:
+          - /url: /Settings
+          - generic [ref=e49]: 
+          - generic [ref=e50]: 系统设置
+    - main [ref=e52]:
+      - generic [ref=e53]:
+        - generic [ref=e54]:
+          - generic [ref=e55]:
+            - heading "上传资源" [level=2] [ref=e56]
+            - generic [ref=e57]: 创建插件、技能、智能体或解决方案，并上传首个版本包。
+          - link "返回列表" [ref=e58] [cursor=pointer]:
+            - /url: /Assets
+        - generic [ref=e60]:
+          - generic [ref=e61]:
+            - generic [ref=e62]:
+              - text: 资源名称
+              - textbox "资源名称" [ref=e63]:
+                - /placeholder: 例如：Google 搜索插件
+            - generic [ref=e64]:
+              - text: 资源标识
+              - textbox "资源标识" [ref=e65]:
+                - /placeholder: 例如：google-search-plugin
+            - generic [ref=e66]:
+              - text: 类型
+              - textbox "请选择" [ref=e69] [cursor=pointer]: 插件
+            - generic [ref=e71]:
+              - text: 分类
+              - textbox "未分类" [ref=e74] [cursor=pointer]
+            - generic [ref=e76]:
+              - text: 开发者
+              - textbox "开发者" [ref=e77]: Netor 官方
+            - generic [ref=e78]:
+              - generic [ref=e79]:
+                - generic [ref=e81] [cursor=pointer]: 
+                - text: 推荐资源
+              - generic [ref=e82]:
+                - generic [ref=e84] [cursor=pointer]: 
+                - text: 立即发布
+            - generic [ref=e85]:
+              - text: 简短描述
+              - textbox "简短描述" [ref=e86]
+            - generic [ref=e87]:
+              - text: 详细说明
+              - textbox "详细说明" [ref=e88]
+            - generic [ref=e89]:
+              - text: 标签
+              - textbox "标签" [ref=e90]:
+                - /placeholder: 多个标签用逗号分隔
+          - separator [ref=e91]
+          - heading "版本包" [level=3] [ref=e92]
+          - generic [ref=e93]:
+            - generic [ref=e94]:
+              - text: 版本号
+              - textbox "版本号" [ref=e95]: 1.0.0
+            - generic [ref=e96]:
+              - text: 资源包
+              - button "资源包" [ref=e97]
+              - generic [ref=e98]: "当前只支持 .zip 包。保存目录：Data/packages/{类型}/{标识}/{版本}/"
+            - generic [ref=e99]:
+              - text: 发布说明
+              - textbox "发布说明" [ref=e100]
+          - separator [ref=e101]
+          - heading "定价方案" [level=3] [ref=e102]
+          - generic [ref=e103]:
+            - generic [ref=e104]:
+              - text: 方案类型
+              - textbox "请选择" [ref=e107] [cursor=pointer]: 免费
+            - generic [ref=e109]:
+              - text: 价格
+              - spinbutton "价格" [ref=e110]: "0"
+            - generic [ref=e111]:
+              - text: 货币
+              - textbox "货币" [ref=e112]: CNY
+            - generic [ref=e113]:
+              - text: 有效天数
+              - spinbutton "有效天数" [ref=e114]: "0"
+              - generic [ref=e115]: 免费为 0，月付建议 30，年付建议 365。
+          - generic [ref=e116]:
+            - button "保存并上传" [ref=e117] [cursor=pointer]
+            - link "取消" [ref=e118] [cursor=pointer]:
+              - /url: /Assets
