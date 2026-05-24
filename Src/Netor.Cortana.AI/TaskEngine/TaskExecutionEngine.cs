@@ -140,20 +140,45 @@ public sealed class TaskExecutionEngine : IHostedService
     {
         _logger.LogInformation("P4 任务执行引擎正在关闭，取消 {Count} 个运行中任务...", _runningTasks.Count);
 
-        // P4-7: 先解除所有等待信号（避免 TCS 阻塞导致关闭超时）
+        // 1. 优雅关闭：为所有运行中任务保存关闭前检查点
+        foreach (var (taskId, _) in _runningTasks)
+        {
+            try
+            {
+                var plan = await _persistence.LoadPlanAsync(taskId, cancellationToken).ConfigureAwait(false);
+                if (plan is not null && plan.Status == PlanStatus.Executing)
+                {
+                    await _persistence.SaveCheckpointAsync(taskId, new ExecutionCheckpoint
+                    {
+                        TaskId = taskId,
+                        PlanVersion = plan.Version,
+                        CurrentPhase = "executing",
+                        CurrentStepId = null,
+                        SavedAt = DateTimeOffset.UtcNow,
+                        StepStatuses = plan.Steps.ToDictionary(s => s.StepId, s => s.Status),
+                    }, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "P4 关闭前保存检查点失败: {TaskId}", taskId);
+            }
+        }
+
+        // 2. 解除所有等待信号（避免 TCS 阻塞导致关闭超时）
         foreach (var (_, ctx) in _runningTasks)
         {
             ctx.ResumeSignal.TrySetCanceled();
             ctx.PlanConfirmationSignal.TrySetCanceled();
         }
 
-        // 取消所有运行中任务
+        // 3. 取消所有运行中任务
         foreach (var (_, ctx) in _runningTasks)
         {
             await ctx.Cts.CancelAsync().ConfigureAwait(false);
         }
 
-        // 等待所有任务结束（带超时）
+        // 4. 等待所有任务结束（带超时）
         var allTasks = _runningTasks.Values.Select(ctx => ctx.ExecutionTask).ToArray();
         if (allTasks.Length > 0)
         {
@@ -172,7 +197,7 @@ public sealed class TaskExecutionEngine : IHostedService
             }
         }
 
-        // 清理资源
+        // 5. 清理资源
         foreach (var (_, ctx) in _runningTasks)
         {
             ctx.Dispose();
@@ -323,6 +348,143 @@ public sealed class TaskExecutionEngine : IHostedService
 
     /// <summary>获取所有运行中任务的 ID 列表。</summary>
     public IReadOnlyList<string> GetRunningTaskIds() => [.. _runningTasks.Keys];
+
+    // ══════════════════════════════════════════════════════════════════════
+    // P4 断点恢复 API
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 恢复中断的任务（应用重启后，之前被 RecoverInterruptedTasksAsync 标记为 Paused 的任务）。
+    /// 从持久化的计划和检查点恢复执行，跳过已完成的步骤，从 Pending 步骤继续。
+    /// </summary>
+    /// <param name="taskId">要恢复的任务 ID（必须是 Paused 状态且不在 _runningTasks 中）。</param>
+    /// <param name="ct">调用方取消令牌（仅用于启动阶段，不影响任务运行）。</param>
+    /// <returns>true 表示恢复成功；false 表示任务不存在、无计划或不在 Paused 状态。</returns>
+    public async Task<bool> ResumeInterruptedTaskAsync(string taskId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
+
+        // 已在运行中的任务不能通过此接口恢复（应使用 ResumeTaskAsync）
+        if (_runningTasks.ContainsKey(taskId))
+        {
+            _logger.LogWarning("P4 断点恢复失败：任务 {TaskId} 已在运行中（请使用 ResumeTaskAsync）", taskId);
+            return false;
+        }
+
+        // 加载计划
+        var plan = await _persistence.LoadPlanAsync(taskId, ct).ConfigureAwait(false);
+        if (plan is null)
+        {
+            _logger.LogWarning("P4 断点恢复失败：任务 {TaskId} 无计划", taskId);
+            return false;
+        }
+
+        // 仅恢复 Paused 状态的任务
+        if (plan.Status is not PlanStatus.Paused)
+        {
+            _logger.LogWarning("P4 断点恢复失败：任务 {TaskId} 状态为 {Status}（期望 Paused）", taskId, plan.Status);
+            return false;
+        }
+
+        // 创建新的执行上下文（重新进入执行循环）
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(_options.TaskTimeout);
+
+        var executionTask = ResumeExecutionFromCheckpointAsync(taskId, plan, cts.Token);
+        var context = new RunningTaskEngineContext(taskId, executionTask, cts, DateTimeOffset.UtcNow);
+
+        if (!_runningTasks.TryAdd(taskId, context))
+        {
+            context.Dispose();
+            _logger.LogWarning("P4 断点恢复失败：任务 {TaskId} 上下文添加冲突", taskId);
+            return false;
+        }
+
+        _logger.LogInformation("P4 断点恢复成功：任务 {TaskId} 已从检查点恢复执行", taskId);
+        return true;
+    }
+
+    /// <summary>
+    /// 从检查点恢复执行：跳过已完成步骤，从 Pending 步骤继续执行 → 验证 → 完成。
+    /// </summary>
+    private async Task ResumeExecutionFromCheckpointAsync(string taskId, ExecutionPlan plan, CancellationToken ct)
+    {
+        try
+        {
+            // 发布恢复事件
+            _publisher.Publish(Events.OnTaskEngineResumed,
+                new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow, "checkpoint_recovery"));
+
+            // 获取运行时上下文
+            if (!_runningTasks.TryGetValue(taskId, out var runContext))
+                throw new InvalidOperationException($"运行时上下文丢失: {taskId}");
+
+            // ── 继续执行阶段 ──
+            _publisher.Publish(Events.OnTaskPhaseStarted,
+                new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "executing"));
+
+            await RunExecutionPhaseAsync(taskId, plan, runContext, ct).ConfigureAwait(false);
+
+            _publisher.Publish(Events.OnTaskPhaseCompleted,
+                new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "executing"));
+
+            // ── 验证阶段 ──
+            _publisher.Publish(Events.OnTaskPhaseStarted,
+                new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "validating"));
+
+            await _orchestrator.RunValidationPhaseAsync(taskId, plan, ct).ConfigureAwait(false);
+
+            _publisher.Publish(Events.OnTaskPhaseCompleted,
+                new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "validating"));
+
+            // ── 完成 ──
+            plan.Status = PlanStatus.Completed;
+            await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
+
+            _publisher.Publish(Events.OnTaskEngineCompleted,
+                new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow));
+
+            _logger.LogInformation("P4 断点恢复任务已完成: {TaskId}", taskId);
+        }
+        catch (OperationCanceledException)
+        {
+            _publisher.Publish(Events.OnTaskEngineFailed,
+                new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow, "cancelled"));
+            _logger.LogInformation("P4 断点恢复任务已取消: {TaskId}", taskId);
+        }
+        catch (Exception ex)
+        {
+            _publisher.Publish(Events.OnTaskEngineFailed,
+                new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow, ex.Message));
+            _logger.LogError(ex, "P4 断点恢复任务执行失败: {TaskId}", taskId);
+        }
+        finally
+        {
+            if (_runningTasks.TryRemove(taskId, out var ctx))
+                ctx.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 获取所有可恢复的中断任务 ID（Paused 状态且不在运行中）。
+    /// UI 可用此方法展示"恢复执行"按钮列表。
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetRecoverableTaskIdsAsync(CancellationToken ct)
+    {
+        var taskIds = _persistence.ListTaskIds();
+        var recoverable = new List<string>();
+
+        foreach (var taskId in taskIds)
+        {
+            if (_runningTasks.ContainsKey(taskId)) continue;
+
+            var plan = await _persistence.LoadPlanAsync(taskId, ct).ConfigureAwait(false);
+            if (plan?.Status == PlanStatus.Paused)
+                recoverable.Add(taskId);
+        }
+
+        return recoverable;
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // P4 任务元数据管理 API
