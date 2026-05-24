@@ -34,6 +34,7 @@ internal sealed partial class SubAgentRunner
     private readonly AiProviderService _providerService;
     private readonly AiModelService _modelService;
     private readonly SystemSettingsService _systemSettings;
+    private readonly GlobalLlmThrottle _throttle;
     private readonly ILogger<SubAgentRunner> _logger;
 
     /// <summary>缓存的回退客户端（从工作流默认配置构建）。</summary>
@@ -47,6 +48,7 @@ internal sealed partial class SubAgentRunner
         AiProviderService providerService,
         AiModelService modelService,
         SystemSettingsService systemSettings,
+        GlobalLlmThrottle throttle,
         ILogger<SubAgentRunner> logger)
     {
         _resolver = resolver;
@@ -55,6 +57,7 @@ internal sealed partial class SubAgentRunner
         _providerService = providerService;
         _modelService = modelService;
         _systemSettings = systemSettings;
+        _throttle = throttle;
         _logger = logger;
     }
 
@@ -80,14 +83,17 @@ internal sealed partial class SubAgentRunner
             new(ChatRole.User, userMessage),
         };
 
-        _logger.LogDebug("P4 SubAgent 调用开始（system={SystemLen}c, user={UserLen}c）",
-            systemPrompt.Length, userMessage.Length);
+        _logger.LogDebug("P4 SubAgent 调用开始（system={SystemLen}c, user={UserLen}c, throttle={Active}/{Max}）",
+            systemPrompt.Length, userMessage.Length, _throttle.ActiveCount, _throttle.MaxConcurrency);
 
-        var response = await client.GetResponseAsync(messages, cancellationToken: ct).ConfigureAwait(false);
-        var text = response?.Text?.Trim() ?? string.Empty;
+        using (await _throttle.AcquireAsync(ct).ConfigureAwait(false))
+        {
+            var response = await client.GetResponseAsync(messages, cancellationToken: ct).ConfigureAwait(false);
+            var text = response?.Text?.Trim() ?? string.Empty;
 
-        _logger.LogDebug("P4 SubAgent 调用完成（response={ResponseLen}c）", text.Length);
-        return text;
+            _logger.LogDebug("P4 SubAgent 调用完成（response={ResponseLen}c）", text.Length);
+            return text;
+        }
     }
 
     /// <summary>
@@ -162,8 +168,12 @@ internal sealed partial class SubAgentRunner
         {
             ct.ThrowIfCancellationRequested();
 
-            var response = await client.GetResponseAsync(messages, cancellationToken: ct).ConfigureAwait(false);
-            var text = response?.Text?.Trim() ?? string.Empty;
+            string text;
+            using (await _throttle.AcquireAsync(ct).ConfigureAwait(false))
+            {
+                var response = await client.GetResponseAsync(messages, cancellationToken: ct).ConfigureAwait(false);
+                text = response?.Text?.Trim() ?? string.Empty;
+            }
 
             _logger.LogDebug("P4 SubAgent 多轮对话 第{Turn}轮完成（response={ResponseLen}c）", turn, text.Length);
 
