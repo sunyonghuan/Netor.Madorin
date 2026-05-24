@@ -77,6 +77,12 @@ public sealed class TaskExecutionEngine : IHostedService
     {
         _logger.LogInformation("P4 任务执行引擎正在关闭，取消 {Count} 个运行中任务...", _runningTasks.Count);
 
+        // P4-7: 先解除所有暂停等待（避免 TCS 阻塞导致关闭超时）
+        foreach (var (_, ctx) in _runningTasks)
+        {
+            ctx.ResumeSignal.TrySetCanceled();
+        }
+
         // 取消所有运行中任务
         foreach (var (_, ctx) in _runningTasks)
         {
@@ -155,12 +161,17 @@ public sealed class TaskExecutionEngine : IHostedService
 
     /// <summary>
     /// 取消运行中的任务。
+    /// P4-7 边界修复：如果任务正在暂停等待中（await ResumeSignal），
+    /// 先取消 TCS 以解除阻塞，再取消 CTS 传播取消信号。
     /// </summary>
     /// <returns>true 表示已发取消信号；false 表示任务不存在或已结束。</returns>
     public async Task<bool> CancelTaskAsync(string taskId, CancellationToken ct)
     {
         if (!_runningTasks.TryGetValue(taskId, out var context))
             return false;
+
+        // P4-7: 解除暂停等待（TCS 可能正在 await 中）
+        context.ResumeSignal.TrySetCanceled();
 
         await context.Cts.CancelAsync().ConfigureAwait(false);
         _logger.LogInformation("P4 任务已请求取消: {TaskId}", taskId);
@@ -444,9 +455,16 @@ public sealed class TaskExecutionEngine : IHostedService
             {
                 await HandlePauseAsync(taskId, plan, context, ct).ConfigureAwait(false);
 
-                // 恢复后重新加载计划（暂停期间可能被用户修改过）
+                // P4-7 边界修复：恢复后重新加载计划（暂停期间可能被用户修改过）
                 var reloadedPlan = await _persistence.LoadPlanAsync(taskId, ct).ConfigureAwait(false);
-                if (reloadedPlan is not null) plan = reloadedPlan;
+                if (reloadedPlan is not null)
+                {
+                    plan = reloadedPlan;
+                }
+                else
+                {
+                    _logger.LogWarning("P4 恢复后无法重新加载计划，继续使用内存中的计划: {TaskId}", taskId);
+                }
                 continue; // 回到循环顶部重新评估
             }
 
