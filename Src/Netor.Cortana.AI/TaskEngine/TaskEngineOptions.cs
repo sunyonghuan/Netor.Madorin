@@ -28,4 +28,11 @@ public sealed class TaskEngineOptions
 
     /// <summary>默认重试策略。</summary>
     public RetryPolicy DefaultRetryPolicy { get; init; } = new();
+
+    /// <summary>
+    /// 是否自动确认计划（跳过用户确认环节）。
+    /// true：计划生成后直接进入执行阶段（适合简单任务/测试）。
+    /// false（默认）：等待用户确认后才执行。
+    /// </summary>
+    public bool AutoConfirmPlan { get; init; }
 }

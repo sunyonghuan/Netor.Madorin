@@ -140,10 +140,11 @@ public sealed class TaskExecutionEngine : IHostedService
     {
         _logger.LogInformation("P4 任务执行引擎正在关闭，取消 {Count} 个运行中任务...", _runningTasks.Count);
 
-        // P4-7: 先解除所有暂停等待（避免 TCS 阻塞导致关闭超时）
+        // P4-7: 先解除所有等待信号（避免 TCS 阻塞导致关闭超时）
         foreach (var (_, ctx) in _runningTasks)
         {
             ctx.ResumeSignal.TrySetCanceled();
+            ctx.PlanConfirmationSignal.TrySetCanceled();
         }
 
         // 取消所有运行中任务
@@ -543,6 +544,62 @@ public sealed class TaskExecutionEngine : IHostedService
         => _persistence.LoadTemplateAsync(templateId, ct);
 
     // ══════════════════════════════════════════════════════════════════════
+    // P4 用户确认计划 API
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 用户确认当前计划，引擎进入执行阶段。
+    /// UI 在收到 <see cref="Events.OnTaskPlanCreated"/> 事件后展示计划，
+    /// 用户点击"确认执行"按钮时调用此方法。
+    /// </summary>
+    /// <returns>true 表示确认成功；false 表示任务不存在或不在等待确认状态。</returns>
+    public Task<bool> ConfirmPlanAsync(string taskId, CancellationToken ct)
+    {
+        if (!_runningTasks.TryGetValue(taskId, out var context))
+            return Task.FromResult(false);
+
+        if (!context.WaitingPlanConfirmation)
+            return Task.FromResult(false);
+
+        context.PlanConfirmationSignal.TrySetResult(null); // null = 确认
+        _logger.LogInformation("P4 用户已确认计划: {TaskId}", taskId);
+        return Task.FromResult(true);
+    }
+
+    /// <summary>
+    /// 用户请求修改计划。引擎将用户的修改意见传给策划子智能体重新生成计划。
+    /// UI 在计划确认面板中用户输入修改意见并点击"修改"按钮时调用。
+    /// </summary>
+    /// <param name="taskId">任务 ID。</param>
+    /// <param name="modificationRequest">用户的修改意见（自然语言描述）。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>true 表示修改请求已接受；false 表示任务不存在或不在等待确认状态。</returns>
+    public Task<bool> RequestPlanModificationAsync(string taskId, string modificationRequest, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(modificationRequest);
+
+        if (!_runningTasks.TryGetValue(taskId, out var context))
+            return Task.FromResult(false);
+
+        if (!context.WaitingPlanConfirmation)
+            return Task.FromResult(false);
+
+        context.PlanConfirmationSignal.TrySetResult(modificationRequest); // non-null = 修改意见
+        _logger.LogInformation("P4 用户请求修改计划: {TaskId} ({Request})",
+            taskId, modificationRequest.Length > 50 ? modificationRequest[..50] + "…" : modificationRequest);
+        return Task.FromResult(true);
+    }
+
+    /// <summary>
+    /// 查询指定任务是否正在等待用户确认计划。
+    /// UI 可用此方法判断是否显示确认按钮。
+    /// </summary>
+    public bool IsWaitingPlanConfirmation(string taskId)
+    {
+        return _runningTasks.TryGetValue(taskId, out var context) && context.WaitingPlanConfirmation;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // 内部执行循环
     // ══════════════════════════════════════════════════════════════════════
 
@@ -581,9 +638,9 @@ public sealed class TaskExecutionEngine : IHostedService
             _publisher.Publish(Events.OnTaskPlanCreated,
                 new TaskPlanEventArgs(taskId, DateTimeOffset.UtcNow, plan.PlanId, plan.Version, plan.Steps.Count));
 
-            // 等待用户确认（P4-5 实现完整的多轮修改流程，P4-1 直接 auto-confirm）
-            plan.Status = PlanStatus.Confirmed;
-            await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
+            // 等待用户确认计划（支持多轮修改）
+            plan = await WaitForPlanConfirmationAsync(taskId, plan, requirements, template, ct)
+                .ConfigureAwait(false);
 
             _publisher.Publish(Events.OnTaskPlanConfirmed,
                 new TaskPlanEventArgs(taskId, DateTimeOffset.UtcNow, plan.PlanId, plan.Version, plan.Steps.Count));
@@ -641,6 +698,98 @@ public sealed class TaskExecutionEngine : IHostedService
                 ctx.Dispose();
             }
         }
+    }
+
+    /// <summary>
+    /// 等待用户确认计划。支持多轮修改：用户可反复请求修改，每次由策划子智能体重新生成。
+    /// 如果配置了 <see cref="TaskEngineOptions.AutoConfirmPlan"/>，则跳过等待直接确认。
+    /// </summary>
+    /// <returns>用户最终确认的计划（可能经过多轮修改，Version 递增）。</returns>
+    private async Task<ExecutionPlan> WaitForPlanConfirmationAsync(
+        string taskId,
+        ExecutionPlan plan,
+        RequirementsAnalysis requirements,
+        ExecutionTemplate? template,
+        CancellationToken ct)
+    {
+        // 自动确认模式：跳过用户交互
+        if (_options.AutoConfirmPlan)
+        {
+            _logger.LogInformation("P4 自动确认计划: {TaskId}（AutoConfirmPlan=true）", taskId);
+            plan.Status = PlanStatus.Confirmed;
+            await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
+            return plan;
+        }
+
+        if (!_runningTasks.TryGetValue(taskId, out var context))
+            throw new InvalidOperationException($"运行时上下文丢失: {taskId}");
+
+        const int maxModificationRounds = 5; // 防止无限修改循环
+
+        for (var round = 0; round < maxModificationRounds; round++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            // 标记等待状态（UI 据此显示确认/修改按钮）
+            context.WaitingPlanConfirmation = true;
+            context.ResetPlanConfirmationSignal();
+
+            _logger.LogInformation("P4 等待用户确认计划: {TaskId} (v{Version}, 第{Round}轮)",
+                taskId, plan.Version, round + 1);
+
+            // 阻塞等待用户响应
+            string? userResponse;
+            try
+            {
+                userResponse = await context.PlanConfirmationSignal.Task
+                    .WaitAsync(ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                context.WaitingPlanConfirmation = false;
+            }
+
+            // null = 用户确认，进入执行
+            if (userResponse is null)
+            {
+                plan.Status = PlanStatus.Confirmed;
+                await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
+                _logger.LogInformation("P4 计划已确认: {TaskId} (v{Version})", taskId, plan.Version);
+                return plan;
+            }
+
+            // non-null = 用户修改意见，重新生成计划
+            _logger.LogInformation(
+                "P4 用户请求修改计划: {TaskId} (v{Version})，修改意见: {Feedback}",
+                taskId, plan.Version,
+                userResponse.Length > 80 ? userResponse[..80] + "…" : userResponse);
+
+            // 将修改意见追加到需求约束中，传给策划子智能体重新规划
+            var modifiedRequirements = new RequirementsAnalysis
+            {
+                OriginalInput = requirements.OriginalInput,
+                KeyPoints = [.. requirements.KeyPoints],
+                Constraints = [.. requirements.Constraints, $"用户修改意见 (v{plan.Version}): {userResponse}"],
+                ExpectedDeliverable = requirements.ExpectedDeliverable,
+                ComplexityLevel = requirements.ComplexityLevel,
+            };
+
+            plan = await _orchestrator.RunPlanningPhaseAsync(taskId, modifiedRequirements, template, ct)
+                .ConfigureAwait(false);
+            plan.Version = round + 2; // 版本号递增
+            await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
+
+            // 发布计划更新事件（UI 刷新步骤列表）
+            _publisher.Publish(Events.OnTaskPlanUpdated,
+                new TaskPlanEventArgs(taskId, DateTimeOffset.UtcNow,
+                    plan.PlanId, plan.Version, plan.Steps.Count));
+        }
+
+        // 超过最大修改轮次，强制确认
+        _logger.LogWarning("P4 计划修改超过 {Max} 轮，强制确认: {TaskId}", maxModificationRounds, taskId);
+        plan.Status = PlanStatus.Confirmed;
+        await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
+        return plan;
     }
 
     /// <summary>
@@ -996,6 +1145,23 @@ internal sealed class RunningTaskEngineContext : IDisposable
 
     /// <summary>重置恢复信号（恢复后为下一次暂停周期创建新 TCS）。</summary>
     public void ResetResumeSignal() => ResumeSignal = new TaskCompletionSource<bool>();
+
+    // ── P4 用户确认计划状态 ──
+
+    /// <summary>
+    /// 计划确认信号。
+    /// 引擎在阶段 2 结束后 await 此 TCS，等待用户确认或修改。
+    /// - SetResult(null)：用户确认计划，进入执行阶段。
+    /// - SetResult("修改意见")：用户请求修改计划，引擎重新生成。
+    /// - SetCanceled()：取消任务。
+    /// </summary>
+    public TaskCompletionSource<string?> PlanConfirmationSignal { get; private set; } = new();
+
+    /// <summary>标记是否正在等待用户确认计划（UI 用于展示确认按钮）。</summary>
+    public volatile bool WaitingPlanConfirmation;
+
+    /// <summary>重置计划确认信号（修改计划后再次等待确认）。</summary>
+    public void ResetPlanConfirmationSignal() => PlanConfirmationSignal = new TaskCompletionSource<string?>();
 
     public void Dispose() => Cts.Dispose();
 }
