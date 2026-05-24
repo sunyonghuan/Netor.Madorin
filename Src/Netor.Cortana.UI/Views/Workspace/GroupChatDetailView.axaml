@@ -192,8 +192,7 @@
 
 				<ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,12">
 					<StackPanel Spacing="12">
-						<!-- TODO P4: HITL 批准卡片已移除，P4 阶段 3 UI 重做时实现 -->
-						<!--
+						<!-- TODO P4: HITL 批准卡片已移除，P4 阶段 3 UI 重做时实现
 						<Border Classes="approval-card"
 						        DataContext="{Binding Detail.Approval}"
 						        IsVisible="{Binding IsVisible}">
