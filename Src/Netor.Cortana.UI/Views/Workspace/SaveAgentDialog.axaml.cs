@@ -14,8 +14,8 @@ namespace Netor.Cortana.UI.Views.Workspace;
 /// P2-4：保存常用 Agent 对话框。
 /// </summary>
 /// <remarks>
-/// 由 <c>WorkflowDetailView.axaml.cs</c> 在收到 <c>OnWorkflowTaskCompleted</c> 后弹出，
-/// 输入是 <see cref="DynamicAgentRecord"/> 列表 snapshot（必须在 ClearTask 之前拷贝）。
+/// 由 <c>WorkflowDetailView.axaml.cs</c> 在收到 <c>OnTaskEngineCompleted</c> 后弹出，
+/// 输入是子智能体列表 snapshot（必须在 ClearTask 之前拷贝）。
 ///
 /// 重名处理：保存前调用 <c>AgentService.GetByName</c> 预检；命中则在该行 NameError 提示，
 /// 用户改名后再次提交。详见 plan §C.2。
