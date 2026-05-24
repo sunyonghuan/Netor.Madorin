@@ -182,6 +182,10 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         StatusColor = "#858585";
         DurationText = "0:00";
         TotalTokensText = string.Empty;
+        FinalReport = null;
+        ErrorMessage = null;
+        ValidationScore = null;
+        ValidationPassed = null;
         _eventCounter = 0;
         PlanSteps.Clear(); // Steps 由 OnPlanStepsChanged 自动同步清空
         TimelineEvents.Clear();
