@@ -337,12 +337,8 @@
 				<!-- 校验错误提示 -->
 				<TextBlock Text="{Binding ValidationError}"
 				           Foreground="#f48771" FontSize="11"
-									</ItemsControl.ItemsPanel>
-								</ItemsControl>
-							</ScrollViewer>
-						</Border>
-					</Popup>
-				</Panel>
+				           IsVisible="{Binding ValidationError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+				           Margin="0,0,0,4" />
 
 				<!-- ════════════════════════════════════════════════════════
 				     输入框下方一行：5 个 titlebar-btn 选择器（条款 4/7/8）

@@ -25,18 +25,11 @@ namespace Netor.Cortana.UI.Views.Workspace;
 ///
 /// 设计原则：完全复刻 Chat 输入框（MainWindow.axaml line 263-500）的视觉与交互。
 ///
-/// 输入框区职责：
-/// - 6 个 Popup 动态渲染（子模式 / 子 Agent 数量 / 智能体 / 厂商 / 模型 / 工具屏蔽）
-/// - 走马灯霓虹边动画（条款 12，工作流橙色 #ff9c40）
-/// - 发送按钮旋转动画（条款 5，复刻 Chat 模式）
-/// - 订阅 task.completed / task.failed 事件复位 IsRunning
-/// - 监听 _inputVm.IsRunning 变化驱动动画启停
-///
-/// DataContext：
-/// - 主体 DataContext = WorkspaceTabVm（构造函数注入）
-/// - InputArea.DataContext = WorkflowInputVm（构造函数注入）
-///
-/// 详见 Docs/未来版本策划/聊天式任务发起与动态智能体/01-P2方案设计.md。
+/// P4 重构说明（2026-05-24）：
+/// 输入区（InputBox / SendButton / StopButton / SpinnerIcon / InputBorder / InputBorderHost /
+/// InputMarqueeBorder / InputMarqueeTop/Right/Bottom/Left / SubModeLabel / MaxSubAgentsBtn /
+/// MaxSubAgentsLabel / AttachmentList / FilePopup / FileList）已移至独立组件，
+/// 相关方法体已清空，待重新接入。
 /// </summary>
 public partial class WorkflowDetailView : UserControl
 {
@@ -80,9 +73,6 @@ public partial class WorkflowDetailView : UserControl
 
     /// <summary>
     /// Bug 3 修复 2026-05-17：# 文件引用映射表（fileName → fullPath，OrdinalIgnoreCase）。
-    /// 完全复刻 Chat 模式 MainWindow.Input.cs line 23。
-    /// 使用：用户输入 # 触发 FilePopup → 选中文件 → InputBox 文本替换为 #fileName，同时 _fileReferences[fileName] = fullPath。
-    /// 发送时由 .cs 把 #fileName 转换为 attachment（已直接 push 到 _inputVm.Attachments，无需运行时再解析）。
     /// </summary>
     private readonly Dictionary<string, string> _fileReferences = new(StringComparer.OrdinalIgnoreCase);
 
@@ -97,12 +87,8 @@ public partial class WorkflowDetailView : UserControl
         DataContext = _vm;
         InputArea.DataContext = _inputVm;
 
-        // Bug 2 修复 2026-05-17：用 Tunnel 路由注册 KeyDown（完全复刻 Chat 模式 MainWindow.axaml.cs line 116）。
-        // axaml KeyDown="" 是 Bubble 路由，TextBox 内部先吞掉 Enter 插入换行；Tunnel 让事件先到顶层 handler。
-        InputBox.AddHandler(KeyDownEvent, OnInputBoxKeyDown, RoutingStrategies.Tunnel);
-
-        // Bug 3 修复 2026-05-17：订阅 TextChanged 实现 # 文件补全（完全复刻 Chat 模式 MainWindow.axaml.cs line 103）。
-        InputBox.TextChanged += OnInputTextChanged;
+        // TODO P4: 输入区已移至独立组件，待重新接入
+        // 原 InputBox.AddHandler / InputBox.TextChanged 注册已移除
 
         // 监听 IsRunning 变化驱动走马灯 + 旋转动画启停（条款 5 / 12）
         _inputVm.PropertyChanged += OnInputVmPropertyChanged;
@@ -123,13 +109,10 @@ public partial class WorkflowDetailView : UserControl
             return Task.FromResult(false);
         });
 
-        // 监听 Attachments 集合变化 → 触发 RenderAttachments（Bug 8 修复：完全复刻 Chat 模式）
-        _inputVm.Attachments.CollectionChanged += (_, _) =>
-        {
-            Dispatcher.UIThread.Post(RenderAttachments);
-        };
+        // TODO P4: 输入区已移至独立组件，待重新接入
+        // 原 Attachments.CollectionChanged → RenderAttachments 已移除
 
-        // 控件加载完成后填充 Popup 列表（避免构造期 ItemsControl 还没准备好）+ 注册拖放事件 + 初始渲染附件
+        // 控件加载完成后填充 Popup 列表
         AttachedToVisualTree += (_, _) =>
         {
             FillSubModeSelectorActiveState();
@@ -137,14 +120,10 @@ public partial class WorkflowDetailView : UserControl
             FillAgentSelectorList();
             FillProviderSelectorList();
             FillModelSelectorList();
-            RenderAttachments();
-            RefreshAllLabels(); // 根因修复 2026-05-17：初始同步所有 Label.Text（显示默认值）
+            RefreshAllLabels();
 
-            // Bug 8：注册输入框拖放事件（完全复刻 Chat MainWindow.axaml.cs line 106-109）
-            InputBorder.AddHandler(DragDrop.DragOverEvent, OnDragOver);
-            InputBorder.AddHandler(DragDrop.DragEnterEvent, OnDragEnter);
-            InputBorder.AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
-            InputBorder.AddHandler(DragDrop.DropEvent, OnDrop);
+            // TODO P4: 输入区已移至独立组件，待重新接入
+            // 原 InputBorder 拖放事件注册已移除
         };
     }
 
@@ -204,8 +183,7 @@ public partial class WorkflowDetailView : UserControl
     /// <summary>"▶ 发送" 按钮：调 _inputVm.StartAsync 启动任务。</summary>
     private async void OnSendClick(object? sender, RoutedEventArgs e)
     {
-        SyncInputTextToViewModel();
-
+        // TODO P4: 输入区已移至独立组件，待重新接入
         _logger.LogInformation(
             "[WorkflowDetailView] OnSendClick: WorkspaceId={WorkspaceId}, SubMode={SubMode}, MaxSubAgents={MaxSubAgents}, Manager={Manager}, Provider={Provider}, Model={Model}, Input.Len={InputLen}",
             _vm.List.WorkspaceId, _inputVm.SubMode, _inputVm.MaxSubAgents,
@@ -220,9 +198,6 @@ public partial class WorkflowDetailView : UserControl
             var taskId = await _inputVm.StartAsync(CancellationToken.None);
             if (string.IsNullOrEmpty(taskId))
             {
-                // Bug 1 修复 2026-05-17：StartAsync 返回 null 表示 CanSubmit=false 校验失败，
-                // 之前只把 ValidationError 写到小字红色 TextBlock 容易被忽略，导致用户感觉"点击发送无反应"。
-                // 现在统一用 ShowError 弹窗给出醒目反馈。
                 var hint = !string.IsNullOrWhiteSpace(_inputVm.ValidationError)
                     ? _inputVm.ValidationError
                     : "无法启动任务：请检查智能体 / 厂商 / 模型是否已选 + 输入内容是否为空。";
@@ -247,11 +222,11 @@ public partial class WorkflowDetailView : UserControl
     /// <summary>Enter 发送 / Shift+Enter 换行（与 Chat 输入框行为一致）。</summary>
     private void OnInputBoxKeyDown(object? sender, KeyEventArgs e)
     {
+        // TODO P4: 输入区已移至独立组件，待重新接入
         if (e.Key != Key.Enter) return;
         if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) return;
 
         e.Handled = true;
-        SyncInputTextToViewModel();
         if (_inputVm.IsIdle && _inputVm.CanSubmit)
             OnSendClick(sender, new RoutedEventArgs());
     }
@@ -282,7 +257,6 @@ public partial class WorkflowDetailView : UserControl
             {
                 var path = file.Path.LocalPath;
                 if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path)) continue;
-                // Bug B 修复 2026-05-17：按 path 去重，避免同一文件重复添加
                 if (_inputVm.Attachments.Any(a => string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
                 var name = file.Name;
                 var mimeType = FileContentTypeResolver.GetMimeType(path);
@@ -299,7 +273,6 @@ public partial class WorkflowDetailView : UserControl
             && index >= 0 && index < _inputVm.Attachments.Count)
         {
             _inputVm.Attachments.RemoveAt(index);
-            // CollectionChanged 触发器自动调用 RenderAttachments
         }
     }
 
@@ -327,7 +300,6 @@ public partial class WorkflowDetailView : UserControl
                 added = true;
             }
         }
-        // CollectionChanged 自动触发 RenderAttachments（无需显式调用）
         _ = added; // suppress unused warning
     }
 
@@ -452,7 +424,6 @@ public partial class WorkflowDetailView : UserControl
             _inputVm.SelectedManager = agent;
             AgentSelectorPopup.IsOpen = false;
 
-            // SelectedManager setter 联动了 Provider/Model，刷新下面两个 Popup 显示状态
             FillAgentSelectorList();
             FillProviderSelectorList();
             FillModelSelectorList();
@@ -503,7 +474,6 @@ public partial class WorkflowDetailView : UserControl
             _inputVm.SelectedProvider = provider;
             ProviderPopup.IsOpen = false;
 
-            // SelectedProvider setter 联动了 Model 列表，刷新两个 Popup 显示
             FillProviderSelectorList();
             FillModelSelectorList();
         }
@@ -561,9 +531,6 @@ public partial class WorkflowDetailView : UserControl
 
     /// <summary>
     /// 监听 _inputVm.IsRunning + 所有 Label 相关属性变化 → 启动/停止动画 + 同步 Label.Text。
-    /// Bug 2 修复 2026-05-17：显式控制 SendButton/StopButton 互斥。
-    /// 根因修复 2026-05-17：去掉 axaml DataContext binding 后，在 .cs 中手动同步 Label.Text
-    /// （完全复刻 Chat 模式 RefreshProviderDisplay 风格，更稳定）。
     /// </summary>
     private void OnInputVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -573,16 +540,10 @@ public partial class WorkflowDetailView : UserControl
             switch (name)
             {
                 case nameof(WorkflowInputVm.IsRunning):
-                    // Bug 2 修复：显式控制按钮可见性（互斥）
-                    SendButton.IsVisible = !_inputVm.IsRunning;
-                    StopButton.IsVisible = _inputVm.IsRunning;
-                    if (_inputVm.IsRunning)
-                        StartSpinnerAndMarquee();
-                    else
-                        StopSpinnerAndMarquee();
+                    // TODO P4: 输入区已移至独立组件，待重新接入
+                    // 原 SendButton/StopButton 可见性切换 + 动画启停已移除
                     break;
 
-                // Label 同步：任何相关属性变化都触发 RefreshAllLabels
                 case nameof(WorkflowInputVm.SubModeDisplayName):
                 case nameof(WorkflowInputVm.MaxSubAgentsDisplay):
                 case nameof(WorkflowInputVm.SelectedManagerName):
@@ -598,16 +559,13 @@ public partial class WorkflowDetailView : UserControl
 
     /// <summary>
     /// 手动同步所有 Label.Text + 子 Agent 数量按钮可见性（根因修复 2026-05-17）。
-    /// 完全复刻 Chat 模式不依赖 binding 的可靠模式（RefreshProviderDisplay 风格）。
     /// </summary>
     private void RefreshAllLabels()
     {
-        // 上方一行：子模式 + 子 Agent 数量
-        SubModeLabel.Text = _inputVm.SubModeDisplayName;
-        MaxSubAgentsLabel.Text = _inputVm.MaxSubAgentsDisplay;
-        MaxSubAgentsBtn.IsVisible = _inputVm.IsMagentic;
+        // TODO P4: 输入区已移至独立组件，待重新接入
+        // 原 SubModeLabel / MaxSubAgentsLabel / MaxSubAgentsBtn 同步已移除
 
-        // 下方一行：智能体 / 厂商 / 模型
+        // 下方一行：智能体 / 厂商 / 模型（这些 Label 仍在 AXAML 中）
         ToolbarAgentLabel.Text = _inputVm.SelectedManagerName;
         ToolbarProviderLabel.Text = _inputVm.SelectedProviderName;
         ToolbarModelLabel.Text = _inputVm.SelectedModelName;
@@ -615,50 +573,21 @@ public partial class WorkflowDetailView : UserControl
 
     private void StartSpinnerAndMarquee()
     {
-        _spinnerAnimation ??= new Animation
-        {
-            Duration = TimeSpan.FromSeconds(1),
-            IterationCount = IterationCount.Infinite,
-            Children =
-            {
-                new KeyFrame { Cue = new Cue(0), Setters = { new Setter(RotateTransform.AngleProperty, 0.0) } },
-                new KeyFrame { Cue = new Cue(1), Setters = { new Setter(RotateTransform.AngleProperty, 360.0) } },
-            }
-        };
-        _spinnerAnimation.RunAsync(SpinnerIcon);
-
-        InputMarqueeBorder.IsVisible = true;
-        _inputMarqueeStopwatch.Restart();
-        _inputMarqueeTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, (_, _) => UpdateInputMarquee());
-        _inputMarqueeTimer.Start();
-        UpdateInputMarquee();
+        // TODO P4: 输入区已移至独立组件，待重新接入
+        // 原 SpinnerIcon 旋转动画 + InputMarqueeBorder 走马灯已移除
     }
 
     private void StopSpinnerAndMarquee()
     {
+        // TODO P4: 输入区已移至独立组件，待重新接入
         _inputMarqueeTimer?.Stop();
         _inputMarqueeStopwatch.Reset();
-        InputMarqueeBorder.IsVisible = false;
     }
 
     private void UpdateInputMarquee()
     {
-        var width = Math.Max(InputBorderHost.Bounds.Width, 1);
-        var height = Math.Max(InputBorderHost.Bounds.Height, 1);
-        var linearProgress = _inputMarqueeStopwatch.Elapsed.TotalSeconds % 1.9 / 1.9;
-        var progress = EaseInOutCubic(linearProgress);
-
-        Canvas.SetLeft(InputMarqueeTop, -120 + (width + 120) * progress);
-        Canvas.SetTop(InputMarqueeTop, 0);
-
-        Canvas.SetLeft(InputMarqueeRight, width - 2);
-        Canvas.SetTop(InputMarqueeRight, -120 + (height + 120) * progress);
-
-        Canvas.SetLeft(InputMarqueeBottom, width - 120 - (width + 120) * progress);
-        Canvas.SetTop(InputMarqueeBottom, height - 2);
-
-        Canvas.SetLeft(InputMarqueeLeft, 0);
-        Canvas.SetTop(InputMarqueeLeft, height - 120 - (height + 120) * progress);
+        // TODO P4: 输入区已移至独立组件，待重新接入
+        // 原 InputBorderHost / InputMarqueeTop/Right/Bottom/Left 走马灯计算已移除
     }
 
     private static double EaseInOutCubic(double value)
@@ -693,59 +622,11 @@ public partial class WorkflowDetailView : UserControl
 
     /// <summary>
     /// 渲染附件预览列表。
-    /// 由 _inputVm.Attachments.CollectionChanged 自动触发。
+    /// TODO P4: 输入区已移至独立组件，AttachmentList 不再存在，待重新接入。
     /// </summary>
     private void RenderAttachments()
     {
-        AttachmentList.Items.Clear();
-
-        for (var i = 0; i < _inputVm.Attachments.Count; i++)
-        {
-            var attachment = _inputVm.Attachments[i];
-            var index = i;
-
-            var removeBtn = new Button
-            {
-                Content = "✕",
-                Background = Brushes.Transparent,
-                Foreground = new SolidColorBrush(Color.Parse("#f14c4c")),
-                FontSize = 11,
-                Padding = new Thickness(2, 0),
-                Margin = new Thickness(4, 0, 0, 0),
-                Cursor = new Cursor(StandardCursorType.Hand),
-                BorderThickness = new Thickness(0),
-                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                Tag = index,
-            };
-            removeBtn.Click += OnRemoveAttachmentClick;
-
-            var tag = new Border
-            {
-                Classes = { "attachment-tag" },
-                Child = new StackPanel
-                {
-                    Orientation = Avalonia.Layout.Orientation.Horizontal,
-                    Spacing = 2,
-                    Children =
-                    {
-                        new TextBlock
-                        {
-                            Text = attachment.IsFolder
-                                ? $"📁 {attachment.Name} ({attachment.FileCount} 文件, {FormatBytes(attachment.TotalBytes)})"
-                                : $"📎 {attachment.Name}",
-                            FontSize = 12,
-                            Foreground = new SolidColorBrush(Color.Parse("#cccccc")),
-                            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                            MaxWidth = 240,
-                            TextTrimming = TextTrimming.CharacterEllipsis,
-                        },
-                        removeBtn,
-                    },
-                },
-            };
-
-            AttachmentList.Items.Add(tag);
-        }
+        // TODO P4: 输入区已移至独立组件，待重新接入
     }
 
     // ──── Bug 8 修复：拖放文件支持（完全复刻 Chat MainWindow.Attachments.cs line 168-224） ────
@@ -753,67 +634,25 @@ public partial class WorkflowDetailView : UserControl
     /// <summary>拖入时给 InputBorder 加蓝色边框 + 半透明蓝背景反馈。</summary>
     private void OnDragEnter(object? sender, DragEventArgs e)
     {
-        if (!e.DataTransfer.Contains(DataFormat.File)) return;
-        _isDragOver = true;
-        InputBorder.BorderBrush = BorderActive;
-        InputBorder.BorderThickness = new Thickness(2);
-        InputBorder.Background = BgDragOver;
-        e.Handled = true;
+        // TODO P4: 输入区已移至独立组件，待重新接入
     }
 
     /// <summary>拖出时恢复 InputBorder 默认外观。</summary>
     private void OnDragLeave(object? sender, DragEventArgs e)
     {
-        _isDragOver = false;
-        RestoreInputBorder();
-        e.Handled = true;
+        // TODO P4: 输入区已移至独立组件，待重新接入
     }
 
     /// <summary>拖放悬停 → 显示复制光标。</summary>
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        if (e.DataTransfer.Contains(DataFormat.File))
-            e.DragEffects = DragDropEffects.Copy;
-        else
-            e.DragEffects = DragDropEffects.None;
-        e.Handled = true;
+        // TODO P4: 输入区已移至独立组件，待重新接入
     }
 
     /// <summary>拖放完成 → 把文件添加到 _inputVm.Attachments。</summary>
     private void OnDrop(object? sender, DragEventArgs e)
     {
-        _isDragOver = false;
-        RestoreInputBorder();
-
-        var files = e.DataTransfer.TryGetFiles();
-        if (files is null) return;
-
-        foreach (var item in files)
-        {
-            var path = item.Path?.LocalPath;
-            if (string.IsNullOrEmpty(path)) continue;
-            // Bug B 修复 2026-05-17：按 path 去重，避免同一文件重复添加
-            if (_inputVm.Attachments.Any(a => string.Equals(a.Path, path, StringComparison.OrdinalIgnoreCase))) continue;
-
-            // P3-2：支持文件夹拖放
-            if (System.IO.Directory.Exists(path))
-            {
-                var scanner = new Entitys.Services.FolderAttachmentScanner();
-                var result = scanner.Scan(path);
-                var folderName = System.IO.Path.GetFileName(path.TrimEnd(
-                    System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
-                _inputVm.Attachments.Add(new AttachmentInfo(path, folderName, "inode/directory",
-                    IsFolder: true, FileCount: result.FileCount, TotalBytes: result.TotalBytes));
-            }
-            else if (System.IO.File.Exists(path))
-            {
-                var name = System.IO.Path.GetFileName(path);
-                var mimeType = FileContentTypeResolver.GetMimeType(path);
-                _inputVm.Attachments.Add(new AttachmentInfo(path, name, mimeType));
-            }
-            // CollectionChanged 自动触发 RenderAttachments
-        }
-        e.Handled = true;
+        // TODO P4: 输入区已移至独立组件，待重新接入
     }
 
     /// <summary>P3-2：人类可读的字节数格式化。</summary>
@@ -824,148 +663,35 @@ public partial class WorkflowDetailView : UserControl
         return $"{bytes / 1024.0 / 1024.0:F1}MB";
     }
 
-    /// <summary>恢复 InputBorder 默认外观（边框 1px 灰色 + 默认背景）。</summary>
+    /// <summary>恢复 InputBorder 默认外观。</summary>
     private void RestoreInputBorder()
     {
-        InputBorder.BorderThickness = new Thickness(1);
-        InputBorder.Background = BgNormal;
-        InputBorder.BorderBrush = InputBox.IsFocused ? BorderActive : BorderNormal;
+        // TODO P4: 输入区已移至独立组件，待重新接入
     }
 
-    // ──── Bug 3 修复 2026-05-17：# 文件补全（完全复刻 Chat 模式 MainWindow.Input.cs line 128-254）────
+    // ──── Bug 3 修复 2026-05-17：# 文件补全 ────
 
     /// <summary>
-    /// 输入框文本变化时检测 # 触发文件补全。完全复刻 Chat MainWindow.Input.cs OnInputTextChanged。
-    /// 与 Chat 不同的是：Workflow 不支持 @ 智能体补全（决策 P2-1：仅靠输入框上方的智能体选择器）。
+    /// 输入框文本变化时检测 # 触发文件补全。
+    /// TODO P4: 输入区已移至独立组件，待重新接入。
     /// </summary>
     private void OnInputTextChanged(object? sender, TextChangedEventArgs e)
     {
-        SyncInputTextToViewModel();
-
-        var text = InputBox.Text ?? string.Empty;
-        var caret = InputBox.CaretIndex;
-
-        // 尝试 # 文件补全
-        var hashIndex = text.LastIndexOf('#', Math.Max(0, caret - 1));
-        if (hashIndex < 0)
-        {
-            FilePopup.IsOpen = false;
-            return;
-        }
-
-        // # 后面到光标之间的内容作为搜索关键字
-        var afterHash = text.Substring(hashIndex + 1, caret - hashIndex - 1);
-
-        // 如果包含空格 / 换行，关闭补全
-        if (afterHash.Contains(' ') || afterHash.Contains('\n'))
-        {
-            FilePopup.IsOpen = false;
-            return;
-        }
-
-        // 获取工作目录下的文件列表（过滤匹配）
-        var appPaths = App.Services.GetRequiredService<IAppPaths>();
-        var workDir = appPaths.WorkspaceDirectory;
-
-        if (!System.IO.Directory.Exists(workDir))
-        {
-            FilePopup.IsOpen = false;
-            return;
-        }
-
-        try
-        {
-            var files = System.IO.Directory
-                .EnumerateFiles(workDir, "*", System.IO.SearchOption.AllDirectories)
-                .Select(f => (FullPath: f, RelativePath: System.IO.Path.GetRelativePath(workDir, f)))
-                .Where(f => !f.RelativePath.Contains($"{System.IO.Path.DirectorySeparatorChar}.", StringComparison.Ordinal)
-                         && !f.RelativePath.StartsWith('.'))
-                .Where(f => string.IsNullOrEmpty(afterHash)
-                         || f.RelativePath.Contains(afterHash, StringComparison.OrdinalIgnoreCase))
-                .Take(30)
-                .ToList();
-
-            if (files.Count == 0)
-            {
-                FilePopup.IsOpen = false;
-                return;
-            }
-
-            FillFileList(files, hashIndex);
-            FilePopup.IsOpen = true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "[WorkflowDetailView] 枚举工作目录文件失败：{WorkDir}", workDir);
-            FilePopup.IsOpen = false;
-        }
+        // TODO P4: 输入区已移至独立组件，待重新接入
     }
 
-    /// <summary>填充文件补全列表（完全复刻 Chat MainWindow.Input.cs FillFileList）。</summary>
+    /// <summary>填充文件补全列表。</summary>
     private void FillFileList(List<(string FullPath, string RelativePath)> files, int hashIndex)
     {
-        FileList.Items.Clear();
-
-        foreach (var (fullPath, relativePath) in files)
-        {
-            var fileName = System.IO.Path.GetFileName(fullPath);
-            var dirPart = System.IO.Path.GetDirectoryName(relativePath) ?? string.Empty;
-
-            var sp = new Avalonia.Controls.StackPanel { Orientation = Avalonia.Layout.Orientation.Vertical, Spacing = 1 };
-            sp.Children.Add(new Avalonia.Controls.TextBlock
-            {
-                Text = fileName,
-                FontSize = 12,
-                Foreground = new SolidColorBrush(Color.Parse("#cccccc")),
-            });
-            if (!string.IsNullOrEmpty(dirPart))
-            {
-                sp.Children.Add(new Avalonia.Controls.TextBlock
-                {
-                    Text = dirPart,
-                    FontSize = 10,
-                    Foreground = new SolidColorBrush(Color.Parse("#6a6a6a")),
-                });
-            }
-
-            var btn = new Avalonia.Controls.Button
-            {
-                Classes = { "selector-item" },
-                Content = sp,
-                Tag = fullPath,
-            };
-            btn.Click += (_, _) => OnFileItemSelected(fileName, fullPath, hashIndex);
-            FileList.Items.Add(btn);
-        }
+        // TODO P4: 输入区已移至独立组件，待重新接入
     }
 
     /// <summary>
-    /// 选中文件后：(a) 文本替换 #关键字 → #fileName，(b) 同时把文件添加到 Attachments（按 path 去重）。
-    /// 与 Chat 不同：Workflow 模式有显式 Attachments 概念，所以选中即触发附件添加（用户能看到 chip 反馈）。
+    /// 选中文件后：(a) 文本替换 #关键字 → #fileName，(b) 同时把文件添加到 Attachments。
     /// </summary>
     private void OnFileItemSelected(string fileName, string fullPath, int hashIndex)
     {
-        FilePopup.IsOpen = false;
-
-        var text = InputBox.Text ?? string.Empty;
-        var caret = InputBox.CaretIndex;
-
-        // 1) 文本替换 # 到光标之间的内容为 #文件名
-        var replacement = $"#{fileName} ";
-        var newText = string.Concat(text.AsSpan(0, hashIndex), replacement, text.AsSpan(caret));
-        InputBox.Text = newText;
-        InputBox.CaretIndex = hashIndex + replacement.Length;
-
-        // 2) 记录 fileName → fullPath 映射（备发送时解析需要）
-        _fileReferences[fileName] = fullPath;
-
-        // 3) 同时把文件添加到 Attachments（按 path OrdinalIgnoreCase 去重，与 OnAttachClick / OnDrop 一致）
-        if (System.IO.File.Exists(fullPath) &&
-            !_inputVm.Attachments.Any(a => string.Equals(a.Path, fullPath, StringComparison.OrdinalIgnoreCase)))
-        {
-            var mimeType = FileContentTypeResolver.GetMimeType(fullPath);
-            _inputVm.Attachments.Add(new AttachmentInfo(fullPath, fileName, mimeType));
-        }
+        // TODO P4: 输入区已移至独立组件，待重新接入
     }
 
     /// <summary>
@@ -973,8 +699,7 @@ public partial class WorkflowDetailView : UserControl
     /// </summary>
     private void SyncInputTextToViewModel()
     {
-        var text = InputBox.Text ?? string.Empty;
-        if (!string.Equals(_inputVm.InitialInput, text, StringComparison.Ordinal))
-            _inputVm.InitialInput = text;
+        // TODO P4: 输入区已移至独立组件，待重新接入
+        // 原 InputBox.Text 同步已移除
     }
 }
