@@ -260,6 +260,17 @@ public partial class WorkflowDetailView : UserControl
         catch (Exception ex) { ShowError($"拒绝失败：{ex.Message}", ex); }
     }
 
+    // ──── P4 时间线预览 ────
+
+    private void OnP4PreviewClick(object? sender, RoutedEventArgs e)
+    {
+        // 在 Row 0 的 Panel 中添加 P4 预览视图
+        if (DetailRoot.Children[0] is Panel panel)
+        {
+            panel.Children.Add(new P4TimelinePreviewView());
+        }
+    }
+
     private async void OnAttachToConversationClick(object? sender, RoutedEventArgs e)
     {
         try

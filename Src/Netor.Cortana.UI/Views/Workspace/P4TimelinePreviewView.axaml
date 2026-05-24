@@ -1,0 +1,490 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Netor.Cortana.UI.ViewModels.Workspace"
+             x:Class="Netor.Cortana.UI.Views.Workspace.P4TimelinePreviewView"
+             x:DataType="vm:P4TimelinePreviewVm"
+             x:CompileBindings="True"
+             Background="#1e1e1e">
+
+	<!-- ════════════════════════════════════════════════════════════════
+	     P4 任务执行引擎 — 时间线 UI 预览（含 mock 数据）
+	     设计文档：06-P4补充-提示词与UI时间线设计.md §5
+	     ════════════════════════════════════════════════════════════════ -->
+
+	<UserControl.Resources>
+		<vm:StringToBrushConverter x:Key="StringToBrush" />
+	</UserControl.Resources>
+
+	<UserControl.Styles>
+		<!-- 时间线卡片基础样式 -->
+		<Style Selector="Border.tl-card">
+			<Setter Property="Background" Value="#252526" />
+			<Setter Property="BorderBrush" Value="#3c3c3c" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="Padding" Value="12,10" />
+			<Setter Property="Margin" Value="0,6,0,0" />
+		</Style>
+
+		<!-- 工具授权卡片（警告色调） -->
+		<Style Selector="Border.tl-card-warning">
+			<Setter Property="Background" Value="#3a2f1f" />
+			<Setter Property="BorderBrush" Value="#8c6e1c" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="Padding" Value="12,10" />
+			<Setter Property="Margin" Value="0,6,0,0" />
+		</Style>
+
+		<!-- 智能体创建审批卡片（危险色调） -->
+		<Style Selector="Border.tl-card-danger">
+			<Setter Property="Background" Value="#3a1f1f" />
+			<Setter Property="BorderBrush" Value="#a04848" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="Padding" Value="12,10" />
+			<Setter Property="Margin" Value="0,6,0,0" />
+		</Style>
+
+		<!-- 执行报表卡片（成功色调） -->
+		<Style Selector="Border.tl-card-success">
+			<Setter Property="Background" Value="#1f2f1f" />
+			<Setter Property="BorderBrush" Value="#2e6e2e" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="Padding" Value="12,10" />
+			<Setter Property="Margin" Value="0,6,0,0" />
+		</Style>
+
+		<!-- 按钮样式 -->
+		<Style Selector="Button.tl-btn-primary">
+			<Setter Property="Background" Value="#0e7c3c" />
+			<Setter Property="Foreground" Value="#ffffff" />
+			<Setter Property="Padding" Value="12,6" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="Margin" Value="0,0,8,0" />
+		</Style>
+		<Style Selector="Button.tl-btn-primary:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#0e9c4c" />
+		</Style>
+
+		<Style Selector="Button.tl-btn-secondary">
+			<Setter Property="Background" Value="#3a3d41" />
+			<Setter Property="Foreground" Value="#cccccc" />
+			<Setter Property="Padding" Value="12,6" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="Margin" Value="0,0,8,0" />
+		</Style>
+		<Style Selector="Button.tl-btn-secondary:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#4a4d51" />
+		</Style>
+
+		<Style Selector="Button.tl-btn-danger">
+			<Setter Property="Background" Value="#6e2828" />
+			<Setter Property="Foreground" Value="#ffffff" />
+			<Setter Property="Padding" Value="12,6" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="Margin" Value="0,0,8,0" />
+		</Style>
+		<Style Selector="Button.tl-btn-danger:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#8a3838" />
+		</Style>
+
+		<!-- 计划步骤条目 -->
+		<Style Selector="Border.plan-step-item">
+			<Setter Property="Background" Value="#1e1e1e" />
+			<Setter Property="Padding" Value="8,4" />
+			<Setter Property="Margin" Value="0,1" />
+		</Style>
+	</UserControl.Styles>
+
+	<Grid RowDefinitions="Auto,Auto,*,Auto">
+
+		<!-- ════════════════════════════════════════════════════════════════
+		     Row 0: 头部信息栏
+		     ════════════════════════════════════════════════════════════════ -->
+		<Border Grid.Row="0"
+		        Background="#252526"
+		        BorderBrush="#3c3c3c" BorderThickness="0,0,0,1"
+		        Padding="16,12">
+			<Grid ColumnDefinitions="*,Auto">
+				<StackPanel Grid.Column="0" Spacing="6">
+					<StackPanel Orientation="Horizontal" Spacing="10">
+						<TextBlock Text="{Binding TaskTitle}"
+						           Foreground="#cccccc"
+						           FontSize="16" FontWeight="SemiBold"
+						           VerticalAlignment="Center" />
+						<Border Background="#1f2f1f" BorderBrush="#2e6e2e" BorderThickness="1"
+						        CornerRadius="3" Padding="6,2" VerticalAlignment="Center">
+							<TextBlock Text="{Binding StatusText}"
+							           Foreground="#73c991" FontSize="11" FontWeight="SemiBold" />
+						</Border>
+					</StackPanel>
+					<StackPanel Orientation="Horizontal" Spacing="16">
+						<StackPanel Orientation="Horizontal" Spacing="4">
+							<TextBlock Text="耗时：" Foreground="#858585" FontSize="12" />
+							<TextBlock Text="{Binding DurationText}" Foreground="#cccccc" FontSize="12" />
+						</StackPanel>
+						<StackPanel Orientation="Horizontal" Spacing="4">
+							<TextBlock Text="累计：" Foreground="#858585" FontSize="12" />
+							<TextBlock Text="{Binding TotalTokensText}" Foreground="#cccccc" FontSize="12" />
+						</StackPanel>
+					</StackPanel>
+				</StackPanel>
+				<Button Grid.Column="1"
+				        Content="✕ 关闭预览"
+				        Background="#3a3d41" Foreground="#cccccc"
+				        Padding="12,6" CornerRadius="4" FontSize="12"
+				        Cursor="Hand" BorderThickness="0"
+				        VerticalAlignment="Top"
+				        Click="OnClosePreview" />
+			</Grid>
+		</Border>
+
+		<!-- ════════════════════════════════════════════════════════════════
+		     Row 1: 计划概览面板（可折叠）
+		     ════════════════════════════════════════════════════════════════ -->
+		<Border Grid.Row="1"
+		        Background="#252526"
+		        BorderBrush="#3c3c3c" BorderThickness="0,0,0,1"
+		        Padding="16,8">
+			<StackPanel Spacing="6">
+				<!-- 折叠切换按钮 -->
+				<Button Background="Transparent" BorderThickness="0"
+				        Cursor="Hand" Padding="0"
+				        HorizontalContentAlignment="Left"
+				        Click="OnTogglePlanOverview">
+					<StackPanel Orientation="Horizontal" Spacing="6">
+						<TextBlock Text="{Binding PlanToggleIcon}"
+						           Foreground="#858585" FontSize="11" VerticalAlignment="Center" />
+						<TextBlock Text="计划概览 (5步)"
+						           Foreground="#cccccc" FontSize="12" FontWeight="SemiBold"
+						           VerticalAlignment="Center" />
+					</StackPanel>
+				</Button>
+
+				<!-- 步骤列表（折叠/展开） -->
+				<ItemsControl ItemsSource="{Binding PlanSteps}"
+				              IsVisible="{Binding IsPlanOverviewExpanded}">
+					<ItemsControl.ItemsPanel>
+						<ItemsPanelTemplate>
+							<StackPanel Spacing="0" />
+						</ItemsPanelTemplate>
+					</ItemsControl.ItemsPanel>
+					<ItemsControl.ItemTemplate>
+						<DataTemplate x:DataType="vm:PlanStepOverviewVm">
+							<Border Classes="plan-step-item">
+								<Grid ColumnDefinitions="24,Auto,*,Auto">
+									<TextBlock Grid.Column="0"
+									           Text="{Binding StatusIcon}"
+									           FontSize="12" VerticalAlignment="Center" />
+									<TextBlock Grid.Column="1"
+									           Text="{Binding Sequence, StringFormat='{}{0}. '}"
+									           Foreground="#858585" FontSize="12"
+									           VerticalAlignment="Center" />
+									<TextBlock Grid.Column="2"
+									           Text="{Binding Title}"
+									           Foreground="#cccccc" FontSize="12"
+									           VerticalAlignment="Center" />
+									<TextBlock Grid.Column="3"
+									           Text="{Binding ModeText}"
+									           Foreground="#858585" FontSize="11"
+									           VerticalAlignment="Center" Margin="12,0,0,0" />
+								</Grid>
+							</Border>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+			</StackPanel>
+		</Border>
+
+		<!-- ════════════════════════════════════════════════════════════════
+		     Row 2: 时间线主区域
+		     ════════════════════════════════════════════════════════════════ -->
+		<ScrollViewer Grid.Row="2"
+		              VerticalScrollBarVisibility="Auto"
+		              Padding="16,12">
+			<ItemsControl ItemsSource="{Binding TimelineEvents}">
+				<ItemsControl.ItemsPanel>
+					<ItemsPanelTemplate>
+						<VirtualizingStackPanel />
+					</ItemsPanelTemplate>
+				</ItemsControl.ItemsPanel>
+
+				<ItemsControl.ItemTemplate>
+					<DataTemplate x:DataType="vm:TimelineEventVm">
+						<Grid ColumnDefinitions="60,20,*" MinHeight="32">
+
+							<!-- ─── 左列：时间戳 ─── -->
+							<TextBlock Grid.Column="0"
+							           Text="{Binding TimeText}"
+							           Foreground="#666666"
+							           FontSize="11"
+							           VerticalAlignment="Top"
+							           HorizontalAlignment="Right"
+							           Margin="0,3,8,0" />
+
+							<!-- ─── 中列：时间轴线 + 圆点 ─── -->
+							<Grid Grid.Column="1" VerticalAlignment="Stretch">
+								<!-- 竖线（连续） -->
+								<Rectangle Width="1.5"
+								           Fill="#3c3c3c"
+								           HorizontalAlignment="Center" />
+								<!-- 圆点 -->
+								<Ellipse Width="{Binding NodeSize}"
+								         Height="{Binding NodeSize}"
+								         Fill="{Binding ActualNodeColor, Converter={StaticResource StringToBrush}}"
+								         HorizontalAlignment="Center"
+								         VerticalAlignment="Top"
+								         Margin="0,4,0,0" />
+							</Grid>
+
+							<!-- ─── 右列：内容区 ─── -->
+							<StackPanel Grid.Column="2" Margin="8,0,0,10">
+								<!-- 标题行 -->
+								<TextBlock Text="{Binding Title}"
+								           FontWeight="{Binding TitleFontWeight}"
+								           Foreground="{Binding TitleColor, Converter={StaticResource StringToBrush}}"
+								           FontSize="13"
+								           TextWrapping="Wrap" />
+
+								<!-- 详情文本 -->
+								<TextBlock Text="{Binding Detail}"
+								           Foreground="#999999"
+								           FontSize="12"
+								           TextWrapping="Wrap"
+								           IsVisible="{Binding HasDetail}"
+								           Margin="0,2,0,0" />
+
+								<!-- 进度条 -->
+								<ProgressBar Value="{Binding ProgressPercent}"
+								             Maximum="100"
+								             Height="3"
+								             IsVisible="{Binding HasProgress}"
+								             Margin="0,4,0,0"
+								             Foreground="#007acc" />
+
+								<!-- 并行标签 -->
+								<TextBlock Text="⚡ 与上一步骤并行执行"
+								           Foreground="#e0c074"
+								           FontSize="11"
+								           IsVisible="{Binding IsParallel}"
+								           Margin="0,2,0,0" />
+
+								<!-- ════ 内嵌卡片区域 ════ -->
+								<Panel IsVisible="{Binding HasCard}">
+
+									<!-- ── 计划确认卡片 ── -->
+									<Border Classes="tl-card"
+									        IsVisible="{Binding Card.IsPlanConfirmation, FallbackValue=False}">
+										<StackPanel Spacing="8">
+											<TextBlock Text="{Binding Card.Title}"
+											           Foreground="#cccccc" FontSize="13" FontWeight="SemiBold" />
+											<ItemsControl ItemsSource="{Binding Card.ContentLines}">
+												<ItemsControl.ItemTemplate>
+													<DataTemplate>
+														<TextBlock Text="{Binding}"
+														           Foreground="#9e9e9e" FontSize="12"
+														           TextWrapping="Wrap" />
+													</DataTemplate>
+												</ItemsControl.ItemTemplate>
+											</ItemsControl>
+											<StackPanel Orientation="Horizontal" Spacing="0" Margin="0,4,0,0">
+												<Button Classes="tl-btn-primary"
+												        Content="✓ 确认执行"
+												        Tag="confirm_plan"
+												        Click="OnCardActionClick" />
+												<Button Classes="tl-btn-secondary"
+												        Content="✏ 修改计划"
+												        Tag="revise_plan"
+												        Click="OnCardActionClick" />
+											</StackPanel>
+										</StackPanel>
+									</Border>
+
+									<!-- ── 工具授权卡片 ── -->
+									<Border Classes="tl-card-warning"
+									        IsVisible="{Binding Card.IsToolCallAuth, FallbackValue=False}">
+										<StackPanel Spacing="8">
+											<TextBlock Text="{Binding Card.Title}"
+											           Foreground="#f4a83a" FontSize="13" FontWeight="SemiBold" />
+											<TextBlock Foreground="#cccccc" FontSize="12">
+												<TextBlock.Text>
+													<MultiBinding StringFormat="子智能体 &quot;{0}&quot; 请求执行：">
+														<Binding Path="Card.CallerAgentName" />
+													</MultiBinding>
+												</TextBlock.Text>
+											</TextBlock>
+											<!-- 工具信息框 -->
+											<Border Background="#1e1e1e" CornerRadius="4" Padding="10,8">
+												<StackPanel Spacing="4">
+													<StackPanel Orientation="Horizontal" Spacing="4">
+														<TextBlock Text="🛠" FontSize="12" />
+														<TextBlock Text="{Binding Card.ToolName}"
+														           Foreground="#9cdcfe" FontSize="12" FontWeight="SemiBold" />
+													</StackPanel>
+													<TextBlock Text="参数："
+													           Foreground="#858585" FontSize="11" Margin="0,4,0,0" />
+													<ItemsControl ItemsSource="{Binding Card.ToolParameters}">
+														<ItemsControl.ItemTemplate>
+															<DataTemplate>
+																<StackPanel Orientation="Horizontal" Spacing="4" Margin="8,1,0,0">
+																	<TextBlock Text="{Binding Key, StringFormat='{}{0}:'}"
+																	           Foreground="#858585" FontSize="11" />
+																	<TextBlock Text="{Binding Value}"
+																	           Foreground="#cccccc" FontSize="11" />
+																</StackPanel>
+															</DataTemplate>
+														</ItemsControl.ItemTemplate>
+													</ItemsControl>
+												</StackPanel>
+											</Border>
+											<!-- 风险描述 -->
+											<TextBlock Text="{Binding Card.RiskDescription}"
+											           Foreground="#f48771" FontSize="11"
+											           TextWrapping="Wrap" />
+											<!-- 按钮 -->
+											<StackPanel Orientation="Horizontal" Spacing="0" Margin="0,4,0,0">
+												<Button Classes="tl-btn-primary"
+												        Content="✓ 允许"
+												        Tag="allow_once"
+												        Click="OnCardActionClick" />
+												<Button Classes="tl-btn-secondary"
+												        Content="✓ 后续全部允许"
+												        Tag="allow_all"
+												        Click="OnCardActionClick" />
+												<Button Classes="tl-btn-danger"
+												        Content="✗ 拒绝"
+												        Tag="deny"
+												        Click="OnCardActionClick" />
+											</StackPanel>
+										</StackPanel>
+									</Border>
+
+									<!-- ── 动态子智能体创建审批卡片 ── -->
+									<Border Classes="tl-card-danger"
+									        IsVisible="{Binding Card.IsAgentCreationAuth, FallbackValue=False}">
+										<StackPanel Spacing="8">
+											<TextBlock Text="{Binding Card.Title}"
+											           Foreground="#f4d2a3" FontSize="13" FontWeight="SemiBold" />
+											<Border Background="#1e1e1e" CornerRadius="4" Padding="10,8">
+												<StackPanel Spacing="4">
+													<Grid ColumnDefinitions="Auto,*">
+														<TextBlock Grid.Column="0" Text="名称："
+														           Foreground="#858585" FontSize="12" />
+														<TextBlock Grid.Column="1" Text="{Binding Card.ProposedAgentName}"
+														           Foreground="#cccccc" FontSize="12" FontWeight="SemiBold" />
+													</Grid>
+													<Grid ColumnDefinitions="Auto,*">
+														<TextBlock Grid.Column="0" Text="职责："
+														           Foreground="#858585" FontSize="12" />
+														<TextBlock Grid.Column="1" Text="{Binding Card.ProposedResponsibility}"
+														           Foreground="#9e9e9e" FontSize="12"
+														           TextWrapping="Wrap" />
+													</Grid>
+													<Grid ColumnDefinitions="Auto,*">
+														<TextBlock Grid.Column="0" Text="工具："
+														           Foreground="#858585" FontSize="12" />
+														<TextBlock Grid.Column="1" Text="{Binding Card.ProposedToolsText}"
+														           Foreground="#9e9e9e" FontSize="12"
+														           TextWrapping="Wrap" />
+													</Grid>
+												</StackPanel>
+											</Border>
+											<!-- 按钮 -->
+											<StackPanel Orientation="Horizontal" Spacing="0" Margin="0,4,0,0">
+												<Button Classes="tl-btn-primary"
+												        Content="✓ 批准创建"
+												        Tag="approve"
+												        Click="OnCardActionClick" />
+												<Button Classes="tl-btn-secondary"
+												        Content="✓✓ 本任务全部批准"
+												        Tag="approve_all"
+												        Click="OnCardActionClick" />
+												<Button Classes="tl-btn-danger"
+												        Content="✕ 拒绝创建"
+												        Tag="reject"
+												        Click="OnCardActionClick" />
+											</StackPanel>
+										</StackPanel>
+									</Border>
+
+									<!-- ── 执行报表卡片 ── -->
+									<Border Classes="tl-card-success"
+									        IsVisible="{Binding Card.IsExecutionReport, FallbackValue=False}">
+										<StackPanel Spacing="8">
+											<TextBlock Text="{Binding Card.Title}"
+											           Foreground="#73c991" FontSize="14" FontWeight="SemiBold" />
+											<ItemsControl ItemsSource="{Binding Card.ContentLines}">
+												<ItemsControl.ItemTemplate>
+													<DataTemplate>
+														<TextBlock Text="{Binding}"
+														           Foreground="#cccccc" FontSize="12"
+														           TextWrapping="Wrap" Margin="0,1,0,0" />
+													</DataTemplate>
+												</ItemsControl.ItemTemplate>
+											</ItemsControl>
+											<!-- 按钮 -->
+											<StackPanel Orientation="Horizontal" Spacing="0" Margin="0,4,0,0">
+												<Button Classes="tl-btn-primary"
+												        Content="📄 查看报告"
+												        Tag="view_report"
+												        Click="OnCardActionClick" />
+												<Button Classes="tl-btn-secondary"
+												        Content="📋 保存为模板"
+												        Tag="save_template"
+												        Click="OnCardActionClick" />
+												<Button Classes="tl-btn-secondary"
+												        Content="🔄 新建任务"
+												        Tag="new_task"
+												        Click="OnCardActionClick" />
+											</StackPanel>
+										</StackPanel>
+									</Border>
+
+								</Panel>
+								<!-- ════ 内嵌卡片区域结束 ════ -->
+
+							</StackPanel>
+						</Grid>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+		</ScrollViewer>
+
+		<!-- ════════════════════════════════════════════════════════════════
+		     Row 3: 底部状态栏
+		     ════════════════════════════════════════════════════════════════ -->
+		<Border Grid.Row="3"
+		        Background="#252526"
+		        BorderBrush="#3c3c3c" BorderThickness="0,1,0,0"
+		        Padding="16,10">
+			<Grid ColumnDefinitions="*,Auto">
+				<StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
+				            VerticalAlignment="Center">
+					<TextBlock Text="✅" FontSize="12" />
+					<TextBlock Text="任务已完成 — 此为 P4 执行引擎时间线 UI 预览（mock 数据）"
+					           Foreground="#858585" FontSize="12"
+					           VerticalAlignment="Center" />
+				</StackPanel>
+				<Button Grid.Column="1"
+				        Content="关闭预览"
+				        Background="#3a3d41" Foreground="#cccccc"
+				        Padding="12,6" CornerRadius="4" FontSize="12"
+				        Cursor="Hand" BorderThickness="0"
+				        Click="OnClosePreview" />
+			</Grid>
+		</Border>
+
+	</Grid>
+</UserControl>

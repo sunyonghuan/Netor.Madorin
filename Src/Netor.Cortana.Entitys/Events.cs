@@ -170,6 +170,62 @@ public static class Events
     /// </summary>
     public static DynamicAgentCreationResolvedEvent OnDynamicAgentCreationResolved
         = new("workflow.dynamic.agent.creation.resolved");
+
+    // ──────── P4 任务执行引擎事件 ────────
+
+    /// <summary>P4 阶段开始（需求分析/计划制定/执行/验证）。</summary>
+    public static TaskPhaseEvent OnTaskPhaseStarted = new("task.phase.started");
+
+    /// <summary>P4 阶段完成。</summary>
+    public static TaskPhaseEvent OnTaskPhaseCompleted = new("task.phase.completed");
+
+    /// <summary>P4 执行计划已创建。</summary>
+    public static TaskPlanEvent OnTaskPlanCreated = new("task.plan.created");
+
+    /// <summary>P4 执行计划已更新（用户修改后）。</summary>
+    public static TaskPlanEvent OnTaskPlanUpdated = new("task.plan.updated");
+
+    /// <summary>P4 执行计划已被用户确认。</summary>
+    public static TaskPlanEvent OnTaskPlanConfirmed = new("task.plan.confirmed");
+
+    /// <summary>P4 步骤开始执行。</summary>
+    public static TaskStepEvent OnTaskStepStarted = new("task.step.started");
+
+    /// <summary>P4 步骤中途进度更新。</summary>
+    public static TaskStepProgressEvent OnTaskStepProgress = new("task.step.progress");
+
+    /// <summary>P4 步骤执行完成。</summary>
+    public static TaskStepEvent OnTaskStepCompleted = new("task.step.completed");
+
+    /// <summary>P4 步骤执行失败。</summary>
+    public static TaskStepEvent OnTaskStepFailed = new("task.step.failed");
+
+    /// <summary>P4 步骤重试中。</summary>
+    public static TaskStepRetryEvent OnTaskStepRetrying = new("task.step.retrying");
+
+    /// <summary>P4 步骤等待用户确认。</summary>
+    public static TaskStepEvent OnTaskStepWaitingUser = new("task.step.waiting_user");
+
+    /// <summary>P4 步骤被跳过。</summary>
+    public static TaskStepEvent OnTaskStepSkipped = new("task.step.skipped");
+
+    /// <summary>P4 子智能体已创建。</summary>
+    public static TaskSubAgentEvent OnTaskSubAgentCreated = new("task.agent.created");
+
+    /// <summary>P4 子智能体已完成。</summary>
+    public static TaskSubAgentEvent OnTaskSubAgentCompleted = new("task.agent.completed");
+
+    /// <summary>P4 任务引擎暂停。</summary>
+    public static TaskLifecycleEvent OnTaskEnginePaused = new("task.engine.paused");
+
+    /// <summary>P4 任务引擎恢复。</summary>
+    public static TaskLifecycleEvent OnTaskEngineResumed = new("task.engine.resumed");
+
+    /// <summary>P4 任务引擎完成。</summary>
+    public static TaskLifecycleEvent OnTaskEngineCompleted = new("task.engine.completed");
+
+    /// <summary>P4 任务引擎失败。</summary>
+    public static TaskLifecycleEvent OnTaskEngineFailed = new("task.engine.failed");
 }
 
 // ──────── AI 配置变更事件类型 ────────
@@ -816,6 +872,153 @@ public record DynamicAgentCreationResolvedArgs(
         "discussion",
         "magentic",
         DateTimeOffset.UtcNow);
+
+// ════════════════════════════════════════════════════════════════════════
+// P4 任务执行引擎事件类型 + 事件参数
+// 详见 docs/未来版本策划/聊天式任务发起与动态智能体/04-P4方案设计-任务执行引擎.md §11
+// ════════════════════════════════════════════════════════════════════════
+
+/// <summary>P4 阶段事件类型（task.phase.started / task.phase.completed）。</summary>
+public record TaskPhaseEvent(string Eventid) : EventID<TaskPhaseEventArgs>(Eventid);
+
+/// <summary>P4 计划事件类型（task.plan.created / updated / confirmed）。</summary>
+public record TaskPlanEvent(string Eventid) : EventID<TaskPlanEventArgs>(Eventid);
+
+/// <summary>P4 步骤事件类型（task.step.started / completed / failed / waiting_user / skipped）。</summary>
+public record TaskStepEvent(string Eventid) : EventID<TaskStepEventArgs>(Eventid);
+
+/// <summary>P4 步骤进度事件类型（task.step.progress）。</summary>
+public record TaskStepProgressEvent(string Eventid) : EventID<TaskStepProgressEventArgs>(Eventid);
+
+/// <summary>P4 步骤重试事件类型（task.step.retrying）。</summary>
+public record TaskStepRetryEvent(string Eventid) : EventID<TaskStepRetryEventArgs>(Eventid);
+
+/// <summary>P4 子智能体事件类型（task.agent.created / completed）。</summary>
+public record TaskSubAgentEvent(string Eventid) : EventID<TaskSubAgentEventArgs>(Eventid);
+
+/// <summary>P4 任务生命周期事件类型（task.engine.paused / resumed / completed / failed）。</summary>
+public record TaskLifecycleEvent(string Eventid) : EventID<TaskLifecycleEventArgs>(Eventid);
+
+/// <summary>
+/// P4 任务执行引擎事件通用基类。
+/// 所有 P4 事件继承该基类，复用统一定位字段。
+/// </summary>
+public abstract record TaskEngineEventArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt) : EventArgs;
+
+/// <summary>
+/// P4 阶段事件参数（阶段开始/完成）。
+/// </summary>
+/// <param name="TaskId">任务 ID。</param>
+/// <param name="OccurredAt">事件发生时间。</param>
+/// <param name="Phase">阶段名称：requirements / planning / executing / validating。</param>
+public record TaskPhaseEventArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt,
+    string Phase) : TaskEngineEventArgs(TaskId, OccurredAt);
+
+/// <summary>
+/// P4 计划事件参数（计划创建/更新/确认）。
+/// </summary>
+/// <param name="TaskId">任务 ID。</param>
+/// <param name="OccurredAt">事件发生时间。</param>
+/// <param name="PlanId">计划 ID。</param>
+/// <param name="Version">计划版本号。</param>
+/// <param name="StepCount">计划中的步骤数量。</param>
+public record TaskPlanEventArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt,
+    string PlanId,
+    int Version,
+    int StepCount) : TaskEngineEventArgs(TaskId, OccurredAt);
+
+/// <summary>
+/// P4 步骤事件参数（步骤开始/完成/失败/等待用户/跳过）。
+/// </summary>
+/// <param name="TaskId">任务 ID。</param>
+/// <param name="OccurredAt">事件发生时间。</param>
+/// <param name="StepId">步骤 ID。</param>
+/// <param name="StepSequence">步骤序号（1-based）。</param>
+/// <param name="Title">步骤标题。</param>
+/// <param name="Status">步骤状态字符串。</param>
+/// <param name="ResultSummary">结果摘要（完成时有值）。</param>
+public record TaskStepEventArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt,
+    string StepId,
+    int StepSequence,
+    string Title,
+    string Status,
+    string? ResultSummary = null) : TaskEngineEventArgs(TaskId, OccurredAt);
+
+/// <summary>
+/// P4 步骤进度事件参数（中途进度更新）。
+/// </summary>
+/// <param name="TaskId">任务 ID。</param>
+/// <param name="OccurredAt">事件发生时间。</param>
+/// <param name="StepId">步骤 ID。</param>
+/// <param name="StepSequence">步骤序号。</param>
+/// <param name="Title">步骤标题。</param>
+/// <param name="ProgressPercent">进度百分比（0-100）。</param>
+/// <param name="ProgressDetail">进度描述文本。</param>
+public record TaskStepProgressEventArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt,
+    string StepId,
+    int StepSequence,
+    string Title,
+    int ProgressPercent,
+    string? ProgressDetail = null) : TaskEngineEventArgs(TaskId, OccurredAt);
+
+/// <summary>
+/// P4 步骤重试事件参数。
+/// </summary>
+/// <param name="TaskId">任务 ID。</param>
+/// <param name="OccurredAt">事件发生时间。</param>
+/// <param name="StepId">步骤 ID。</param>
+/// <param name="StepSequence">步骤序号。</param>
+/// <param name="Title">步骤标题。</param>
+/// <param name="RetryCount">当前重试次数。</param>
+/// <param name="MaxRetries">最大重试次数。</param>
+/// <param name="ErrorMessage">导致重试的错误信息。</param>
+/// <param name="NextDelayMs">下次重试前的延迟毫秒数。</param>
+public record TaskStepRetryEventArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt,
+    string StepId,
+    int StepSequence,
+    string Title,
+    int RetryCount,
+    int MaxRetries,
+    string ErrorMessage,
+    int NextDelayMs) : TaskEngineEventArgs(TaskId, OccurredAt);
+
+/// <summary>
+/// P4 子智能体事件参数（创建/完成）。
+/// </summary>
+/// <param name="TaskId">任务 ID。</param>
+/// <param name="OccurredAt">事件发生时间。</param>
+/// <param name="StepId">所属步骤 ID。</param>
+/// <param name="AgentName">子智能体名称。</param>
+/// <param name="AgentRole">子智能体角色描述。</param>
+public record TaskSubAgentEventArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt,
+    string StepId,
+    string AgentName,
+    string AgentRole) : TaskEngineEventArgs(TaskId, OccurredAt);
+
+/// <summary>
+/// P4 任务生命周期事件参数（暂停/恢复/完成/失败）。
+/// </summary>
+/// <param name="TaskId">任务 ID。</param>
+/// <param name="OccurredAt">事件发生时间。</param>
+/// <param name="Reason">事件原因描述（可为 null）。</param>
+public record TaskLifecycleEventArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt,
+    string? Reason = null) : TaskEngineEventArgs(TaskId, OccurredAt);
 
 /// <summary>
 /// 模型变更类型

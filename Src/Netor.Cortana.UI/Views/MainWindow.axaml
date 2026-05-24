@@ -4,7 +4,7 @@
         xmlns:workspace="using:Netor.Cortana.UI.Views.Workspace"
         x:Class="Netor.Cortana.UI.Views.MainWindow"
         x:CompileBindings="True"
-        Title="小娜宝贝"
+        Title="Madorin"
         Width="560" Height="980"
         MinWidth="400" MinHeight="600"
         WindowStartupLocation="CenterScreen"
@@ -175,19 +175,19 @@
 									Classes="tab-btn tab-btn-active"
 									Tag="chat"
 									Click="OnTabSwitchClick">
-								<TextBlock Text="对话" />
+								<TextBlock Text="专家" />
 							</Button>
 							<Button x:Name="WorkflowTabButton"
 									Classes="tab-btn"
 									Tag="workflow"
 									Click="OnTabSwitchClick">
-								<TextBlock Text="工作流" />
+								<TextBlock Text="工作" />
 							</Button>
 							<Button x:Name="GroupChatTabButton"
 									Classes="tab-btn"
 									Tag="groupchat"
 									Click="OnTabSwitchClick">
-								<TextBlock Text="群聊" />
+								<TextBlock Text="会议" />
 							</Button>
 						</StackPanel>
 						<!-- 右：操作按钮组 -->

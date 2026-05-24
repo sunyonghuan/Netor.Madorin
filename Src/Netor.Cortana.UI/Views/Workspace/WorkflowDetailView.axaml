@@ -133,6 +133,17 @@
 			                     Title="选择左侧任务查看详情"
 			                     Description="左侧任务列表为空时，在下方输入框中输入任务描述并发送即可创建新任务。&#10;运行中可在主区查看进度、最终报告和审批卡片。" />
 
+			<!-- P4 时间线预览入口按钮（仅无任务选中时可见） -->
+			<Button x:Name="P4PreviewBtn"
+			        Classes="detail-action-btn"
+			        Content="🔬 P4 时间线预览"
+			        Click="OnP4PreviewClick"
+			        HorizontalAlignment="Center"
+			        VerticalAlignment="Bottom"
+			        Margin="0,0,0,24"
+			        IsVisible="{Binding Detail.TaskId, Converter={x:Static StringConverters.IsNullOrEmpty}}"
+			        ToolTip.Tip="打开 P4 执行引擎时间线 UI 预览（含 mock 数据）" />
+
 			<DockPanel x:Name="DetailContent"
 			           IsVisible="{Binding Detail.TaskId, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
 				<Border DockPanel.Dock="Top"

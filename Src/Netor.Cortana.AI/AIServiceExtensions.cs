@@ -6,6 +6,9 @@ using Netor.Cortana.AI.Drivers;
 using Netor.Cortana.AI.Memory;
 using Netor.Cortana.AI.Orchestration;
 using Netor.Cortana.AI.Providers;
+using Netor.Cortana.AI.TaskEngine;
+using Netor.Cortana.AI.TaskEngine.Persistence;
+using Netor.Cortana.AI.TaskEngine.Scheduling;
 using Netor.Cortana.AI.Workflow;
 using Netor.Cortana.AI.Workflow.Title;
 using Netor.Cortana.Entitys;
@@ -100,6 +103,22 @@ public static class AIServiceExtensions
         // Proxy 独立外部调用通道：不复用主聊天会话。
         services.AddSingleton<ProxyUsageTracker>();
         services.AddSingleton<IAiProxyAgentBackend, CortanaOllamaProxyAgentBackend>();
+
+        // P4 任务执行引擎（Commit P4-1）
+        // 详见 docs/未来版本策划/聊天式任务发起与动态智能体/04-P4方案设计-任务执行引擎.md §8.1
+        services.AddSingleton(new TaskEngineOptions());
+        services.AddSingleton<GlobalLlmThrottle>(sp =>
+            new GlobalLlmThrottle(sp.GetRequiredService<TaskEngineOptions>().MaxLlmConcurrency));
+        services.AddSingleton<IStepScheduler, StepScheduler>();
+
+        // P4-2: 计划持久化（文件系统实现）
+        services.AddSingleton<TaskFileResolver>();
+        services.AddSingleton<IPlanPersistence, FilePlanPersistence>();
+
+        // IOrchestratorAgent — P4-3 提供实现
+        // TaskExecutionEngine — 等 P4-3 IOrchestratorAgent 实现后再启用 IHostedService 注册
+        // services.AddSingleton<TaskExecutionEngine>();
+        // services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<TaskExecutionEngine>());
 
         return services;
     }
