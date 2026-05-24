@@ -112,13 +112,22 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
     public bool? ValidationPassed { get; private set; }
 
     /// <summary>
-    /// Steps 集合（供 WorkflowDetailView XAML 绑定 <c>{Binding Detail.Steps}</c>）。
+    /// [Deprecated] Steps 集合（GroupChatDetailView XAML 仍绑定 <c>{Binding Detail.Steps}</c>）。
+    /// WorkflowDetailView 已改用 <see cref="TimelineEvents"/>。
     /// 与 <see cref="PlanSteps"/> 保持同步，避免每次 get 创建新集合导致绑定失效。
     /// </summary>
     public ObservableCollection<object> Steps { get; } = [];
 
     public object? DynamicAgentCreationApproval => null;
-    public object? Approval => null;
+
+    private PlanApprovalVm? _approval;
+
+    /// <summary>HITL 计划审批卡片 VM（引擎等待用户确认计划时有值）。</summary>
+    public PlanApprovalVm? Approval
+    {
+        get => _approval;
+        private set => SetField(ref _approval, value);
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // 计划概览面板
@@ -264,6 +273,21 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
                 OnPropertyChanged(nameof(FinalReport));
             }
 
+            // 恢复 HITL 审批卡片（如果引擎正在等待用户确认计划）
+            if (engine.IsWaitingPlanConfirmation(taskId) && detail.Plan?.Steps is { Count: > 0 } planSteps)
+            {
+                var lines = planSteps
+                    .OrderBy(s => s.Sequence)
+                    .Select(s => $"{s.Sequence}. {s.Title}");
+                Approval = new PlanApprovalVm
+                {
+                    IsVisible = true,
+                    IsInteractive = true,
+                    PauseReasonText = $"等待确认执行计划 (v{detail.Plan.Version}, {planSteps.Count}步)",
+                    PlanText = string.Join("\n", lines),
+                };
+            }
+
             // 恢复耗时
             UpdateDuration();
 
@@ -289,6 +313,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         ErrorMessage = null;
         ValidationScore = null;
         ValidationPassed = null;
+        Approval = null;
         _eventCounter = 0;
         PlanSteps.Clear(); // Steps 由 OnPlanStepsChanged 自动同步清空
         TimelineEvents.Clear();
@@ -362,7 +387,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             Dispatcher.UIThread.Post(() =>
             {
                 AppendEvent("plan_created", "primary",
-                    $"计划已创建（{args.StepCount} 步）", null, "completed");
+                    $"计划已创建（{args.StepCount} 步），等待确认", null, "waiting");
 
                 // 填充 PlanSteps 占位（后续事件更新状态）
                 PlanSteps.Clear();
@@ -378,6 +403,9 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
                 }
 
                 IsPlanOverviewExpanded = true;
+
+                // 构建 HITL 审批卡片（异步获取完整计划数据）
+                BuildApprovalAsync(args.TaskId, args.Version, args.StepCount).ConfigureAwait(false);
             });
             return Task.FromResult(false);
         });
@@ -389,6 +417,9 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             {
                 AppendEvent("plan_confirmed", "primary",
                     "计划已确认，准备执行", null, "completed");
+
+                // 隐藏审批卡片
+                Approval = null;
             });
             return Task.FromResult(false);
         });
@@ -668,6 +699,59 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         var minutes = totalSeconds / 60;
         var seconds = totalSeconds % 60;
         DurationText = $"{minutes}:{seconds:D2}";
+    }
+
+    /// <summary>
+    /// 异步构建 HITL 审批卡片（从引擎获取完整计划数据）。
+    /// 在 OnTaskPlanCreated 事件回调中 fire-and-forget 调用。
+    /// </summary>
+    private async Task BuildApprovalAsync(string taskId, int version, int stepCount)
+    {
+        var engine = App.Services.GetRequiredService<TaskExecutionEngine>();
+        var detail = await engine.GetTaskDetailAsync(taskId, CancellationToken.None).ConfigureAwait(false);
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            if (taskId != _taskId) return; // 任务已切换
+
+            var planText = "（计划步骤加载中…）";
+            if (detail?.Plan?.Steps is { Count: > 0 } steps)
+            {
+                var lines = steps
+                    .OrderBy(s => s.Sequence)
+                    .Select(s => $"{s.Sequence}. {s.Title}");
+                planText = string.Join("\n", lines);
+
+                // 同步更新 PlanSteps 标题（之前只有占位"步骤 N"）
+                for (var i = 0; i < steps.Count && i < PlanSteps.Count; i++)
+                {
+                    var step = steps.OrderBy(s => s.Sequence).ElementAt(i);
+                    if (PlanSteps[i].Title != step.Title)
+                    {
+                        PlanSteps[i] = new PlanStepOverviewVm
+                        {
+                            Sequence = step.Sequence,
+                            Title = step.Title,
+                            StatusIcon = "⏳",
+                            StatusColor = "#858585",
+                        };
+                    }
+                }
+            }
+
+            Approval = new PlanApprovalVm
+            {
+                IsVisible = true,
+                IsInteractive = true,
+                PauseReasonText = $"等待确认执行计划 (v{version}, {stepCount}步)",
+                PlanText = planText,
+            };
+
+            StatusText = "已暂停";
+            StatusColor = "#e0c074";
+            OnPropertyChanged(nameof(IsPaused));
+            OnPropertyChanged(nameof(IsRunning));
+        });
     }
 
     /// <summary>格式化阶段名称。</summary>

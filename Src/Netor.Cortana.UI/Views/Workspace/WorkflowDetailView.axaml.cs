@@ -13,6 +13,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using Netor.Cortana.AI.TaskEngine;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Extensions;
 using Netor.Cortana.UI.ViewModels.Workspace;
@@ -173,15 +174,73 @@ public partial class WorkflowDetailView : UserControl
         catch (Exception ex) { ShowError($"取消任务失败：{ex.Message}", ex); }
     }
 
-    // P4: 老审批方法暂时 stub（P4 有自己的计划确认机制，后续阶段接入）
-    private void OnApprovalApproveClick(object? sender, RoutedEventArgs e)
-        => _logger.LogInformation("[WorkflowDetailView] 审批批准（P4 迁移中，功能待接入）");
+    // P4: HITL 审批按钮 — 接通 TaskExecutionEngine API
+    private async void OnApprovalApproveClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var engine = App.Services.GetRequiredService<TaskExecutionEngine>();
+            var taskId = _vm.Detail.TaskId;
+            if (string.IsNullOrEmpty(taskId)) return;
 
-    private void OnApprovalReviseClick(object? sender, RoutedEventArgs e)
-        => _logger.LogInformation("[WorkflowDetailView] 审批修改（P4 迁移中，功能待接入）");
+            // 禁用交互防止重复点击
+            if (_vm.Detail.Approval is { } approval)
+                approval.IsInteractive = false;
 
-    private void OnApprovalRejectClick(object? sender, RoutedEventArgs e)
-        => _logger.LogInformation("[WorkflowDetailView] 审批拒绝（P4 迁移中，功能待接入）");
+            var ok = await engine.ConfirmPlanAsync(taskId, CancellationToken.None);
+            if (!ok)
+                _logger.LogWarning("[WorkflowDetailView] ConfirmPlanAsync 返回 false: {TaskId}", taskId);
+        }
+        catch (Exception ex) { ShowError($"确认计划失败：{ex.Message}", ex); }
+    }
+
+    private async void OnApprovalReviseClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var engine = App.Services.GetRequiredService<TaskExecutionEngine>();
+            var taskId = _vm.Detail.TaskId;
+            var approval = _vm.Detail.Approval;
+            if (string.IsNullOrEmpty(taskId) || approval is null) return;
+
+            var revision = approval.RevisionInput?.Trim();
+            if (string.IsNullOrEmpty(revision))
+            {
+                ShowError("请输入修改建议后再提交");
+                return;
+            }
+
+            approval.IsInteractive = false;
+            var ok = await engine.RequestPlanModificationAsync(taskId, revision, CancellationToken.None);
+            if (ok)
+            {
+                approval.ProgressSummary = $"已提交修改意见，等待重新生成计划…";
+                approval.RevisionInput = string.Empty;
+            }
+            else
+            {
+                approval.IsInteractive = true;
+                _logger.LogWarning("[WorkflowDetailView] RequestPlanModificationAsync 返回 false: {TaskId}", taskId);
+            }
+        }
+        catch (Exception ex) { ShowError($"提交修改失败：{ex.Message}", ex); }
+    }
+
+    private async void OnApprovalRejectClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var engine = App.Services.GetRequiredService<TaskExecutionEngine>();
+            var taskId = _vm.Detail.TaskId;
+            if (string.IsNullOrEmpty(taskId)) return;
+
+            if (_vm.Detail.Approval is { } approval)
+                approval.IsInteractive = false;
+
+            await engine.CancelTaskAsync(taskId, CancellationToken.None);
+        }
+        catch (Exception ex) { ShowError($"取消任务失败：{ex.Message}", ex); }
+    }
 
     private void OnDynamicAgentApproveClick(object? sender, RoutedEventArgs e)
         => _logger.LogInformation("[WorkflowDetailView] 动态智能体批准（P4 迁移中，功能待接入）");
