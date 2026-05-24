@@ -7,6 +7,7 @@ using Netor.Cortana.AI.Memory;
 using Netor.Cortana.AI.Orchestration;
 using Netor.Cortana.AI.Providers;
 using Netor.Cortana.AI.TaskEngine;
+using Netor.Cortana.AI.TaskEngine.Agents;
 using Netor.Cortana.AI.TaskEngine.Persistence;
 using Netor.Cortana.AI.TaskEngine.Scheduling;
 using Netor.Cortana.AI.Workflow;
@@ -115,8 +116,12 @@ public static class AIServiceExtensions
         services.AddSingleton<TaskFileResolver>();
         services.AddSingleton<IPlanPersistence, FilePlanPersistence>();
 
-        // IOrchestratorAgent — P4-3 提供实现
-        // TaskExecutionEngine — 等 P4-3 IOrchestratorAgent 实现后再启用 IHostedService 注册
+        // P4-3: 主智能体编排器（子智能体动态创建 + 四阶段流程）
+        services.AddSingleton<SubAgentRunner>();
+        services.AddSingleton<IOrchestratorAgent, OrchestratorAgent>();
+
+        // TaskExecutionEngine — 等 P4-4 (UI) 完成后再启用 IHostedService 注册
+        // 原因：引擎启动后会扫描恢复任务，需要 UI 就绪才能展示进度
         // services.AddSingleton<TaskExecutionEngine>();
         // services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<TaskExecutionEngine>());
 

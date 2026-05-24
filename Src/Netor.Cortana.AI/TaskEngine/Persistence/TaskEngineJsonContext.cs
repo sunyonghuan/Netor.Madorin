@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 
+using Netor.Cortana.AI.TaskEngine.Agents;
 using Netor.Cortana.AI.TaskEngine.Models;
 
 namespace Netor.Cortana.AI.TaskEngine.Persistence;
@@ -20,6 +21,15 @@ namespace Netor.Cortana.AI.TaskEngine.Persistence;
 [JsonSerializable(typeof(RunMeta))]
 [JsonSerializable(typeof(TaskMeta))]
 [JsonSerializable(typeof(StepIntent))]
+[JsonSerializable(typeof(RequirementsAnalysisDto))]
+[JsonSerializable(typeof(PlanningResponseDto))]
+[JsonSerializable(typeof(PlanningStepDto))]
+[JsonSerializable(typeof(PlanningSubTaskDto))]
+[JsonSerializable(typeof(StepExecutionResponseDto))]
+[JsonSerializable(typeof(ValidationResponseDto))]
+[JsonSerializable(typeof(PlanDiffResult))]
+[JsonSerializable(typeof(List<PlanningStepDto>))]
+[JsonSerializable(typeof(List<PlanningSubTaskDto>))]
 [JsonSerializable(typeof(List<PlanStep>))]
 [JsonSerializable(typeof(List<PlanSubTask>))]
 [JsonSerializable(typeof(List<string>))]
@@ -106,4 +116,65 @@ public sealed class StepIntent
 
     /// <summary>写入 intent 时的计划版本号。</summary>
     public int PlanVersion { get; init; }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// P4-3: 子智能体 JSON 响应 DTO（LLM 输出的 camelCase JSON 反序列化目标）
+// ══════════════════════════════════════════════════════════════════════
+
+/// <summary>需求分析师子智能体的 JSON 输出 DTO。</summary>
+public sealed class RequirementsAnalysisDto
+{
+    public string? OriginalInput { get; set; }
+    public List<string>? KeyPoints { get; set; }
+    public List<string>? Constraints { get; set; }
+    public string? ExpectedDeliverable { get; set; }
+    public string? ComplexityLevel { get; set; }
+}
+
+/// <summary>计划制定师子智能体的 JSON 输出 DTO。</summary>
+public sealed class PlanningResponseDto
+{
+    public string? TaskSummary { get; set; }
+    public string? FinalGoal { get; set; }
+    public List<PlanningStepDto>? Steps { get; set; }
+}
+
+/// <summary>计划步骤 DTO（LLM 输出格式）。</summary>
+public sealed class PlanningStepDto
+{
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+    public string? ExecutionMode { get; set; }
+    public List<string>? DependsOn { get; set; }
+    public string? AgentTypeDescription { get; set; }
+    public List<string>? RequiredTools { get; set; }
+    public bool RequireUserConfirmation { get; set; }
+    public int? EstimatedDurationSeconds { get; set; }
+    public List<PlanningSubTaskDto>? SubTasks { get; set; }
+}
+
+/// <summary>计划子任务 DTO（LLM 输出格式）。</summary>
+public sealed class PlanningSubTaskDto
+{
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+    public string? AgentTypeDescription { get; set; }
+}
+
+/// <summary>步骤执行师子智能体的 JSON 输出 DTO。</summary>
+public sealed class StepExecutionResponseDto
+{
+    public string? Summary { get; set; }
+    public string? Detail { get; set; }
+}
+
+/// <summary>验证审查员子智能体的 JSON 输出 DTO。</summary>
+public sealed class ValidationResponseDto
+{
+    public bool Passed { get; set; }
+    public int Score { get; set; }
+    public string? Summary { get; set; }
+    public List<string>? Issues { get; set; }
+    public List<string>? Suggestions { get; set; }
 }
