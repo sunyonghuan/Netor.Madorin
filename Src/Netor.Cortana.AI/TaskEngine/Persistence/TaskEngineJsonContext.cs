@@ -27,6 +27,7 @@ namespace Netor.Cortana.AI.TaskEngine.Persistence;
 [JsonSerializable(typeof(PlanningSubTaskDto))]
 [JsonSerializable(typeof(StepExecutionResponseDto))]
 [JsonSerializable(typeof(ValidationResponseDto))]
+[JsonSerializable(typeof(ValidationResult))]
 [JsonSerializable(typeof(PlanDiffResult))]
 [JsonSerializable(typeof(List<PlanningStepDto>))]
 [JsonSerializable(typeof(List<PlanningSubTaskDto>))]

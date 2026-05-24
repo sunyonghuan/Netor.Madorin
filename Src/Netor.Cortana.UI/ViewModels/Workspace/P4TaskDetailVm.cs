@@ -99,6 +99,12 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
     public string? FinalReport { get; private set; }
     public string? ErrorMessage { get; private set; }
 
+    /// <summary>验证分数（0-100）。验证完成后有值。</summary>
+    public int? ValidationScore { get; private set; }
+
+    /// <summary>验证是否通过。</summary>
+    public bool? ValidationPassed { get; private set; }
+
     /// <summary>
     /// Steps 集合（供 WorkflowDetailView XAML 绑定 <c>{Binding Detail.Steps}</c>）。
     /// 与 <see cref="PlanSteps"/> 保持同步，避免每次 get 创建新集合导致绑定失效。
@@ -464,6 +470,30 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             {
                 AppendEvent("template_saved", "secondary",
                     "执行计划已保存为模板", args.Reason, "completed");
+            });
+            return Task.FromResult(false);
+        });
+
+        // P4: 验证完成事件
+        _subscriber.Subscribe<TaskValidationEventArgs>(Events.OnTaskValidationCompleted, (_, args) =>
+        {
+            if (args.TaskId != _taskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() =>
+            {
+                var statusIcon = args.Passed ? "completed" : "failed";
+                var detail = args.Passed
+                    ? $"验证通过（分数: {args.Score}/100）"
+                    : $"验证未通过（分数: {args.Score}/100）" +
+                      (args.Issues is { Count: > 0 } ? $"\n问题: {string.Join("; ", args.Issues)}" : "");
+
+                AppendEvent("validation_completed", "primary",
+                    $"验证结果: {args.Summary ?? (args.Passed ? "通过" : "未通过")}",
+                    detail, statusIcon);
+
+                ValidationScore = args.Score;
+                ValidationPassed = args.Passed;
+                OnPropertyChanged(nameof(ValidationScore));
+                OnPropertyChanged(nameof(ValidationPassed));
             });
             return Task.FromResult(false);
         });

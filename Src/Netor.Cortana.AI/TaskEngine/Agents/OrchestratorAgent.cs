@@ -248,7 +248,7 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
     // ══════════════════════════════════════════════════════════════════════
 
     /// <inheritdoc/>
-    public async Task RunValidationPhaseAsync(string taskId, ExecutionPlan plan, CancellationToken ct)
+    public async Task<ValidationResult> RunValidationPhaseAsync(string taskId, ExecutionPlan plan, CancellationToken ct)
     {
         _logger.LogInformation("P4 验证阶段开始: {TaskId}", taskId);
 
@@ -311,32 +311,53 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
             userMessageBuilder.AppendLine();
         }
 
-        var result = await _runner.RunJsonAsync(
+        var dto = await _runner.RunJsonAsync(
             OrchestratorPrompts.ValidationReviewer,
             userMessageBuilder.ToString(),
             TaskEngineJsonContext.Default.ValidationResponseDto,
             ct).ConfigureAwait(false);
 
-        if (result is not null)
+        ValidationResult validationResult;
+
+        if (dto is not null)
         {
+            validationResult = new ValidationResult
+            {
+                Passed = dto.Passed,
+                Score = dto.Score,
+                Summary = dto.Summary ?? string.Empty,
+                Issues = dto.Issues ?? [],
+                Suggestions = dto.Suggestions ?? [],
+                CompletedAt = DateTimeOffset.UtcNow,
+            };
+
             _logger.LogInformation(
                 "P4 验证完成: {TaskId}（通过={Passed}, 分数={Score}, 摘要={Summary}）",
-                taskId, result.Passed, result.Score, result.Summary);
+                taskId, validationResult.Passed, validationResult.Score, validationResult.Summary);
 
-            // TODO P4-Phase2: 如果验证不通过（score < 70），可以触发修复流程
+            // NOTE P4-Phase2: 如果验证不通过（score < 70），可以触发修复流程
             // 当前版本仅记录日志，不阻断完成流程
-            if (!result.Passed)
+            if (!validationResult.Passed)
             {
                 _logger.LogWarning(
                     "P4 验证未通过: {TaskId}（分数={Score}，问题={Issues}）",
-                    taskId, result.Score,
-                    result.Issues is { Count: > 0 } ? string.Join("; ", result.Issues) : "无具体问题");
+                    taskId, validationResult.Score,
+                    validationResult.Issues.Count > 0 ? string.Join("; ", validationResult.Issues) : "无具体问题");
             }
         }
         else
         {
             _logger.LogWarning("P4 验证响应解析失败，视为通过: {TaskId}", taskId);
+            validationResult = new ValidationResult
+            {
+                Passed = true,
+                Score = 100,
+                Summary = "验证响应解析失败，默认视为通过",
+                CompletedAt = DateTimeOffset.UtcNow,
+            };
         }
+
+        return validationResult;
     }
 
     // ══════════════════════════════════════════════════════════════════════

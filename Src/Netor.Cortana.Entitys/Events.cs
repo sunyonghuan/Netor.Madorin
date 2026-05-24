@@ -187,6 +187,9 @@ public static class Events
 
     /// <summary>P4-6 执行模板已保存。</summary>
     public static TaskLifecycleEvent OnTaskTemplateSaved = new("task.template.saved");
+
+    /// <summary>P4 验证阶段完成（携带验证分数/摘要/问题列表）。</summary>
+    public static TaskValidationEvent OnTaskValidationCompleted = new("task.validation.completed");
 }
 
 // ──────── AI 配置变更事件类型 ────────
@@ -559,6 +562,9 @@ public record TaskSubAgentEvent(string Eventid) : EventID<TaskSubAgentEventArgs>
 /// <summary>P4 任务生命周期事件类型（task.engine.paused / resumed / completed / failed）。</summary>
 public record TaskLifecycleEvent(string Eventid) : EventID<TaskLifecycleEventArgs>(Eventid);
 
+/// <summary>P4 验证完成事件类型（task.validation.completed）。</summary>
+public record TaskValidationEvent(string Eventid) : EventID<TaskValidationEventArgs>(Eventid);
+
 /// <summary>
 /// P4 任务执行引擎事件通用基类。
 /// 所有 P4 事件继承该基类，复用统一定位字段。
@@ -679,6 +685,23 @@ public record TaskLifecycleEventArgs(
     string TaskId,
     DateTimeOffset OccurredAt,
     string? Reason = null) : TaskEngineEventArgs(TaskId, OccurredAt);
+
+/// <summary>
+/// P4 验证完成事件参数。
+/// </summary>
+/// <param name="TaskId">任务 ID。</param>
+/// <param name="OccurredAt">事件发生时间。</param>
+/// <param name="Passed">验证是否通过。</param>
+/// <param name="Score">验证分数（0-100）。</param>
+/// <param name="Summary">验证摘要。</param>
+/// <param name="Issues">发现的问题列表。</param>
+public record TaskValidationEventArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt,
+    bool Passed,
+    int Score,
+    string? Summary = null,
+    IReadOnlyList<string>? Issues = null) : TaskEngineEventArgs(TaskId, OccurredAt);
 
 /// <summary>
 /// 模型变更类型

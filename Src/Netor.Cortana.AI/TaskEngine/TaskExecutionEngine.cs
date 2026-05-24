@@ -452,7 +452,17 @@ public sealed class TaskExecutionEngine : IHostedService
             _publisher.Publish(Events.OnTaskPhaseStarted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "validating"));
 
-            await _orchestrator.RunValidationPhaseAsync(taskId, plan, ct).ConfigureAwait(false);
+            var validationResult = await _orchestrator.RunValidationPhaseAsync(taskId, plan, ct)
+                .ConfigureAwait(false);
+
+            // 持久化验证结果 + 发布事件
+            await _persistence.SaveValidationResultAsync(taskId, validationResult, ct)
+                .ConfigureAwait(false);
+
+            _publisher.Publish(Events.OnTaskValidationCompleted,
+                new TaskValidationEventArgs(taskId, DateTimeOffset.UtcNow,
+                    validationResult.Passed, validationResult.Score,
+                    validationResult.Summary, validationResult.Issues));
 
             _publisher.Publish(Events.OnTaskPhaseCompleted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "validating"));
@@ -462,7 +472,8 @@ public sealed class TaskExecutionEngine : IHostedService
             await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
 
             _publisher.Publish(Events.OnTaskEngineCompleted,
-                new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow));
+                new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow,
+                    validationResult.Summary));
 
             _logger.LogInformation("P4 断点恢复任务已完成: {TaskId}", taskId);
         }
@@ -884,7 +895,17 @@ public sealed class TaskExecutionEngine : IHostedService
             _publisher.Publish(Events.OnTaskPhaseStarted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "validating"));
 
-            await _orchestrator.RunValidationPhaseAsync(taskId, plan, ct).ConfigureAwait(false);
+            var validationResult = await _orchestrator.RunValidationPhaseAsync(taskId, plan, ct)
+                .ConfigureAwait(false);
+
+            // 持久化验证结果 + 发布事件
+            await _persistence.SaveValidationResultAsync(taskId, validationResult, ct)
+                .ConfigureAwait(false);
+
+            _publisher.Publish(Events.OnTaskValidationCompleted,
+                new TaskValidationEventArgs(taskId, DateTimeOffset.UtcNow,
+                    validationResult.Passed, validationResult.Score,
+                    validationResult.Summary, validationResult.Issues));
 
             _publisher.Publish(Events.OnTaskPhaseCompleted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "validating"));
@@ -894,7 +915,8 @@ public sealed class TaskExecutionEngine : IHostedService
             await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
 
             _publisher.Publish(Events.OnTaskEngineCompleted,
-                new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow));
+                new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow,
+                    validationResult.Summary));
 
             _logger.LogInformation("P4 任务已完成: {TaskId}", taskId);
         }

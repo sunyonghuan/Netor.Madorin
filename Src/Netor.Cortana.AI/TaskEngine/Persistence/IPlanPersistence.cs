@@ -34,6 +34,12 @@ public interface IPlanPersistence
     /// <summary>加载需求分析结果。</summary>
     Task<RequirementsAnalysis?> LoadRequirementsAsync(string taskId, CancellationToken ct);
 
+    /// <summary>保存验证阶段结果。</summary>
+    Task SaveValidationResultAsync(string taskId, ValidationResult result, CancellationToken ct);
+
+    /// <summary>加载验证阶段结果。</summary>
+    Task<ValidationResult?> LoadValidationResultAsync(string taskId, CancellationToken ct);
+
     /// <summary>保存执行模板。</summary>
     Task SaveTemplateAsync(ExecutionTemplate template, CancellationToken ct);
 

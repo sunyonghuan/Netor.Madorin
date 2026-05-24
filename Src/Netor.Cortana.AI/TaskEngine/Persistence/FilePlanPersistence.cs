@@ -279,6 +279,36 @@ public sealed class FilePlanPersistence : IPlanPersistence
     }
 
     // ══════════════════════════════════════════════════════════════════════
+    // Validation Result
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <inheritdoc/>
+    public Task SaveValidationResultAsync(string taskId, ValidationResult result, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        var runId = ResolveRunId(taskId);
+        var path = _resolver.GetValidationResultPath(taskId, runId);
+
+        TaskFileResolver.EnsureDirectoryExists(Path.GetDirectoryName(path)!);
+        WriteJsonAtomic(path, result, TaskEngineJsonContext.Default.ValidationResult);
+
+        _logger.LogDebug("P4 验证结果已保存: {TaskId}/{RunId}", taskId, runId);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public Task<ValidationResult?> LoadValidationResultAsync(string taskId, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        var runId = ResolveRunId(taskId);
+        var path = _resolver.GetValidationResultPath(taskId, runId);
+
+        return Task.FromResult(ReadJsonOrNull<ValidationResult>(path, TaskEngineJsonContext.Default.ValidationResult));
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // Template（任务级，跨 run 共享）
     // ══════════════════════════════════════════════════════════════════════
 

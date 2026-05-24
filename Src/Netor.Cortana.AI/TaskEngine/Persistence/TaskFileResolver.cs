@@ -88,6 +88,10 @@ public sealed class TaskFileResolver
     public string GetRequirementsPath(string taskId, string runId)
         => Path.Combine(GetRunDir(taskId, runId), "requirements.json");
 
+    /// <summary>验证结果：runs/{runId}/validation.json</summary>
+    public string GetValidationResultPath(string taskId, string runId)
+        => Path.Combine(GetRunDir(taskId, runId), "validation.json");
+
     // ══════════════════════════════════════════════════════════════════════
     // 步骤级路径
     // ══════════════════════════════════════════════════════════════════════

@@ -45,7 +45,8 @@ public interface IOrchestratorAgent
     /// 阶段 4：验证。
     /// 创建验证专家子智能体，检查执行结果是否满足需求。
     /// </summary>
-    Task RunValidationPhaseAsync(
+    /// <returns>验证结果（分数/摘要/问题列表）。</returns>
+    Task<ValidationResult> RunValidationPhaseAsync(
         string taskId,
         ExecutionPlan plan,
         CancellationToken ct);
