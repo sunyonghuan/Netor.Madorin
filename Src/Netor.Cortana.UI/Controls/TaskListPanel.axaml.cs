@@ -124,9 +124,21 @@ public partial class TaskListPanel : UserControl
 
         try
         {
-            // TODO P4: TaskExecutionEngine 尚未实现 RenameTitleAsync，待 P4-任务元数据管理 补充
-            // await _engine.RenameTitleAsync(taskId, newTitle.Trim(), CancellationToken.None);
-            _logger.LogWarning("[TaskListPanel] RenameTitleAsync 尚未实现 (TaskId={TaskId})", taskId);
+            var success = await _engine.RenameTaskAsync(taskId, newTitle.Trim(), CancellationToken.None);
+            if (success)
+            {
+                _logger.LogInformation("[TaskListPanel] 任务已重命名: {TaskId} → {Title}", taskId, newTitle.Trim());
+                // 更新 UI 中的标题
+                var item = _vm.List.Items.FirstOrDefault(x => x.TaskId == taskId);
+                if (item is not null)
+                {
+                    item.Title = newTitle.Trim();
+                }
+            }
+            else
+            {
+                ShowError($"重命名失败：任务不存在 (TaskId={taskId})");
+            }
         }
         catch (Exception ex)
         {
@@ -200,18 +212,24 @@ public partial class TaskListPanel : UserControl
 
         try
         {
-            // TODO P4: TaskExecutionEngine 尚未实现 DeleteTaskAsync，待 P4-任务元数据管理 补充
-            // await _engine.DeleteTaskAsync(taskId, CancellationToken.None);
-            _logger.LogWarning("[TaskListPanel] DeleteTaskAsync 尚未实现 (TaskId={TaskId})", taskId);
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            var success = await _engine.DeleteTaskAsync(taskId, CancellationToken.None);
+            if (success)
             {
-                var item = _vm.List.Items.FirstOrDefault(x => x.TaskId == taskId);
-                if (item is not null) _vm.List.Items.Remove(item);
-                if (_vm.List.SelectedItem?.TaskId == taskId)
+                _logger.LogInformation("[TaskListPanel] 任务已删除: {TaskId}", taskId);
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    _vm.List.SelectedItem = null;
-                }
-            });
+                    var item = _vm.List.Items.FirstOrDefault(x => x.TaskId == taskId);
+                    if (item is not null) _vm.List.Items.Remove(item);
+                    if (_vm.List.SelectedItem?.TaskId == taskId)
+                    {
+                        _vm.List.SelectedItem = null;
+                    }
+                });
+            }
+            else
+            {
+                ShowError($"删除失败：任务不存在或正在运行中 (TaskId={taskId})");
+            }
         }
         catch (Exception ex)
         {
