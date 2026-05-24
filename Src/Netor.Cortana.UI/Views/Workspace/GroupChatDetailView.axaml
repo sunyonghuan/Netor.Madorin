@@ -192,69 +192,6 @@
 
 				<ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,12">
 					<StackPanel Spacing="12">
-						<!-- TODO P4: HITL 批准卡片已移除，P4 阶段 3 UI 重做时实现
-						<Border Classes="approval-card"
-						        DataContext="{Binding Detail.Approval}"
-						        IsVisible="{Binding IsVisible}">
-							<StackPanel Spacing="10">
-								<Grid ColumnDefinitions="Auto,*">
-									<TextBlock Grid.Column="0" Text="⏸"
-									           Foreground="#f4a83a" FontSize="20"
-									           VerticalAlignment="Center" Margin="0,0,10,0" />
-									<TextBlock Grid.Column="1" Text="{Binding PauseReasonText}"
-									           Foreground="#f4d2a3" FontSize="14" FontWeight="SemiBold"
-									           VerticalAlignment="Center" />
-								</Grid>
-								<TextBlock Text="{Binding StallWarning}"
-								           Foreground="#f48771" FontSize="12"
-								           TextWrapping="Wrap"
-								           IsVisible="{Binding IsStalled}" />
-								<Border Classes="approval-plan">
-									<StackPanel Spacing="6">
-										<TextBlock Text="计划详情"
-										           Foreground="#cccccc" FontSize="12" FontWeight="SemiBold" />
-										<SelectableTextBlock Text="{Binding PlanText}"
-										                     Foreground="#cccccc" FontSize="12"
-										                     TextWrapping="Wrap" />
-									</StackPanel>
-								</Border>
-								<Border Classes="approval-plan"
-								        IsVisible="{Binding ProgressSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-									<StackPanel Spacing="6">
-										<TextBlock Text="当前进度"
-										           Foreground="#cccccc" FontSize="12" FontWeight="SemiBold" />
-										<SelectableTextBlock Text="{Binding ProgressSummary}"
-										                     Foreground="#9e9e9e" FontSize="12"
-										                     TextWrapping="Wrap" />
-									</StackPanel>
-								</Border>
-								<StackPanel Spacing="4">
-									<TextBlock Text="（可选）输入修改建议，再点[提交修改]让 Manager 改进计划："
-									           Foreground="#9e9e9e" FontSize="11" />
-									<TextBox Text="{Binding RevisionInput, Mode=TwoWay}"
-									         AcceptsReturn="True" TextWrapping="Wrap"
-									         MinHeight="60" MaxHeight="120"
-									         Background="#1e1e1e" Foreground="#cccccc"
-									         BorderBrush="#3c3c3c" BorderThickness="1"
-									         IsEnabled="{Binding IsInteractive}" />
-								</StackPanel>
-								<StackPanel Orientation="Horizontal" Spacing="0">
-									<!-- TODO P4: 老 HITL 审批按钮已移除，P4 阶段 3 UI 重做时实现 -->
-									<!--
-									<Button Classes="approval-btn-primary"
-									        Content="✓ 批准"
-									        IsEnabled="{Binding IsInteractive}" />
-									<Button Classes="approval-btn-secondary"
-									        Content="✎ 提交修改"
-									        IsEnabled="{Binding IsInteractive}" />
-									<Button Classes="approval-btn-danger"
-									        Content="✕ 取消任务"
-									        IsEnabled="{Binding IsInteractive}" />
-									-->
-								</StackPanel>
-							</StackPanel>
-						</Border>
-						-->
 
 						<!-- 发言记录（P3-1 聊天气泡视图） -->
 						<StackPanel Spacing="6">
