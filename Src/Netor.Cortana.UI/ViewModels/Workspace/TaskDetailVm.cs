@@ -279,7 +279,7 @@ public sealed class TaskDetailVm : INotifyPropertyChanged
         foreach (var p in detail.Participants) Participants.Add(p);
 
         Steps.Clear();
-        foreach (var s in detail.Steps) Steps.Add(new StepItemVm(s));
+        foreach (var s in detail.Steps) Steps.Add(new WorkflowTimelineStepVm(s));
     }
 
     // ──── 事件订阅 ────
@@ -292,7 +292,7 @@ public sealed class TaskDetailVm : INotifyPropertyChanged
             {
                 if (args.TaskId != _taskId) return;
                 if (Steps.Any(x => x.StepId == args.StepId)) return;
-                Steps.Add(new StepItemVm(args));
+                Steps.Add(new WorkflowTimelineStepVm(args));
                 // 阶段 6 Phase 1：实时增量累加 token，让 UI 在任务运行中持续刷新
                 // TokenInputCount / TokenOutputCount 在 args 中为 int?（兼容旧事件），用 ?? 0 安全降级
                 TotalTokens += (args.TokenInputCount ?? 0) + (args.TokenOutputCount ?? 0);

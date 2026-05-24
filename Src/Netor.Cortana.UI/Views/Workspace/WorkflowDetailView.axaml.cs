@@ -285,6 +285,27 @@ public partial class WorkflowDetailView : UserControl
         }
     }
 
+    // ──── P3-1：时间线折叠 toggle + 自动滚动 ────
+
+    private void OnToggleThinking(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is WorkflowTimelineStepVm vm)
+            vm.IsThinkingExpanded = !vm.IsThinkingExpanded;
+    }
+
+    private void OnToggleToolCalls(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button btn && btn.Tag is WorkflowTimelineStepVm vm)
+            vm.IsToolCallsExpanded = !vm.IsToolCallsExpanded;
+    }
+
+    /// <summary>P3-1：步骤追加后自动滚动到底部（由事件回调触发）。</summary>
+    private void ScrollStepsToEnd()
+    {
+        if (StepsScrollViewer is not null)
+            StepsScrollViewer.ScrollToEnd();
+    }
+
     private async void OnAttachToConversationClick(object? sender, RoutedEventArgs e)
     {
         try

@@ -12,7 +12,7 @@ namespace Netor.Cortana.UI.ViewModels.Workspace;
 ///
 /// 不订阅事件，仅作为数据载体。
 /// </summary>
-public sealed class StepItemVm : INotifyPropertyChanged
+public class StepItemVm : INotifyPropertyChanged
 {
     private string _status = string.Empty;
     private long? _completedAt;
@@ -141,10 +141,10 @@ public sealed class StepItemVm : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    protected bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return false;
         field = value;

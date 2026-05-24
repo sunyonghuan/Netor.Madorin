@@ -338,39 +338,98 @@
 							</StackPanel>
 						</Border>
 
-						<!-- 步骤列表 -->
+						<!-- 执行过程（P3-1 时间线视图） -->
 						<StackPanel Spacing="6">
 							<TextBlock Text="执行过程"
 							           Foreground="#cccccc" FontSize="13" FontWeight="SemiBold" />
-							<ItemsControl ItemsSource="{Binding Detail.Steps}">
-								<ItemsControl.ItemsPanel>
-									<ItemsPanelTemplate>
-										<StackPanel Orientation="Vertical" />
-									</ItemsPanelTemplate>
-								</ItemsControl.ItemsPanel>
-								<ItemsControl.ItemTemplate>
-									<DataTemplate x:DataType="vm:StepItemVm">
-										<Border Classes="step-item">
-											<StackPanel Spacing="4">
-												<Grid ColumnDefinitions="Auto,*,Auto,Auto">
-													<TextBlock Grid.Column="0" Text="{Binding Sequence}"
-													           Foreground="#858585" FontSize="11" Margin="0,0,8,0" />
-													<TextBlock Grid.Column="1" Text="{Binding AgentName}"
-													           Foreground="#cccccc" FontSize="13" FontWeight="SemiBold" />
-													<TextBlock Grid.Column="2" Text="{Binding StatusIcon}"
-													           Foreground="{Binding StatusColorHex}"
-													           FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center" />
-													<TextBlock Grid.Column="3" Text="{Binding DurationText}"
-													           Foreground="#858585" FontSize="11" VerticalAlignment="Center" />
-												</Grid>
-												<TextBlock Text="{Binding Summary}"
-												           Foreground="#9e9e9e" FontSize="12" TextWrapping="Wrap"
-												           IsVisible="{Binding Summary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-											</StackPanel>
-										</Border>
-									</DataTemplate>
-								</ItemsControl.ItemTemplate>
-							</ItemsControl>
+							<ScrollViewer x:Name="StepsScrollViewer"
+							              VerticalScrollBarVisibility="Auto"
+							              MaxHeight="600">
+								<ItemsControl ItemsSource="{Binding Detail.Steps}">
+									<ItemsControl.ItemsPanel>
+										<ItemsPanelTemplate>
+											<VirtualizingStackPanel Orientation="Vertical" />
+										</ItemsPanelTemplate>
+									</ItemsControl.ItemsPanel>
+									<ItemsControl.ItemTemplate>
+										<DataTemplate x:DataType="vm:WorkflowTimelineStepVm">
+											<Grid ColumnDefinitions="58,20,*" MinHeight="40" Margin="0,0,0,4">
+												<!-- 左：时间 -->
+												<TextBlock Grid.Column="0" Text="{Binding TimeText}"
+												           Foreground="#858585" FontSize="11"
+												           HorizontalAlignment="Right" Margin="0,3,6,0" />
+												<!-- 中：竖线 + 圆点 -->
+												<Panel Grid.Column="1">
+													<Border Width="2" Background="#3c3c3c"
+													        HorizontalAlignment="Center"
+													        VerticalAlignment="Stretch" />
+													<Ellipse Width="10" Height="10"
+													         Fill="{Binding NodeColor}"
+													         HorizontalAlignment="Center"
+													         VerticalAlignment="Top"
+													         Margin="0,4,0,0" />
+												</Panel>
+												<!-- 右：内容 -->
+												<StackPanel Grid.Column="2" Spacing="3" Margin="8,0,0,0">
+													<StackPanel Orientation="Horizontal" Spacing="8">
+														<TextBlock Text="{Binding AgentName}"
+														           Foreground="#cccccc" FontSize="13"
+														           FontWeight="SemiBold" />
+														<TextBlock Text="{Binding StatusIcon}"
+														           Foreground="{Binding StatusColorHex}"
+														           FontSize="11" VerticalAlignment="Center" />
+														<TextBlock Text="{Binding DurationText}"
+														           Foreground="#858585" FontSize="11"
+														           VerticalAlignment="Center" />
+														<TextBlock Text="{Binding TokenText}"
+														           Foreground="#6a6a6a" FontSize="10"
+														           VerticalAlignment="Center"
+														           IsVisible="{Binding HasTokenText}" />
+													</StackPanel>
+													<!-- 主体内容 -->
+													<TextBlock Text="{Binding ContentText}"
+													           Foreground="#9e9e9e" FontSize="12"
+													           TextWrapping="Wrap"
+													           MaxLines="6"
+													           IsVisible="{Binding HasContent}" />
+													<!-- 思考折叠 -->
+													<StackPanel IsVisible="{Binding HasThinking}" Spacing="2">
+														<Button Classes="btn-link" Padding="0" Cursor="Hand"
+														        Click="OnToggleThinking" Tag="{Binding}">
+															<TextBlock Text="💭 思考过程" Foreground="#858585"
+															           FontSize="11" />
+														</Button>
+														<TextBlock Text="{Binding ThinkingText}"
+														           Foreground="#858585" FontSize="11"
+														           TextWrapping="Wrap" MaxLines="10"
+														           IsVisible="{Binding IsThinkingExpanded}"
+														           Margin="16,0,0,0" />
+													</StackPanel>
+													<!-- 工具调用折叠 -->
+													<StackPanel IsVisible="{Binding HasToolCalls}" Spacing="2">
+														<Button Classes="btn-link" Padding="0" Cursor="Hand"
+														        Click="OnToggleToolCalls" Tag="{Binding}">
+															<TextBlock Text="🛠 工具调用" Foreground="#858585"
+															           FontSize="11" />
+														</Button>
+														<ItemsControl ItemsSource="{Binding ToolCalls}"
+														              IsVisible="{Binding IsToolCallsExpanded}"
+														              Margin="16,0,0,0">
+															<ItemsControl.ItemTemplate>
+																<DataTemplate>
+																	<TextBlock Foreground="#9cdcfe" FontSize="11"
+																	           Text="{Binding ToolName}"
+																	           Margin="0,1" />
+																</DataTemplate>
+															</ItemsControl.ItemTemplate>
+														</ItemsControl>
+													</StackPanel>
+												</StackPanel>
+											</Grid>
+										</DataTemplate>
+									</ItemsControl.ItemTemplate>
+								</ItemsControl>
+							</ScrollViewer>
 						</StackPanel>
 
 						<!-- 最终报告 -->
@@ -378,8 +437,7 @@
 							<TextBlock Text="最终报告" Foreground="#cccccc" FontSize="13" FontWeight="SemiBold" />
 							<Border Background="#252526" BorderBrush="#3c3c3c" BorderThickness="1"
 							        CornerRadius="4" Padding="14">
-								<SelectableTextBlock Text="{Binding Detail.FinalReport}"
-								                     Foreground="#cccccc" FontSize="13" TextWrapping="Wrap" />
+								<controls:MarkdownRenderer Markdown="{Binding Detail.FinalReport}" />
 							</Border>
 						</StackPanel>
 

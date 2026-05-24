@@ -206,6 +206,15 @@ public partial class GroupChatDetailView : UserControl
         catch (Exception ex) { ShowError($"附加到对话失败：{ex.Message}", ex); }
     }
 
+    // ──── P3-1：自动滚动到底部 ────
+
+    /// <summary>P3-1：步骤追加后自动滚动到底部（由事件回调触发）。</summary>
+    private void ScrollStepsToEnd()
+    {
+        if (StepsScrollViewer is not null)
+            StepsScrollViewer.ScrollToEnd();
+    }
+
     // ──── P2-1：聊天式输入框 - 核心动作 ────
 
     /// <summary>"发送" 按钮：调 _inputVm.StartAsync 启动群聊任务。</summary>
