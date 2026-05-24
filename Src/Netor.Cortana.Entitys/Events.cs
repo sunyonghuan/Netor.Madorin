@@ -827,7 +827,7 @@ public record WorkflowSuggestionArgs(
 /// 用户点击 Approve / ApproveAll / Reject 后通过 <c>DynamicAgentCreationGate.ResolveDecision(RequestId, ...)</c>
 /// 解锁工具内 await。
 /// </summary>
-/// <param name="TaskId">所属工作流任务 ID（与 <c>DynamicAgentRegistry</c> key 一致）。</param>
+/// <param name="TaskId">所属工作流任务 ID。</param>
 /// <param name="RequestId">本次审批请求唯一标识，用于在 Gate 中配对响应。</param>
 /// <param name="ManagerAgentId">发起请求的 Manager AgentId，便于审计。</param>
 /// <param name="ProposedName">Manager 提议的子智能体名称（已通过命名正则与唯一性校验）。</param>
