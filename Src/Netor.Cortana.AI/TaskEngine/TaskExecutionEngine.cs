@@ -250,6 +250,83 @@ public sealed class TaskExecutionEngine : IHostedService
     public IReadOnlyList<string> GetRunningTaskIds() => [.. _runningTasks.Keys];
 
     // ══════════════════════════════════════════════════════════════════════
+    // P4-6: 模板管理 API
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 将已完成任务的执行计划保存为模板。
+    /// 从计划中提取步骤结构（标题/描述/执行模式/依赖/智能体类型），
+    /// 去掉运行时状态（结果/时间戳/重试计数），生成可复用的模板。
+    /// </summary>
+    /// <param name="taskId">来源任务 ID（必须有已完成的计划）。</param>
+    /// <param name="templateName">模板名称（用户命名）。</param>
+    /// <param name="description">模板描述（可选）。</param>
+    /// <param name="tags">适用场景标签（可选）。</param>
+    /// <param name="workspaceId">所属工作区 ID。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>保存的模板 ID；如果任务无计划则返回 null。</returns>
+    public async Task<string?> SaveAsTemplateAsync(
+        string taskId, string templateName, string? description,
+        IReadOnlyList<string>? tags, string workspaceId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(templateName);
+
+        var plan = await _persistence.LoadPlanAsync(taskId, ct).ConfigureAwait(false);
+        if (plan is null)
+        {
+            _logger.LogWarning("P4-6 保存模板失败：任务 {TaskId} 无计划", taskId);
+            return null;
+        }
+
+        var templateId = Guid.NewGuid().ToString("N");
+        var template = new ExecutionTemplate
+        {
+            TemplateId = templateId,
+            Name = templateName,
+            Description = description ?? string.Empty,
+            Tags = tags?.ToList() ?? [],
+            SourceTaskId = taskId,
+            WorkspaceId = workspaceId,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UsageCount = 0,
+            Steps = plan.Steps.Select(s => new TemplateStep
+            {
+                Sequence = s.Sequence,
+                Title = s.Title,
+                Description = s.Description,
+                ExecutionMode = s.ExecutionMode,
+                DependsOn = [.. s.DependsOn],
+                AgentTypeDescription = s.AgentTypeDescription,
+                RequiredTools = s.RequiredTools?.ToList() ?? [],
+                RequireUserConfirmation = s.ExecutionMode == "await_user",
+                SubTasks = s.SubTasks?.Select(st => new TemplateSubTask
+                {
+                    Title = st.Title,
+                    Description = st.Description,
+                    AgentTypeDescription = st.AgentTypeDescription,
+                }).ToList() ?? [],
+            }).ToList(),
+        };
+
+        await _persistence.SaveTemplateAsync(template, ct).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "P4-6 模板已保存: {TemplateId} ({TemplateName}) from task {TaskId}, {StepCount} 步",
+            templateId, templateName, taskId, template.Steps.Count);
+
+        return templateId;
+    }
+
+    /// <summary>列出指定工作区的所有执行模板。</summary>
+    public Task<IReadOnlyList<ExecutionTemplate>> ListTemplatesAsync(string workspaceId, CancellationToken ct)
+        => _persistence.ListTemplatesAsync(workspaceId, ct);
+
+    /// <summary>加载指定模板。</summary>
+    public Task<ExecutionTemplate?> LoadTemplateAsync(string templateId, CancellationToken ct)
+        => _persistence.LoadTemplateAsync(templateId, ct);
+
+    // ══════════════════════════════════════════════════════════════════════
     // 内部执行循环
     // ══════════════════════════════════════════════════════════════════════
 

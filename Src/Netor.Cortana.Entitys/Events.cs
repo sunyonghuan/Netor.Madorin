@@ -226,6 +226,9 @@ public static class Events
 
     /// <summary>P4 任务引擎失败。</summary>
     public static TaskLifecycleEvent OnTaskEngineFailed = new("task.engine.failed");
+
+    /// <summary>P4-6 执行模板已保存。</summary>
+    public static TaskLifecycleEvent OnTaskTemplateSaved = new("task.template.saved");
 }
 
 // ──────── AI 配置变更事件类型 ────────

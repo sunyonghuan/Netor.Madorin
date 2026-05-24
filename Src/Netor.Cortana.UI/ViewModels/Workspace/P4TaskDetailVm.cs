@@ -363,6 +363,18 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             });
             return Task.FromResult(false);
         });
+
+        // P4-6: 模板保存事件
+        _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskTemplateSaved, (_, args) =>
+        {
+            if (args.TaskId != _taskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() =>
+            {
+                AppendEvent("template_saved", "secondary",
+                    "执行计划已保存为模板", args.Reason, "completed");
+            });
+            return Task.FromResult(false);
+        });
     }
 
     // ══════════════════════════════════════════════════════════════════════
