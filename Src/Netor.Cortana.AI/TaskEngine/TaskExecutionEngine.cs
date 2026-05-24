@@ -605,6 +605,7 @@ public sealed class TaskExecutionEngine : IHostedService
 
         var plan = await _persistence.LoadPlanAsync(taskId, ct).ConfigureAwait(false);
         var requirements = await _persistence.LoadRequirementsAsync(taskId, ct).ConfigureAwait(false);
+        var validation = await _persistence.LoadValidationResultAsync(taskId, ct).ConfigureAwait(false);
 
         return new TaskDetailInfo
         {
@@ -616,6 +617,7 @@ public sealed class TaskExecutionEngine : IHostedService
             CreatedAt = meta.CreatedAt,
             Plan = plan,
             Requirements = requirements,
+            Validation = validation,
         };
     }
 

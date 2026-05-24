@@ -52,6 +52,9 @@ public sealed class TaskDetailInfo
 
     /// <summary>需求分析结果（可能为 null，如果还未完成需求分析）。</summary>
     public RequirementsAnalysis? Requirements { get; init; }
+
+    /// <summary>验证结果（任务完成后有值）。</summary>
+    public ValidationResult? Validation { get; init; }
 }
 
 /// <summary>
