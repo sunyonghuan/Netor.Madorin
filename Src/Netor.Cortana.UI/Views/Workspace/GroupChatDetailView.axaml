@@ -207,7 +207,7 @@
 										</ItemsPanelTemplate>
 									</ItemsControl.ItemsPanel>
 									<ItemsControl.ItemTemplate>
-										<!-- TODO P4: WorkflowTimelineStepVm 已删除，使用简化的 DataTemplate -->
+										<!-- NOTE: WorkflowTimelineStepVm 已删除（P4 重构），使用简化的 DataTemplate -->
 										<DataTemplate>
 											<Border Background="#252526" CornerRadius="8"
 											        Padding="12,10" Margin="0,4,60,4"
