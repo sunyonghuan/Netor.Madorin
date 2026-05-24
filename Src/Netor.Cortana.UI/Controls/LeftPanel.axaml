@@ -98,7 +98,7 @@
 				<Button x:Name="Tab1Button"
 				        Grid.Column="0"
 				        Classes="left-tab"
-				        Content="文件目录"
+				        Content="工作目录"
 				        Click="OnTab1Click" />
 				<Button x:Name="Tab2Button"
 				        Grid.Column="1"

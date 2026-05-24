@@ -107,9 +107,9 @@ public sealed class MainWindowVm : INotifyPropertyChanged
     /// </summary>
     public string ModeBoundLabel => _currentMode switch
     {
-        WorkMode.Chat => "会话历史",
-        WorkMode.Workflow => "工作流任务",
-        WorkMode.GroupChat => "群聊任务",
+        WorkMode.Chat => "对话记录",
+        WorkMode.Workflow => "工作记录",
+        WorkMode.GroupChat => "会议记录",
         _ => "列表",
     };
 
