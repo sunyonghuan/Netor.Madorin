@@ -286,6 +286,33 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             return Task.FromResult(false);
         });
 
+        // P4-5: 计划更新事件
+        _subscriber.Subscribe<TaskPlanEventArgs>(Events.OnTaskPlanUpdated, (_, args) =>
+        {
+            if (args.TaskId != _taskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() =>
+            {
+                AppendEvent("plan_updated", "primary",
+                    $"计划已更新 (v{args.Version}, {args.StepCount} 步)", null, "completed");
+            });
+            return Task.FromResult(false);
+        });
+
+        // P4-5: 步骤跳过事件
+        _subscriber.Subscribe<TaskStepEventArgs>(Events.OnTaskStepSkipped, (_, args) =>
+        {
+            if (args.TaskId != _taskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() =>
+            {
+                AppendEvent("step_skipped", "secondary",
+                    $"步骤 {args.StepSequence} 已跳过: {args.Title}", null, "completed",
+                    args.StepId, args.StepSequence);
+
+                UpdatePlanStep(args.StepSequence, "⏭", "#858585", args.Title);
+            });
+            return Task.FromResult(false);
+        });
+
         // 生命周期事件
         _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineCompleted, (_, args) =>
         {

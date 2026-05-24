@@ -168,29 +168,79 @@ public sealed class TaskExecutionEngine : IHostedService
     }
 
     /// <summary>
-    /// 暂停运行中的任务（用户主动暂停）。
-    /// 当前步骤会被取消，计划状态改为 Paused。
+    /// 暂停运行中的任务（用户主动暂停，软暂停语义）。
+    /// 不中断当前正在执行的步骤，而是在步骤间检测暂停标志。
+    /// 当前步骤执行完毕后，引擎进入暂停状态并等待恢复信号。
     /// </summary>
-    /// <returns>true 表示已暂停；false 表示任务不存在或已结束。</returns>
+    /// <returns>true 表示已设置暂停请求；false 表示任务不存在或已在暂停中。</returns>
     public Task<bool> PauseTaskAsync(string taskId, CancellationToken ct)
     {
         if (!_runningTasks.TryGetValue(taskId, out var context))
             return Task.FromResult(false);
 
-        // TODO [P4-5]: 实现暂停语义 — 设置暂停标志 + 取消当前步骤但不取消整个任务
-        _logger.LogInformation("P4 任务暂停请求: {TaskId}（P4-5 实现）", taskId);
-        return Task.FromResult(false);
+        if (context.PauseRequested)
+            return Task.FromResult(false); // 已在暂停/暂停请求中
+
+        context.PauseRequested = true;
+        _logger.LogInformation("P4 任务暂停请求已设置: {TaskId}（将在当前步骤完成后暂停）", taskId);
+        return Task.FromResult(true);
     }
 
     /// <summary>
     /// 恢复已暂停的任务。
+    /// 如果暂停期间用户修改了计划（Version 增加），会自动进行增量 diff 分析，
+    /// 将需要重做的步骤重置为 Pending，保留未受影响的已完成步骤。
     /// </summary>
     /// <returns>true 表示已恢复；false 表示任务不存在或不在暂停状态。</returns>
-    public Task<bool> ResumeTaskAsync(string taskId, CancellationToken ct)
+    public async Task<bool> ResumeTaskAsync(string taskId, CancellationToken ct)
     {
-        // TODO [P4-5]: 实现恢复语义 — 从断点或修改后的计划恢复执行
-        _logger.LogInformation("P4 任务恢复请求: {TaskId}（P4-5 实现）", taskId);
-        return Task.FromResult(false);
+        if (!_runningTasks.TryGetValue(taskId, out var context))
+            return false;
+
+        // 仅在暂停状态下可恢复
+        if (!context.PauseRequested)
+            return false;
+
+        // 加载当前计划（可能在暂停期间被用户修改过）
+        var currentPlan = await _persistence.LoadPlanAsync(taskId, ct).ConfigureAwait(false);
+        if (currentPlan is null)
+        {
+            _logger.LogWarning("P4 恢复失败：无法加载计划: {TaskId}", taskId);
+            return false;
+        }
+
+        // 如果暂停期间计划被修改（Version 增加），进行增量 diff 分析
+        if (context.PausedPlanSnapshot is not null &&
+            currentPlan.Version > context.PausedPlanSnapshot.Version)
+        {
+            _logger.LogInformation(
+                "P4 计划已修改 (v{OldVersion} → v{NewVersion})，执行增量分析: {TaskId}",
+                context.PausedPlanSnapshot.Version, currentPlan.Version, taskId);
+
+            var diff = await _orchestrator.AnalyzePlanDiffAsync(
+                taskId, context.PausedPlanSnapshot, currentPlan, ct).ConfigureAwait(false);
+
+            ApplyDiffResult(currentPlan, diff);
+            await _persistence.SavePlanAsync(currentPlan, ct).ConfigureAwait(false);
+
+            _publisher.Publish(Events.OnTaskPlanUpdated,
+                new TaskPlanEventArgs(taskId, DateTimeOffset.UtcNow,
+                    currentPlan.PlanId, currentPlan.Version, currentPlan.Steps.Count));
+        }
+
+        // 如果有 WaitingUser 步骤被恢复，将其重置为 Pending
+        foreach (var step in currentPlan.Steps.Where(s => s.Status == PlanStepStatus.WaitingUser))
+        {
+            step.Status = PlanStepStatus.Pending;
+        }
+
+        // 清除暂停状态并发送恢复信号
+        context.PauseRequested = false;
+        context.PausedPlanSnapshot = null;
+        context.ResumeSignal.TrySetResult(true);
+
+        _logger.LogInformation("P4 任务已恢复: {TaskId}", taskId);
+        return true;
     }
 
     /// <summary>获取任务当前状态。</summary>
@@ -251,7 +301,11 @@ public sealed class TaskExecutionEngine : IHostedService
             _publisher.Publish(Events.OnTaskPhaseStarted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "executing"));
 
-            await RunExecutionPhaseAsync(taskId, plan, ct).ConfigureAwait(false);
+            // P4-5: 获取运行时上下文以支持暂停/恢复
+            if (!_runningTasks.TryGetValue(taskId, out var runContext))
+                throw new InvalidOperationException($"运行时上下文丢失: {taskId}");
+
+            await RunExecutionPhaseAsync(taskId, plan, runContext, ct).ConfigureAwait(false);
 
             _publisher.Publish(Events.OnTaskPhaseCompleted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "executing"));
@@ -298,35 +352,39 @@ public sealed class TaskExecutionEngine : IHostedService
 
     /// <summary>
     /// 执行阶段主循环：调度器驱动，按依赖顺序执行步骤，支持并行。
+    /// P4-5：增加暂停检测、失败自动暂停、用户确认等待。
     /// </summary>
-    private async Task RunExecutionPhaseAsync(string taskId, ExecutionPlan plan, CancellationToken ct)
+    private async Task RunExecutionPhaseAsync(
+        string taskId, ExecutionPlan plan, RunningTaskEngineContext context, CancellationToken ct)
     {
         plan.Status = PlanStatus.Executing;
         await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
 
         while (!_scheduler.IsAllCompleted(plan) && !ct.IsCancellationRequested)
         {
-            // 1. 检查是否有失败步骤需要用户决策
-            if (_scheduler.HasFailedSteps(plan))
+            // ── P4-5: 检查暂停请求（用户主动暂停 / 自动暂停） ──
+            if (context.PauseRequested)
             {
-                plan.Status = PlanStatus.Paused;
-                await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
-                _publisher.Publish(Events.OnTaskEnginePaused,
-                    new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow, "step_failed"));
+                await HandlePauseAsync(taskId, plan, context, ct).ConfigureAwait(false);
 
-                // TODO [P4-5]: 等待用户决策（重试/跳过/修改计划/取消）
-                // 暂时直接抛出，交给上层 catch 处理
-                throw new InvalidOperationException("步骤执行失败，等待用户决策（P4-5 实现）");
+                // 恢复后重新加载计划（暂停期间可能被用户修改过）
+                var reloadedPlan = await _persistence.LoadPlanAsync(taskId, ct).ConfigureAwait(false);
+                if (reloadedPlan is not null) plan = reloadedPlan;
+                continue; // 回到循环顶部重新评估
             }
 
-            // 2. 检查是否有步骤在等待用户确认
+            // 1. 检查是否有失败步骤 → 自动暂停等待用户决策
+            if (_scheduler.HasFailedSteps(plan))
+            {
+                context.PauseRequested = true;
+                continue; // 下一轮循环进入 HandlePauseAsync
+            }
+
+            // 2. 检查是否有步骤在等待用户确认 → 自动暂停
             if (_scheduler.IsWaitingUser(plan))
             {
-                _publisher.Publish(Events.OnTaskEnginePaused,
-                    new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow, "waiting_user_confirmation"));
-
-                // TODO [P4-5]: 等待用户确认继续
-                throw new InvalidOperationException("步骤等待用户确认（P4-5 实现）");
+                context.PauseRequested = true;
+                continue; // 下一轮循环进入 HandlePauseAsync
             }
 
             // 3. 获取当前可执行的步骤批次
@@ -359,6 +417,115 @@ public sealed class TaskExecutionEngine : IHostedService
         }
 
         ct.ThrowIfCancellationRequested();
+    }
+
+    /// <summary>
+    /// P4-5：处理暂停状态 — 保存断点、发布暂停事件、等待恢复信号。
+    /// 由执行循环在检测到 PauseRequested 时调用。
+    /// </summary>
+    private async Task HandlePauseAsync(
+        string taskId, ExecutionPlan plan,
+        RunningTaskEngineContext context, CancellationToken ct)
+    {
+        // 1. 确定暂停原因
+        var reason = _scheduler.HasFailedSteps(plan) ? "step_failed"
+            : _scheduler.IsWaitingUser(plan) ? "waiting_user_confirmation"
+            : "user_requested";
+
+        // 2. 保存暂停状态
+        plan.Status = PlanStatus.Paused;
+        await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
+        await _persistence.SaveCheckpointAsync(taskId, new ExecutionCheckpoint
+        {
+            TaskId = taskId,
+            PlanVersion = plan.Version,
+            CurrentPhase = "executing",
+            CurrentStepId = null,
+            SavedAt = DateTimeOffset.UtcNow,
+            StepStatuses = plan.Steps.ToDictionary(s => s.StepId, s => s.Status),
+        }, ct).ConfigureAwait(false);
+
+        // 3. 快照计划（用于恢复时 diff 比较）
+        context.PausedPlanSnapshot = ClonePlanForDiff(plan);
+
+        // 4. 发布暂停事件
+        _publisher.Publish(Events.OnTaskEnginePaused,
+            new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow, reason));
+
+        _logger.LogInformation("P4 任务已暂停: {TaskId} (reason={Reason})", taskId, reason);
+
+        // 5. 等待恢复信号（阻塞直到 ResumeTaskAsync 被调用）
+        context.ResetResumeSignal();
+        await context.ResumeSignal.Task.WaitAsync(ct).ConfigureAwait(false);
+
+        // 6. 恢复：更新状态并发布事件
+        plan.Status = PlanStatus.Executing;
+        _publisher.Publish(Events.OnTaskEngineResumed,
+            new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow));
+
+        _logger.LogInformation("P4 任务已恢复: {TaskId}", taskId);
+    }
+
+    /// <summary>
+    /// P4-5：将增量 diff 分析结果应用到计划上。
+    /// 需要重做的步骤重置为 Pending，保留的步骤不变。
+    /// </summary>
+    private static void ApplyDiffResult(ExecutionPlan plan, PlanDiffResult diff)
+    {
+        foreach (var step in plan.Steps)
+        {
+            if (diff.StepsToRedo.Contains(step.StepId))
+            {
+                // 重置为待执行（丢弃旧结果，准备重新执行）
+                step.Status = PlanStepStatus.Pending;
+                step.ResultSummary = null;
+                step.ResultDetail = null;
+                step.ErrorMessage = null;
+                step.RetryCount = 0;
+                step.ProgressPercent = 0;
+                step.StartedAt = null;
+                step.CompletedAt = null;
+            }
+            // StepsToKeep：不做处理（已完成的步骤保持 Completed）
+        }
+    }
+
+    /// <summary>
+    /// P4-5：浅克隆计划用于暂停时快照。
+    /// 恢复时与可能已修改的计划做 diff 比较，判断哪些步骤需要重做。
+    /// </summary>
+    private static ExecutionPlan ClonePlanForDiff(ExecutionPlan source)
+    {
+        var clone = new ExecutionPlan
+        {
+            PlanId = source.PlanId,
+            TaskId = source.TaskId,
+            Version = source.Version,
+            TaskSummary = source.TaskSummary,
+            FinalGoal = source.FinalGoal,
+            Status = source.Status,
+            CreatedAt = source.CreatedAt,
+            LastModifiedAt = source.LastModifiedAt,
+        };
+
+        foreach (var step in source.Steps)
+        {
+            clone.Steps.Add(new PlanStep
+            {
+                StepId = step.StepId,
+                Sequence = step.Sequence,
+                Title = step.Title,
+                Description = step.Description,
+                ExecutionMode = step.ExecutionMode,
+                AgentTypeDescription = step.AgentTypeDescription,
+                Status = step.Status,
+                ResultSummary = step.ResultSummary,
+                ResultDetail = step.ResultDetail,
+                DependsOn = [.. step.DependsOn],
+            });
+        }
+
+        return clone;
     }
 
     /// <summary>
@@ -496,15 +663,39 @@ public sealed class TaskExecutionEngine : IHostedService
 /// <summary>
 /// P4 运行中任务的运行期上下文。
 /// 由 <see cref="TaskExecutionEngine._runningTasks"/> 持有。
+///
+/// P4-5：从 record 改为 sealed class，支持可变的暂停/恢复状态。
 /// </summary>
-internal sealed record RunningTaskEngineContext(
-    string TaskId,
-    Task ExecutionTask,
-    CancellationTokenSource Cts,
-    DateTimeOffset StartedAt) : IDisposable
+internal sealed class RunningTaskEngineContext : IDisposable
 {
-    public void Dispose()
+    public RunningTaskEngineContext(
+        string taskId, Task executionTask,
+        CancellationTokenSource cts, DateTimeOffset startedAt)
     {
-        Cts.Dispose();
+        TaskId = taskId;
+        ExecutionTask = executionTask;
+        Cts = cts;
+        StartedAt = startedAt;
     }
+
+    public string TaskId { get; }
+    public Task ExecutionTask { get; }
+    public CancellationTokenSource Cts { get; }
+    public DateTimeOffset StartedAt { get; }
+
+    // ── P4-5: 暂停/恢复状态 ──
+
+    /// <summary>暂停请求标志（volatile，跨线程可见）。执行循环在步骤间检测此标志。</summary>
+    public volatile bool PauseRequested;
+
+    /// <summary>恢复信号。执行循环暂停后 await 此 TCS，ResumeTaskAsync 设置结果以唤醒。</summary>
+    public TaskCompletionSource<bool> ResumeSignal { get; private set; } = new();
+
+    /// <summary>暂停时的计划快照（用于恢复时做增量 diff 比较）。</summary>
+    public ExecutionPlan? PausedPlanSnapshot { get; set; }
+
+    /// <summary>重置恢复信号（恢复后为下一次暂停周期创建新 TCS）。</summary>
+    public void ResetResumeSignal() => ResumeSignal = new TaskCompletionSource<bool>();
+
+    public void Dispose() => Cts.Dispose();
 }

@@ -120,10 +120,9 @@ public static class AIServiceExtensions
         services.AddSingleton<SubAgentRunner>();
         services.AddSingleton<IOrchestratorAgent, OrchestratorAgent>();
 
-        // TaskExecutionEngine — 等 P4-4 (UI) 完成后再启用 IHostedService 注册
-        // 原因：引擎启动后会扫描恢复任务，需要 UI 就绪才能展示进度
-        // services.AddSingleton<TaskExecutionEngine>();
-        // services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<TaskExecutionEngine>());
+        // P4-5: 启用任务执行引擎（P4-4 UI 已就绪，可以展示进度）
+        services.AddSingleton<TaskExecutionEngine>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<TaskExecutionEngine>());
 
         return services;
     }
