@@ -463,10 +463,17 @@ public sealed class WorkflowInputVm : INotifyPropertyChanged
         {
             // P4：直接调用 TaskExecutionEngine.StartTaskAsync（不再构造 WorkflowTaskRequest）
             // templateId 暂时为 null（后续 P4-6 模板功能接入时从 UI 传入）
+            var options = new AI.TaskEngine.Models.TaskStartOptions
+            {
+                ProviderId = _selectedProvider?.Id,
+                ModelId = _selectedModel?.Id,
+                SubMode = _subMode,
+            };
             var taskId = await _engine.StartTaskAsync(
                 _initialInput.Trim(),
                 _workspaceId,
                 templateId: null,
+                options,
                 cancellationToken);
             CurrentTaskId = taskId;
 

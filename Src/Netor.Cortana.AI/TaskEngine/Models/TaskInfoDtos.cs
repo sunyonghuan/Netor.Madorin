@@ -53,3 +53,18 @@ public sealed class TaskDetailInfo
     /// <summary>需求分析结果（可能为 null，如果还未完成需求分析）。</summary>
     public RequirementsAnalysis? Requirements { get; init; }
 }
+
+/// <summary>
+/// 任务启动选项（可选参数，传递用户在 UI 上选择的模型/模式配置）。
+/// </summary>
+public sealed class TaskStartOptions
+{
+    /// <summary>用户选择的 AI Provider ID。</summary>
+    public string? ProviderId { get; init; }
+
+    /// <summary>用户选择的 AI Model ID。</summary>
+    public string? ModelId { get; init; }
+
+    /// <summary>任务子模式（magentic / group_chat / parallel_analysis）。</summary>
+    public string? SubMode { get; init; }
+}

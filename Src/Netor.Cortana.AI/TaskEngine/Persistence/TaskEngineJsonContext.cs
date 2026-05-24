@@ -96,6 +96,21 @@ public sealed class TaskMeta
 
     /// <summary>最后修改时间。</summary>
     public DateTimeOffset? LastModifiedAt { get; set; }
+
+    /// <summary>是否置顶（UI 列表排序用）。</summary>
+    public bool IsPinned { get; set; }
+
+    /// <summary>是否已归档（UI 列表过滤用）。</summary>
+    public bool IsArchived { get; set; }
+
+    /// <summary>任务启动时用户选择的 Provider ID（可选）。</summary>
+    public string? ProviderId { get; set; }
+
+    /// <summary>任务启动时用户选择的 Model ID（可选）。</summary>
+    public string? ModelId { get; set; }
+
+    /// <summary>任务子模式（magentic / group_chat / parallel_analysis）。</summary>
+    public string? SubMode { get; set; }
 }
 
 /// <summary>

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -38,6 +39,10 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
     public P4TaskDetailVm()
     {
         _subscriber = App.Services.GetRequiredService<ISubscriber>();
+
+        // 当 PlanSteps 变化时，同步到 Steps（供 WorkflowDetailView XAML 绑定）
+        PlanSteps.CollectionChanged += OnPlanStepsChanged;
+
         SubscribeEvents();
     }
 
@@ -94,7 +99,11 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
     public string? FinalReport { get; private set; }
     public string? ErrorMessage { get; private set; }
 
-    public ObservableCollection<object> Steps => new(PlanSteps);
+    /// <summary>
+    /// Steps 集合（供 WorkflowDetailView XAML 绑定 <c>{Binding Detail.Steps}</c>）。
+    /// 与 <see cref="PlanSteps"/> 保持同步，避免每次 get 创建新集合导致绑定失效。
+    /// </summary>
+    public ObservableCollection<object> Steps { get; } = [];
 
     public object? DynamicAgentCreationApproval => null;
     public object? Approval => null;
@@ -168,8 +177,39 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         DurationText = "0:00";
         TotalTokensText = string.Empty;
         _eventCounter = 0;
-        PlanSteps.Clear();
+        PlanSteps.Clear(); // Steps 由 OnPlanStepsChanged 自动同步清空
         TimelineEvents.Clear();
+    }
+
+    /// <summary>
+    /// PlanSteps → Steps 同步回调。
+    /// PlanSteps 变化（Add/Remove/Replace/Reset）时镜像到 Steps，保持 XAML 绑定有效。
+    /// </summary>
+    private void OnPlanStepsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        switch (e.Action)
+        {
+            case NotifyCollectionChangedAction.Add when e.NewItems is not null:
+                for (var i = 0; i < e.NewItems.Count; i++)
+                    Steps.Insert(e.NewStartingIndex + i, e.NewItems[i]!);
+                break;
+
+            case NotifyCollectionChangedAction.Remove when e.OldItems is not null:
+                for (var i = e.OldItems.Count - 1; i >= 0; i--)
+                    Steps.RemoveAt(e.OldStartingIndex + i);
+                break;
+
+            case NotifyCollectionChangedAction.Replace when e.NewItems is not null:
+                for (var i = 0; i < e.NewItems.Count; i++)
+                    Steps[e.NewStartingIndex + i] = e.NewItems[i]!;
+                break;
+
+            case NotifyCollectionChangedAction.Reset:
+                Steps.Clear();
+                foreach (var item in PlanSteps)
+                    Steps.Add(item);
+                break;
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════

@@ -4,6 +4,10 @@ using Avalonia.Interactivity;
 using Avalonia;
 using Avalonia.Threading;
 
+using Microsoft.Extensions.DependencyInjection;
+
+using Netor.Cortana.AI.TaskEngine;
+using Netor.Cortana.AI.TaskEngine.Models;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.Cortana.UI.Models;
@@ -617,7 +621,7 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// 用户点击 [切到工作模式]：跳转到工作台 Tab + 启动新任务。
-    /// TODO P4: 原 NewTaskDialog 已删除，需接入 TaskExecutionEngine.StartTaskAsync 新流程。
+    /// P4: 通过 TaskExecutionEngine.StartTaskAsync 启动任务。
     /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §5B.3。
     /// </summary>
     private async void OnWorkflowSuggestionAcceptClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -649,9 +653,13 @@ public partial class MainWindow : Window
                 }
             }
 
-            // TODO P4: 原 NewTaskDialog 已删除，需通过 TaskExecutionEngine.StartTaskAsync 启动任务
+            // 3) 通过 P4 TaskExecutionEngine 启动任务
+            var engine = App.Services.GetRequiredService<TaskExecutionEngine>();
+            var options = new TaskStartOptions { SubMode = subMode };
+            var taskId = await engine.StartTaskAsync(input, workspaceId: string.Empty, templateId: null, options, CancellationToken.None);
+
             System.Diagnostics.Debug.WriteLine(
-                $"[MainWindow] OnWorkflowSuggestionAcceptClick: NewTaskDialog 已删除，input='{input}', subMode='{subMode}'");
+                $"[MainWindow] OnWorkflowSuggestionAcceptClick: 任务已启动 taskId='{taskId}', input='{input}', subMode='{subMode}'");
         }
         catch (Exception ex)
         {

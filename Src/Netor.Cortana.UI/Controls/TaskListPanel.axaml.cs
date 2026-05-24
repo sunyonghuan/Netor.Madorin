@@ -157,7 +157,7 @@ public partial class TaskListPanel : UserControl
         }
     }
 
-    private void OnTogglePinClick(object? sender, RoutedEventArgs e)
+    private async void OnTogglePinClick(object? sender, RoutedEventArgs e)
     {
         if (_vm is null) return;
         if (sender is not MenuItem { Tag: string taskId }) return;
@@ -166,10 +166,9 @@ public partial class TaskListPanel : UserControl
 
         try
         {
-            // TODO P4: TaskExecutionEngine 尚未实现 SetPinnedAsync，待 P4-任务元数据管理 补充
-            // await _engine.SetPinnedAsync(taskId, !item.IsPinned, CancellationToken.None);
-            _logger.LogWarning("[TaskListPanel] SetPinnedAsync 尚未实现 (TaskId={TaskId})", taskId);
-            item.IsPinned = !item.IsPinned;
+            var newPinned = !item.IsPinned;
+            await _engine.SetPinnedAsync(taskId, newPinned, CancellationToken.None);
+            item.IsPinned = newPinned;
         }
         catch (Exception ex)
         {
@@ -184,9 +183,7 @@ public partial class TaskListPanel : UserControl
 
         try
         {
-            // TODO P4: TaskExecutionEngine 尚未实现 SetArchivedAsync，待 P4-任务元数据管理 补充
-            // await _engine.SetArchivedAsync(taskId, true, CancellationToken.None);
-            _logger.LogWarning("[TaskListPanel] SetArchivedAsync 尚未实现 (TaskId={TaskId})", taskId);
+            await _engine.SetArchivedAsync(taskId, true, CancellationToken.None);
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 var item = _vm.List.Items.FirstOrDefault(x => x.TaskId == taskId);
@@ -199,16 +196,23 @@ public partial class TaskListPanel : UserControl
         }
     }
 
-    private void OnDuplicateClick(object? sender, RoutedEventArgs e)
+    private async void OnDuplicateClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem { Tag: string taskId }) return;
 
         try
         {
-            // TODO P4: TaskExecutionEngine 尚未实现 BuildRequestFromTemplateAsync，待 P4-模板复制 补充
-            // 原逻辑：var template = await _engine.BuildRequestFromTemplateAsync(taskId, CancellationToken.None);
-            //         await _engine.StartTaskAsync(template, CancellationToken.None);
-            _logger.LogWarning("[TaskListPanel] BuildRequestFromTemplateAsync / 复制任务尚未实现 (TaskId={TaskId})", taskId);
+            // 从已有任务加载原始输入，用它启动新任务（以原任务 ID 作为模板来源）
+            var detail = await _engine.GetTaskDetailAsync(taskId, CancellationToken.None);
+            if (detail?.Requirements?.OriginalInput is { Length: > 0 } input)
+            {
+                await _engine.StartTaskAsync(input, string.Empty, taskId, CancellationToken.None);
+                _logger.LogInformation("[TaskListPanel] 复制任务已启动: 源={SourceTaskId}", taskId);
+            }
+            else
+            {
+                _logger.LogWarning("[TaskListPanel] 复制任务失败：无法获取原始输入 (TaskId={TaskId})", taskId);
+            }
         }
         catch (Exception ex)
         {

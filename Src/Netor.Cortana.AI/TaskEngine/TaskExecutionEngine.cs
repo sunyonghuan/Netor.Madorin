@@ -217,9 +217,12 @@ public sealed class TaskExecutionEngine : IHostedService
     /// <param name="userInput">用户的任务描述文本。</param>
     /// <param name="workspaceId">工作区 ID。</param>
     /// <param name="templateId">可选的模板 ID（选用模板时传入）。</param>
+    /// <param name="options">可选的启动选项（模型/模式配置）。</param>
     /// <param name="ct">调用方取消令牌（仅用于启动阶段校验，不影响任务运行）。</param>
     /// <returns>新任务 ID。</returns>
-    public async Task<string> StartTaskAsync(string userInput, string workspaceId, string? templateId, CancellationToken ct)
+    public async Task<string> StartTaskAsync(
+        string userInput, string workspaceId, string? templateId,
+        TaskStartOptions? options, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userInput);
         // workspaceId 允许为空（默认工作区场景）
@@ -230,6 +233,19 @@ public sealed class TaskExecutionEngine : IHostedService
         // P4-2: 创建执行运行（生成 Run ID + 创建目录结构 + 写入 task.json / run.json / latest-run）
         var taskTitle = userInput.Length > 50 ? userInput[..50] + "…" : userInput;
         await _persistence.CreateRunAsync(taskId, taskTitle, ct).ConfigureAwait(false);
+
+        // 将用户选择的模型/模式配置写入 TaskMeta
+        if (options is not null)
+        {
+            var meta = await _persistence.LoadTaskMetaAsync(taskId, ct).ConfigureAwait(false);
+            if (meta is not null)
+            {
+                meta.ProviderId = options.ProviderId;
+                meta.ModelId = options.ModelId;
+                meta.SubMode = options.SubMode;
+                await _persistence.SaveTaskMetaAsync(meta, ct).ConfigureAwait(false);
+            }
+        }
 
         var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
@@ -248,6 +264,12 @@ public sealed class TaskExecutionEngine : IHostedService
         _logger.LogInformation("P4 任务已启动: {TaskId} (RunId={RunId})", taskId, _persistence.GetActiveRunId(taskId));
         return taskId;
     }
+
+    /// <summary>
+    /// 启动新任务（无选项重载，向后兼容）。
+    /// </summary>
+    public Task<string> StartTaskAsync(string userInput, string workspaceId, string? templateId, CancellationToken ct)
+        => StartTaskAsync(userInput, workspaceId, templateId, options: null, ct);
 
     /// <summary>
     /// 取消运行中的任务。
@@ -626,6 +648,44 @@ public sealed class TaskExecutionEngine : IHostedService
         await _persistence.SaveTaskMetaAsync(meta, ct).ConfigureAwait(false);
 
         _logger.LogInformation("P4 任务已重命名: {TaskId} → {Title}", taskId, meta.Title);
+        return true;
+    }
+
+    /// <summary>
+    /// 切换任务置顶状态。
+    /// </summary>
+    /// <returns>true 表示操作成功；false 表示任务不存在。</returns>
+    public async Task<bool> SetPinnedAsync(string taskId, bool isPinned, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
+
+        var meta = await _persistence.LoadTaskMetaAsync(taskId, ct).ConfigureAwait(false);
+        if (meta is null) return false;
+
+        meta.IsPinned = isPinned;
+        meta.LastModifiedAt = DateTimeOffset.UtcNow;
+        await _persistence.SaveTaskMetaAsync(meta, ct).ConfigureAwait(false);
+
+        _logger.LogDebug("P4 任务置顶状态已更新: {TaskId} → {IsPinned}", taskId, isPinned);
+        return true;
+    }
+
+    /// <summary>
+    /// 设置任务归档状态。
+    /// </summary>
+    /// <returns>true 表示操作成功；false 表示任务不存在。</returns>
+    public async Task<bool> SetArchivedAsync(string taskId, bool isArchived, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(taskId);
+
+        var meta = await _persistence.LoadTaskMetaAsync(taskId, ct).ConfigureAwait(false);
+        if (meta is null) return false;
+
+        meta.IsArchived = isArchived;
+        meta.LastModifiedAt = DateTimeOffset.UtcNow;
+        await _persistence.SaveTaskMetaAsync(meta, ct).ConfigureAwait(false);
+
+        _logger.LogDebug("P4 任务归档状态已更新: {TaskId} → {IsArchived}", taskId, isArchived);
         return true;
     }
 

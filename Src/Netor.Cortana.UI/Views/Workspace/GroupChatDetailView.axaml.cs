@@ -167,11 +167,11 @@ public partial class GroupChatDetailView : UserControl
         }
     }
 
-    // TODO P4: 老 HITL 审批按钮和 BackflowService 已移除，P4 阶段 3 UI 重做时实现。
+    // NOTE P4: 老 HITL 审批按钮和 BackflowService 已移除，GroupChat 模式暂不支持此功能，后续按需实现。
 
     private void OnAttachToConversationClick(object? sender, RoutedEventArgs e)
     {
-        // TODO P4: BackflowService 已移除，此功能待 P4 重新实现
+        // NOTE P4: BackflowService 已移除，GroupChat 模式的"附加到对话"功能待后续按需实现
         _logger.LogWarning("P4 附加到对话功能待实现");
     }
 
