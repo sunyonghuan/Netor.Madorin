@@ -15,9 +15,17 @@ public interface IOrchestratorAgent
     /// 阶段 1：需求分析。
     /// 创建需求分析师子智能体，与用户多轮对话，输出结构化需求。
     /// </summary>
+    /// <param name="taskId">任务 ID。</param>
+    /// <param name="userInput">用户原始输入。</param>
+    /// <param name="onAskUser">
+    ///   用户交互回调：子智能体提出澄清问题时调用。
+    ///   参数 (轮次, 问题文本) → 返回用户回答。传 null 则退化为 LLM 自我迭代。
+    /// </param>
+    /// <param name="ct">取消令牌。</param>
     Task<RequirementsAnalysis> RunRequirementsPhaseAsync(
         string taskId,
         string userInput,
+        Func<int, string, Task<string>>? onAskUser,
         CancellationToken ct);
 
     /// <summary>
@@ -25,10 +33,19 @@ public interface IOrchestratorAgent
     /// 创建计划制定师子智能体，根据需求 + 可选模板生成执行计划。
     /// 包含与用户的对话式讨论（用户可多轮修改），直到用户确认。
     /// </summary>
+    /// <param name="taskId">任务 ID。</param>
+    /// <param name="requirements">需求分析结果。</param>
+    /// <param name="template">可选的模板。</param>
+    /// <param name="onAskUser">
+    ///   用户交互回调：子智能体提出讨论问题时调用。
+    ///   参数 (轮次, 问题文本) → 返回用户回答。传 null 则退化为单轮生成。
+    /// </param>
+    /// <param name="ct">取消令牌。</param>
     Task<ExecutionPlan> RunPlanningPhaseAsync(
         string taskId,
         RequirementsAnalysis requirements,
         ExecutionTemplate? template,
+        Func<int, string, Task<string>>? onAskUser,
         CancellationToken ct);
 
     /// <summary>

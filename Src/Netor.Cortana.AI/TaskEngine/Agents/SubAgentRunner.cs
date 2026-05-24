@@ -197,6 +197,115 @@ internal sealed partial class SubAgentRunner
     }
 
     /// <summary>
+    /// 交互式多轮对话。当 LLM 回复包含 [ASK_USER] 时，通过回调获取用户回答（异步等待）。
+    /// 当 LLM 回复包含 [DONE] 或不含 [ASK_USER]/[CONTINUE] 时结束。
+    /// 与 <see cref="RunMultiTurnAsync"/> 的区别：后者是 LLM 自我迭代，本方法支持真正的用户交互。
+    /// </summary>
+    /// <param name="systemPrompt">子智能体系统提示词。</param>
+    /// <param name="userMessage">初始用户消息。</param>
+    /// <param name="maxTurns">最大轮数（防死循环）。</param>
+    /// <param name="onAskUser">
+    ///   回调：LLM 提出问题 → 调用方负责获取用户回答。
+    ///   参数：(轮次, 问题文本) → 返回用户回答文本。
+    /// </param>
+    /// <param name="onTurnCompleted">每轮完成通知。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>最终拼接的完整对话文本。</returns>
+    public async Task<string> RunInteractiveAsync(
+        string systemPrompt,
+        string userMessage,
+        int maxTurns,
+        Func<int, string, Task<string>> onAskUser,
+        Action<int, string>? onTurnCompleted,
+        CancellationToken ct)
+    {
+        var client = ResolveClient();
+        var messages = new List<ChatMessage>
+        {
+            new(ChatRole.System, systemPrompt),
+            new(ChatRole.User, userMessage),
+        };
+
+        _logger.LogDebug(
+            "P4 SubAgent 交互式对话开始（maxTurns={MaxTurns}, system={SystemLen}c, user={UserLen}c）",
+            maxTurns, systemPrompt.Length, userMessage.Length);
+
+        var resultBuilder = new System.Text.StringBuilder();
+
+        for (var turn = 1; turn <= maxTurns; turn++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            string text;
+            using (await _throttle.AcquireAsync(ct).ConfigureAwait(false))
+            {
+                var response = await client.GetResponseAsync(messages, cancellationToken: ct)
+                    .ConfigureAwait(false);
+                text = response?.Text?.Trim() ?? string.Empty;
+            }
+
+            _logger.LogDebug("P4 SubAgent 交互式对话 第{Turn}轮完成（response={ResponseLen}c）", turn, text.Length);
+
+            resultBuilder.AppendLine(text);
+            onTurnCompleted?.Invoke(turn, text);
+
+            // [DONE] → 结束
+            if (text.Contains("[DONE]", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogDebug("P4 SubAgent 交互式对话结束于第{Turn}轮（[DONE]）", turn);
+                break;
+            }
+
+            // [ASK_USER] → 提取问题，等待用户回答
+            if (text.Contains("[ASK_USER]", StringComparison.OrdinalIgnoreCase))
+            {
+                var question = ExtractAfterMarker(text, "[ASK_USER]");
+                _logger.LogDebug("P4 SubAgent 交互式对话 第{Turn}轮请求用户输入: {Question}",
+                    turn, question.Length > 100 ? question[..100] + "…" : question);
+
+                var userAnswer = await onAskUser(turn, question).ConfigureAwait(false);
+
+                messages.Add(new ChatMessage(ChatRole.Assistant, text));
+                messages.Add(new ChatMessage(ChatRole.User, userAnswer));
+                continue;
+            }
+
+            // [CONTINUE] → LLM 自我迭代（不需要用户参与）
+            if (text.Contains("[CONTINUE]", StringComparison.OrdinalIgnoreCase))
+            {
+                messages.Add(new ChatMessage(ChatRole.Assistant, text));
+                messages.Add(new ChatMessage(ChatRole.User, "请继续"));
+                continue;
+            }
+
+            // 无标记 → 结束
+            _logger.LogDebug("P4 SubAgent 交互式对话结束于第{Turn}轮（无标记）", turn);
+            break;
+        }
+
+        return resultBuilder.ToString().Trim();
+    }
+
+    /// <summary>提取 [ASK_USER] 标记后面的问题文本。</summary>
+    private static string ExtractAfterMarker(string text, string marker)
+    {
+        var idx = text.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (idx < 0) return text;
+        var afterMarker = text[(idx + marker.Length)..].Trim();
+        // 去除可能的尾部标记
+        afterMarker = afterMarker.Replace("[DONE]", "", StringComparison.OrdinalIgnoreCase).Trim();
+        afterMarker = afterMarker.Replace("[CONTINUE]", "", StringComparison.OrdinalIgnoreCase).Trim();
+        // 如果标记后面没有内容，取标记前面的文本作为问题
+        if (string.IsNullOrWhiteSpace(afterMarker))
+        {
+            afterMarker = text[..idx].Trim();
+            // 去除其他标记
+            afterMarker = afterMarker.Replace("[ASK_USER]", "", StringComparison.OrdinalIgnoreCase).Trim();
+        }
+        return string.IsNullOrWhiteSpace(afterMarker) ? "请提供更多信息" : afterMarker;
+    }
+
+    /// <summary>
     /// 多轮对话执行并将最终响应解析为 JSON 对象。
     /// </summary>
     /// <typeparam name="T">目标反序列化类型。</typeparam>

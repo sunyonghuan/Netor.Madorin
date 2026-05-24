@@ -129,6 +129,15 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         private set => SetField(ref _approval, value);
     }
 
+    private UserQuestionVm? _pendingQuestion;
+
+    /// <summary>当前等待用户回答的问题（子智能体在需求分析/计划制定阶段提出的澄清问题）。</summary>
+    public UserQuestionVm? PendingQuestion
+    {
+        get => _pendingQuestion;
+        private set => SetField(ref _pendingQuestion, value);
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // 计划概览面板
     // ══════════════════════════════════════════════════════════════════════
@@ -314,6 +323,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         ValidationScore = null;
         ValidationPassed = null;
         Approval = null;
+        PendingQuestion = null;
         _eventCounter = 0;
         PlanSteps.Clear(); // Steps 由 OnPlanStepsChanged 自动同步清空
         TimelineEvents.Clear();
@@ -632,6 +642,55 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
                 ValidationPassed = args.Passed;
                 OnPropertyChanged(nameof(ValidationScore));
                 OnPropertyChanged(nameof(ValidationPassed));
+            });
+            return Task.FromResult(false);
+        });
+
+        // P4 多轮对话：子智能体向用户提问事件
+        _subscriber.Subscribe<TaskUserQuestionEventArgs>(Events.OnTaskUserQuestionAsked, (_, args) =>
+        {
+            if (args.TaskId != _taskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() =>
+            {
+                var phaseLabel = args.Phase switch
+                {
+                    "requirements" => "需求分析",
+                    "planning" => "计划制定",
+                    _ => args.Phase,
+                };
+
+                PendingQuestion = new UserQuestionVm
+                {
+                    RequestId = args.RequestId,
+                    QuestionText = args.Question,
+                    IsVisible = true,
+                    IsInteractive = true,
+                    PhaseLabel = phaseLabel,
+                    Round = args.Round,
+                };
+
+                // 追加到时间线
+                AppendEvent("user_question", "warning",
+                    $"{phaseLabel}: 等待您的回答", args.Question, "waiting");
+            });
+            return Task.FromResult(false);
+        });
+
+        // P4 多轮对话：用户已回答事件
+        _subscriber.Subscribe<TaskUserQuestionEventArgs>(Events.OnTaskUserQuestionAnswered, (_, args) =>
+        {
+            if (args.TaskId != _taskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (PendingQuestion is not null)
+                {
+                    PendingQuestion.IsVisible = false;
+                    PendingQuestion.IsInteractive = false;
+                    PendingQuestion = null;
+                }
+
+                AppendEvent("user_answer", "info", "用户回答",
+                    args.UserAnswer, "completed");
             });
             return Task.FromResult(false);
         });

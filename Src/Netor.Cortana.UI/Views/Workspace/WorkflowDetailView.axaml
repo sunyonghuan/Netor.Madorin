@@ -340,6 +340,42 @@
 							</StackPanel>
 						</Border>
 
+						<!-- P4 多轮对话：用户交互问题卡片 -->
+						<Border Classes="approval-card"
+						        DataContext="{Binding Detail.PendingQuestion}"
+						        IsVisible="{Binding IsVisible}"
+						        x:CompileBindings="False"
+						        Background="#1e2a1e" BorderBrush="#4caf50">
+							<StackPanel Spacing="10">
+								<StackPanel Orientation="Horizontal" Spacing="6">
+									<TextBlock Text="💬" FontSize="14" VerticalAlignment="Center" />
+									<TextBlock Text="{Binding PhaseLabel}"
+									           FontSize="13" Foreground="#4caf50" FontWeight="Bold"
+									           VerticalAlignment="Center" />
+									<TextBlock Text="— 需要您的回答"
+									           FontSize="13" Foreground="#9e9e9e"
+									           VerticalAlignment="Center" />
+									<TextBlock Text="{Binding Round, StringFormat='(第{0}轮)'}"
+									           FontSize="11" Foreground="#858585"
+									           VerticalAlignment="Center" />
+								</StackPanel>
+								<SelectableTextBlock Text="{Binding QuestionText}"
+								                     Foreground="#e0e0e0" FontSize="13"
+								                     TextWrapping="Wrap" />
+								<TextBox Text="{Binding UserAnswer, Mode=TwoWay}"
+								         Watermark="输入您的回答..."
+								         MinHeight="60" MaxHeight="120"
+								         AcceptsReturn="True" TextWrapping="Wrap"
+								         Background="#1e1e1e" Foreground="#cccccc"
+								         BorderBrush="#3c3c3c" BorderThickness="1"
+								         IsEnabled="{Binding IsInteractive}" />
+								<Button Content="提交回答" HorizontalAlignment="Right"
+								        Classes="approval-btn-primary"
+								        Click="OnUserQuestionSubmitClick"
+								        IsEnabled="{Binding IsInteractive}" />
+							</StackPanel>
+						</Border>
+
 						<!-- 执行过程（P3-1 时间线视图） -->
 						<StackPanel Spacing="6">
 							<TextBlock Text="执行过程"

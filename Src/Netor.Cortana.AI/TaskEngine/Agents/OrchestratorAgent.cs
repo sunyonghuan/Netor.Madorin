@@ -50,7 +50,7 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
 
     /// <inheritdoc/>
     public async Task<RequirementsAnalysis> RunRequirementsPhaseAsync(
-        string taskId, string userInput, CancellationToken ct)
+        string taskId, string userInput, Func<int, string, Task<string>>? onAskUser, CancellationToken ct)
     {
         _logger.LogInformation("P4 需求分析阶段开始: {TaskId}", taskId);
 
@@ -62,18 +62,34 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
             ---
 
             如果信息充足，直接输出结构化需求 JSON 并以 [DONE] 结尾。
-            如果信息不足，提出澄清问题并以 [CONTINUE] 结尾。
+            如果信息不足需要向用户确认，提出澄清问题并以 [ASK_USER] 结尾。
             """;
 
-        // 使用多轮对话支持澄清问题
-        // 当前版本：LLM 自我迭代模式（TODO: P4-Phase2 接入真正的用户交互）
-        var fullResponse = await _runner.RunMultiTurnAsync(
-            OrchestratorPrompts.RequirementsAnalyst,
-            userMessage,
-            RequirementsMaxTurns,
-            (turn, text) => _logger.LogDebug(
-                "P4 需求分析第{Turn}轮: {TaskId} ({Len}c)", turn, taskId, text.Length),
-            ct).ConfigureAwait(false);
+        string fullResponse;
+
+        if (onAskUser is not null)
+        {
+            // 交互式模式：子智能体可通过 [ASK_USER] 向用户提问
+            fullResponse = await _runner.RunInteractiveAsync(
+                OrchestratorPrompts.RequirementsAnalyst,
+                userMessage,
+                RequirementsMaxTurns,
+                onAskUser,
+                (turn, text) => _logger.LogDebug(
+                    "P4 需求分析第{Turn}轮: {TaskId} ({Len}c)", turn, taskId, text.Length),
+                ct).ConfigureAwait(false);
+        }
+        else
+        {
+            // 非交互模式：LLM 自我迭代（向后兼容）
+            fullResponse = await _runner.RunMultiTurnAsync(
+                OrchestratorPrompts.RequirementsAnalyst,
+                userMessage,
+                RequirementsMaxTurns,
+                (turn, text) => _logger.LogDebug(
+                    "P4 需求分析第{Turn}轮: {TaskId} ({Len}c)", turn, taskId, text.Length),
+                ct).ConfigureAwait(false);
+        }
 
         // 从多轮对话的最终响应中提取 JSON
         var result = TryParseJson<RequirementsAnalysisDto>(
@@ -117,6 +133,7 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
         string taskId,
         RequirementsAnalysis requirements,
         ExecutionTemplate? template,
+        Func<int, string, Task<string>>? onAskUser,
         CancellationToken ct)
     {
         _logger.LogInformation("P4 计划制定阶段开始: {TaskId}", taskId);
@@ -158,11 +175,32 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
             systemPrompt += FormatTemplateForPrompt(template);
         }
 
-        var result = await _runner.RunJsonAsync(
-            systemPrompt,
-            userMessageBuilder.ToString(),
-            TaskEngineJsonContext.Default.PlanningResponseDto,
-            ct).ConfigureAwait(false);
+        PlanningResponseDto? result;
+
+        if (onAskUser is not null)
+        {
+            // 交互式模式：子智能体可通过 [ASK_USER] 向用户确认计划偏好
+            var fullResponse = await _runner.RunInteractiveAsync(
+                systemPrompt,
+                userMessageBuilder.ToString(),
+                RequirementsMaxTurns,
+                onAskUser,
+                (turn, text) => _logger.LogDebug(
+                    "P4 计划制定第{Turn}轮: {TaskId} ({Len}c)", turn, taskId, text.Length),
+                ct).ConfigureAwait(false);
+
+            result = TryParseJson<PlanningResponseDto>(
+                fullResponse, TaskEngineJsonContext.Default.PlanningResponseDto);
+        }
+        else
+        {
+            // 非交互模式：单轮 JSON 生成（向后兼容）
+            result = await _runner.RunJsonAsync(
+                systemPrompt,
+                userMessageBuilder.ToString(),
+                TaskEngineJsonContext.Default.PlanningResponseDto,
+                ct).ConfigureAwait(false);
+        }
 
         // 构建 ExecutionPlan
         var plan = BuildExecutionPlan(taskId, requirements, result, template?.TemplateId);

@@ -190,6 +190,12 @@ public static class Events
 
     /// <summary>P4 验证阶段完成（携带验证分数/摘要/问题列表）。</summary>
     public static TaskValidationEvent OnTaskValidationCompleted = new("task.validation.completed");
+
+    /// <summary>P4 子智能体向用户提问（需求分析/计划制定阶段的多轮对话）。</summary>
+    public static TaskUserQuestionEvent OnTaskUserQuestionAsked = new("task.user.question_asked");
+
+    /// <summary>P4 用户已回答问题。</summary>
+    public static TaskUserQuestionEvent OnTaskUserQuestionAnswered = new("task.user.question_answered");
 }
 
 // ──────── AI 配置变更事件类型 ────────
@@ -565,6 +571,9 @@ public record TaskLifecycleEvent(string Eventid) : EventID<TaskLifecycleEventArg
 /// <summary>P4 验证完成事件类型（task.validation.completed）。</summary>
 public record TaskValidationEvent(string Eventid) : EventID<TaskValidationEventArgs>(Eventid);
 
+/// <summary>P4 用户问答事件类型（task.user.question_asked / question_answered）。</summary>
+public record TaskUserQuestionEvent(string Eventid) : EventID<TaskUserQuestionEventArgs>(Eventid);
+
 /// <summary>
 /// P4 任务执行引擎事件通用基类。
 /// 所有 P4 事件继承该基类，复用统一定位字段。
@@ -702,6 +711,25 @@ public record TaskValidationEventArgs(
     int Score,
     string? Summary = null,
     IReadOnlyList<string>? Issues = null) : TaskEngineEventArgs(TaskId, OccurredAt);
+
+/// <summary>
+/// P4 用户问答事件参数（子智能体提问 / 用户回答）。
+/// </summary>
+/// <param name="TaskId">任务 ID。</param>
+/// <param name="OccurredAt">事件发生时间。</param>
+/// <param name="RequestId">问题请求唯一 ID。</param>
+/// <param name="Phase">当前阶段（requirements / planning）。</param>
+/// <param name="Question">问题文本。</param>
+/// <param name="UserAnswer">用户回答（提问时为 null，回答时有值）。</param>
+/// <param name="Round">对话轮次。</param>
+public record TaskUserQuestionEventArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt,
+    string RequestId,
+    string Phase,
+    string Question,
+    string? UserAnswer = null,
+    int Round = 0) : TaskEngineEventArgs(TaskId, OccurredAt);
 
 /// <summary>
 /// 模型变更类型

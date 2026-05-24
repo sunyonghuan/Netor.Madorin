@@ -251,6 +251,37 @@ public partial class WorkflowDetailView : UserControl
     private void OnDynamicAgentRejectClick(object? sender, RoutedEventArgs e)
         => _logger.LogInformation("[WorkflowDetailView] 动态智能体拒绝（P4 迁移中，功能待接入）");
 
+    // P4 多轮对话：用户回答问题
+    private async void OnUserQuestionSubmitClick(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var engine = App.Services.GetRequiredService<TaskExecutionEngine>();
+            var taskId = _vm.Detail?.TaskId;
+            var question = _vm.Detail?.PendingQuestion;
+
+            if (string.IsNullOrEmpty(taskId) || question is null) return;
+
+            var answer = question.UserAnswer?.Trim();
+            if (string.IsNullOrEmpty(answer))
+            {
+                ShowError("请输入回答内容");
+                return;
+            }
+
+            // 立即禁用防重复提交
+            question.IsInteractive = false;
+
+            var ok = await engine.SubmitUserInputAsync(taskId, answer, CancellationToken.None);
+            if (!ok)
+            {
+                question.IsInteractive = true;
+                _logger.LogWarning("[WorkflowDetailView] SubmitUserInputAsync 返回 false: {TaskId}", taskId);
+            }
+        }
+        catch (Exception ex) { ShowError($"提交回答失败：{ex.Message}", ex); }
+    }
+
     // ──── P4 时间线预览 ────
 
     /// <summary>P4-4：当前活跃的 P4 实时详情 ViewModel（任务级生命周期）。</summary>

@@ -833,6 +833,49 @@ public sealed class TaskExecutionEngine : IHostedService
     }
 
     // ══════════════════════════════════════════════════════════════════════
+    // P4 多轮对话：用户输入 API
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 用户提交对子智能体问题的回答。
+    /// UI 在用户输入后调用此方法，引擎收到回答后继续执行。
+    /// </summary>
+    /// <returns>true = 回答已接受；false = 任务不存在或不在等待输入状态。</returns>
+    public Task<bool> SubmitUserInputAsync(string taskId, string userInput, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userInput);
+
+        if (!_runningTasks.TryGetValue(taskId, out var context))
+            return Task.FromResult(false);
+
+        if (!context.WaitingUserInput)
+            return Task.FromResult(false);
+
+        context.UserInputSignal.TrySetResult(userInput);
+
+        _publisher.Publish(Events.OnTaskUserQuestionAnswered,
+            new TaskUserQuestionEventArgs(
+                taskId, DateTimeOffset.UtcNow,
+                context.CurrentUserInputRequest?.RequestId ?? "",
+                context.CurrentUserInputRequest?.Phase ?? "",
+                context.CurrentUserInputRequest?.Question ?? "",
+                userInput,
+                context.CurrentUserInputRequest?.Round ?? 0));
+
+        _logger.LogInformation("P4 用户已回答问题: {TaskId} ({Input})",
+            taskId, userInput.Length > 50 ? userInput[..50] + "…" : userInput);
+        return Task.FromResult(true);
+    }
+
+    /// <summary>查询指定任务是否正在等待用户输入（需求分析/计划制定阶段的多轮对话）。</summary>
+    public bool IsWaitingUserInput(string taskId)
+        => _runningTasks.TryGetValue(taskId, out var ctx) && ctx.WaitingUserInput;
+
+    /// <summary>获取当前等待中的用户输入请求。</summary>
+    public UserInputRequest? GetPendingUserInputRequest(string taskId)
+        => _runningTasks.TryGetValue(taskId, out var ctx) ? ctx.CurrentUserInputRequest : null;
+
+    // ══════════════════════════════════════════════════════════════════════
     // 内部执行循环
     // ══════════════════════════════════════════════════════════════════════
 
@@ -845,18 +888,19 @@ public sealed class TaskExecutionEngine : IHostedService
     {
         try
         {
-            // ── 阶段 1: 需求分析 ──
+            // ── 阶段 1: 需求分析（支持多轮用户讨论） ──
             _publisher.Publish(Events.OnTaskPhaseStarted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "requirements"));
 
-            var requirements = await _orchestrator.RunRequirementsPhaseAsync(taskId, userInput, ct)
+            var requirements = await _orchestrator.RunRequirementsPhaseAsync(
+                taskId, userInput, CreateUserInputCallback(taskId, "requirements"), ct)
                 .ConfigureAwait(false);
             await _persistence.SaveRequirementsAsync(taskId, requirements, ct).ConfigureAwait(false);
 
             _publisher.Publish(Events.OnTaskPhaseCompleted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "requirements"));
 
-            // ── 阶段 2: 计划制定 ──
+            // ── 阶段 2: 计划制定（支持多轮用户讨论） ──
             _publisher.Publish(Events.OnTaskPhaseStarted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "planning"));
 
@@ -864,7 +908,8 @@ public sealed class TaskExecutionEngine : IHostedService
             if (!string.IsNullOrEmpty(templateId))
                 template = await _persistence.LoadTemplateAsync(templateId, ct).ConfigureAwait(false);
 
-            var plan = await _orchestrator.RunPlanningPhaseAsync(taskId, requirements, template, ct)
+            var plan = await _orchestrator.RunPlanningPhaseAsync(
+                taskId, requirements, template, CreateUserInputCallback(taskId, "planning"), ct)
                 .ConfigureAwait(false);
             await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
 
@@ -945,6 +990,56 @@ public sealed class TaskExecutionEngine : IHostedService
     }
 
     /// <summary>
+    /// 创建用户输入回调：发布问题事件 → 等待用户回答 → 返回回答文本。
+    /// 在需求分析/计划制定阶段，当 LLM 输出 [ASK_USER] 标记时触发。
+    /// </summary>
+    private Func<int, string, Task<string>> CreateUserInputCallback(string taskId, string phase)
+    {
+        return async (round, question) =>
+        {
+            if (!_runningTasks.TryGetValue(taskId, out var context))
+                throw new InvalidOperationException($"运行时上下文丢失: {taskId}");
+
+            var requestId = Guid.NewGuid().ToString("N");
+            var request = new UserInputRequest
+            {
+                RequestId = requestId,
+                TaskId = taskId,
+                Phase = phase,
+                Question = question,
+                Round = round,
+            };
+
+            // 设置等待状态
+            context.WaitingUserInput = true;
+            context.CurrentUserInputRequest = request;
+            context.ResetUserInputSignal();
+
+            // 发布事件 → UI 显示问题卡片
+            _publisher.Publish(Events.OnTaskUserQuestionAsked,
+                new TaskUserQuestionEventArgs(
+                    taskId, DateTimeOffset.UtcNow,
+                    requestId, phase, question, null, round));
+
+            _logger.LogInformation("P4 等待用户回答: {TaskId} (phase={Phase}, round={Round})",
+                taskId, phase, round);
+
+            try
+            {
+                // 阻塞等待用户回答（UI 调用 SubmitUserInputAsync 后解除）
+                var userAnswer = await context.UserInputSignal.Task
+                    .WaitAsync(context.Cts.Token).ConfigureAwait(false);
+                return userAnswer;
+            }
+            finally
+            {
+                context.WaitingUserInput = false;
+                context.CurrentUserInputRequest = null;
+            }
+        };
+    }
+
+    /// <summary>
     /// 等待用户确认计划。支持多轮修改：用户可反复请求修改，每次由策划子智能体重新生成。
     /// 如果配置了 <see cref="TaskEngineOptions.AutoConfirmPlan"/>，则跳过等待直接确认。
     /// </summary>
@@ -1018,7 +1113,7 @@ public sealed class TaskExecutionEngine : IHostedService
                 ComplexityLevel = requirements.ComplexityLevel,
             };
 
-            plan = await _orchestrator.RunPlanningPhaseAsync(taskId, modifiedRequirements, template, ct)
+            plan = await _orchestrator.RunPlanningPhaseAsync(taskId, modifiedRequirements, template, null, ct)
                 .ConfigureAwait(false);
             plan.Version = round + 2; // 版本号递增
             await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
@@ -1403,6 +1498,29 @@ internal sealed class RunningTaskEngineContext : IDisposable
 
     /// <summary>重置计划确认信号（修改计划后再次等待确认）。</summary>
     public void ResetPlanConfirmationSignal() => PlanConfirmationSignal = new TaskCompletionSource<string?>();
+
+    // ── P4 多轮对话：用户输入等待信号（需求分析/计划制定阶段） ──
+
+    /// <summary>
+    /// 用户输入信号。
+    /// 子智能体通过 [ASK_USER] 提问时，引擎 await 此 TCS 等待用户回答。
+    /// UI 调用 SubmitUserInputAsync 后 SetResult(userAnswer) 唤醒。
+    /// </summary>
+    public TaskCompletionSource<string> UserInputSignal { get; private set; } = new();
+
+    /// <summary>标记是否正在等待用户输入（UI 用于解锁输入框 + 显示问题卡片）。</summary>
+    public volatile bool WaitingUserInput;
+
+    /// <summary>当前等待中的用户输入请求（UI 用于展示问题内容）。</summary>
+    public UserInputRequest? CurrentUserInputRequest { get; set; }
+
+    /// <summary>重置用户输入信号（每次新提问前调用）。</summary>
+    public void ResetUserInputSignal()
+    {
+        if (!UserInputSignal.Task.IsCompleted)
+            UserInputSignal.TrySetCanceled();
+        UserInputSignal = new TaskCompletionSource<string>();
+    }
 
     public void Dispose() => Cts.Dispose();
 }
