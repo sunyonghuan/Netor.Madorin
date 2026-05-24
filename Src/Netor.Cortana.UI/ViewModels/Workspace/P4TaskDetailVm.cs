@@ -45,6 +45,14 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
     // 头部信息（与 P4TimelinePreviewVm 属性名完全一致，XAML 绑定兼容）
     // ══════════════════════════════════════════════════════════════════════
 
+    public string TaskId => _taskId;
+
+    public string Title
+    {
+        get => _taskTitle;
+        set => SetField(ref _taskTitle, value);
+    }
+
     public string TaskTitle
     {
         get => _taskTitle;
@@ -74,6 +82,22 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         get => _totalTokensText;
         set => SetField(ref _totalTokensText, value);
     }
+
+    public string SubMode => "P4 任务引擎";
+
+    public bool IsPaused => _statusText == "已暂停";
+    public bool IsCompleted => _statusText == "已完成";
+    public bool IsRunning => _statusText == "运行中" || _statusText.StartsWith("执行中");
+    public bool IsFailed => _statusText == "失败";
+    public bool IsCancelled => _statusText == "已取消";
+
+    public string? FinalReport { get; private set; }
+    public string? ErrorMessage { get; private set; }
+
+    public ObservableCollection<object> Steps => new(PlanSteps);
+
+    public object? DynamicAgentCreationApproval => null;
+    public object? Approval => null;
 
     // ══════════════════════════════════════════════════════════════════════
     // 计划概览面板
@@ -340,7 +364,10 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
                 AppendEvent("task_completed", "primary", "任务完成", args.Reason, "completed");
                 StatusText = "已完成";
                 StatusColor = "#73c991";
+                FinalReport = args.Reason;
                 UpdateDuration();
+                OnPropertyChanged(nameof(IsCompleted));
+                OnPropertyChanged(nameof(IsRunning));
             });
             return Task.FromResult(false);
         });
@@ -353,7 +380,10 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
                 AppendEvent("task_failed", "primary", "任务失败", args.Reason, "failed");
                 StatusText = "失败";
                 StatusColor = "#f48771";
+                ErrorMessage = args.Reason;
                 UpdateDuration();
+                OnPropertyChanged(nameof(IsFailed));
+                OnPropertyChanged(nameof(IsRunning));
             });
             return Task.FromResult(false);
         });
@@ -366,6 +396,8 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
                 AppendEvent("task_paused", "primary", "任务暂停", args.Reason, "waiting");
                 StatusText = "已暂停";
                 StatusColor = "#e0c074";
+                OnPropertyChanged(nameof(IsPaused));
+                OnPropertyChanged(nameof(IsRunning));
             });
             return Task.FromResult(false);
         });
@@ -378,6 +410,8 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
                 AppendEvent("task_resumed", "primary", "任务恢复", args.Reason, "running");
                 StatusText = "运行中";
                 StatusColor = "#007acc";
+                OnPropertyChanged(nameof(IsPaused));
+                OnPropertyChanged(nameof(IsRunning));
             });
             return Task.FromResult(false);
         });

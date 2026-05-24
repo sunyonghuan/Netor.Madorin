@@ -145,10 +145,26 @@ public partial class GroupChatDetailView : UserControl
 
     // ──── 详情区（P4 重构：老 Approval/BackflowService 已移除） ────
 
-    private void OnCancelTaskClick(object? sender, RoutedEventArgs e)
+    private async void OnCancelTaskClick(object? sender, RoutedEventArgs e)
     {
-        // TODO P4: 接入 TaskExecutionEngine.CancelTaskAsync
-        _logger.LogWarning("P4 取消任务功能待实现");
+        if (_inputVm.CurrentTaskId is null)
+        {
+            _logger.LogWarning("P4 取消任务失败：CurrentTaskId 为空");
+            return;
+        }
+
+        var engine = App.Services.GetRequiredService<AI.TaskEngine.TaskExecutionEngine>();
+        var success = await engine.CancelTaskAsync(_inputVm.CurrentTaskId, CancellationToken.None);
+
+        if (success)
+        {
+            _logger.LogInformation("P4 任务取消请求已发送: {TaskId}", _inputVm.CurrentTaskId);
+            _inputVm.OnTaskFinished();
+        }
+        else
+        {
+            _logger.LogWarning("P4 取消任务失败：任务不存在或已结束: {TaskId}", _inputVm.CurrentTaskId);
+        }
     }
 
     // TODO P4: 老 HITL 审批按钮和 BackflowService 已移除，P4 阶段 3 UI 重做时实现。

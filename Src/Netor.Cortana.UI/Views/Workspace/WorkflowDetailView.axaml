@@ -249,18 +249,18 @@
 									         IsEnabled="{Binding IsInteractive}" />
 								</StackPanel>
 								<StackPanel Orientation="Horizontal" Spacing="0">
+									<!-- TODO P4: 老 HITL 审批按钮已移除，P4 阶段 3 UI 重做时实现 -->
+									<!--
 									<Button Classes="approval-btn-primary"
 									        Content="✓ 批准"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnApprovalApproveClick" />
+									        IsEnabled="{Binding IsInteractive}" />
 									<Button Classes="approval-btn-secondary"
 									        Content="✎ 提交修改"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnApprovalReviseClick" />
+									        IsEnabled="{Binding IsInteractive}" />
 									<Button Classes="approval-btn-danger"
 									        Content="✕ 取消任务"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnApprovalRejectClick" />
+									        IsEnabled="{Binding IsInteractive}" />
+									-->
 								</StackPanel>
 							</StackPanel>
 						</Border>
@@ -320,20 +320,20 @@
 									</StackPanel>
 								</Border>
 								<StackPanel Orientation="Horizontal" Spacing="0">
+									<!-- TODO P4: 动态子智能体审批按钮已移除，P4 阶段 3 UI 重做时实现 -->
+									<!--
 									<Button Classes="approval-btn-primary"
 									        Content="✓ 批准创建"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnDynamicAgentApproveClick" />
+									        IsEnabled="{Binding IsInteractive}" />
 									<Button Classes="approval-btn-secondary"
 									        Content="✓✓ 本任务全部批准"
 									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnDynamicAgentApproveAllClick"
 									        ToolTip.Tip="本任务后续 create_subagent 不再询问" />
 									<Button Classes="approval-btn-danger"
 									        Content="✕ 拒绝创建"
 									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnDynamicAgentRejectClick"
 									        ToolTip.Tip="拒绝本次创建，Manager 自行重新规划" />
+									-->
 								</StackPanel>
 							</StackPanel>
 						</Border>

@@ -239,18 +239,18 @@
 									         IsEnabled="{Binding IsInteractive}" />
 								</StackPanel>
 								<StackPanel Orientation="Horizontal" Spacing="0">
+									<!-- TODO P4: 老 HITL 审批按钮已移除，P4 阶段 3 UI 重做时实现 -->
+									<!--
 									<Button Classes="approval-btn-primary"
 									        Content="✓ 批准"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnApprovalApproveClick" />
+									        IsEnabled="{Binding IsInteractive}" />
 									<Button Classes="approval-btn-secondary"
 									        Content="✎ 提交修改"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnApprovalReviseClick" />
+									        IsEnabled="{Binding IsInteractive}" />
 									<Button Classes="approval-btn-danger"
 									        Content="✕ 取消任务"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnApprovalRejectClick" />
+									        IsEnabled="{Binding IsInteractive}" />
+									-->
 								</StackPanel>
 							</StackPanel>
 						</Border>
@@ -269,32 +269,15 @@
 										</ItemsPanelTemplate>
 									</ItemsControl.ItemsPanel>
 									<ItemsControl.ItemTemplate>
-										<DataTemplate x:DataType="vm:WorkflowTimelineStepVm">
+										<!-- TODO P4: WorkflowTimelineStepVm 已删除，使用简化的 DataTemplate -->
+										<DataTemplate>
 											<Border Background="#252526" CornerRadius="8"
 											        Padding="12,10" Margin="0,4,60,4"
 											        BorderBrush="#3c3c3c" BorderThickness="1">
 												<StackPanel Spacing="4">
-													<StackPanel Orientation="Horizontal" Spacing="8">
-														<TextBlock Text="{Binding AgentName, StringFormat='🤖 {0}'}"
-														           Foreground="#9cdcfe" FontSize="12"
-														           FontWeight="SemiBold" />
-														<TextBlock Text="{Binding TimeText}"
-														           Foreground="#858585" FontSize="11"
-														           VerticalAlignment="Center" />
-														<TextBlock Text="{Binding DurationText}"
-														           Foreground="#6a6a6a" FontSize="10"
-														           VerticalAlignment="Center" />
-													</StackPanel>
-													<!-- 主体内容 -->
-													<TextBlock Text="{Binding ContentText}"
+													<TextBlock Text="步骤内容"
 													           Foreground="#cccccc" FontSize="13"
-													           TextWrapping="Wrap"
-													           IsVisible="{Binding HasContent}" />
-													<!-- Fallback：无结构化内容时显示 Summary -->
-													<TextBlock Text="{Binding Summary}"
-													           Foreground="#9e9e9e" FontSize="12"
-													           TextWrapping="Wrap"
-													           IsVisible="{Binding !HasContent}" />
+													           TextWrapping="Wrap" />
 												</StackPanel>
 											</Border>
 										</DataTemplate>
