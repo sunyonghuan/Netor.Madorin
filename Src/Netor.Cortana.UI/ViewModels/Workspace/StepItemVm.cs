@@ -6,9 +6,9 @@ using Netor.Cortana.Entitys;
 namespace Netor.Cortana.UI.ViewModels.Workspace;
 
 /// <summary>
-/// 阶段 3B：单条 Workflow 任务步骤的 ViewModel。
-/// 实现 <see cref="INotifyPropertyChanged"/>，由 <see cref="TaskDetailVm"/> 在任务运行期通过
-/// <see cref="Events.OnWorkflowStepCompleted"/> 事件流增量追加。
+/// P4 重写：单条任务步骤的 ViewModel。
+/// 实现 <see cref="INotifyPropertyChanged"/>，由 P4 事件流增量追加
+/// （<see cref="Events.OnTaskStepStarted"/> / <see cref="Events.OnTaskStepCompleted"/>）。
 ///
 /// 不订阅事件，仅作为数据载体。
 /// </summary>

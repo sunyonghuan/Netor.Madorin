@@ -9,9 +9,8 @@ using Netor.EventHub;
 namespace Netor.Cortana.Networks;
 
 /// <summary>
-/// 订阅宿主内部 Workflow 事件，并通过内部 PluginBus 转发给插件侧订阅者（阶段 2B 起）。
+/// P4 重写：订阅 TaskExecutionEngine P4 事件，并通过内部 PluginBus 转发给插件侧订阅者。
 /// 与 <see cref="WebSocketConversationFeedRelayService"/> 同模式，但走独立的 workflow topic。
-/// 详见 docs/未来版本策划/多智能体编排模式策划/07-事件分流与插件兼容设计.md §3.4。
 /// </summary>
 public sealed class WebSocketWorkflowFeedRelayService(
     IPluginBusBroadcaster server,
@@ -30,67 +29,104 @@ public sealed class WebSocketWorkflowFeedRelayService(
 
     private void SubscribeEvents()
     {
-        subscriber.Subscribe<WorkflowTaskStartedArgs>(Events.OnWorkflowTaskStarted, async (_, args) =>
+        // P4: 订阅 P4 任务引擎事件，转发给插件侧
+
+        subscriber.Subscribe<TaskPhaseEventArgs>(Events.OnTaskPhaseStarted, async (_, args) =>
         {
             await BroadcastWorkflowEventAsync(
-                Events.OnWorkflowTaskStarted.Eventid,
+                Events.OnTaskPhaseStarted.Eventid,
                 args,
-                WebSocketJsonContext.Default.WorkflowTaskStartedArgs);
+                WebSocketJsonContext.Default.TaskPhaseEventArgs);
             return false;
         });
 
-        subscriber.Subscribe<WorkflowStepCompletedArgs>(Events.OnWorkflowStepCompleted, async (_, args) =>
+        subscriber.Subscribe<TaskPhaseEventArgs>(Events.OnTaskPhaseCompleted, async (_, args) =>
         {
             await BroadcastWorkflowEventAsync(
-                Events.OnWorkflowStepCompleted.Eventid,
+                Events.OnTaskPhaseCompleted.Eventid,
                 args,
-                WebSocketJsonContext.Default.WorkflowStepCompletedArgs);
+                WebSocketJsonContext.Default.TaskPhaseEventArgs);
             return false;
         });
 
-        subscriber.Subscribe<WorkflowTaskCompletedArgs>(Events.OnWorkflowTaskCompleted, async (_, args) =>
+        subscriber.Subscribe<TaskPlanEventArgs>(Events.OnTaskPlanCreated, async (_, args) =>
         {
             await BroadcastWorkflowEventAsync(
-                Events.OnWorkflowTaskCompleted.Eventid,
+                Events.OnTaskPlanCreated.Eventid,
                 args,
-                WebSocketJsonContext.Default.WorkflowTaskCompletedArgs);
+                WebSocketJsonContext.Default.TaskPlanEventArgs);
             return false;
         });
 
-        subscriber.Subscribe<WorkflowTaskFailedArgs>(Events.OnWorkflowTaskFailed, async (_, args) =>
+        subscriber.Subscribe<TaskPlanEventArgs>(Events.OnTaskPlanConfirmed, async (_, args) =>
         {
             await BroadcastWorkflowEventAsync(
-                Events.OnWorkflowTaskFailed.Eventid,
+                Events.OnTaskPlanConfirmed.Eventid,
                 args,
-                WebSocketJsonContext.Default.WorkflowTaskFailedArgs);
+                WebSocketJsonContext.Default.TaskPlanEventArgs);
             return false;
         });
 
-        subscriber.Subscribe<WorkflowTaskTitleUpdatedArgs>(Events.OnWorkflowTaskTitleUpdated, async (_, args) =>
+        subscriber.Subscribe<TaskStepEventArgs>(Events.OnTaskStepStarted, async (_, args) =>
         {
             await BroadcastWorkflowEventAsync(
-                Events.OnWorkflowTaskTitleUpdated.Eventid,
+                Events.OnTaskStepStarted.Eventid,
                 args,
-                WebSocketJsonContext.Default.WorkflowTaskTitleUpdatedArgs);
+                WebSocketJsonContext.Default.TaskStepEventArgs);
             return false;
         });
 
-        // 阶段 5B 新增：HITL 暂停 / 恢复事件转发（详见 [04] §5B.1 / [07] §3.4）
-        subscriber.Subscribe<WorkflowTaskPausedArgs>(Events.OnWorkflowTaskPaused, async (_, args) =>
+        subscriber.Subscribe<TaskStepEventArgs>(Events.OnTaskStepCompleted, async (_, args) =>
         {
             await BroadcastWorkflowEventAsync(
-                Events.OnWorkflowTaskPaused.Eventid,
+                Events.OnTaskStepCompleted.Eventid,
                 args,
-                WebSocketJsonContext.Default.WorkflowTaskPausedArgs);
+                WebSocketJsonContext.Default.TaskStepEventArgs);
             return false;
         });
 
-        subscriber.Subscribe<WorkflowTaskResumedArgs>(Events.OnWorkflowTaskResumed, async (_, args) =>
+        subscriber.Subscribe<TaskStepEventArgs>(Events.OnTaskStepFailed, async (_, args) =>
         {
             await BroadcastWorkflowEventAsync(
-                Events.OnWorkflowTaskResumed.Eventid,
+                Events.OnTaskStepFailed.Eventid,
                 args,
-                WebSocketJsonContext.Default.WorkflowTaskResumedArgs);
+                WebSocketJsonContext.Default.TaskStepEventArgs);
+            return false;
+        });
+
+        subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineCompleted, async (_, args) =>
+        {
+            await BroadcastWorkflowEventAsync(
+                Events.OnTaskEngineCompleted.Eventid,
+                args,
+                WebSocketJsonContext.Default.TaskLifecycleEventArgs);
+            return false;
+        });
+
+        subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineFailed, async (_, args) =>
+        {
+            await BroadcastWorkflowEventAsync(
+                Events.OnTaskEngineFailed.Eventid,
+                args,
+                WebSocketJsonContext.Default.TaskLifecycleEventArgs);
+            return false;
+        });
+
+        subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEnginePaused, async (_, args) =>
+        {
+            await BroadcastWorkflowEventAsync(
+                Events.OnTaskEnginePaused.Eventid,
+                args,
+                WebSocketJsonContext.Default.TaskLifecycleEventArgs);
+            return false;
+        });
+
+        subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineResumed, async (_, args) =>
+        {
+            await BroadcastWorkflowEventAsync(
+                Events.OnTaskEngineResumed.Eventid,
+                args,
+                WebSocketJsonContext.Default.TaskLifecycleEventArgs);
             return false;
         });
     }

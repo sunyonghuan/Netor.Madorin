@@ -27,7 +27,7 @@ namespace Netor.Cortana.Networks;
 [JsonSerializable(typeof(MemoryContextSupplyRequest))]
 [JsonSerializable(typeof(MemoryContextSupplyPackage))]
 [JsonSerializable(typeof(MemoryContextSupplyError))]
-// 阶段 2B 新增：Workflow 任务事件 Args
+// 阶段 2B 新增：Workflow 任务事件 Args（保留用于历史兼容）
 [JsonSerializable(typeof(WorkflowTaskStartedArgs))]
 [JsonSerializable(typeof(WorkflowStepCompletedArgs))]
 [JsonSerializable(typeof(WorkflowTaskCompletedArgs))]
@@ -36,6 +36,14 @@ namespace Netor.Cortana.Networks;
 [JsonSerializable(typeof(WorkflowTaskPausedArgs))]
 [JsonSerializable(typeof(WorkflowTaskResumedArgs))]
 [JsonSerializable(typeof(WorkflowSuggestionArgs))]
+// P4 任务执行引擎事件 Args
+[JsonSerializable(typeof(TaskPhaseEventArgs))]
+[JsonSerializable(typeof(TaskPlanEventArgs))]
+[JsonSerializable(typeof(TaskStepEventArgs))]
+[JsonSerializable(typeof(TaskStepProgressEventArgs))]
+[JsonSerializable(typeof(TaskStepRetryEventArgs))]
+[JsonSerializable(typeof(TaskSubAgentEventArgs))]
+[JsonSerializable(typeof(TaskLifecycleEventArgs))]
 [JsonSerializable(typeof(WorkflowExportBatch))]
 [JsonSerializable(typeof(WorkflowExportRecord))]
 [JsonSerializable(typeof(WorkflowHistoryCompletedPayload))]

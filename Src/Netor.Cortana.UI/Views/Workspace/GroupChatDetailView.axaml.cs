@@ -108,14 +108,14 @@ public partial class GroupChatDetailView : UserControl
             Dispatcher.UIThread.Post(FillAgentSelectorList);
         };
 
-        // 订阅 task.completed / task.failed 事件 → 复位 _inputVm.IsRunning
-        _subscriber.Subscribe<WorkflowTaskCompletedArgs>(Events.OnWorkflowTaskCompleted, (_, args) =>
+        // P4: 订阅 task.engine.completed / task.engine.failed 事件 → 复位 _inputVm.IsRunning
+        _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineCompleted, (_, args) =>
         {
             if (args.TaskId == _inputVm.CurrentTaskId)
                 Dispatcher.UIThread.Post(() => _inputVm.OnTaskFinished());
             return Task.FromResult(false);
         });
-        _subscriber.Subscribe<WorkflowTaskFailedArgs>(Events.OnWorkflowTaskFailed, (_, args) =>
+        _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineFailed, (_, args) =>
         {
             if (args.TaskId == _inputVm.CurrentTaskId)
                 Dispatcher.UIThread.Post(() => _inputVm.OnTaskFinished());
