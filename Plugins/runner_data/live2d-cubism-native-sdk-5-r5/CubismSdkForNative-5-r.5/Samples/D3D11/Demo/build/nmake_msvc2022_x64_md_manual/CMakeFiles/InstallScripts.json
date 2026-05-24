@@ -1,0 +1,21 @@
+{
+	"InstallScripts" : 
+	[
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/Framework/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/Framework/src/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/Framework/src/Effect/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/Framework/src/Id/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/Framework/src/Math/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/Framework/src/Model/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/Framework/src/Motion/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/Framework/src/Physics/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/Framework/src/Rendering/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/Framework/src/Rendering/D3D11/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/Framework/src/Type/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/Framework/src/Utils/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/src/Common/cmake_install.cmake",
+		"E:/Netor.me/Cortana/Plugins/runner_data/live2d-cubism-native-sdk-5-r5/CubismSdkForNative-5-r.5/Samples/D3D11/Demo/build/nmake_msvc2022_x64_md_manual/src/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

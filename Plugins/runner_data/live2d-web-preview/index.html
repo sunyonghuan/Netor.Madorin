@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live2D Preview</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #101418;
+      font-family: "Segoe UI", sans-serif;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .bar {
+      position: fixed;
+      left: 16px;
+      top: 16px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      background: rgba(16, 20, 24, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      color: white;
+      backdrop-filter: blur(10px);
+      z-index: 2;
+    }
+
+    button {
+      min-width: 72px;
+      height: 32px;
+      border: 0;
+      border-radius: 6px;
+      background: #d8e9ff;
+      color: #102030;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button.active {
+      background: #ffe28a;
+    }
+
+    .status {
+      min-width: 170px;
+      font-size: 13px;
+      color: #d8e9ff;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+  <div class="bar">
+    <button data-model="Haru" class="active">Haru</button>
+    <button data-model="Hiyori">Hiyori</button>
+    <button data-model="Mao">Mao</button>
+    <button data-model="Natori">Natori</button>
+    <button id="talk">说话</button>
+    <span id="status" class="status">加载中...</span>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+  <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+  <script>
+    const canvas = document.getElementById("stage");
+    const status = document.getElementById("status");
+    const app = new PIXI.Application({
+      view: canvas,
+      resizeTo: window,
+      autoDensity: true,
+      antialias: true,
+      backgroundAlpha: 1,
+      backgroundColor: 0x101418
+    });
+
+    let currentModel = null;
+    let talkUntil = 0;
+    let mouthIndex = -1;
+
+    PIXI.live2d.config.motionPreload = "NONE";
+
+    async function loadModel(name) {
+      status.textContent = `加载 ${name}...`;
+      if (currentModel) {
+        app.stage.removeChild(currentModel);
+        currentModel.destroy();
+        currentModel = null;
+      }
+
+      const model = await PIXI.live2d.Live2DModel.from(`/models/${name}/${name}.model3.json`);
+      currentModel = model;
+      app.stage.addChild(model);
+      fitModel(model);
+
+      const ids = model.internalModel.coreModel._parameterIds || [];
+      mouthIndex = ids.indexOf("ParamMouthOpenY");
+      status.textContent = `${name} 实时预览`;
+    }
+
+    function fitModel(model) {
+      const w = app.renderer.width;
+      const h = app.renderer.height;
+      model.scale.set(1);
+      const bounds = model.getLocalBounds();
+      const scale = Math.min((w * 0.72) / bounds.width, (h * 0.78) / bounds.height);
+      model.pivot.set(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+      model.scale.set(scale);
+      model.x = w / 2;
+      model.y = h / 2 + 28;
+    }
+
+    app.ticker.add(() => {
+      if (!currentModel || mouthIndex < 0) {
+        return;
+      }
+
+      const now = performance.now();
+      const values = currentModel.internalModel.coreModel._parameterValues;
+      if (!values) {
+        return;
+      }
+
+      if (now < talkUntil) {
+        values[mouthIndex] = 0.25 + Math.abs(Math.sin(now / 92)) * 0.75;
+      } else {
+        values[mouthIndex] = Math.max(0, values[mouthIndex] * 0.72);
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      if (currentModel) {
+        fitModel(currentModel);
+      }
+    });
+
+    document.querySelectorAll("[data-model]").forEach(button => {
+      button.addEventListener("click", async () => {
+        document.querySelectorAll("[data-model]").forEach(item => item.classList.remove("active"));
+        button.classList.add("active");
+        await loadModel(button.dataset.model);
+      });
+    });
+
+    document.getElementById("talk").addEventListener("click", () => {
+      talkUntil = performance.now() + 2600;
+      status.textContent = "说话动作中...";
+      setTimeout(() => {
+        if (performance.now() >= talkUntil) {
+          status.textContent = "实时预览";
+        }
+      }, 2700);
+    });
+
+    loadModel("Haru").catch(error => {
+      console.error(error);
+      status.textContent = `加载失败：${error.message}`;
+    });
+  </script>
+</body>
+</html>

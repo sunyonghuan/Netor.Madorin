@@ -52,7 +52,11 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
     // 头部信息（与 P4TimelinePreviewVm 属性名完全一致，XAML 绑定兼容）
     // ══════════════════════════════════════════════════════════════════════
 
-    public string TaskId => _taskId;
+    public string TaskId
+    {
+        get => _taskId;
+        private set => SetField(ref _taskId, value);
+    }
 
     public string Title
     {
@@ -148,7 +152,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
     public void LoadTask(string taskId, string title)
     {
         Clear();
-        _taskId = taskId;
+        TaskId = taskId;
         TaskTitle = title;
         StatusText = "运行中";
         StatusColor = "#007acc";
@@ -172,7 +176,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         if (taskId == _taskId) return;
 
         Clear();
-        _taskId = taskId;
+        TaskId = taskId;
 
         // 从 TaskExecutionEngine 加载完整详情
         var engine = App.Services.GetRequiredService<TaskExecutionEngine>();
@@ -275,7 +279,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
     /// <summary>清空所有状态（切换任务时）。</summary>
     public void Clear()
     {
-        _taskId = string.Empty;
+        TaskId = string.Empty;
         TaskTitle = string.Empty;
         StatusText = "等待中";
         StatusColor = "#858585";
