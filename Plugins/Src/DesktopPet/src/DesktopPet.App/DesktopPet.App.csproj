@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DesktopPet.Abstractions\DesktopPet.Abstractions.csproj" />
+    <ProjectReference Include="..\DesktopPet.Ai\DesktopPet.Ai.csproj" />
+    <ProjectReference Include="..\DesktopPet.Behaviors\DesktopPet.Behaviors.csproj" />
+    <ProjectReference Include="..\DesktopPet.Configuration\DesktopPet.Configuration.csproj" />
+    <ProjectReference Include="..\DesktopPet.Models.Gltf\DesktopPet.Models.Gltf.csproj" />
+    <ProjectReference Include="..\DesktopPet.Models.Live2D\DesktopPet.Models.Live2D.csproj" />
+    <ProjectReference Include="..\DesktopPet.Platform.Win32\DesktopPet.Platform.Win32.csproj" />
+    <ProjectReference Include="..\DesktopPet.Rendering.D3D11\DesktopPet.Rendering.D3D11.csproj" />
+  </ItemGroup>
+
+</Project>

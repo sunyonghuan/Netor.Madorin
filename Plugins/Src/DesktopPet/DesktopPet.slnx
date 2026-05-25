@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DesktopPet.Abstractions/DesktopPet.Abstractions.csproj" />
+    <Project Path="src/DesktopPet.Ai/DesktopPet.Ai.csproj" />
+    <Project Path="src/DesktopPet.App/DesktopPet.App.csproj" />
+    <Project Path="src/DesktopPet.Behaviors/DesktopPet.Behaviors.csproj" />
+    <Project Path="src/DesktopPet.Configuration/DesktopPet.Configuration.csproj" />
+    <Project Path="src/DesktopPet.Models.Gltf/DesktopPet.Models.Gltf.csproj" />
+    <Project Path="src/DesktopPet.Models.Live2D/DesktopPet.Models.Live2D.csproj" />
+    <Project Path="src/DesktopPet.Platform.Win32/DesktopPet.Platform.Win32.csproj" />
+    <Project Path="src/DesktopPet.Rendering.D3D11/DesktopPet.Rendering.D3D11.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DesktopPet.Ai.Tests/DesktopPet.Ai.Tests.csproj" />
+    <Project Path="tests/DesktopPet.Behaviors.Tests/DesktopPet.Behaviors.Tests.csproj" />
+    <Project Path="tests/DesktopPet.Configuration.Tests/DesktopPet.Configuration.Tests.csproj" />
+    <Project Path="tests/DesktopPet.Models.Gltf.Tests/DesktopPet.Models.Gltf.Tests.csproj" />
+    <Project Path="tests/DesktopPet.Models.Live2D.Tests/DesktopPet.Models.Live2D.Tests.csproj" />
+    <Project Path="tests/DesktopPet.Rendering.D3D11.Tests/DesktopPet.Rendering.D3D11.Tests.csproj" />
+  </Folder>
+</Solution>
