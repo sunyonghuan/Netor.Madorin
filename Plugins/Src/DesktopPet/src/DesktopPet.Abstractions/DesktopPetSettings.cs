@@ -6,4 +6,7 @@ namespace DesktopPet.Abstractions;
 public sealed record DesktopPetSettings
 {
     public PetWindowPlacement Window { get; init; } = new();
+
+    /// <summary>WebSocket connection settings for the Cortana realtime bridge.</summary>
+    public PetConnectionSettings Connection { get; init; } = new();
 }

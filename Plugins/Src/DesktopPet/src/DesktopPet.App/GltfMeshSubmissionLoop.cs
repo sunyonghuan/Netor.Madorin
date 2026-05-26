@@ -240,17 +240,15 @@ internal sealed class GltfMeshSubmissionLoop : IDisposable
     ///
     /// Convention: System.Numerics uses row-vector math (v' = v * M).
     /// GltfNodeTransformTree builds world matrices with  world = local * parentWorld.
-    /// The glTF spec defines skin matrix (column-vector):
-    ///   skinMatrix[j] = inverseBindMatrix[j] × jointGlobalTransform[j]
-    /// Converting to row-vector (.NET):
-    ///   skinMatrix_row[j] = jointGlobalTransform_row[j] × ibm_row[j]
     ///
-    /// GltfSkinExtractor already converts the column-major binary data into .NET
-    /// row-major layout (doing the implicit transpose), so ibm_row == ibm from extractor.
+    /// The glTF spec defines skin matrix (column-vector convention):
+    ///   skinMatrix_col[j] = jointGlobalTransform_col[j] × inverseBindMatrix_col[j]
     ///
-    /// Finally, bake normalizeTransform (scale+centre) on the right so the model
-    /// fits the camera:
-    ///   finalJointMatrix[j] = jointWorld[j] × ibm[j] × normalizeTransform
+    /// Converting to row-vector (.NET) — transposing reverses multiplication order:
+    ///   skinMatrix_row[j] = ibm_row[j] × jointGlobalTransform_row[j]
+    ///
+    /// GltfNodeTransformTree produces row-vector world matrices, so:
+    ///   finalJointMatrix[j] = ibm[j] × jointWorld[j] × normalizeTransform
     /// </summary>
     private static Matrix4x4[] ComputeInverseBindMatrices(
         IReadOnlyList<int> jointNodeIndices,
@@ -285,8 +283,9 @@ internal sealed class GltfMeshSubmissionLoop : IDisposable
                 ? skin.InverseBindMatrices[j]
                 : Matrix4x4.Identity;
 
-            // Row-vector: skinMatrix = jointWorld × ibm × normalizeTransform
-            result[j] = jointWorld * ibm * normalizeTransform;
+            // Row-vector convention: skinMatrix = ibm × jointWorld × normalizeTransform
+            // (glTF col-vector: jointWorld × ibm; transposing reverses order)
+            result[j] = ibm * jointWorld * normalizeTransform;
         }
         return result;
     }

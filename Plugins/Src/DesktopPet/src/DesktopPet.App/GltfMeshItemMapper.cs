@@ -42,6 +42,8 @@ internal static class GltfMeshItemMapper
         var hasNormals = normals is not null && normals.Length >= vertexCount * 3;
         var texCoords = primitive.TexCoords;
         var hasUvs = texCoords is not null && texCoords.Length >= vertexCount * 2;
+        var jointIndices = primitive.JointIndices;
+        var weights = primitive.Weights;
 
         // Apply morph-target blending when an expression evaluator is active
         var positions = primitive.Positions;
@@ -73,7 +75,23 @@ internal static class GltfMeshItemMapper
             var u = hasUvs ? texCoords![i * 2] : 0f;
             var v = hasUvs ? texCoords![i * 2 + 1] : 0f;
 
-            vertices[i] = new D3D11MeshVertex(x, y, z, r, g, b, 1.0f, u, v);
+            // Skinning data
+            ushort j0 = 0, j1 = 0, j2 = 0, j3 = 0;
+            float w0 = 1f, w1 = 0f, w2 = 0f, w3 = 0f;
+            if (jointIndices is not null && weights is not null
+                && jointIndices.Length >= (i + 1) * 4 && weights.Length >= (i + 1) * 4)
+            {
+                j0 = jointIndices[i * 4 + 0];
+                j1 = jointIndices[i * 4 + 1];
+                j2 = jointIndices[i * 4 + 2];
+                j3 = jointIndices[i * 4 + 3];
+                w0 = weights[i * 4 + 0];
+                w1 = weights[i * 4 + 1];
+                w2 = weights[i * 4 + 2];
+                w3 = weights[i * 4 + 3];
+            }
+
+            vertices[i] = new D3D11MeshVertex(x, y, z, r, g, b, 1.0f, u, v, j0, j1, j2, j3, w0, w1, w2, w3);
         }
 
         // Include morph version in the ID so GPU buffer cache is invalidated when expressions change

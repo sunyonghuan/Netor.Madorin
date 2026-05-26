@@ -1,26 +1,16 @@
-using System.Numerics;
+using DesktopPet.Models.Gltf;
 using DesktopPet.Rendering.D3D11;
 
+/// <summary>
+/// Activated by --preview-3d flag. Loads Fox.glb (or DamagedHelmet.glb as fallback)
+/// and submits it to the render host so the lighting / shader can be tested without
+/// a full tray-menu model switch.
+/// </summary>
 internal sealed class Preview3DSubmissionLoop : IDisposable
 {
-    private static readonly D3D11MeshVertex[] Vertices =
-    [
-        new(-0.65f, -0.55f, -0.35f, 0.95f, 0.25f, 0.22f, 0.95f),
-        new(0.65f, -0.55f, -0.35f, 0.20f, 0.75f, 0.95f, 0.95f),
-        new(0.0f, 0.70f, -0.35f, 0.95f, 0.85f, 0.22f, 0.95f),
-        new(0.0f, 0.0f, 0.65f, 0.60f, 0.35f, 0.95f, 0.95f)
-    ];
-
-    private static readonly ushort[] Indices =
-    [
-        0, 1, 2,
-        0, 3, 1,
-        1, 3, 2,
-        2, 3, 0
-    ];
-
     private readonly IRenderHost _renderHost;
     private readonly CancellationTokenSource _stopped = new();
+    private GltfMeshSubmissionLoop? _inner;
     private Thread? _thread;
     private bool _disposed;
 
@@ -32,45 +22,64 @@ internal sealed class Preview3DSubmissionLoop : IDisposable
     public void Start()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_thread is not null) return;
 
-        if (_thread is not null)
-        {
-            return;
-        }
-
-        _thread = new Thread(SubmitFrames)
+        _thread = new Thread(Run)
         {
             IsBackground = true,
-            Name = "DesktopPet 3D Preview Submission"
+            Name = "DesktopPet 3D Preview"
         };
         _thread.Start();
     }
 
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
+        if (_disposed) return;
         _disposed = true;
         _stopped.Cancel();
-        _thread?.Join(TimeSpan.FromSeconds(2));
-        _renderHost.SubmitMeshItems([]);
+        _thread?.Join(TimeSpan.FromSeconds(3));
+        _inner?.Dispose();
         _stopped.Dispose();
     }
 
-    private void SubmitFrames()
+    private void Run()
     {
-        while (!_stopped.IsCancellationRequested)
+        var modelsDir = Path.Combine(AppContext.BaseDirectory, "assets", "gltf", "models");
+
+        // Prefer Fox (colourful, has normals + texture), fall back to DamagedHelmet
+        var candidates = new[] { "Fox", "DamagedHelmet" };
+        GltfModel? model = null;
+        string? loaded = null;
+
+        foreach (var name in candidates)
         {
-            var rotation = (float)(Environment.TickCount64 / 1000.0);
-            var world = Matrix4x4.CreateScale(0.95f) * Matrix4x4.CreateRotationY(rotation);
-            _renderHost.SubmitMeshItems(
-            [
-                new D3D11MeshItem("PreviewPyramid", Vertices, Indices, world)
-            ]);
-            Thread.Sleep(33);
+            var glbPath = Path.Combine(modelsDir, name, $"{name}.glb");
+            if (!File.Exists(glbPath)) continue;
+            try
+            {
+                model = new GltfModelLoader().Load(glbPath);
+                loaded = name;
+                break;
+            }
+            catch
+            {
+                // try next
+            }
         }
+
+        if (model is null)
+        {
+            Console.Error.WriteLine("[Preview3D] No GLB model found under " + modelsDir);
+            return;
+        }
+
+        Console.WriteLine($"[Preview3D] Loaded '{loaded}': meshes={model.Summary.MeshCount}, " +
+                          $"materials={model.Summary.MaterialCount}, animations={model.Summary.AnimationCount}");
+
+        _inner = new GltfMeshSubmissionLoop(model, _renderHost);
+        _inner.Start();
+
+        // Keep alive until cancelled
+        _stopped.Token.WaitHandle.WaitOne();
     }
 }
