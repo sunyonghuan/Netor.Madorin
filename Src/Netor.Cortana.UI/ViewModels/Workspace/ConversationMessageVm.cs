@@ -64,6 +64,8 @@ public sealed class ConversationMessageVm : INotifyPropertyChanged
 {
     private string _content = string.Empty;
     private bool _isStreaming;
+    private bool _isExpanded;
+    private bool _isCardCompleted;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -182,6 +184,54 @@ public sealed class ConversationMessageVm : INotifyPropertyChanged
 
     /// <summary>调用参数摘要。</summary>
     public string? ParametersSummary { get; init; }
+
+    // ──── 步骤执行卡片属性（Role="step_card" 时有值） ────
+
+    /// <summary>关联的步骤 ID（用于将 AI 消息归组到此卡片）。</summary>
+    public string? StepId { get; init; }
+
+    /// <summary>卡片标题（步骤名称）。</summary>
+    public string? CardTitle { get; init; }
+
+    /// <summary>卡片是否展开（默认展开，完成后自动折叠）。</summary>
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set
+        {
+            if (_isExpanded == value) return;
+            _isExpanded = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ArrowAngle));
+        }
+    }
+
+    /// <summary>卡片是否已完成（完成后自动折叠、显示完成标记）。</summary>
+    public bool IsCardCompleted
+    {
+        get => _isCardCompleted;
+        set
+        {
+            if (_isCardCompleted == value) return;
+            _isCardCompleted = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CardStatusText));
+            OnPropertyChanged(nameof(CardStatusColor));
+            OnPropertyChanged(nameof(ArrowAngle));
+        }
+    }
+
+    /// <summary>卡片展开时同步更新箭头角度。</summary>
+    public double ArrowAngle => _isExpanded ? 90 : 0;
+
+    /// <summary>卡片状态文字（XAML 绑定用，避免不存在的 BoolConverters.ToString）。</summary>
+    public string CardStatusText => _isCardCompleted ? "✓" : "…";
+
+    /// <summary>卡片状态颜色（XAML 绑定用）。</summary>
+    public string CardStatusColor => _isCardCompleted ? "#73c991" : "#858585";
+
+    /// <summary>是否为步骤执行卡片消息。</summary>
+    public bool IsStepCard => Role == "step_card";
 
     // ──── 派生显示属性 ────
 

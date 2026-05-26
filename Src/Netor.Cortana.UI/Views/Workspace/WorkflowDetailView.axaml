@@ -120,7 +120,7 @@
 								     结构（从左到右）：
 								     [竖线区 24px] [圆点+文本区]
 
-								     竖线区包含一条 1px 竖线从上到下贯穿（最后一条除外）
+								     竖线区包含一条 1.5px 竖线从上到下贯穿（最后一条除外）
 								     圆点区在竖线上方叠加圆点（阶段=10px / 步骤=8px / 计划=8px）
 								     文本区根据 ProgressKind 切换字号和粗细
 								     ══════════════════════════════════════════════════════ -->
@@ -185,11 +185,11 @@
 									            Margin="6,3,0,3"
 									            VerticalAlignment="Top">
 
-										<!-- 阶段标题：14px 粗体 -->
+										<!-- 阶段标题：13px 粗体（与步骤同级，统一文字层次） -->
 										<TextBlock IsVisible="{Binding IsPhaseNode}"
 										           Text="{Binding TimelineTitle}"
 										           Foreground="{Binding DotColor}"
-										           FontSize="14"
+										           FontSize="13"
 										           FontWeight="SemiBold"
 										           TextWrapping="Wrap" />
 
@@ -240,6 +240,102 @@
 										           Margin="0,1,0,0"
 										           IsVisible="{Binding TimelineSubText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 									</StackPanel>
+								</Grid>
+
+								<!-- ══════════════════════════════════════════════════════
+								     步骤执行卡片：折叠式卡片，AI 输出在内部累积
+								     左侧时间线虚线贯穿，内容区域为暗色折叠卡片
+								     类似专家模式的思考过程卡片
+								     ══════════════════════════════════════════════════════ -->
+								<Grid IsVisible="{Binding IsStepCard}"
+								      ColumnDefinitions="24,*"
+								      Margin="8,0,8,0">
+
+									<!-- 左列：虚线延续（时间线贯穿卡片区域） -->
+									<Panel Grid.Column="0"
+									       HorizontalAlignment="Center"
+									       VerticalAlignment="Stretch">
+										<!-- 竖虚线贯穿卡片 -->
+										<Border Width="1"
+										        HorizontalAlignment="Center"
+										        VerticalAlignment="Stretch"
+										        BorderBrush="#2A2A2A"
+										        BorderThickness="1,0,0,0"
+										        Opacity="0.6" />
+										<!-- 小圆点标记 -->
+										<Border Width="5" Height="5"
+										        CornerRadius="2.5"
+										        Background="#555555"
+										        HorizontalAlignment="Center"
+										        VerticalAlignment="Top"
+										        Margin="0,8,0,0" />
+									</Panel>
+
+									<!-- 右列：折叠卡片 -->
+									<Border Grid.Column="1"
+									        Background="#16000000"
+									        BorderBrush="#26FFFFFF"
+									        BorderThickness="1"
+									        CornerRadius="4"
+									        Margin="6,2,0,4"
+									        Padding="0">
+
+										<StackPanel>
+											<!-- 卡片标题栏（可点击折叠/展开） -->
+											<Border Background="Transparent"
+											        Padding="8,5,8,5"
+											        Cursor="Hand"
+											        Tag="{Binding}"
+											        PointerPressed="OnStepCardHeaderClick">
+												<Grid ColumnDefinitions="Auto,*,Auto">
+													<!-- 折叠箭头 -->
+													<TextBlock Grid.Column="0"
+													           Text="▸"
+													           Foreground="#858585"
+													           FontSize="10"
+													           VerticalAlignment="Center"
+													           Margin="0,0,6,0"
+													           RenderTransformOrigin="50%,50%">
+														<TextBlock.RenderTransform>
+															<RotateTransform Angle="{Binding ArrowAngle}" />
+														</TextBlock.RenderTransform>
+													</TextBlock>
+													<!-- 卡片标题 -->
+													<TextBlock Grid.Column="1"
+													           Text="{Binding CardTitle}"
+													           Foreground="#858585"
+													           FontSize="12"
+													           TextTrimming="CharacterEllipsis"
+													           VerticalAlignment="Center" />
+													<!-- 状态指示 -->
+													<TextBlock Grid.Column="2"
+													           Text="{Binding CardStatusText}"
+													           Foreground="{Binding CardStatusColor}"
+													           FontSize="11"
+													           VerticalAlignment="Center"
+													           Margin="6,0,0,0" />
+												</Grid>
+											</Border>
+
+											<!-- 卡片内容（折叠时隐藏） -->
+											<Border IsVisible="{Binding IsExpanded}"
+											        Padding="8,0,8,6"
+											        BorderBrush="#1AFFFFFF"
+											        BorderThickness="0,1,0,0">
+												<StackPanel Spacing="2">
+													<SelectableTextBlock Text="{Binding Content}"
+													                     Foreground="#6E6E6E"
+													                     FontSize="12"
+													                     TextWrapping="Wrap"
+													                     MaxHeight="300"
+													                     IsVisible="{Binding HasContent}" />
+													<!-- 流式光标 -->
+													<TextBlock Text="&#x258C;" Foreground="#4A7A5A" FontSize="11"
+													           IsVisible="{Binding IsStreaming}" />
+												</StackPanel>
+											</Border>
+										</StackPanel>
+									</Border>
 								</Grid>
 
 								<!-- ── 系统消息：灰色斜体 ── -->

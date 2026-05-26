@@ -74,8 +74,6 @@
   <ItemGroup>
     <PackageReference Include="Markdig" Version="1.1.2" />
     <PackageReference Include="Netor.Agents.AI.Anthropic" Version="0.1.0" />
-    <PackageReference Include="Netor.Anthropic" Version="12.21.3" />
-    <PackageReference Include="Netor.Anthropic.Mcp" Version="0.1.2" />
   </ItemGroup>
 
   <!-- 基础设施 -->
@@ -108,6 +106,8 @@
   <!-- 嵌入 appsettings.json -->
   <ItemGroup>
     <None Remove="appsettings.json" />
+    <None Remove="cortana.db" />
+    <None Remove="cortana.db.corrupted" />
     <EmbeddedResource Include="appsettings.json" />
   </ItemGroup>
 
@@ -143,6 +143,16 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaXaml Remove="artifacts\**" />
+    <AvaloniaXaml Remove="publish\**" />
+    <Compile Remove="artifacts\**" />
+    <Compile Remove="publish\**" />
+    <EmbeddedResource Remove="artifacts\**" />
+    <EmbeddedResource Remove="publish\**" />
+    <None Remove="artifacts\**" />
+    <None Remove="publish\**" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Views\Proxy\" />

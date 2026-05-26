@@ -34,6 +34,15 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
     private int _msgCounter;
     private DateTimeOffset _startedAt;
 
+    /// <summary>当前活跃步骤 ID（步骤执行期间的 AI 消息将路由到对应卡片）。</summary>
+    private string? _activeStepId;
+
+    /// <summary>当前活跃步骤卡片 VM（避免每次查找）。</summary>
+    private ConversationMessageVm? _activeStepCard;
+
+    /// <summary>当前活跃阶段卡片（验证阶段等没有 StepId 的 AI 消息路由到此卡片）。</summary>
+    private ConversationMessageVm? _activePhaseCard;
+
     public P4TaskDetailVm()
     {
         _subscriber = App.Services.GetRequiredService<ISubscriber>();
@@ -196,6 +205,22 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             {
                 AppendTimeline(ProgressKind.PhaseStart, $"▶ {name}", "#007acc");
                 StatusText = $"执行中 — {name}";
+
+                // 验证阶段：创建折叠卡片，AI 输出将路由到此卡片
+                if (args.Phase == "validating")
+                {
+                    var card = new ConversationMessageVm
+                    {
+                        MessageId = $"card-phase-validating",
+                        Timestamp = DateTimeOffset.Now,
+                        Role = "step_card",
+                        CardTitle = "验证过程",
+                        IsExpanded = true,
+                        Content = string.Empty,
+                    };
+                    FeedItems.Add(card);
+                    _activePhaseCard = card;
+                }
             });
             return Task.FromResult(false);
         });
@@ -204,7 +229,19 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             var name = FormatPhaseName(args.Phase);
-            Dispatcher.UIThread.Post(() => AppendTimeline(ProgressKind.PhaseEnd, $"✓ {name} 完成", "#73c991"));
+            Dispatcher.UIThread.Post(() =>
+            {
+                // 折叠阶段卡片
+                if (args.Phase == "validating" && _activePhaseCard is not null)
+                {
+                    _activePhaseCard.IsStreaming = false;
+                    _activePhaseCard.IsCardCompleted = true;
+                    _activePhaseCard.IsExpanded = false;
+                    _activePhaseCard = null;
+                }
+
+                AppendTimeline(ProgressKind.PhaseEnd, $"✓ {name} 完成", "#73c991");
+            });
             return Task.FromResult(false);
         });
 
@@ -233,13 +270,33 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             return Task.FromResult(false);
         });
 
-        // ── 步骤事件 → 步骤节点 ──
+        // ── 步骤事件 → 步骤节点 + 执行卡片 ──
 
         _subscriber.Subscribe<TaskStepEventArgs>(Events.OnTaskStepStarted, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
-                AppendTimeline(ProgressKind.StepStart, $"步骤 {args.StepSequence}: {args.Title}", "#007acc"));
+            {
+                // 1) 时间线节点：步骤开始
+                AppendTimeline(ProgressKind.StepStart, $"步骤 {args.StepSequence}: {args.Title}", "#007acc");
+
+                // 2) 创建步骤执行卡片（AI 输出将累积到此卡片的 Content 中）
+                var card = new ConversationMessageVm
+                {
+                    MessageId = $"card-{args.StepId}",
+                    Timestamp = DateTimeOffset.Now,
+                    Role = "step_card",
+                    StepId = args.StepId,
+                    CardTitle = $"步骤 {args.StepSequence}: {args.Title}",
+                    IsExpanded = true,
+                    Content = string.Empty,
+                };
+                FeedItems.Add(card);
+
+                // 3) 记录活跃步骤
+                _activeStepId = args.StepId;
+                _activeStepCard = card;
+            });
             return Task.FromResult(false);
         });
 
@@ -248,6 +305,9 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
+                // 折叠步骤卡片
+                CompleteStepCard(args.StepId);
+
                 AppendTimeline(ProgressKind.StepEnd,
                     $"步骤 {args.StepSequence} 完成: {args.Title}", "#73c991",
                     subText: args.ResultSummary);
@@ -260,7 +320,12 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
-                AppendTimeline(ProgressKind.StepFail, $"步骤 {args.StepSequence} 失败: {args.Title}", "#f48771"));
+            {
+                // 折叠步骤卡片
+                CompleteStepCard(args.StepId);
+
+                AppendTimeline(ProgressKind.StepFail, $"步骤 {args.StepSequence} 失败: {args.Title}", "#f48771");
+            });
             return Task.FromResult(false);
         });
 
@@ -370,12 +435,24 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         });
 
         // ── 对话消息事件（来自 OrchestratorAgent 流式输出） ──
+        // 关键改动：带 StepId 的 AI 消息路由到步骤执行卡片，不再作为顶层消息打断时间线
 
         _subscriber.Subscribe<WorkflowConversationMessageArgs>(Events.OnWorkflowConversationMessage, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
+                // 如果有 StepId 且存在对应的步骤卡片 → 累积到卡片内容
+                if (!string.IsNullOrEmpty(args.StepId) && TryRouteToStepCard(args.StepId, args.Content))
+                    return;
+
+                // 如果有活跃的阶段卡片（验证阶段等）→ 路由到阶段卡片
+                if (args.Role == "ai" && _activePhaseCard is not null)
+                {
+                    RouteToPhaseCard(args.Content);
+                    return;
+                }
+
                 var existing = FeedItems.FirstOrDefault(m => m.MessageId == args.MessageId);
                 if (existing is not null)
                 {
@@ -409,6 +486,17 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
+                // 如果有 StepId 且存在对应的步骤卡片 → 增量追加到卡片内容
+                if (!string.IsNullOrEmpty(args.StepId) && TryRouteToStepCard(args.StepId, args.Content, delta: true))
+                    return;
+
+                // 如果有活跃的阶段卡片 → 增量路由到阶段卡片
+                if (args.Role == "ai" && _activePhaseCard is not null)
+                {
+                    RouteToPhaseCard(args.Content, delta: true);
+                    return;
+                }
+
                 var existing = FeedItems.FirstOrDefault(m => m.MessageId == args.MessageId);
                 if (existing is not null)
                 {
@@ -532,6 +620,72 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         "validating"   => "验证",
         _              => phase,
     };
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 步骤卡片辅助方法
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 尝试将 AI 消息内容路由到对应 StepId 的步骤卡片。
+    /// 如果找到卡片则累积内容并返回 true，否则返回 false（回退为顶层消息）。
+    /// </summary>
+    private bool TryRouteToStepCard(string stepId, string content, bool delta = false)
+    {
+        // 优先使用缓存的活跃卡片（热路径）
+        var card = _activeStepCard;
+        if (card is null || card.StepId != stepId)
+        {
+            card = FeedItems.FirstOrDefault(m => m.Role == "step_card" && m.StepId == stepId);
+            if (card is null) return false;
+        }
+
+        if (delta)
+            card.Content += content;
+        else
+            card.Content = (string.IsNullOrEmpty(card.Content) ? "" : card.Content + "\n\n") + content;
+
+        card.IsStreaming = true;
+        return true;
+    }
+
+    /// <summary>
+    /// 步骤完成/失败时：折叠对应卡片、清除活跃步骤标记。
+    /// </summary>
+    private void CompleteStepCard(string stepId)
+    {
+        var card = _activeStepCard;
+        if (card is null || card.StepId != stepId)
+            card = FeedItems.FirstOrDefault(m => m.Role == "step_card" && m.StepId == stepId);
+
+        if (card is not null)
+        {
+            card.IsStreaming = false;
+            card.IsCardCompleted = true;
+            card.IsExpanded = false;  // 自动折叠
+        }
+
+        if (_activeStepId == stepId)
+        {
+            _activeStepId = null;
+            _activeStepCard = null;
+        }
+    }
+
+    /// <summary>
+    /// 将 AI 消息内容路由到当前活跃的阶段卡片（验证阶段等）。
+    /// </summary>
+    private void RouteToPhaseCard(string content, bool delta = false)
+    {
+        var card = _activePhaseCard;
+        if (card is null) return;
+
+        if (delta)
+            card.Content += content;
+        else
+            card.Content = (string.IsNullOrEmpty(card.Content) ? "" : card.Content + "\n\n") + content;
+
+        card.IsStreaming = true;
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // INotifyPropertyChanged

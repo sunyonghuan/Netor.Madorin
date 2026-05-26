@@ -10,8 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="artifacts\**" />
     <Compile Remove="Services\**" />
+    <EmbeddedResource Remove="artifacts\**" />
     <EmbeddedResource Remove="Services\**" />
+    <None Remove="artifacts\**" />
     <None Remove="Services\**" />
   </ItemGroup>
 

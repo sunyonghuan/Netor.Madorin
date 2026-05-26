@@ -1362,7 +1362,7 @@ public sealed class TaskExecutionEngine : IHostedService
     /// <summary>
     /// 创建 AI 消息回调：每当 LLM 完成一轮输出时，发布到对话流显示（文档 08 §2.2）。
     /// </summary>
-    private Action<string> CreateAiMessageCallback(string taskId)
+    private Action<string> CreateAiMessageCallback(string taskId, string? stepId = null, string? phaseTag = null)
     {
         return text =>
         {
@@ -1370,7 +1370,8 @@ public sealed class TaskExecutionEngine : IHostedService
             _publisher.Publish(Events.OnWorkflowConversationMessage,
                 new WorkflowConversationMessageArgs(
                     taskId, DateTimeOffset.UtcNow,
-                    $"msg-{Guid.NewGuid():N}", "ai", text));
+                    $"msg-{Guid.NewGuid():N}", "ai", text,
+                    StepId: stepId, PhaseTag: phaseTag));
         };
     }
 
@@ -1723,7 +1724,7 @@ public sealed class TaskExecutionEngine : IHostedService
 
                 // 主智能体为这个步骤创建子智能体并委托执行（onAiMessage 把执行过程推到 UI 对话流）
                 // 注：LLM 并发节流已在 SubAgentRunner 层处理（每次 LLM 调用都通过 GlobalLlmThrottle）
-                var onAiMessage = CreateAiMessageCallback(taskId);
+                var onAiMessage = CreateAiMessageCallback(taskId, stepId: step.StepId);
 
                 // 获取本步骤的工作目录（基于 RunId 隔离）
                 var runId = _persistence.GetActiveRunId(taskId);

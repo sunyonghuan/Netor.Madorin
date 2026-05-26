@@ -810,6 +810,8 @@ public record WorkflowToolAuthEvent(string Eventid)
 /// <param name="IsStreaming">是否仍在流式输出。</param>
 /// <param name="ResultSummary">执行结果摘要（role=result 时有值）。</param>
 /// <param name="ResultFilePaths">执行产出文件路径列表（role=result 时有值）。</param>
+/// <param name="StepId">关联的步骤 ID（步骤执行期间的 AI 消息会携带此值，用于 UI 折叠卡片归组）。</param>
+/// <param name="PhaseTag">阶段标签（如 "validating"），用于验证阶段 AI 输出归组到折叠卡片。</param>
 public record WorkflowConversationMessageArgs(
     string TaskId,
     DateTimeOffset OccurredAt,
@@ -818,7 +820,9 @@ public record WorkflowConversationMessageArgs(
     string Content,
     bool IsStreaming = false,
     string? ResultSummary = null,
-    IReadOnlyList<string>? ResultFilePaths = null) : TaskEngineEventArgs(TaskId, OccurredAt);
+    IReadOnlyList<string>? ResultFilePaths = null,
+    string? StepId = null,
+    string? PhaseTag = null) : TaskEngineEventArgs(TaskId, OccurredAt);
 
 /// <summary>
 /// 工作流界面模态切换事件参数（文档 08 §2.4）。

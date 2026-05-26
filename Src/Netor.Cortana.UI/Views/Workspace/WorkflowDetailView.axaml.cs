@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 
@@ -131,6 +132,16 @@ public partial class WorkflowDetailView : UserControl
             _logger.LogInformation("[WorkflowDetailView] 工具调用被拒绝: {TaskId} RequestId={RequestId}", taskId, requestId);
         }
         catch (Exception ex) { _logger.LogError(ex, "[WorkflowDetailView] 工具授权操作失败"); }
+    }
+
+    // ──── 步骤执行卡片折叠/展开 ────
+
+    private void OnStepCardHeaderClick(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Border border && border.Tag is ConversationMessageVm vm)
+        {
+            vm.IsExpanded = !vm.IsExpanded;
+        }
     }
 
     // ──── 外部附件注入 API（供 LeftPanel 调用） ────
