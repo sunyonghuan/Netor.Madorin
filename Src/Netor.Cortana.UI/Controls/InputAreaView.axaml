@@ -1,0 +1,380 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Netor.Cortana.UI.ViewModels.Workspace"
+             x:Class="Netor.Cortana.UI.Controls.InputAreaView"
+             x:CompileBindings="False">
+
+	<!--
+	  ════════════════════════════════════════════════════════════════
+	  三模式共享输入区控件
+	  ════════════════════════════════════════════════════════════════
+	  DataContext = IInputVm（由父控件在 code-behind 设置）
+	  InputMode AvaloniaProperty（Chat / Workflow / GroupChat）
+	  MarqueeColor AvaloniaProperty（Color，走马灯颜色）
+
+	  三种模式差异（由 OnInputModeChanged 在 code-behind 批量控制 IsVisible）：
+	  ┌────────────────┬───────┬──────────┬───────────┐
+	  │ 元素           │ Chat  │ Workflow │ GroupChat │
+	  ├────────────────┼───────┼──────────┼───────────┤
+	  │ 条件行（上方） │ @智能 │ 子模式+数量│ 无        │
+	  │ 厂商/模型按钮  │  ✓    │   ✓      │   ✗       │
+	  │ 工具屏蔽按钮   │  ✗    │   ✓      │   ✓       │
+	  │ 走马灯颜色     │ 蓝    │  橙      │  紫        │
+	  └────────────────┴───────┴──────────┴───────────┘
+
+	  重要：所有 Popup 必须放在 Panel（叠加层）而非 StackPanel 中，
+	  否则 Popup 即使 IsOpen=False 也会在 StackPanel 里占据高度。
+	  ════════════════════════════════════════════════════════════════ -->
+
+	<!-- 外层 Panel：让 Popup 叠加在布局内容上，不撑开高度 -->
+	<Panel>
+
+		<!-- ════ 实际布局内容（StackPanel，垂直排列） ════ -->
+		<StackPanel x:Name="RootPanel" Spacing="4">
+
+			<!-- ════ 校验错误提示 ════ -->
+			<TextBlock x:Name="ValidationErrorText"
+			           Text="{Binding ValidationError}"
+			           Foreground="#f48771" FontSize="11"
+			           IsVisible="False"
+			           Margin="4,0" />
+
+			<!-- ════ 条件行（Workflow 模式：子模式 + 子 Agent 数量） ════ -->
+			<StackPanel x:Name="WorkflowConditionRow"
+			            Orientation="Horizontal" Spacing="8" Margin="4,0"
+			            IsVisible="False">
+				<Button x:Name="SubModeBtn" Classes="titlebar-btn" Padding="6,3"
+				        Click="OnSubModeSelectorClick">
+					<StackPanel Orientation="Horizontal" Spacing="4">
+						<TextBlock x:Name="SubModeLabel" Text="自主规划"
+						           Foreground="#a0a0a0" FontSize="12" VerticalAlignment="Center" />
+						<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
+					</StackPanel>
+				</Button>
+				<Button x:Name="MaxSubAgentsBtn" Classes="titlebar-btn" Padding="6,3"
+				        Click="OnMaxSubAgentsSelectorClick"
+				        IsVisible="False">
+					<StackPanel Orientation="Horizontal" Spacing="4">
+						<TextBlock x:Name="MaxSubAgentsLabel" Text="智能体数: 5"
+						           Foreground="#a0a0a0" FontSize="12" VerticalAlignment="Center" />
+						<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
+					</StackPanel>
+				</Button>
+			</StackPanel>
+
+			<!-- ════ 附件预览区 ════ -->
+			<ItemsControl x:Name="AttachmentList" Margin="4,0">
+				<ItemsControl.ItemsPanel>
+					<ItemsPanelTemplate>
+						<WrapPanel Orientation="Horizontal" />
+					</ItemsPanelTemplate>
+				</ItemsControl.ItemsPanel>
+			</ItemsControl>
+
+			<!-- ════ 输入框容器 ════ -->
+			<Panel x:Name="InputBorderHost" ClipToBounds="True">
+				<Border x:Name="InputBorder" Background="#252526" CornerRadius="3"
+				        BorderBrush="#3c3c3c" BorderThickness="1"
+				        Padding="12"
+				        DragDrop.AllowDrop="True">
+					<Grid ColumnDefinitions="*,Auto">
+						<TextBox x:Name="InputBox" Grid.Column="0"
+						         Classes="chat-input"
+						         PlaceholderText="{Binding InputPlaceholderText}"
+						         TextWrapping="Wrap"
+						         AcceptsReturn="True"
+						         IsReadOnly="{Binding IsRunning}"
+						         MinHeight="80" MaxHeight="400" />
+						<Panel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
+							<!-- 发送按钮（空闲时显示） -->
+							<Button x:Name="SendButton" Classes="titlebar-btn"
+							        ToolTip.Tip="发送" IsVisible="True"
+							        IsEnabled="False"
+							        Click="OnSendClick">
+								<Image Source="avares://Cortana/Assets/send.png" Width="14" Height="14" />
+							</Button>
+							<!-- 旋转停止按钮（运行中显示） -->
+							<Button x:Name="StopButton" Classes="titlebar-btn titlebar-btn-warn"
+							        ToolTip.Tip="停止当前任务" IsVisible="False"
+							        Click="OnStopClick">
+								<Image x:Name="SpinnerIcon"
+								       Source="avares://Cortana/Assets/refresh.png"
+								       Width="14" Height="14"
+								       RenderTransformOrigin="50%,50%">
+									<Image.RenderTransform>
+										<RotateTransform Angle="0" />
+									</Image.RenderTransform>
+								</Image>
+							</Button>
+						</Panel>
+					</Grid>
+				</Border>
+
+				<!-- 走马灯霓虹边动画 -->
+				<Border x:Name="InputMarqueeBorder" IsVisible="False" IsHitTestVisible="False"
+				        CornerRadius="3" ClipToBounds="True">
+					<Canvas Height="0" Margin="0,0,0,-120"
+					        HorizontalAlignment="Stretch" VerticalAlignment="Top">
+						<Rectangle x:Name="InputMarqueeTop" Width="120" Height="2"
+						           HorizontalAlignment="Left" VerticalAlignment="Top" RadiusX="1" RadiusY="1" />
+						<Rectangle x:Name="InputMarqueeRight" Width="2" Height="120"
+						           HorizontalAlignment="Right" VerticalAlignment="Top" RadiusX="1" RadiusY="1" />
+						<Rectangle x:Name="InputMarqueeBottom" Width="120" Height="2"
+						           HorizontalAlignment="Right" VerticalAlignment="Bottom" RadiusX="1" RadiusY="1" />
+						<Rectangle x:Name="InputMarqueeLeft" Width="2" Height="120"
+						           HorizontalAlignment="Left" VerticalAlignment="Bottom" RadiusX="1" RadiusY="1" />
+					</Canvas>
+				</Border>
+
+				<!-- # 文件补全弹出列表 -->
+				<Popup x:Name="FilePopup" Placement="TopEdgeAlignedLeft"
+				       PlacementTarget="{Binding #InputBorder}"
+				       IsLightDismissEnabled="True">
+					<Border Background="#181818" CornerRadius="6"
+					        BorderBrush="#3c3c3c" BorderThickness="1"
+					        Padding="4" MinWidth="300" MaxHeight="260">
+						<ScrollViewer VerticalScrollBarVisibility="Auto">
+							<ItemsControl x:Name="FileList">
+								<ItemsControl.ItemsPanel>
+									<ItemsPanelTemplate>
+										<StackPanel Spacing="1" />
+									</ItemsPanelTemplate>
+								</ItemsControl.ItemsPanel>
+							</ItemsControl>
+						</ScrollViewer>
+					</Border>
+				</Popup>
+
+				<!-- @ 智能体补全弹出列表（仅 Chat 模式） -->
+				<Popup x:Name="AgentPopup" Placement="TopEdgeAlignedLeft"
+				       PlacementTarget="{Binding #InputBorder}"
+				       IsLightDismissEnabled="True">
+					<Border Background="#181818" CornerRadius="6"
+					        BorderBrush="#3c3c3c" BorderThickness="1"
+					        Padding="4" MinWidth="300" MaxHeight="260">
+						<ScrollViewer VerticalScrollBarVisibility="Auto">
+							<ItemsControl x:Name="AgentList">
+								<ItemsControl.ItemsPanel>
+									<ItemsPanelTemplate>
+										<StackPanel Spacing="1" />
+									</ItemsPanelTemplate>
+								</ItemsControl.ItemsPanel>
+							</ItemsControl>
+						</ScrollViewer>
+					</Border>
+				</Popup>
+			</Panel>
+
+			<!-- ════ 底部工具栏 ════ -->
+			<StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0">
+				<!-- 附件按钮（三种模式都有） -->
+				<Button x:Name="AttachButton" Classes="titlebar-btn" Padding="6,3"
+				        ToolTip.Tip="添加附件" Click="OnAttachClick"
+				        IsEnabled="{Binding IsIdle}">
+					<StackPanel Orientation="Horizontal" Spacing="4">
+						<Image Source="/Assets/attachment.png" Width="14" Height="14" />
+						<TextBlock Text="附件" Foreground="#a0a0a0" FontSize="12" />
+					</StackPanel>
+				</Button>
+
+				<!-- 智能体按钮（三种模式都有，GroupChat 为多选，其他为单选） -->
+				<Button x:Name="AgentSelectorBtn" Classes="titlebar-btn" Padding="6,3"
+				        Click="OnAgentSelectorClick"
+				        IsEnabled="{Binding IsIdle}">
+					<StackPanel Orientation="Horizontal" Spacing="4">
+						<Image Source="/Assets/agent.png" Width="14" Height="14" />
+						<TextBlock x:Name="ToolbarAgentLabel" Text="智能体"
+						           Foreground="#a0a0a0" FontSize="12" />
+						<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
+					</StackPanel>
+				</Button>
+
+				<!-- 厂商按钮（Chat / Workflow 模式） -->
+				<Button x:Name="ProviderSelectorBtn" Classes="titlebar-btn" Padding="6,3"
+				        Click="OnProviderSelectorClick"
+				        IsEnabled="{Binding IsIdle}"
+				        IsVisible="False">
+					<StackPanel Orientation="Horizontal" Spacing="4">
+						<Image Source="/Assets/provider.png" Width="14" Height="14" />
+						<TextBlock x:Name="ToolbarProviderLabel" Text="厂商"
+						           Foreground="#a0a0a0" FontSize="12" />
+						<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
+					</StackPanel>
+				</Button>
+
+				<!-- 模型按钮（Chat / Workflow 模式） -->
+				<Button x:Name="ModelSelectorBtn" Classes="titlebar-btn" Padding="6,3"
+				        Click="OnModelSelectorClick"
+				        IsEnabled="{Binding IsIdle}"
+				        IsVisible="False">
+					<StackPanel Orientation="Horizontal" Spacing="4">
+						<Image Source="/Assets/model.png" Width="14" Height="14" />
+						<TextBlock x:Name="ToolbarModelLabel" Text="模型"
+						           Foreground="#a0a0a0" FontSize="12" />
+						<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
+					</StackPanel>
+				</Button>
+
+				<!-- 工具屏蔽按钮（Workflow / GroupChat 模式） -->
+				<Button x:Name="ToolButton" Classes="titlebar-btn" Padding="6,3"
+				        ToolTip.Tip="高风险工具屏蔽（默认全部允许）"
+				        Click="OnToolPopupOpenClick"
+				        IsVisible="False">
+					<StackPanel Orientation="Horizontal" Spacing="4">
+						<Image Source="/Assets/tools.png" Width="14" Height="14" />
+						<TextBlock Text="工具" Foreground="#a0a0a0" FontSize="12" />
+						<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
+					</StackPanel>
+				</Button>
+			</StackPanel>
+
+		</StackPanel>
+
+		<!-- ════ Popup 集（放在 Panel 叠加层，不参与流式布局，不产生空白高度） ════ -->
+
+		<!-- 子模式 Popup（Workflow 模式） -->
+		<Popup x:Name="SubModePopup" Placement="TopEdgeAlignedLeft"
+		       PlacementTarget="{Binding #SubModeBtn}"
+		       IsLightDismissEnabled="True">
+			<Border Background="#181818" CornerRadius="6"
+			        BorderBrush="#3c3c3c" BorderThickness="1"
+			        Padding="4" MinWidth="180">
+				<StackPanel Spacing="2">
+					<Button x:Name="SubModeMagenticItem" Classes="selector-item"
+					        Content="自主规划" Tag="magentic"
+					        Click="OnSubModeItemClick" />
+					<Button x:Name="SubModeParallelItem" Classes="selector-item"
+					        Content="并行分析" Tag="parallelanalysis"
+					        Click="OnSubModeItemClick" />
+				</StackPanel>
+			</Border>
+		</Popup>
+
+		<!-- 子 Agent 数量 Popup（Workflow 模式） -->
+		<Popup x:Name="MaxSubAgentsPopup" Placement="TopEdgeAlignedLeft"
+		       PlacementTarget="{Binding #MaxSubAgentsBtn}"
+		       IsLightDismissEnabled="True">
+			<Border Background="#181818" CornerRadius="6"
+			        BorderBrush="#3c3c3c" BorderThickness="1"
+			        Padding="4" MinWidth="160" MaxHeight="280">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<ItemsControl x:Name="MaxSubAgentsList">
+						<ItemsControl.ItemsPanel>
+							<ItemsPanelTemplate>
+								<StackPanel Spacing="2" />
+							</ItemsPanelTemplate>
+						</ItemsControl.ItemsPanel>
+					</ItemsControl>
+				</ScrollViewer>
+			</Border>
+		</Popup>
+
+		<!-- 智能体单选 Popup（Chat / Workflow 模式） -->
+		<Popup x:Name="AgentSelectorPopup" Placement="TopEdgeAlignedLeft"
+		       PlacementTarget="{Binding #AgentSelectorBtn}"
+		       IsLightDismissEnabled="True">
+			<Border Background="#181818" CornerRadius="6"
+			        BorderBrush="#3c3c3c" BorderThickness="1"
+			        Padding="4" MinWidth="200" MaxHeight="300">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<ItemsControl x:Name="AgentSelectorList">
+						<ItemsControl.ItemsPanel>
+							<ItemsPanelTemplate>
+								<StackPanel Spacing="2" />
+							</ItemsPanelTemplate>
+						</ItemsControl.ItemsPanel>
+					</ItemsControl>
+				</ScrollViewer>
+			</Border>
+		</Popup>
+
+		<!-- 智能体多选 Popup（GroupChat 模式） -->
+		<Popup x:Name="GroupAgentSelectorPopup" Placement="TopEdgeAlignedLeft"
+		       PlacementTarget="{Binding #AgentSelectorBtn}"
+		       IsLightDismissEnabled="True">
+			<Border Background="#181818" CornerRadius="6"
+			        BorderBrush="#3c3c3c" BorderThickness="1"
+			        Padding="8" MinWidth="240" MaxHeight="360">
+				<StackPanel Spacing="6">
+					<TextBlock Text="选择参与的智能体" Foreground="#cccccc"
+					           FontSize="12" FontWeight="SemiBold" />
+					<ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="280">
+						<ItemsControl x:Name="GroupAgentSelectorList">
+							<ItemsControl.ItemsPanel>
+								<ItemsPanelTemplate>
+									<StackPanel Spacing="2" />
+								</ItemsPanelTemplate>
+							</ItemsControl.ItemsPanel>
+						</ItemsControl>
+					</ScrollViewer>
+				</StackPanel>
+			</Border>
+		</Popup>
+
+		<!-- 厂商 Popup（Chat / Workflow 模式） -->
+		<Popup x:Name="ProviderPopup" Placement="TopEdgeAlignedLeft"
+		       PlacementTarget="{Binding #ProviderSelectorBtn}"
+		       IsLightDismissEnabled="True">
+			<Border Background="#181818" CornerRadius="6"
+			        BorderBrush="#3c3c3c" BorderThickness="1"
+			        Padding="4" MinWidth="200" MaxHeight="300">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<ItemsControl x:Name="ProviderList">
+						<ItemsControl.ItemsPanel>
+							<ItemsPanelTemplate>
+								<StackPanel Spacing="2" />
+							</ItemsPanelTemplate>
+						</ItemsControl.ItemsPanel>
+					</ItemsControl>
+				</ScrollViewer>
+			</Border>
+		</Popup>
+
+		<!-- 模型 Popup（Chat / Workflow 模式） -->
+		<Popup x:Name="ModelPopup" Placement="TopEdgeAlignedLeft"
+		       PlacementTarget="{Binding #ModelSelectorBtn}"
+		       IsLightDismissEnabled="True">
+			<Border Background="#181818" CornerRadius="6"
+			        BorderBrush="#3c3c3c" BorderThickness="1"
+			        Padding="4" MinWidth="220" MaxHeight="360">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<ItemsControl x:Name="ModelList">
+						<ItemsControl.ItemsPanel>
+							<ItemsPanelTemplate>
+								<StackPanel Spacing="2" />
+							</ItemsPanelTemplate>
+						</ItemsControl.ItemsPanel>
+					</ItemsControl>
+				</ScrollViewer>
+			</Border>
+		</Popup>
+
+		<!-- 工具屏蔽 Popup（Workflow / GroupChat 模式） -->
+		<Popup x:Name="ToolPopup" Placement="TopEdgeAlignedLeft"
+		       PlacementTarget="{Binding #ToolButton}"
+		       IsLightDismissEnabled="True">
+			<Border Background="#181818" CornerRadius="6"
+			        BorderBrush="#3c3c3c" BorderThickness="1"
+			        Padding="12" MinWidth="320">
+				<StackPanel Spacing="8">
+					<TextBlock Text="高风险工具屏蔽"
+					           Foreground="#cccccc" FontSize="12" FontWeight="SemiBold" />
+					<TextBlock Text="勾选后，本任务执行时屏蔽所选工具（默认全部允许）。"
+					           Foreground="#858585" FontSize="11" TextWrapping="Wrap" />
+					<ItemsControl x:Name="ToolRiskItemsControl">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate>
+								<CheckBox Content="{Binding DisplayName}"
+								          IsChecked="{Binding IsBlocked, Mode=TwoWay}"
+								          ToolTip.Tip="{Binding Description}"
+								          Foreground="#cccccc" FontSize="12"
+								          Margin="0,2" />
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</StackPanel>
+			</Border>
+		</Popup>
+
+	</Panel>
+</UserControl>

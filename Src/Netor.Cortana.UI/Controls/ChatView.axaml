@@ -1,0 +1,139 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Netor.Cortana.UI.Controls"
+             x:Class="Netor.Cortana.UI.Controls.ChatView"
+             x:CompileBindings="False"
+             Background="#1e1e1e">
+
+	<!--
+	  ════════════════════════════════════════════════════════════════
+	  ChatView — 专家（Chat）模式视图
+	  结构：DockPanel
+	    Dock=Bottom：Border → InputAreaView（InputMode=Chat）
+	    Fill：Grid → WelcomePanel + MessageScroller + ScrollToBottomBtn
+	  ════════════════════════════════════════════════════════════════ -->
+
+	<DockPanel>
+
+		<!-- ════ 底部输入区 ════ -->
+		<Border DockPanel.Dock="Bottom" Background="#1e1e1e"
+		        BorderBrush="#252526" BorderThickness="0,1,0,0"
+		        Padding="6,6,6,6">
+			<StackPanel Spacing="4">
+
+				<!-- Chat→Workflow 启发式建议 Banner（默认隐藏） -->
+				<Border x:Name="WorkflowSuggestionBanner"
+				        Background="#1f3a4d"
+				        BorderBrush="#0e7c8c"
+				        BorderThickness="1"
+				        CornerRadius="4"
+				        Padding="10,8"
+				        Margin="4,0,4,0"
+				        IsVisible="False">
+					<Grid ColumnDefinitions="Auto,*,Auto,Auto">
+						<TextBlock Grid.Column="0" Text="💡"
+						           FontSize="14"
+						           VerticalAlignment="Center"
+						           Margin="0,0,8,0" />
+						<StackPanel Grid.Column="1" Orientation="Vertical" Spacing="2"
+						            VerticalAlignment="Center">
+							<TextBlock x:Name="WorkflowSuggestionReason"
+							           Text="这看起来是一个复杂任务，是否切到工作模式？"
+							           Foreground="#cccccc" FontSize="12"
+							           TextWrapping="Wrap" />
+							<TextBlock x:Name="WorkflowSuggestionInputPreview"
+							           Foreground="#858585" FontSize="11"
+							           FontStyle="Italic"
+							           TextTrimming="CharacterEllipsis" />
+						</StackPanel>
+						<Button Grid.Column="2"
+						        Background="#0e639c" Foreground="#ffffff"
+						        Padding="10,4" CornerRadius="3"
+						        FontSize="12" Cursor="Hand"
+						        BorderThickness="0"
+						        Margin="8,0,4,0"
+						        Content="切到工作模式"
+						        Click="OnWorkflowSuggestionAcceptClick" />
+						<Button Grid.Column="3"
+						        Background="Transparent" Foreground="#858585"
+						        Padding="6,4" CornerRadius="3"
+						        FontSize="12" Cursor="Hand"
+						        BorderThickness="0"
+						        Content="✕"
+						        ToolTip.Tip="忽略本次建议"
+						        Click="OnWorkflowSuggestionDismissClick" />
+					</Grid>
+				</Border>
+
+				<!-- 共享输入区（Chat 模式：蓝色走马灯，显示厂商/模型，无工具按钮） -->
+				<controls:InputAreaView x:Name="ChatInputArea"
+				                        InputMode="Chat"
+				                        MarqueeColor="#007acc" />
+
+				<!-- Token 使用量进度条（高度 1px，贴紧输入区底部） -->
+				<ProgressBar x:Name="AiProgressBar"
+				             Minimum="0" Maximum="100" Value="0"
+				             Height="1" Margin="0,2,0,0"
+				             Tag="0%  0k/ 0k"
+				             ToolTip.Tip="{Binding Tag, RelativeSource={RelativeSource Self}}"
+				             ToolTip.Placement="Top"
+				             Foreground="{DynamicResource BlueBrush}"
+				             Background="{DynamicResource Surface1Brush}" />
+
+			</StackPanel>
+		</Border>
+
+		<!-- ════ 消息区 ════ -->
+		<Grid>
+
+			<!-- 欢迎面板（无消息时显示） -->
+			<StackPanel x:Name="WelcomePanel"
+			            VerticalAlignment="Center" HorizontalAlignment="Center"
+			            Spacing="8">
+				<Image Source="avares://Cortana/Assets/logo.300.png"
+				       Width="180" Height="180"
+				       Stretch="Uniform"
+				       HorizontalAlignment="Center" />
+				<TextBlock Text="你好，有什么可以帮你的？"
+				           FontSize="18" FontWeight="SemiBold"
+				           Foreground="#cccccc" HorizontalAlignment="Center" />
+				<TextBlock Text="输入消息开始对话"
+				           FontSize="13" Foreground="#6a6a6a"
+				           HorizontalAlignment="Center" />
+			</StackPanel>
+
+			<!-- 消息滚动区域 -->
+			<ScrollViewer x:Name="MessageScroller"
+			              VerticalScrollBarVisibility="Auto"
+			              HorizontalScrollBarVisibility="Disabled"
+			              Background="Transparent">
+				<ItemsControl x:Name="MessageList" Padding="16">
+					<ItemsControl.ItemsPanel>
+						<ItemsPanelTemplate>
+							<StackPanel Spacing="20" />
+						</ItemsPanelTemplate>
+					</ItemsControl.ItemsPanel>
+				</ItemsControl>
+			</ScrollViewer>
+
+			<!-- 滚动到底部按钮 -->
+			<Button x:Name="ScrollToBottomBtn"
+			        IsVisible="False"
+			        HorizontalAlignment="Right" VerticalAlignment="Bottom"
+			        Margin="0,0,16,8"
+			        Background="#252526" Foreground="#cccccc"
+			        BorderBrush="#3c3c3c" BorderThickness="1"
+			        CornerRadius="4" Padding="10,6"
+			        Cursor="Hand" FontSize="12"
+			        Click="OnScrollToBottomClick">
+				<StackPanel Orientation="Horizontal" Spacing="4">
+					<TextBlock Text="↓" FontSize="13" VerticalAlignment="Center" />
+					<TextBlock Text="滚动到底" FontSize="12" VerticalAlignment="Center" />
+				</StackPanel>
+			</Button>
+
+		</Grid>
+
+	</DockPanel>
+
+</UserControl>
