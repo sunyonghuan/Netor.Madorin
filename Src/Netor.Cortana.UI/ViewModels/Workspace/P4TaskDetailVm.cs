@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -15,14 +14,13 @@ using Netor.EventHub;
 namespace Netor.Cortana.UI.ViewModels.Workspace;
 
 /// <summary>
-/// P4 任务执行引擎的实时详情 ViewModel。
-/// 订阅 P4 后端事件（Events.OnTask*），实时构建时间线事件和计划步骤状态。
-/// 复用 <see cref="TimelineEventVm"/> / <see cref="PlanStepOverviewVm"/> 数据模型。
+/// 工作流任务详情 ViewModel（重构版 2026-05-26）。
 ///
-/// 设计要点（doc 05 §1 无状态决策模型）：
-/// - 每个后端事件映射为一条时间线事件
-/// - PlanSteps 面板通过 StepSequence 匹配增量更新状态
-/// - 头部信息（状态/耗时/token）根据生命周期事件刷新
+/// 设计原则（文档 08）：
+/// - 只有一个 <see cref="FeedItems"/> 对话流，所有信息都是消息
+/// - 引擎事件 → 追加不同 Role 的消息到对话流
+/// - 没有独立的"审批面板"、"失败详情面板"、"步骤列表面板"
+/// - 工具授权请求也是对话流中的一条消息（Role="tool_auth"）
 /// </summary>
 public sealed class P4TaskDetailVm : INotifyPropertyChanged
 {
@@ -33,23 +31,17 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
     private string _statusText = "等待中";
     private string _statusColor = "#858585";
     private string _durationText = "0:00";
-    private string _totalTokensText = string.Empty;
-    private bool _isPlanOverviewExpanded;
-    private int _eventCounter;
+    private int _msgCounter;
     private DateTimeOffset _startedAt;
 
     public P4TaskDetailVm()
     {
         _subscriber = App.Services.GetRequiredService<ISubscriber>();
-
-        // 当 PlanSteps 变化时，同步到 Steps（供 WorkflowDetailView XAML 绑定）
-        PlanSteps.CollectionChanged += OnPlanStepsChanged;
-
         SubscribeEvents();
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // 头部信息（与 P4TimelinePreviewVm 属性名完全一致，XAML 绑定兼容）
+    // 属性
     // ══════════════════════════════════════════════════════════════════════
 
     public string TaskId
@@ -59,12 +51,6 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
     }
 
     public string Title
-    {
-        get => _taskTitle;
-        set => SetField(ref _taskTitle, value);
-    }
-
-    public string TaskTitle
     {
         get => _taskTitle;
         set => SetField(ref _taskTitle, value);
@@ -88,293 +74,128 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         set => SetField(ref _durationText, value);
     }
 
-    public string TotalTokensText
-    {
-        get => _totalTokensText;
-        set => SetField(ref _totalTokensText, value);
-    }
+    // ══════════════════════════════════════════════════════════════════════
+    // 兼容属性（GroupChatDetailView 依赖，会议模式未重构前保留）
+    // ══════════════════════════════════════════════════════════════════════
 
-    public string SubMode => "P4 任务引擎";
-
-    public bool IsPaused => _statusText == "已暂停";
+    public bool IsPaused    => _statusText == "已暂停";
     public bool IsCompleted => _statusText == "已完成";
-    public bool IsRunning => _statusText == "运行中" || _statusText.StartsWith("执行中");
-    public bool IsFailed => _statusText == "失败";
+    public bool IsRunning   => _statusText == "运行中" || _statusText.StartsWith("执行中");
+    public bool IsFailed    => _statusText == "失败";
     public bool IsCancelled => _statusText == "已取消";
 
-    public string? FinalReport { get; private set; }
-    public string? ErrorMessage { get; private set; }
+    public string? FinalReport   { get; private set; }
+    public string? ErrorMessage  { get; private set; }
+    public string  TotalTokensText { get; private set; } = string.Empty;
 
-    /// <summary>验证分数（0-100）。验证完成后有值。</summary>
-    public int? ValidationScore { get; private set; }
-
-    /// <summary>验证是否通过。</summary>
-    public bool? ValidationPassed { get; private set; }
-
-    /// <summary>
-    /// [Deprecated] Steps 集合（GroupChatDetailView XAML 仍绑定 <c>{Binding Detail.Steps}</c>）。
-    /// WorkflowDetailView 已改用 <see cref="TimelineEvents"/>。
-    /// 与 <see cref="PlanSteps"/> 保持同步，避免每次 get 创建新集合导致绑定失效。
-    /// </summary>
+    /// <summary>兼容 GroupChatDetailView 的 Steps 绑定（空集合）。</summary>
     public ObservableCollection<object> Steps { get; } = [];
 
-    public object? DynamicAgentCreationApproval => null;
-
-    private PlanApprovalVm? _approval;
-
-    /// <summary>HITL 计划审批卡片 VM（引擎等待用户确认计划时有值）。</summary>
-    public PlanApprovalVm? Approval
-    {
-        get => _approval;
-        private set => SetField(ref _approval, value);
-    }
-
-    private UserQuestionVm? _pendingQuestion;
-
-    /// <summary>当前等待用户回答的问题（子智能体在需求分析/计划制定阶段提出的澄清问题）。</summary>
-    public UserQuestionVm? PendingQuestion
-    {
-        get => _pendingQuestion;
-        private set => SetField(ref _pendingQuestion, value);
-    }
-
     // ══════════════════════════════════════════════════════════════════════
-    // 计划概览面板
+    // 统一对话流
     // ══════════════════════════════════════════════════════════════════════
 
-    public bool IsPlanOverviewExpanded
-    {
-        get => _isPlanOverviewExpanded;
-        set
-        {
-            if (SetField(ref _isPlanOverviewExpanded, value))
-                OnPropertyChanged(nameof(PlanToggleIcon));
-        }
-    }
-
-    public string PlanToggleIcon => _isPlanOverviewExpanded ? "▼" : "▶";
-
-    public ObservableCollection<PlanStepOverviewVm> PlanSteps { get; } = [];
-
-    // ══════════════════════════════════════════════════════════════════════
-    // 时间线事件
-    // ══════════════════════════════════════════════════════════════════════
-
-    public ObservableCollection<TimelineEventVm> TimelineEvents { get; } = [];
+    /// <summary>
+    /// 统一对话流。所有内容（用户消息、AI回复、进度、工具授权、结果）
+    /// 都以不同 Role 的消息呈现在这一个列表中。
+    /// </summary>
+    public ObservableCollection<ConversationMessageVm> FeedItems { get; } = [];
 
     // ══════════════════════════════════════════════════════════════════════
     // 生命周期
     // ══════════════════════════════════════════════════════════════════════
 
-    /// <summary>初始化为指定任务。</summary>
-    public void LoadTask(string taskId, string title)
+    /// <summary>同步初始化新任务。initialUserInput 非空时直接写入首条用户消息。</summary>
+    public void LoadTask(string taskId, string title, string? initialUserInput = null)
     {
         Clear();
         TaskId = taskId;
-        TaskTitle = title;
+        Title = title;
         StatusText = "运行中";
         StatusColor = "#007acc";
         _startedAt = DateTimeOffset.Now;
 
-        AppendEvent("task_started", "primary", "任务开始", title, "running");
+        if (!string.IsNullOrWhiteSpace(initialUserInput))
+        {
+            FeedItems.Add(new ConversationMessageVm
+            {
+                MessageId = $"msg-init-{taskId}",
+                Timestamp = DateTimeOffset.Now,
+                Role = "user",
+                Content = initialUserInput,
+            });
+        }
     }
 
-    /// <summary>
-    /// 异步加载任务详情（兼容 WorkspaceTabVm 切换选中时调用）。
-    /// 从持久化层恢复完整任务状态（标题/状态/计划步骤/验证结果）。
-    /// </summary>
+    /// <summary>异步加载已存在任务（列表切换选中时调用）。</summary>
     public async Task LoadAsync(string? taskId)
     {
-        if (string.IsNullOrEmpty(taskId))
-        {
-            Clear();
-            return;
-        }
-
+        if (string.IsNullOrEmpty(taskId)) { Clear(); return; }
         if (taskId == _taskId) return;
 
         Clear();
         TaskId = taskId;
 
-        // 从 TaskExecutionEngine 加载完整详情
         var engine = App.Services.GetRequiredService<TaskExecutionEngine>();
         var detail = await engine.GetTaskDetailAsync(taskId, CancellationToken.None).ConfigureAwait(false);
 
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
+            if (_taskId != taskId) return; // 用户已切走
+
             if (detail is null)
             {
-                // 未找到任务 → 显示占位
-                TaskTitle = $"任务 {taskId[..Math.Min(8, taskId.Length)]}…";
+                Title = $"任务 {taskId[..Math.Min(8, taskId.Length)]}…";
                 StatusText = "未知";
                 StatusColor = "#858585";
                 return;
             }
 
-            TaskTitle = detail.Title;
+            Title = detail.Title;
             _startedAt = detail.CreatedAt;
 
-            // 状态映射
-            switch (detail.Status)
+            (StatusText, StatusColor) = detail.Status switch
             {
-                case "completed":
-                    StatusText = "已完成";
-                    StatusColor = "#73c991";
-                    break;
-                case "failed":
-                    StatusText = "失败";
-                    StatusColor = "#f48771";
-                    break;
-                case "paused":
-                    StatusText = "已暂停";
-                    StatusColor = "#e0c074";
-                    break;
-                case "running":
-                    StatusText = "运行中";
-                    StatusColor = "#007acc";
-                    break;
-                case "cancelled":
-                    StatusText = "已取消";
-                    StatusColor = "#858585";
-                    break;
-                default:
-                    StatusText = detail.Status;
-                    StatusColor = "#858585";
-                    break;
-            }
+                "completed" => ("已完成", "#73c991"),
+                "failed"    => ("失败",   "#f48771"),
+                "paused"    => ("已暂停", "#e0c074"),
+                "running"   => ("运行中", "#007acc"),
+                "cancelled" => ("已取消", "#858585"),
+                _           => (detail.Status, "#858585"),
+            };
 
-            // 恢复计划步骤
-            if (detail.Plan?.Steps is { Count: > 0 })
-            {
-                PlanSteps.Clear();
-                foreach (var step in detail.Plan.Steps.OrderBy(s => s.Sequence))
-                {
-                    var (icon, color) = step.Status switch
-                    {
-                        PlanStepStatus.Completed => ("✅", "#73c991"),
-                        PlanStepStatus.Failed => ("❌", "#f48771"),
-                        PlanStepStatus.Running => ("🔄", "#007acc"),
-                        PlanStepStatus.Retrying => ("🔄", "#e0c074"),
-                        PlanStepStatus.Skipped => ("⏭", "#858585"),
-                        _ => ("⏳", "#858585"),
-                    };
-
-                    PlanSteps.Add(new PlanStepOverviewVm
-                    {
-                        Sequence = step.Sequence,
-                        Title = step.Title,
-                        StatusIcon = icon,
-                        StatusColor = color,
-                    });
-                }
-
-                IsPlanOverviewExpanded = true;
-            }
-
-            // 恢复验证结果
-            if (detail.Validation is not null)
-            {
-                ValidationScore = detail.Validation.Score;
-                ValidationPassed = detail.Validation.Passed;
-                FinalReport = detail.Validation.Summary;
-                OnPropertyChanged(nameof(ValidationScore));
-                OnPropertyChanged(nameof(ValidationPassed));
-                OnPropertyChanged(nameof(FinalReport));
-            }
-
-            // 恢复 HITL 审批卡片（如果引擎正在等待用户确认计划）
-            if (engine.IsWaitingPlanConfirmation(taskId) && detail.Plan?.Steps is { Count: > 0 } planSteps)
-            {
-                var lines = planSteps
-                    .OrderBy(s => s.Sequence)
-                    .Select(s => $"{s.Sequence}. {s.Title}");
-                Approval = new PlanApprovalVm
-                {
-                    IsVisible = true,
-                    IsInteractive = true,
-                    PauseReasonText = $"等待确认执行计划 (v{detail.Plan.Version}, {planSteps.Count}步)",
-                    PlanText = string.Join("\n", lines),
-                };
-            }
-
-            // 恢复耗时
             UpdateDuration();
-
-            // 通知 UI 状态属性变化
-            OnPropertyChanged(nameof(IsCompleted));
-            OnPropertyChanged(nameof(IsRunning));
-            OnPropertyChanged(nameof(IsPaused));
-            OnPropertyChanged(nameof(IsFailed));
-            OnPropertyChanged(nameof(IsCancelled));
         });
     }
 
-    /// <summary>清空所有状态（切换任务时）。</summary>
+    /// <summary>清空所有状态。</summary>
     public void Clear()
     {
         TaskId = string.Empty;
-        TaskTitle = string.Empty;
+        Title = string.Empty;
         StatusText = "等待中";
         StatusColor = "#858585";
         DurationText = "0:00";
-        TotalTokensText = string.Empty;
-        FinalReport = null;
-        ErrorMessage = null;
-        ValidationScore = null;
-        ValidationPassed = null;
-        Approval = null;
-        PendingQuestion = null;
-        _eventCounter = 0;
-        PlanSteps.Clear(); // Steps 由 OnPlanStepsChanged 自动同步清空
-        TimelineEvents.Clear();
-    }
-
-    /// <summary>
-    /// PlanSteps → Steps 同步回调。
-    /// PlanSteps 变化（Add/Remove/Replace/Reset）时镜像到 Steps，保持 XAML 绑定有效。
-    /// </summary>
-    private void OnPlanStepsChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        switch (e.Action)
-        {
-            case NotifyCollectionChangedAction.Add when e.NewItems is not null:
-                for (var i = 0; i < e.NewItems.Count; i++)
-                    Steps.Insert(e.NewStartingIndex + i, e.NewItems[i]!);
-                break;
-
-            case NotifyCollectionChangedAction.Remove when e.OldItems is not null:
-                for (var i = e.OldItems.Count - 1; i >= 0; i--)
-                    Steps.RemoveAt(e.OldStartingIndex + i);
-                break;
-
-            case NotifyCollectionChangedAction.Replace when e.NewItems is not null:
-                for (var i = 0; i < e.NewItems.Count; i++)
-                    Steps[e.NewStartingIndex + i] = e.NewItems[i]!;
-                break;
-
-            case NotifyCollectionChangedAction.Reset:
-                Steps.Clear();
-                foreach (var item in PlanSteps)
-                    Steps.Add(item);
-                break;
-        }
+        _msgCounter = 0;
+        FeedItems.Clear();
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // 事件订阅
+    // 事件订阅 — 所有引擎事件统一映射为对话流消息
     // ══════════════════════════════════════════════════════════════════════
 
     private void SubscribeEvents()
     {
-        // 阶段事件
+        // ── 阶段事件 → 时间线阶段节点 ──
+
         _subscriber.Subscribe<TaskPhaseEventArgs>(Events.OnTaskPhaseStarted, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
-            var phaseName = FormatPhaseName(args.Phase);
+            var name = FormatPhaseName(args.Phase);
             Dispatcher.UIThread.Post(() =>
             {
-                AppendEvent("phase_started", "primary", $"阶段: {phaseName}", null, "running");
-                StatusText = $"执行中 — {phaseName}";
+                AppendTimeline(ProgressKind.PhaseStart, $"▶ {name}", "#007acc");
+                StatusText = $"执行中 — {name}";
             });
             return Task.FromResult(false);
         });
@@ -382,82 +203,43 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         _subscriber.Subscribe<TaskPhaseEventArgs>(Events.OnTaskPhaseCompleted, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
-            var phaseName = FormatPhaseName(args.Phase);
-            Dispatcher.UIThread.Post(() =>
-            {
-                AppendEvent("phase_completed", "primary", $"{phaseName} 完成", null, "completed");
-            });
+            var name = FormatPhaseName(args.Phase);
+            Dispatcher.UIThread.Post(() => AppendTimeline(ProgressKind.PhaseEnd, $"✓ {name} 完成", "#73c991"));
             return Task.FromResult(false);
         });
 
-        // 计划事件
+        // ── 计划事件 → 计划节点 ──
+
         _subscriber.Subscribe<TaskPlanEventArgs>(Events.OnTaskPlanCreated, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
-            {
-                AppendEvent("plan_created", "primary",
-                    $"计划已创建（{args.StepCount} 步），等待确认", null, "waiting");
-
-                // 填充 PlanSteps 占位（后续事件更新状态）
-                PlanSteps.Clear();
-                for (var i = 1; i <= args.StepCount; i++)
-                {
-                    PlanSteps.Add(new PlanStepOverviewVm
-                    {
-                        Sequence = i,
-                        Title = $"步骤 {i}",
-                        StatusIcon = "⏳",
-                        StatusColor = "#858585",
-                    });
-                }
-
-                IsPlanOverviewExpanded = true;
-
-                // 构建 HITL 审批卡片（异步获取完整计划数据）
-                BuildApprovalAsync(args.TaskId, args.Version, args.StepCount).ConfigureAwait(false);
-            });
+                AppendTimeline(ProgressKind.Plan, $"■ 计划已生成（{args.StepCount} 步），等待确认", "#e0c074"));
             return Task.FromResult(false);
         });
 
         _subscriber.Subscribe<TaskPlanEventArgs>(Events.OnTaskPlanConfirmed, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
-            Dispatcher.UIThread.Post(() =>
-            {
-                AppendEvent("plan_confirmed", "primary",
-                    "计划已确认，准备执行", null, "completed");
-
-                // 隐藏审批卡片
-                Approval = null;
-            });
+            Dispatcher.UIThread.Post(() => AppendTimeline(ProgressKind.Plan, "✓ 计划已确认，开始执行", "#73c991"));
             return Task.FromResult(false);
         });
 
-        // 步骤事件
+        _subscriber.Subscribe<TaskPlanEventArgs>(Events.OnTaskPlanUpdated, (_, args) =>
+        {
+            if (args.TaskId != _taskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() =>
+                AppendTimeline(ProgressKind.Plan, $"↻ 计划已更新 (v{args.Version}, {args.StepCount} 步)", "#e0c074"));
+            return Task.FromResult(false);
+        });
+
+        // ── 步骤事件 → 步骤节点 ──
+
         _subscriber.Subscribe<TaskStepEventArgs>(Events.OnTaskStepStarted, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
-            {
-                AppendEvent("step_started", "primary",
-                    $"步骤 {args.StepSequence}: {args.Title}", null, "running",
-                    args.StepId, args.StepSequence);
-
-                UpdatePlanStep(args.StepSequence, "🔄", "#007acc", args.Title);
-            });
-            return Task.FromResult(false);
-        });
-
-        _subscriber.Subscribe<TaskStepProgressEventArgs>(Events.OnTaskStepProgress, (_, args) =>
-        {
-            if (args.TaskId != _taskId) return Task.FromResult(false);
-            Dispatcher.UIThread.Post(() =>
-            {
-                AppendEvent("step_progress", "secondary",
-                    $"[步骤{args.StepSequence}] {args.ProgressDetail ?? $"{args.ProgressPercent}%"}",
-                    null, "running", args.StepId, args.StepSequence, args.ProgressPercent);
-            });
+                AppendTimeline(ProgressKind.StepStart, $"步骤 {args.StepSequence}: {args.Title}", "#007acc"));
             return Task.FromResult(false);
         });
 
@@ -466,12 +248,9 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
-                AppendEvent("step_completed", "primary",
-                    $"步骤 {args.StepSequence} 完成: {args.Title}",
-                    args.ResultSummary, "completed",
-                    args.StepId, args.StepSequence);
-
-                UpdatePlanStep(args.StepSequence, "✅", "#73c991", args.Title);
+                AppendTimeline(ProgressKind.StepEnd,
+                    $"步骤 {args.StepSequence} 完成: {args.Title}", "#73c991",
+                    subText: args.ResultSummary);
                 UpdateDuration();
             });
             return Task.FromResult(false);
@@ -481,14 +260,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
-            {
-                AppendEvent("step_failed", "primary",
-                    $"步骤 {args.StepSequence} 失败: {args.Title}",
-                    args.ResultSummary, "failed",
-                    args.StepId, args.StepSequence);
-
-                UpdatePlanStep(args.StepSequence, "❌", "#f48771", args.Title);
-            });
+                AppendTimeline(ProgressKind.StepFail, $"步骤 {args.StepSequence} 失败: {args.Title}", "#f48771"));
             return Task.FromResult(false);
         });
 
@@ -496,14 +268,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
-            {
-                AppendEvent("step_retrying", "secondary",
-                    $"[步骤{args.StepSequence}] 重试 ({args.RetryCount}/{args.MaxRetries})",
-                    args.ErrorMessage, "retrying",
-                    args.StepId, args.StepSequence);
-
-                UpdatePlanStep(args.StepSequence, "🔄", "#e0c074", args.Title);
-            });
+                AppendTimeline(ProgressKind.StepAux, $"↻ 步骤 {args.StepSequence} 重试 ({args.RetryCount}/{args.MaxRetries})", "#e0c074"));
             return Task.FromResult(false);
         });
 
@@ -511,57 +276,29 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
-            {
-                AppendEvent("waiting_user", "primary",
-                    $"步骤 {args.StepSequence} 等待确认: {args.Title}",
-                    null, "waiting",
-                    args.StepId, args.StepSequence);
-
-                UpdatePlanStep(args.StepSequence, "⏸", "#e0c074", args.Title);
-            });
+                AppendTimeline(ProgressKind.StepAux, $"⏸ 步骤 {args.StepSequence} 等待确认: {args.Title}", "#e0c074"));
             return Task.FromResult(false);
         });
 
-        // P4-5: 计划更新事件
-        _subscriber.Subscribe<TaskPlanEventArgs>(Events.OnTaskPlanUpdated, (_, args) =>
-        {
-            if (args.TaskId != _taskId) return Task.FromResult(false);
-            Dispatcher.UIThread.Post(() =>
-            {
-                AppendEvent("plan_updated", "primary",
-                    $"计划已更新 (v{args.Version}, {args.StepCount} 步)", null, "completed");
-            });
-            return Task.FromResult(false);
-        });
-
-        // P4-5: 步骤跳过事件
         _subscriber.Subscribe<TaskStepEventArgs>(Events.OnTaskStepSkipped, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
-            {
-                AppendEvent("step_skipped", "secondary",
-                    $"步骤 {args.StepSequence} 已跳过: {args.Title}", null, "completed",
-                    args.StepId, args.StepSequence);
-
-                UpdatePlanStep(args.StepSequence, "⏭", "#858585", args.Title);
-            });
+                AppendTimeline(ProgressKind.StepAux, $"⏭ 步骤 {args.StepSequence} 已跳过: {args.Title}", "#858585"));
             return Task.FromResult(false);
         });
 
-        // 生命周期事件
+        // ── 生命周期事件 → 进度/系统消息 ──
+
         _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineCompleted, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
-                AppendEvent("task_completed", "primary", "任务完成", args.Reason, "completed");
+                AppendTimeline(ProgressKind.Lifecycle, "✓ 任务已完成", "#73c991");
                 StatusText = "已完成";
                 StatusColor = "#73c991";
-                FinalReport = args.Reason;
                 UpdateDuration();
-                OnPropertyChanged(nameof(IsCompleted));
-                OnPropertyChanged(nameof(IsRunning));
             });
             return Task.FromResult(false);
         });
@@ -569,15 +306,22 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineFailed, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
+            var cancelled = args.Reason == "cancelled";
             Dispatcher.UIThread.Post(() =>
             {
-                AppendEvent("task_failed", "primary", "任务失败", args.Reason, "failed");
-                StatusText = "失败";
-                StatusColor = "#f48771";
-                ErrorMessage = args.Reason;
+                if (cancelled)
+                {
+                    AppendTimeline(ProgressKind.Lifecycle, "⏹ 任务已取消", "#858585");
+                    StatusText = "已取消";
+                    StatusColor = "#858585";
+                }
+                else
+                {
+                    AppendTimeline(ProgressKind.Lifecycle, $"✗ 任务失败：{args.Reason}", "#f48771");
+                    StatusText = "失败";
+                    StatusColor = "#f48771";
+                }
                 UpdateDuration();
-                OnPropertyChanged(nameof(IsFailed));
-                OnPropertyChanged(nameof(IsRunning));
             });
             return Task.FromResult(false);
         });
@@ -587,11 +331,9 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
-                AppendEvent("task_paused", "primary", "任务暂停", args.Reason, "waiting");
+                AppendTimeline(ProgressKind.Lifecycle, "⏸ 任务已暂停", "#e0c074");
                 StatusText = "已暂停";
                 StatusColor = "#e0c074";
-                OnPropertyChanged(nameof(IsPaused));
-                OnPropertyChanged(nameof(IsRunning));
             });
             return Task.FromResult(false);
         });
@@ -601,226 +343,194 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
-                AppendEvent("task_resumed", "primary", "任务恢复", args.Reason, "running");
+                AppendTimeline(ProgressKind.Lifecycle, "▶ 任务已恢复", "#007acc");
                 StatusText = "运行中";
                 StatusColor = "#007acc";
-                OnPropertyChanged(nameof(IsPaused));
-                OnPropertyChanged(nameof(IsRunning));
             });
             return Task.FromResult(false);
         });
 
-        // P4-6: 模板保存事件
-        _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskTemplateSaved, (_, args) =>
-        {
-            if (args.TaskId != _taskId) return Task.FromResult(false);
-            Dispatcher.UIThread.Post(() =>
-            {
-                AppendEvent("template_saved", "secondary",
-                    "执行计划已保存为模板", args.Reason, "completed");
-            });
-            return Task.FromResult(false);
-        });
+        // ── 验证事件 → 进度消息 ──
 
-        // P4: 验证完成事件
         _subscriber.Subscribe<TaskValidationEventArgs>(Events.OnTaskValidationCompleted, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
-                var statusIcon = args.Passed ? "completed" : "failed";
-                var detail = args.Passed
-                    ? $"验证通过（分数: {args.Score}/100）"
-                    : $"验证未通过（分数: {args.Score}/100）" +
-                      (args.Issues is { Count: > 0 } ? $"\n问题: {string.Join("; ", args.Issues)}" : "");
-
-                AppendEvent("validation_completed", "primary",
-                    $"验证结果: {args.Summary ?? (args.Passed ? "通过" : "未通过")}",
-                    detail, statusIcon);
-
-                ValidationScore = args.Score;
-                ValidationPassed = args.Passed;
-                OnPropertyChanged(nameof(ValidationScore));
-                OnPropertyChanged(nameof(ValidationPassed));
+                var title = args.Passed
+                    ? $"✓ 验证通过（{args.Score}/100）"
+                    : $"✗ 验证未通过（{args.Score}/100）";
+                var color = args.Passed ? "#73c991" : "#f48771";
+                string? sub = null;
+                if (args.Issues is { Count: > 0 })
+                    sub = string.Join("\n", args.Issues.Select(i => $"└ {i}"));
+                AppendTimeline(ProgressKind.Validation, title, color, subText: sub);
             });
             return Task.FromResult(false);
         });
 
-        // P4 多轮对话：子智能体向用户提问事件
-        _subscriber.Subscribe<TaskUserQuestionEventArgs>(Events.OnTaskUserQuestionAsked, (_, args) =>
+        // ── 对话消息事件（来自 OrchestratorAgent 流式输出） ──
+
+        _subscriber.Subscribe<WorkflowConversationMessageArgs>(Events.OnWorkflowConversationMessage, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
-                var phaseLabel = args.Phase switch
+                var existing = FeedItems.FirstOrDefault(m => m.MessageId == args.MessageId);
+                if (existing is not null)
                 {
-                    "requirements" => "需求分析",
-                    "planning" => "计划制定",
-                    _ => args.Phase,
-                };
-
-                PendingQuestion = new UserQuestionVm
-                {
-                    RequestId = args.RequestId,
-                    QuestionText = args.Question,
-                    IsVisible = true,
-                    IsInteractive = true,
-                    PhaseLabel = phaseLabel,
-                    Round = args.Round,
-                };
-
-                // 追加到时间线
-                AppendEvent("user_question", "warning",
-                    $"{phaseLabel}: 等待您的回答", args.Question, "waiting");
-            });
-            return Task.FromResult(false);
-        });
-
-        // P4 多轮对话：用户已回答事件
-        _subscriber.Subscribe<TaskUserQuestionEventArgs>(Events.OnTaskUserQuestionAnswered, (_, args) =>
-        {
-            if (args.TaskId != _taskId) return Task.FromResult(false);
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (PendingQuestion is not null)
-                {
-                    PendingQuestion.IsVisible = false;
-                    PendingQuestion.IsInteractive = false;
-                    PendingQuestion = null;
+                    // 流式追加
+                    existing.Content = args.Content;
+                    existing.IsStreaming = args.IsStreaming;
                 }
+                else
+                {
+                    FeedItems.Add(new ConversationMessageVm
+                    {
+                        MessageId = args.MessageId,
+                        Timestamp = args.OccurredAt,
+                        Role = args.Role,
+                        Content = args.Content,
+                        IsStreaming = args.IsStreaming,
+                        ResultSummary = args.ResultSummary,
+                        ResultFiles = args.ResultFilePaths?.Select(p => new ResultFileVm
+                        {
+                            FilePath = p,
+                            DisplayName = System.IO.Path.GetFileName(p),
+                        }).ToList(),
+                    });
+                }
+            });
+            return Task.FromResult(false);
+        });
 
-                AppendEvent("user_answer", "info", "用户回答",
-                    args.UserAnswer, "completed");
+        _subscriber.Subscribe<WorkflowConversationMessageArgs>(Events.OnWorkflowConversationDelta, (_, args) =>
+        {
+            if (args.TaskId != _taskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() =>
+            {
+                var existing = FeedItems.FirstOrDefault(m => m.MessageId == args.MessageId);
+                if (existing is not null)
+                {
+                    existing.Content += args.Content;
+                    existing.IsStreaming = args.IsStreaming;
+                }
+                else
+                {
+                    FeedItems.Add(new ConversationMessageVm
+                    {
+                        MessageId = args.MessageId,
+                        Timestamp = args.OccurredAt,
+                        Role = args.Role,
+                        Content = args.Content,
+                        IsStreaming = args.IsStreaming,
+                    });
+                }
+            });
+            return Task.FromResult(false);
+        });
+
+        // ── 危险工具授权事件 → 对话流中的 tool_auth 消息 ──
+
+        _subscriber.Subscribe<WorkflowToolAuthEventArgs>(Events.OnToolAuthorizationRequired, (_, args) =>
+        {
+            if (args.TaskId != _taskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() =>
+            {
+                FeedItems.Add(new ConversationMessageVm
+                {
+                    MessageId = $"auth-{args.RequestId}",
+                    Timestamp = DateTimeOffset.Now,
+                    Role = "tool_auth",
+                    Content = args.CallDescription,
+                    AuthRequestId = args.RequestId,
+                    ToolName = args.ToolName,
+                    RiskLevel = args.RiskLevel,
+                    ParametersSummary = args.ParametersSummary,
+                });
+            });
+            return Task.FromResult(false);
+        });
+
+        _subscriber.Subscribe<WorkflowToolAuthEventArgs>(Events.OnToolAuthorizationResolved, (_, args) =>
+        {
+            if (args.TaskId != _taskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() =>
+            {
+                // 授权已处理，追加一条进度消息说明结果
+                var decision = args.Decision switch
+                {
+                    "confirm"   => "已授权",
+                    "grant_all" => "已全部授权",
+                    "deny"      => "已拒绝",
+                    _           => args.Decision ?? "已处理",
+                };
+                AppendTimeline(ProgressKind.Detail, $"🔒 工具 [{args.ToolName}] {decision}", "#858585");
             });
             return Task.FromResult(false);
         });
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // 内部辅助
+    // 内部辅助 — 追加不同类型的消息到对话流
     // ══════════════════════════════════════════════════════════════════════
 
-    /// <summary>追加一条时间线事件。必须在 UI 线程调用。</summary>
-    private void AppendEvent(
-        string eventType,
-        string nodeLevel,
-        string title,
-        string? detail = null,
-        string? status = null,
-        string? stepId = null,
-        int stepSequence = 0,
-        int progressPercent = 0,
-        TimelineCardVm? card = null)
+    /// <summary>
+    /// 追加一条时间线进度消息（Role="progress"），带分类和颜色。
+    /// 自动维护 IsLastProgress 标记（前一条的竖线 → 当前条截止）。
+    /// </summary>
+    private void AppendTimeline(ProgressKind kind, string title, string dotColor, string? subText = null)
     {
-        var evt = new TimelineEventVm
+        // 把前一条 progress 的 IsLastProgress 设为 false（它不再是最后一条）
+        for (var i = FeedItems.Count - 1; i >= 0; i--)
         {
-            EventId = $"evt-{Interlocked.Increment(ref _eventCounter):D4}",
+            if (FeedItems[i].Role == "progress" && FeedItems[i].IsLastProgress)
+            {
+                FeedItems[i].IsLastProgress = false;
+                break;
+            }
+        }
+
+        FeedItems.Add(new ConversationMessageVm
+        {
+            MessageId = $"prog-{Interlocked.Increment(ref _msgCounter):D4}",
             Timestamp = DateTimeOffset.Now,
-            EventType = eventType,
-            NodeLevel = nodeLevel,
-            Title = title,
-            Detail = detail,
-            Status = status,
-            StepId = stepId,
-            StepSequence = stepSequence > 0 ? stepSequence : null,
-            ProgressPercent = progressPercent > 0 ? progressPercent : null,
-            Card = card,
-        };
-        TimelineEvents.Add(evt);
+            Role = "progress",
+            Content = title,
+            ProgressType = kind,
+            DotColor = dotColor,
+            TimelineTitle = title,
+            TimelineSubText = subText,
+            IsLastProgress = true,
+        });
     }
 
-    /// <summary>更新 PlanSteps 面板中指定序号的步骤状态。必须在 UI 线程调用。</summary>
-    private void UpdatePlanStep(int sequence, string statusIcon, string statusColor, string? title = null)
+    /// <summary>追加一条系统消息（Role="system"）。必须在 UI 线程调用。</summary>
+    private void AppendSystem(string text)
     {
-        if (sequence <= 0 || sequence > PlanSteps.Count) return;
-
-        var index = sequence - 1;
-        var old = PlanSteps[index];
-
-        // PlanStepOverviewVm 是 immutable-like（init 属性），替换整个对象
-        PlanSteps[index] = new PlanStepOverviewVm
+        FeedItems.Add(new ConversationMessageVm
         {
-            Sequence = old.Sequence,
-            Title = title ?? old.Title,
-            StatusIcon = statusIcon,
-            StatusColor = statusColor,
-            IsParallel = old.IsParallel,
-            DependsOnText = old.DependsOnText,
-        };
+            MessageId = $"sys-{Interlocked.Increment(ref _msgCounter):D4}",
+            Timestamp = DateTimeOffset.Now,
+            Role = "system",
+            Content = text,
+        });
     }
 
-    /// <summary>更新耗时显示。</summary>
     private void UpdateDuration()
     {
         var elapsed = DateTimeOffset.Now - _startedAt;
-        var totalSeconds = (int)elapsed.TotalSeconds;
-        if (totalSeconds < 0) totalSeconds = 0;
-        var minutes = totalSeconds / 60;
-        var seconds = totalSeconds % 60;
-        DurationText = $"{minutes}:{seconds:D2}";
+        var total = Math.Max(0, (int)elapsed.TotalSeconds);
+        DurationText = $"{total / 60}:{total % 60:D2}";
     }
 
-    /// <summary>
-    /// 异步构建 HITL 审批卡片（从引擎获取完整计划数据）。
-    /// 在 OnTaskPlanCreated 事件回调中 fire-and-forget 调用。
-    /// </summary>
-    private async Task BuildApprovalAsync(string taskId, int version, int stepCount)
-    {
-        var engine = App.Services.GetRequiredService<TaskExecutionEngine>();
-        var detail = await engine.GetTaskDetailAsync(taskId, CancellationToken.None).ConfigureAwait(false);
-
-        await Dispatcher.UIThread.InvokeAsync(() =>
-        {
-            if (taskId != _taskId) return; // 任务已切换
-
-            var planText = "（计划步骤加载中…）";
-            if (detail?.Plan?.Steps is { Count: > 0 } steps)
-            {
-                var lines = steps
-                    .OrderBy(s => s.Sequence)
-                    .Select(s => $"{s.Sequence}. {s.Title}");
-                planText = string.Join("\n", lines);
-
-                // 同步更新 PlanSteps 标题（之前只有占位"步骤 N"）
-                for (var i = 0; i < steps.Count && i < PlanSteps.Count; i++)
-                {
-                    var step = steps.OrderBy(s => s.Sequence).ElementAt(i);
-                    if (PlanSteps[i].Title != step.Title)
-                    {
-                        PlanSteps[i] = new PlanStepOverviewVm
-                        {
-                            Sequence = step.Sequence,
-                            Title = step.Title,
-                            StatusIcon = "⏳",
-                            StatusColor = "#858585",
-                        };
-                    }
-                }
-            }
-
-            Approval = new PlanApprovalVm
-            {
-                IsVisible = true,
-                IsInteractive = true,
-                PauseReasonText = $"等待确认执行计划 (v{version}, {stepCount}步)",
-                PlanText = planText,
-            };
-
-            StatusText = "已暂停";
-            StatusColor = "#e0c074";
-            OnPropertyChanged(nameof(IsPaused));
-            OnPropertyChanged(nameof(IsRunning));
-        });
-    }
-
-    /// <summary>格式化阶段名称。</summary>
     private static string FormatPhaseName(string phase) => phase switch
     {
         "requirements" => "需求分析",
-        "planning" => "计划制定",
-        "executing" => "执行",
-        "validation" => "验证",
-        _ => phase,
+        "planning"     => "计划制定",
+        "executing"    => "执行",
+        "validating"   => "验证",
+        _              => phase,
     };
 
     // ══════════════════════════════════════════════════════════════════════
@@ -829,14 +539,14 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    private void OnPropertyChanged([CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
-    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? name = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return false;
         field = value;
-        OnPropertyChanged(propertyName);
+        OnPropertyChanged(name);
         return true;
     }
 }

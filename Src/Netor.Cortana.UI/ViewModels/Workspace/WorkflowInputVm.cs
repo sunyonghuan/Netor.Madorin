@@ -2,11 +2,15 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
+using Avalonia.Threading;
+
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 using Netor.Cortana.AI.TaskEngine;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
+using Netor.EventHub;
 
 namespace Netor.Cortana.UI.ViewModels.Workspace;
 
@@ -32,13 +36,15 @@ namespace Netor.Cortana.UI.ViewModels.Workspace;
 ///
 /// 详见 Docs/未来版本策划/聊天式任务发起与动态智能体/01-P2方案设计.md §2.1 + §2.2。
 /// </summary>
-public sealed class WorkflowInputVm : INotifyPropertyChanged
+public sealed class WorkflowInputVm : IInputVm
 {
     private readonly AgentService _agentService;
     private readonly AiProviderService _providerService;
     private readonly AiModelService _modelService;
     private readonly TaskExecutionEngine _engine;
     private readonly SystemSettingsService _systemSettings;
+    private readonly ISubscriber _subscriber;
+    private readonly ILogger<WorkflowInputVm> _logger;
 
     private string _initialInput = string.Empty;
     private AgentEntity? _selectedManager;
@@ -73,6 +79,8 @@ public sealed class WorkflowInputVm : INotifyPropertyChanged
         _modelService = App.Services.GetRequiredService<AiModelService>();
         _engine = App.Services.GetRequiredService<TaskExecutionEngine>();
         _systemSettings = App.Services.GetRequiredService<SystemSettingsService>();
+        _subscriber = App.Services.GetRequiredService<ISubscriber>();
+        _logger = App.Services.GetRequiredService<ILogger<WorkflowInputVm>>();
 
         // 启动时一次性读取 SystemSettings 持久化值
         _maxSubAgents = _systemSettings.GetValue(MaxDynamicSubAgentsKey, 5);
@@ -81,6 +89,7 @@ public sealed class WorkflowInputVm : INotifyPropertyChanged
         LoadAvailableAgents();
         LoadAvailableProviders();
         RestoreDefaultSelections();
+        SubscribeTaskEvents();
     }
 
     // ──── 输入字段 ────
@@ -280,11 +289,31 @@ public sealed class WorkflowInputVm : INotifyPropertyChanged
     /// <summary>!IsRunning 的便利属性（避免 axaml 反向 binding converter）。</summary>
     public bool IsIdle => !_isRunning;
 
+    /// <summary>
+    /// 是否处于对话模式（文档 08 §3.1）。
+    /// true  = 已有运行中任务，输入框为对话消息通道，占位文本改为"继续对话…"
+    /// false = 无任务，输入框为首次发起任务
+    /// </summary>
+    public bool IsConversationMode => !string.IsNullOrEmpty(_currentTaskId);
+
+    /// <summary>输入框占位文本（根据模式动态切换）。</summary>
+    public string InputPlaceholderText
+        => IsConversationMode
+            ? "继续对话（Enter 发送，Shift+Enter 换行）"
+            : "输入任务描述（Enter 发送，Shift+Enter 换行，# 引用文件）";
+
     /// <summary>当前运行中的任务 ID。Stop 按钮点击时用于 CancelTaskAsync。</summary>
     public string? CurrentTaskId
     {
         get => _currentTaskId;
-        private set => SetField(ref _currentTaskId, value);
+        private set
+        {
+            if (SetField(ref _currentTaskId, value))
+            {
+                OnPropertyChanged(nameof(IsConversationMode));
+                OnPropertyChanged(nameof(InputPlaceholderText));
+            }
+        }
     }
 
     /// <summary>表单校验错误（启动失败时显示）。</summary>
@@ -445,8 +474,6 @@ public sealed class WorkflowInputVm : INotifyPropertyChanged
     {
         if (!CanSubmit)
         {
-            // P2-2 修复 2026-05-17：错误提示改为"请先到设置中创建"导向（用户决策：不怪用户没勾选）。
-            // 选择器初始化时会自动填充默认值，只有系统数据完全为空时才会出现 null。
             ValidationError = _selectedManager is null
                 ? "未找到可用的智能体，请先到设置中创建智能体。"
                 : _selectedProvider is null
@@ -461,26 +488,28 @@ public sealed class WorkflowInputVm : INotifyPropertyChanged
         IsRunning = true;
         try
         {
-            // P4：直接调用 TaskExecutionEngine.StartTaskAsync（不再构造 WorkflowTaskRequest）
-            // templateId 暂时为 null（后续 P4-6 模板功能接入时从 UI 传入）
             var options = new AI.TaskEngine.Models.TaskStartOptions
             {
                 ProviderId = _selectedProvider?.Id,
                 ModelId = _selectedModel?.Id,
                 SubMode = _subMode,
             };
+            var userInput = _initialInput.Trim();
+
             var taskId = await _engine.StartTaskAsync(
-                _initialInput.Trim(),
+                userInput,
                 _workspaceId,
                 templateId: null,
                 options,
                 cancellationToken);
             CurrentTaskId = taskId;
 
-            // 启动成功：清空输入框（用户可继续输入下一个任务）
             _initialInput = string.Empty;
             OnPropertyChanged(nameof(InitialInput));
             OnPropertyChanged(nameof(CanSubmit));
+
+            var workspaceVm = App.Services.GetRequiredService<WorkspaceTabVm>();
+            await workspaceVm.ShowTaskAsync(taskId, title: null, initialUserInput: userInput);
 
             return taskId;
         }
@@ -514,6 +543,118 @@ public sealed class WorkflowInputVm : INotifyPropertyChanged
     {
         IsRunning = false;
         CurrentTaskId = null;
+    }
+
+    /// <summary>
+    /// 订阅引擎事件以管理输入框运行状态：
+    /// - AI 提问 / AI 回复完成 → 解锁输入框
+    /// - 任务失败 → 完全重置
+    /// </summary>
+    private void SubscribeTaskEvents()
+    {
+        // AI 向用户提问（[ASK_USER]）→ 解锁输入框让用户回答
+        _subscriber.Subscribe<TaskUserQuestionEventArgs>(Events.OnTaskUserQuestionAsked, (_, args) =>
+        {
+            if (args.TaskId != _currentTaskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() => IsRunning = false);
+            return Task.FromResult(false);
+        });
+
+        // 计划生成 → 等待用户确认，解锁输入框
+        _subscriber.Subscribe<TaskPlanEventArgs>(Events.OnTaskPlanCreated, (_, args) =>
+        {
+            if (args.TaskId != _currentTaskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() => IsRunning = false);
+            return Task.FromResult(false);
+        });
+
+        // AI 完成一轮回复 → 解锁输入框（用户可继续对话）
+        _subscriber.Subscribe<WorkflowConversationMessageArgs>(Events.OnWorkflowConversationMessage, (_, args) =>
+        {
+            if (args.TaskId != _currentTaskId) return Task.FromResult(false);
+            if (args.Role == "ai")
+                Dispatcher.UIThread.Post(() => IsRunning = false);
+            return Task.FromResult(false);
+        });
+
+        // 任务暂停 → 解锁输入框，让用户可以发送消息
+        _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEnginePaused, (_, args) =>
+        {
+            if (args.TaskId != _currentTaskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() => IsRunning = false);
+            return Task.FromResult(false);
+        });
+
+        // 任务完成（执行阶段结束，进入永续对话）→ 解锁，保留 CurrentTaskId 维持对话模式
+        _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineCompleted, (_, args) =>
+        {
+            if (args.TaskId != _currentTaskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(() => IsRunning = false);
+            return Task.FromResult(false);
+        });
+
+        // 任务失败 → 完全重置（清除 CurrentTaskId 回到发起模式）
+        _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineFailed, (_, args) =>
+        {
+            if (args.TaskId != _currentTaskId) return Task.FromResult(false);
+            Dispatcher.UIThread.Post(OnTaskFinished);
+            return Task.FromResult(false);
+        });
+    }
+
+    // ──── IInputVm 接口显式实现（SubmitAsync / CancelAsync） ────
+
+    /// <inheritdoc cref="IInputVm.SubmitAsync"/>
+    /// <remarks>工作流模式下委托到 <see cref="SendOrStartAsync"/>。</remarks>
+    public Task SubmitAsync(CancellationToken cancellationToken = default)
+        => SendOrStartAsync(cancellationToken);
+
+    /// <inheritdoc cref="IInputVm.CancelAsync"/>
+    /// <remarks>工作流模式下委托到 <see cref="StopAsync"/>，忽略返回值。</remarks>
+    public async Task CancelAsync(CancellationToken cancellationToken = default)
+        => await StopAsync(cancellationToken);
+
+    // ──── 文档 08 §3：对话模式消息发送 ────
+
+    /// <summary>
+    /// 对话模式下发送消息（文档 08 §3.1）。
+    /// 当任务已在运行（CurrentTaskId 有值）时，调用引擎的 SendConversationMessageAsync。
+    /// 当任务尚未启动时（首次输入），调用 StartAsync 启动任务。
+    /// </summary>
+    public async Task<bool> SendOrStartAsync(CancellationToken cancellationToken)
+    {
+        var text = _initialInput?.Trim();
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        // 已有运行中任务 → 对话模式消息
+        if (!string.IsNullOrEmpty(_currentTaskId))
+        {
+            IsRunning = true;
+            try
+            {
+                var result = await _engine.SendConversationMessageAsync(
+                    _currentTaskId, text, cancellationToken);
+
+                if (!result)
+                    IsRunning = false; // 引擎拒绝（任务已结束等）
+
+                // 清空输入框
+                _initialInput = string.Empty;
+                OnPropertyChanged(nameof(InitialInput));
+                OnPropertyChanged(nameof(CanSubmit));
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "SendConversationMessage 异常");
+                IsRunning = false;
+                throw;
+            }
+        }
+
+        // 无任务 → 启动新任务
+        var taskId = await StartAsync(cancellationToken);
+        return taskId is not null;
     }
 
     // ──── INotifyPropertyChanged ────

@@ -50,7 +50,8 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
 
     /// <inheritdoc/>
     public async Task<RequirementsAnalysis> RunRequirementsPhaseAsync(
-        string taskId, string userInput, Func<int, string, Task<string>>? onAskUser, CancellationToken ct)
+        string taskId, string userInput, Func<int, string, Task<string>>? onAskUser,
+        Action<string>? onAiMessage, CancellationToken ct)
     {
         _logger.LogInformation("P4 需求分析阶段开始: {TaskId}", taskId);
 
@@ -75,8 +76,13 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
                 userMessage,
                 RequirementsMaxTurns,
                 onAskUser,
-                (turn, text) => _logger.LogDebug(
-                    "P4 需求分析第{Turn}轮: {TaskId} ({Len}c)", turn, taskId, text.Length),
+                (turn, text) =>
+                {
+                    _logger.LogDebug("P4 需求分析第{Turn}轮: {TaskId} ({Len}c)", turn, taskId, text.Length);
+                    // [DONE] 轮次是最终结构化 JSON 输出，不对用户展示
+                    if (!text.Contains("[DONE]", StringComparison.OrdinalIgnoreCase))
+                        onAiMessage?.Invoke(CleanLlmMarkers(text));
+                },
                 ct).ConfigureAwait(false);
         }
         else
@@ -86,8 +92,12 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
                 OrchestratorPrompts.RequirementsAnalyst,
                 userMessage,
                 RequirementsMaxTurns,
-                (turn, text) => _logger.LogDebug(
-                    "P4 需求分析第{Turn}轮: {TaskId} ({Len}c)", turn, taskId, text.Length),
+                (turn, text) =>
+                {
+                    _logger.LogDebug("P4 需求分析第{Turn}轮: {TaskId} ({Len}c)", turn, taskId, text.Length);
+                    if (!text.Contains("[DONE]", StringComparison.OrdinalIgnoreCase))
+                        onAiMessage?.Invoke(CleanLlmMarkers(text));
+                },
                 ct).ConfigureAwait(false);
         }
 
@@ -134,6 +144,7 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
         RequirementsAnalysis requirements,
         ExecutionTemplate? template,
         Func<int, string, Task<string>>? onAskUser,
+        Action<string>? onAiMessage,
         CancellationToken ct)
     {
         _logger.LogInformation("P4 计划制定阶段开始: {TaskId}", taskId);
@@ -185,8 +196,12 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
                 userMessageBuilder.ToString(),
                 RequirementsMaxTurns,
                 onAskUser,
-                (turn, text) => _logger.LogDebug(
-                    "P4 计划制定第{Turn}轮: {TaskId} ({Len}c)", turn, taskId, text.Length),
+                (turn, text) =>
+                {
+                    _logger.LogDebug("P4 计划制定第{Turn}轮: {TaskId} ({Len}c)", turn, taskId, text.Length);
+                    if (!text.Contains("[DONE]", StringComparison.OrdinalIgnoreCase))
+                        onAiMessage?.Invoke(CleanLlmMarkers(text));
+                },
                 ct).ConfigureAwait(false);
 
             result = TryParseJson<PlanningResponseDto>(
@@ -208,6 +223,26 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
         _logger.LogInformation("P4 计划制定完成: {TaskId}（{StepCount} 个步骤，目标={Goal}）",
             taskId, plan.Steps.Count, plan.FinalGoal.Length > 50 ? plan.FinalGoal[..50] + "…" : plan.FinalGoal);
 
+        // 向对话流推送 Markdown 格式的计划摘要，让用户可以查看并确认（问题 1）
+        if (onAiMessage is not null)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"好的，我已为您制定了执行计划（共 {plan.Steps.Count} 步）：");
+            sb.AppendLine();
+            foreach (var step in plan.Steps)
+            {
+                sb.AppendLine($"**步骤 {step.Sequence}：{step.Title}**");
+                if (!string.IsNullOrWhiteSpace(step.Description))
+                    sb.AppendLine(step.Description);
+                sb.AppendLine();
+            }
+            if (!string.IsNullOrWhiteSpace(plan.FinalGoal))
+                sb.AppendLine($"最终目标：{plan.FinalGoal}");
+            sb.AppendLine();
+            sb.AppendLine("请告诉我是否确认执行，或需要调整哪些步骤。");
+            onAiMessage.Invoke(sb.ToString());
+        }
+
         return plan;
     }
 
@@ -217,10 +252,18 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
 
     /// <inheritdoc/>
     public async Task<StepResult> ExecuteStepAsync(
-        string taskId, ExecutionPlan plan, PlanStep step, CancellationToken ct)
+        string taskId, ExecutionPlan plan, PlanStep step,
+        Action<string>? onAiMessage, string? workspaceDir, CancellationToken ct)
     {
         _logger.LogInformation("P4 步骤执行开始: {TaskId}/{StepId} (#{Seq} {Title})",
             taskId, step.StepId, step.Sequence, step.Title);
+
+        // 确保工作目录存在
+        if (!string.IsNullOrWhiteSpace(workspaceDir))
+        {
+            Directory.CreateDirectory(workspaceDir);
+            _logger.LogDebug("P4 步骤工作目录: {WorkspaceDir}", workspaceDir);
+        }
 
         // 构建 system prompt（替换占位符）
         var previousSummary = BuildPreviousStepsSummary(plan, step);
@@ -230,6 +273,9 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
                 : "通用任务执行专家", StringComparison.Ordinal)
             .Replace("{StepTitle}", step.Title, StringComparison.Ordinal)
             .Replace("{StepDescription}", step.Description, StringComparison.Ordinal)
+            .Replace("{WorkspaceDirectory}", string.IsNullOrWhiteSpace(workspaceDir)
+                ? "（未指定工作目录，请将文件写入当前目录）"
+                : workspaceDir, StringComparison.Ordinal)
             .Replace("{PreviousStepsSummary}", previousSummary.Length > 0
                 ? previousSummary
                 : "（本步骤无前置依赖，独立执行）", StringComparison.Ordinal);
@@ -245,15 +291,43 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
             如果工作量较大需要分段完成，每段结束写 [CONTINUE]，最后一段写 [DONE]。
             """;
 
-        // 使用多轮对话执行（支持长任务分段输出）
-        var fullResponse = await _runner.RunMultiTurnAsync(
-            systemPrompt,
-            userMessage,
-            StepExecutionMaxTurns,
-            (turn, text) => _logger.LogDebug(
-                "P4 步骤执行 {TaskId}/{StepId} 第{Turn}轮完成 ({Len}c)",
-                taskId, step.StepId, turn, text.Length),
-            ct).ConfigureAwait(false);
+        // 执行步骤：有工具需求时走带工具的 AIAgent，否则走纯文本多轮对话
+        string fullResponse;
+        if (step.RequiredTools is { Count: > 0 })
+        {
+            _logger.LogDebug("P4 步骤 {StepId} 使用工具执行模式（工具={Tools}）",
+                step.StepId, string.Join(",", step.RequiredTools));
+            fullResponse = await _runner.RunWithToolsAsync(
+                systemPrompt,
+                userMessage,
+                step.RequiredTools,
+                $"step_{step.Sequence}_{step.Title}"[..Math.Min(32, $"step_{step.Sequence}_{step.Title}".Length)],
+                text =>
+                {
+                    _logger.LogDebug("P4 步骤执行工具模式 {TaskId}/{StepId} 输出 ({Len}c)",
+                        taskId, step.StepId, text.Length);
+                    onAiMessage?.Invoke(text);
+                },
+                ct).ConfigureAwait(false);
+        }
+        else
+        {
+            // 无工具需求：纯文本多轮对话（支持长任务分段输出）
+            fullResponse = await _runner.RunMultiTurnAsync(
+                systemPrompt,
+                userMessage,
+                StepExecutionMaxTurns,
+                (turn, text) =>
+                {
+                    _logger.LogDebug(
+                        "P4 步骤执行 {TaskId}/{StepId} 第{Turn}轮完成 ({Len}c)",
+                        taskId, step.StepId, turn, text.Length);
+                    if (!text.Contains("[DONE]", StringComparison.OrdinalIgnoreCase)
+                        && !text.Contains("[CONTINUE]", StringComparison.OrdinalIgnoreCase))
+                        onAiMessage?.Invoke(CleanLlmMarkers(text));
+                },
+                ct).ConfigureAwait(false);
+        }
 
         // 从最终响应中提取 JSON 摘要
         var resultDto = TryParseJson<StepExecutionResponseDto>(
@@ -396,6 +470,68 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
         }
 
         return validationResult;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 文档 08 §3.2：对话意图识别
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <inheritdoc/>
+    public async Task<ConversationIntentResponseDto> RecognizeConversationIntentAsync(
+        string taskId,
+        IReadOnlyList<(string Role, string Content)> conversationHistory,
+        string userMessage,
+        string? planContext,
+        CancellationToken ct)
+    {
+        _logger.LogInformation("P4 对话意图识别开始: {TaskId} ({MsgLen}c)", taskId, userMessage.Length);
+
+        // 构建 user message：对话历史 + 当前计划上下文 + 用户输入
+        var sb = new StringBuilder(1024);
+
+        if (!string.IsNullOrEmpty(planContext))
+        {
+            sb.AppendLine("## 当前执行计划");
+            sb.AppendLine(planContext);
+            sb.AppendLine();
+        }
+
+        if (conversationHistory.Count > 0)
+        {
+            sb.AppendLine("## 对话历史（最近若干轮）");
+            foreach (var (role, content) in conversationHistory)
+            {
+                var label = role == "user" ? "用户" : "AI";
+                var preview = content.Length > 200 ? content[..200] + "…" : content;
+                sb.AppendLine($"[{label}]: {preview}");
+            }
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("## 用户当前输入");
+        sb.AppendLine(userMessage);
+
+        var result = await _runner.RunJsonAsync(
+            OrchestratorPrompts.ConversationIntentRecognizer,
+            sb.ToString(),
+            TaskEngineJsonContext.Default.ConversationIntentResponseDto,
+            ct).ConfigureAwait(false);
+
+        if (result is not null)
+        {
+            _logger.LogInformation(
+                "P4 意图识别完成: {TaskId} intent={Intent} response={ResponseLen}c",
+                taskId, result.Intent, result.Response?.Length ?? 0);
+            return result;
+        }
+
+        // 解析失败时降级：当作 other 意图，返回友好错误提示
+        _logger.LogWarning("P4 意图识别 JSON 解析失败，降级为 other: {TaskId}", taskId);
+        return new ConversationIntentResponseDto
+        {
+            Intent = "other",
+            Response = "我收到了你的消息，但处理时遇到了一些问题。请再试一次，或者换个方式表达你的想法。",
+        };
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -644,6 +780,16 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
 
         return sb.ToString();
     }
+
+    /// <summary>
+    /// 去掉 LLM 控制标记，得到适合展示给用户的干净文本。
+    /// </summary>
+    private static string CleanLlmMarkers(string text)
+        => text
+            .Replace("[DONE]", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("[CONTINUE]", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("[ASK_USER]", "", StringComparison.OrdinalIgnoreCase)
+            .Trim();
 
     /// <summary>
     /// 尝试从文本响应中提取并反序列化 JSON。

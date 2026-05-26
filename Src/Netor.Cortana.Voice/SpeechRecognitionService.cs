@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.EventHub;
-using Netor.EventHub.Interfances;
+using Netor.EventHub.Interfaces;
 
 using SherpaOnnx;
 
@@ -363,6 +363,5 @@ public sealed class SpeechRecognitionService(
         {
             logger.LogError(ex, "语音识别服务清理异常");
         }
-
     }
 }

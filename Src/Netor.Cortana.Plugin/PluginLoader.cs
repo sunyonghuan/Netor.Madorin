@@ -7,7 +7,7 @@ using Netor.Cortana.Plugin.Mcp;
 using Netor.Cortana.Plugin.Native;
 using Netor.Cortana.Plugin.Process;
 using Netor.EventHub;
-using Netor.EventHub.Interfances;
+using Netor.EventHub.Interfaces;
 
 using System.Collections.Concurrent;
 using System.Text.Json;
@@ -427,7 +427,7 @@ public sealed class PluginLoader : IDisposable, IAsyncDisposable
             host.IsConnected ? $"已连接,[{host.Tools.Count}]个工具可用" : host.IsReconnecting ? "重连中" : "已断开");
 
         _publisher.Publish(Events.OnMcpConnectionStateChanged,
-            new McpConnectionStateChangedArgs(host.Name , host.Id, host.IsConnected, host.IsReconnecting));
+            new McpConnectionStateChangedArgs(host.Name, host.Id, host.IsConnected, host.IsReconnecting));
 
         NotifyPluginsChanged();
     }

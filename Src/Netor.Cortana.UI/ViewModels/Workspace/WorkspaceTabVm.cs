@@ -1,3 +1,5 @@
+using Avalonia.Threading;
+
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -44,6 +46,11 @@ public sealed class WorkspaceTabVm : INotifyPropertyChanged
     /// </summary>
     public Task OnAttachedAsync(string workspaceId, IReadOnlyList<string>? subModes = null)
     {
+        // 切换 Tab 时先清空详情区 + 列表选中，避免残留旧任务的失败/取消状态。
+        // 决策 8-A：切换 Tab 始终回到"无选中 = 空状态提示"，用户主动点击列表项才加载详情。
+        Detail.Clear();
+        List.ClearSelection();
+
         List.WorkspaceId = workspaceId ?? string.Empty;
         // SubModeFilter setter 内部已处理"切换时清空选中项 + 重新加载"，
         // 此处再调 LoadAsync 看似冗余，但是 SubModeFilter 引用相同时 setter 会跳过 reload，
@@ -55,12 +62,27 @@ public sealed class WorkspaceTabVm : INotifyPropertyChanged
     /// <summary>
     /// 启动新任务后立即切换主详情区到该任务，展示运行状态与后续步骤。
     /// </summary>
-    public async Task ShowTaskAsync(string taskId)
+    /// <param name="taskId">任务 ID。</param>
+    /// <param name="title">任务标题（为空时从引擎加载）。</param>
+    /// <param name="initialUserInput">用户原始输入，非空时直接写入 Feed 首条用户消息，无需等待引擎事件。</param>
+    public Task ShowTaskAsync(string taskId, string? title = null, string? initialUserInput = null)
     {
-        if (string.IsNullOrEmpty(taskId)) return;
+        if (string.IsNullOrEmpty(taskId)) return Task.CompletedTask;
+
+        // 新任务直接用 LoadTask（同步初始化，含用户首条消息）
+        // 关键顺序：LoadTask 先于 SelectTaskById 执行，确保 _taskId 已设置。
+        // SelectTaskById 会触发 OnListPropertyChanged → Detail.LoadAsync(taskId)，
+        // 而 LoadAsync 开头有 `if (taskId == _taskId) return;` 守卫，
+        // LoadTask 先跑 → _taskId 已等于 taskId → LoadAsync 直接返回，避免竞态覆盖。
+        if (!string.IsNullOrEmpty(initialUserInput))
+        {
+            Detail.LoadTask(taskId, title ?? taskId[..Math.Min(8, taskId.Length)], initialUserInput);
+            List.SelectTaskById(taskId);
+            return Task.CompletedTask;
+        }
 
         List.SelectTaskById(taskId);
-        await Detail.LoadAsync(taskId);
+        return Detail.LoadAsync(taskId);
     }
 
     private void OnListPropertyChanged(object? sender, PropertyChangedEventArgs e)

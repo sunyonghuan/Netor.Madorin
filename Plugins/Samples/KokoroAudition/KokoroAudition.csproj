@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="NAudio.WinMM" Version="2.3.0" />
-    <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.12.35" />
+    <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.13.2" />
   </ItemGroup>
 
   <!-- TTS 模型文件：MeloTTS zh_en INT8 中英双语 TTS（VITS 架构，单说话人） -->

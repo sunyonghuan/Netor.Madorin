@@ -37,6 +37,7 @@ namespace Netor.Cortana.AI.TaskEngine.Persistence;
 [JsonSerializable(typeof(List<TemplateStep>))]
 [JsonSerializable(typeof(List<TemplateSubTask>))]
 [JsonSerializable(typeof(Dictionary<string, PlanStepStatus>))]
+[JsonSerializable(typeof(ConversationIntentResponseDto))]
 [JsonSourceGenerationOptions(
     WriteIndented = true,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
@@ -193,4 +194,22 @@ public sealed class ValidationResponseDto
     public string? Summary { get; set; }
     public List<string>? Issues { get; set; }
     public List<string>? Suggestions { get; set; }
+}
+
+/// <summary>
+/// 对话模式意图识别 JSON 输出 DTO（文档 08 §3.2）。
+/// </summary>
+public sealed class ConversationIntentResponseDto
+{
+    /// <summary>
+    /// 意图标识：confirm_execute / modify_plan / question /
+    /// specify_path / satisfied / cancel / other。
+    /// </summary>
+    public string? Intent { get; set; }
+
+    /// <summary>给用户看的自然语言回复（AI 生成）。</summary>
+    public string? Response { get; set; }
+
+    /// <summary>仅 intent=modify_plan 时非 null，简要说明修改了什么。</summary>
+    public string? UpdatedPlanSummary { get; set; }
 }

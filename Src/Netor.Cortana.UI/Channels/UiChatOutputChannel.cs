@@ -131,7 +131,7 @@ internal sealed class UiChatOutputChannel(
         if (_currentPresenter is not null) return;
 
         var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
-        var messageList = mainWindow.FindControl<ItemsControl>("MessageList");
+        var messageList = mainWindow.ChatMessageList;           // 修复：原 FindControl<ItemsControl>("MessageList")
         if (messageList is null) return;
 
         var aiBubbleBrush = (IBrush)mainWindow.FindResource("AiBubbleBrush")!;
@@ -161,8 +161,7 @@ internal sealed class UiChatOutputChannel(
         };
 
         // ── 气泡头部：智能体名称 + 时间 ──
-        var agentLabel = mainWindow.FindControl<TextBlock>("ToolbarAgentLabel");
-        var displayName = agentLabel?.Text ?? "助手";
+        var displayName = mainWindow.CurrentAgentName;         // 修复：原 FindControl<TextBlock>("ToolbarAgentLabel")
         var displayTime = DateTimeOffset.Now.ToLocalTime().ToString("HH:mm");
 
         var headerPanel = new DockPanel

@@ -2,140 +2,39 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Netor.Cortana.UI.ViewModels.Workspace"
              xmlns:controls="using:Netor.Cortana.UI.Controls"
-             xmlns:entities="using:Netor.Cortana.Entitys"
              x:Class="Netor.Cortana.UI.Views.Workspace.GroupChatDetailView"
              x:DataType="vm:WorkspaceTabVm"
              x:CompileBindings="True"
              Background="#1e1e1e">
 
-	<!-- ════════════════════════════════════════════════════════════════
-	     P2-1：群聊任务详情视图（条款 1-12 重写版，2026-05-17）
-	     ════════════════════════════════════════════════════════════════
-	     设计原则：完全复刻 Chat 输入框风格，与 WorkflowDetailView 保持一致。
-	     - 详情区（Row 0）：与 WorkflowDetailView 完全一致（共享 WorkspaceTabVm.Detail）
-	     - 输入框区（Row 1）差异（用户澄清 A）：
-	       · 没有上方一行（不需要子模式 / 子 Agent 数量）
-	       · 没有厂商/模型按钮（每个 Agent 用自己的 Provider/Model，未设的用默认）
-	       · 智能体按钮 → 多选 Popup CheckListBox（条款 11，标签显示「已选 N 个智能体」）
-	       · 走马灯：紫色 #b070ff（条款 12，群聊创意感）
-	       · 下方一行：附件 / 智能体 / 工具（3 个 titlebar-btn）
+	<!-- 样式已全部迁入 Styles/ThemeResources.axaml，此处无需重复定义 -->
 
-	     DataContext：
-	     - 详情区 DataContext = WorkspaceTabVm（构造函数注入）
-	     - InputArea.DataContext = GroupChatInputVm（构造函数注入）
-	     ════════════════════════════════════════════════════════════════ -->
-
-	<UserControl.Styles>
-		<!-- 步骤项 -->
-		<Style Selector="Border.step-item">
-			<Setter Property="Background" Value="#252526" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="Padding" Value="10,8" />
-			<Setter Property="Margin" Value="0,2" />
-			<Setter Property="BorderBrush" Value="#3c3c3c" />
-			<Setter Property="BorderThickness" Value="1" />
-		</Style>
-
-		<!-- 详情区操作按钮 -->
-		<Style Selector="Button.detail-action-btn">
-			<Setter Property="Background" Value="#3a3d41" />
-			<Setter Property="Foreground" Value="#cccccc" />
-			<Setter Property="Padding" Value="12,6" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="FontSize" Value="12" />
-			<Setter Property="Cursor" Value="Hand" />
-			<Setter Property="BorderThickness" Value="0" />
-			<Setter Property="Margin" Value="0,0,8,0" />
-		</Style>
-		<Style Selector="Button.detail-action-btn:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#4a4d51" />
-		</Style>
-		<Style Selector="Button.detail-action-btn-cancel">
-			<Setter Property="Background" Value="#6e2828" />
-		</Style>
-		<Style Selector="Button.detail-action-btn-cancel:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#7a3030" />
-		</Style>
-
-		<!-- HITL 批准卡片 -->
-		<Style Selector="Border.approval-card">
-			<Setter Property="Background" Value="#3a1f1f" />
-			<Setter Property="BorderBrush" Value="#a04848" />
-			<Setter Property="BorderThickness" Value="1" />
-			<Setter Property="CornerRadius" Value="6" />
-			<Setter Property="Padding" Value="16,12" />
-		</Style>
-		<Style Selector="Border.approval-plan">
-			<Setter Property="Background" Value="#252526" />
-			<Setter Property="BorderBrush" Value="#3c3c3c" />
-			<Setter Property="BorderThickness" Value="1" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="Padding" Value="12,10" />
-		</Style>
-		<Style Selector="Button.approval-btn-primary">
-			<Setter Property="Background" Value="#0e7c3c" />
-			<Setter Property="Foreground" Value="#ffffff" />
-			<Setter Property="Padding" Value="14,8" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="FontSize" Value="13" />
-			<Setter Property="FontWeight" Value="SemiBold" />
-			<Setter Property="Cursor" Value="Hand" />
-			<Setter Property="BorderThickness" Value="0" />
-			<Setter Property="Margin" Value="0,0,8,0" />
-		</Style>
-		<Style Selector="Button.approval-btn-primary:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#0e9c4c" />
-		</Style>
-		<Style Selector="Button.approval-btn-secondary">
-			<Setter Property="Background" Value="#3a3d41" />
-			<Setter Property="Foreground" Value="#cccccc" />
-			<Setter Property="Padding" Value="14,8" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="FontSize" Value="13" />
-			<Setter Property="Cursor" Value="Hand" />
-			<Setter Property="BorderThickness" Value="0" />
-			<Setter Property="Margin" Value="0,0,8,0" />
-		</Style>
-		<Style Selector="Button.approval-btn-secondary:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#4a4d51" />
-		</Style>
-		<Style Selector="Button.approval-btn-danger">
-			<Setter Property="Background" Value="#6e2828" />
-			<Setter Property="Foreground" Value="#ffffff" />
-			<Setter Property="Padding" Value="14,8" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="FontSize" Value="13" />
-			<Setter Property="Cursor" Value="Hand" />
-			<Setter Property="BorderThickness" Value="0" />
-		</Style>
-		<Style Selector="Button.approval-btn-danger:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#8a3838" />
-		</Style>
-
-		<!-- 附件 chip 样式（与 Chat 模式一致） -->
-		<Style Selector="Border.attachment-tag">
-			<Setter Property="Background" Value="#252526" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="Padding" Value="8,4" />
-			<Setter Property="Margin" Value="0,0,4,4" />
-			<Setter Property="BorderBrush" Value="#3c3c3c" />
-			<Setter Property="BorderThickness" Value="1" />
-		</Style>
-	</UserControl.Styles>
-
+	<!--
+	  ╔══════════════════════════════════════════════════════════════╗
+	  ║  布局：Grid 两行                                              ║
+	  ║  Row 0 (*):    任务区（空状态 / 标题 + 发言记录）             ║
+	  ║  Row 1 (Auto): 输入区（InputAreaView 共享控件）              ║
+	  ╚══════════════════════════════════════════════════════════════╝
+	-->
 	<Grid x:Name="DetailRoot" RowDefinitions="*,Auto">
-		<!-- ════════════════════════════════════════════════════════════════
-		     Row 0：任务详情区（与 WorkflowDetailView 100% 一致）
-		     ════════════════════════════════════════════════════════════════ -->
+
+		<!-- ═══════════════════════════════════════════════════════════
+		     Row 0：任务区
+		     ═══════════════════════════════════════════════════════════ -->
 		<Panel Grid.Row="0">
+
+			<!-- 无任务选中：空状态提示 -->
 			<controls:EmptyState x:Name="EmptyHint"
 			                     IsVisible="{Binding Detail.TaskId, Converter={x:Static StringConverters.IsNullOrEmpty}}"
 			                     IconText="💬"
 			                     Title="选择左侧任务查看群聊讨论"
 			                     Description="左侧任务列表为空时，在下方输入框中选择智能体并输入讨论话题即可发起群聊。&#10;群聊模式下多个智能体平等讨论，每位发言都会实时显示。" />
 
+			<!-- 有任务：标题栏 + 发言记录 -->
 			<DockPanel x:Name="DetailContent"
 			           IsVisible="{Binding Detail.TaskId, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+
+				<!-- 标题栏 -->
 				<Border DockPanel.Dock="Top"
 				        Background="#252526"
 				        BorderBrush="#3c3c3c" BorderThickness="0,0,0,1"
@@ -182,46 +81,40 @@
 							           Foreground="#cccccc" FontSize="12" VerticalAlignment="Center"
 							           IsVisible="{Binding Detail.TotalTokensText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 						</Grid>
-						<Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto">
-							<TextBlock Grid.Column="0" Text="子模式：" Foreground="#858585" FontSize="12" />
-							<TextBlock Grid.Column="1" Text="{Binding Detail.SubMode}"
-							           Foreground="#cccccc" FontSize="12" />
-						</Grid>
 					</StackPanel>
 				</Border>
 
-				<ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,12">
+				<!-- 发言记录 + 状态信息 -->
+				<ScrollViewer x:Name="StepsScrollViewer"
+				              VerticalScrollBarVisibility="Auto"
+				              HorizontalScrollBarVisibility="Disabled"
+				              Padding="16,12">
 					<StackPanel Spacing="12">
 
 						<!-- 发言记录（P3-1 聊天气泡视图） -->
 						<StackPanel Spacing="6">
 							<TextBlock Text="发言记录"
 							           Foreground="#cccccc" FontSize="13" FontWeight="SemiBold" />
-							<ScrollViewer x:Name="StepsScrollViewer"
-							              VerticalScrollBarVisibility="Auto"
-							              MaxHeight="600">
-								<ItemsControl ItemsSource="{Binding Detail.Steps}">
-									<ItemsControl.ItemsPanel>
-										<ItemsPanelTemplate>
-											<VirtualizingStackPanel Orientation="Vertical" />
-										</ItemsPanelTemplate>
-									</ItemsControl.ItemsPanel>
-									<ItemsControl.ItemTemplate>
-										<!-- NOTE: WorkflowTimelineStepVm 已删除（P4 重构），使用简化的 DataTemplate -->
-										<DataTemplate>
-											<Border Background="#252526" CornerRadius="8"
-											        Padding="12,10" Margin="0,4,60,4"
-											        BorderBrush="#3c3c3c" BorderThickness="1">
-												<StackPanel Spacing="4">
-													<TextBlock Text="步骤内容"
-													           Foreground="#cccccc" FontSize="13"
-													           TextWrapping="Wrap" />
-												</StackPanel>
-											</Border>
-										</DataTemplate>
-									</ItemsControl.ItemTemplate>
-								</ItemsControl>
-							</ScrollViewer>
+							<ItemsControl ItemsSource="{Binding Detail.Steps}">
+								<ItemsControl.ItemsPanel>
+									<ItemsPanelTemplate>
+										<VirtualizingStackPanel Orientation="Vertical" />
+									</ItemsPanelTemplate>
+								</ItemsControl.ItemsPanel>
+								<ItemsControl.ItemTemplate>
+									<DataTemplate>
+										<Border Background="#252526" CornerRadius="8"
+										        Padding="12,10" Margin="0,4,60,4"
+										        BorderBrush="#3c3c3c" BorderThickness="1">
+											<StackPanel Spacing="4">
+												<TextBlock Text="步骤内容"
+												           Foreground="#cccccc" FontSize="13"
+												           TextWrapping="Wrap" />
+											</StackPanel>
+										</Border>
+									</DataTemplate>
+								</ItemsControl.ItemTemplate>
+							</ItemsControl>
 						</StackPanel>
 
 						<!-- 讨论总结 -->
@@ -247,245 +140,27 @@
 						<StackPanel Spacing="6" IsVisible="{Binding Detail.IsCancelled}">
 							<TextBlock Text="该任务已被取消" Foreground="#858585" FontSize="13" FontStyle="Italic" />
 						</StackPanel>
+
+						<!-- 底部占位块（防止内容被输入区遮挡） -->
+						<Border Height="200" Background="Transparent" />
+
 					</StackPanel>
 				</ScrollViewer>
+
 			</DockPanel>
 		</Panel>
 
-		<!-- ════════════════════════════════════════════════════════════════
-		     Row 1：P2-1 群聊聊天式输入框（完全复刻 Chat 风格 + 群聊差异）
-		     Bug 7 修复 2026-05-17：去掉多余外层边框，缩小 padding 到 4,4
-		     ════════════════════════════════════════════════════════════════ -->
-		<Border Grid.Row="1" x:Name="InputArea"
+		<!-- ═══════════════════════════════════════════════════════════
+		     Row 1：输入区（共享 InputAreaView）
+		     ═══════════════════════════════════════════════════════════ -->
+		<Border Grid.Row="1"
 		        Background="#1e1e1e"
-		        Padding="4,4"
-		        x:CompileBindings="False">
-			<StackPanel Spacing="4">
-				<!-- 校验错误提示 -->
-				<TextBlock Text="{Binding ValidationError}"
-				           Foreground="#f48771" FontSize="11"
-				           IsVisible="{Binding ValidationError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-
-				<!-- 选择数量提示（已选 0/1 个时显示） -->
-				<TextBlock Text="{Binding SelectionHint}"
-				           Foreground="#858585" FontSize="11"
-				           IsVisible="{Binding SelectionHint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-				           Margin="4,0" />
-
-				<!-- 附件预览区（Bug 8 修复：完全复刻 Chat 模式手动渲染 + WrapPanel 横向排列） -->
-				<ItemsControl x:Name="AttachmentList" Margin="4,0">
-					<ItemsControl.ItemsPanel>
-						<ItemsPanelTemplate>
-							<WrapPanel Orientation="Horizontal" />
-						</ItemsPanelTemplate>
-					</ItemsControl.ItemsPanel>
-				</ItemsControl>
-
-				<!-- ════════════════════════════════════════════════════════
-				     输入框容器（条款 5/6/12：复刻 Chat + 紫色走马灯）
-				     ════════════════════════════════════════════════════════ -->
-				<Panel x:Name="InputBorderHost" ClipToBounds="True">
-					<Border x:Name="InputBorder" Background="#252526" CornerRadius="3"
-					        BorderBrush="#3c3c3c" BorderThickness="1"
-					        Padding="12"
-					        DragDrop.AllowDrop="True">
-						<Grid ColumnDefinitions="*,Auto">
-							<TextBox x:Name="InputBox" Grid.Column="0"
-							         Classes="chat-input"
-							         Text="{Binding InitialInput, Mode=TwoWay}"
-							         PlaceholderText="输入讨论话题（Enter 发送，Shift+Enter 换行，# 引用文件）"
-							         TextWrapping="Wrap"
-							         AcceptsReturn="True"
-							         IsReadOnly="{Binding IsRunning}"
-							         MinHeight="80" MaxHeight="400" />
-							<Panel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
-								<!-- Bug 2 修复 2026-05-17：去掉 IsVisible binding，由 .cs 显式控制 -->
-								<Button x:Name="SendButton" Classes="titlebar-btn"
-								        ToolTip.Tip="发送" IsVisible="True"
-								        IsEnabled="{Binding CanSubmit}"
-								        Click="OnSendClick">
-									<Image Source="avares://Cortana/Assets/send.png" Width="14" Height="14" />
-								</Button>
-								<Button x:Name="StopButton" Classes="titlebar-btn titlebar-btn-warn"
-								        ToolTip.Tip="停止当前群聊" IsVisible="False"
-								        Click="OnStopClick">
-									<Image x:Name="SpinnerIcon"
-									       Source="avares://Cortana/Assets/refresh.png"
-									       Width="14" Height="14"
-									       RenderTransformOrigin="50%,50%">
-										<Image.RenderTransform>
-											<RotateTransform Angle="0" />
-										</Image.RenderTransform>
-									</Image>
-								</Button>
-							</Panel>
-						</Grid>
-					</Border>
-
-					<!-- 走马灯霓虹边动画（条款 12：群聊紫色 #b070ff） -->
-					<Border x:Name="InputMarqueeBorder" IsVisible="False" IsHitTestVisible="False"
-					        CornerRadius="3" ClipToBounds="True">
-						<Canvas Height="0" Margin="0,0,0,-120"
-						        HorizontalAlignment="Stretch" VerticalAlignment="Top">
-							<Rectangle x:Name="InputMarqueeTop" Width="120" Height="2"
-							           HorizontalAlignment="Left" VerticalAlignment="Top" RadiusX="1" RadiusY="1">
-								<Rectangle.Fill>
-									<LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-										<GradientStop Color="#00b070ff" Offset="0" />
-										<GradientStop Color="#ffb070ff" Offset="0.5" />
-										<GradientStop Color="#00b070ff" Offset="1" />
-									</LinearGradientBrush>
-								</Rectangle.Fill>
-							</Rectangle>
-							<Rectangle x:Name="InputMarqueeRight" Width="2" Height="120"
-							           HorizontalAlignment="Right" VerticalAlignment="Top" RadiusX="1" RadiusY="1">
-								<Rectangle.Fill>
-									<LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-										<GradientStop Color="#00b070ff" Offset="0" />
-										<GradientStop Color="#ffb070ff" Offset="0.5" />
-										<GradientStop Color="#00b070ff" Offset="1" />
-									</LinearGradientBrush>
-								</Rectangle.Fill>
-							</Rectangle>
-							<Rectangle x:Name="InputMarqueeBottom" Width="120" Height="2"
-							           HorizontalAlignment="Right" VerticalAlignment="Bottom" RadiusX="1" RadiusY="1">
-								<Rectangle.Fill>
-									<LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,0%">
-										<GradientStop Color="#00b070ff" Offset="0" />
-										<GradientStop Color="#ffb070ff" Offset="0.5" />
-										<GradientStop Color="#00b070ff" Offset="1" />
-									</LinearGradientBrush>
-								</Rectangle.Fill>
-							</Rectangle>
-							<Rectangle x:Name="InputMarqueeLeft" Width="2" Height="120"
-							           HorizontalAlignment="Left" VerticalAlignment="Bottom" RadiusX="1" RadiusY="1">
-								<Rectangle.Fill>
-									<LinearGradientBrush StartPoint="0%,100%" EndPoint="0%,0%">
-										<GradientStop Color="#00b070ff" Offset="0" />
-										<GradientStop Color="#ffb070ff" Offset="0.5" />
-										<GradientStop Color="#00b070ff" Offset="1" />
-									</LinearGradientBrush>
-								</Rectangle.Fill>
-							</Rectangle>
-						</Canvas>
-					</Border>
-
-					<!-- Bug 3 修复 2026-05-17：# 文件补全弹出列表（完全复刻 Chat MainWindow.axaml line 352-369） -->
-					<Popup x:Name="FilePopup" Placement="TopEdgeAlignedLeft"
-					       PlacementTarget="{Binding #InputBorder}"
-					       IsLightDismissEnabled="True">
-						<Border Background="#181818" CornerRadius="6"
-						        BorderBrush="#3c3c3c" BorderThickness="1"
-						        Padding="4" MinWidth="300" MaxHeight="260">
-							<ScrollViewer VerticalScrollBarVisibility="Auto">
-								<ItemsControl x:Name="FileList">
-									<ItemsControl.ItemsPanel>
-										<ItemsPanelTemplate>
-											<StackPanel Spacing="1" />
-										</ItemsPanelTemplate>
-									</ItemsControl.ItemsPanel>
-								</ItemsControl>
-							</ScrollViewer>
-						</Border>
-					</Popup>
-				</Panel>
-
-				<!-- ════════════════════════════════════════════════════════
-				     输入框下方一行：3 个 titlebar-btn 选择器（附件 / 智能体 / 工具）
-				     ════════════════════════════════════════════════════════ -->
-				<StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0">
-					<!-- 附件按钮（条款 4） -->
-					<Button x:Name="AttachButton" Classes="titlebar-btn" Padding="6,3"
-					        ToolTip.Tip="添加附件" Click="OnAttachClick"
-					        IsEnabled="{Binding IsIdle}">
-						<StackPanel Orientation="Horizontal" Spacing="4">
-							<Image Source="/Assets/attachment.png" Width="14" Height="14" />
-							<TextBlock Text="附件" Foreground="#a0a0a0" FontSize="12" />
-						</StackPanel>
-					</Button>
-
-					<!-- 智能体多选按钮（条款 11） -->
-					<Button x:Name="AgentSelectorBtn" Classes="titlebar-btn" Padding="6,3"
-					        Click="OnAgentSelectorClick"
-					        IsEnabled="{Binding IsIdle}">
-						<StackPanel Orientation="Horizontal" Spacing="4">
-							<Image Source="/Assets/agent.png" Width="14" Height="14" />
-							<TextBlock x:Name="ToolbarAgentLabel" Text="{Binding SelectedAgentsLabel}"
-							           Foreground="#a0a0a0" FontSize="12" />
-							<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
-						</StackPanel>
-					</Button>
-
-					<!-- 工具屏蔽按钮（条款 4） -->
-					<Button x:Name="ToolButton" Classes="titlebar-btn" Padding="6,3"
-					        ToolTip.Tip="高风险工具屏蔽（默认全部允许）"
-					        Click="OnToolPopupOpenClick"
-					        IsEnabled="{Binding IsIdle}">
-						<StackPanel Orientation="Horizontal" Spacing="4">
-							<Image Source="/Assets/tools.png" Width="14" Height="14" />
-							<TextBlock Text="工具" Foreground="#a0a0a0" FontSize="12" />
-							<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
-						</StackPanel>
-					</Button>
-				</StackPanel>
-			</StackPanel>
+		        BorderBrush="#252526" BorderThickness="0,1,0,0"
+		        Padding="6,6,6,6">
+			<controls:InputAreaView x:Name="GroupChatInputArea"
+			                        InputMode="GroupChat"
+			                        MarqueeColor="#b070ff" />
 		</Border>
 
-		<!-- ════════════════════════════════════════════════════════════════
-		     Popup 集（全部上拉 Placement="TopEdgeAlignedLeft"）
-		     ════════════════════════════════════════════════════════════════ -->
-
-		<!-- 智能体多选 Popup（条款 11：CheckListBox） -->
-		<Popup x:Name="AgentSelectorPopup" Placement="TopEdgeAlignedLeft"
-		       PlacementTarget="{Binding #AgentSelectorBtn}"
-		       IsLightDismissEnabled="True">
-			<Border Background="#181818" CornerRadius="6"
-			        BorderBrush="#3c3c3c" BorderThickness="1"
-			        Padding="8" MinWidth="240" MaxHeight="360">
-				<DockPanel>
-					<TextBlock DockPanel.Dock="Top"
-					           Text="选择智能体（可多选，至少 2 个）"
-					           Foreground="#cccccc" FontSize="12" FontWeight="SemiBold"
-					           Margin="2,0,2,6" />
-					<ScrollViewer VerticalScrollBarVisibility="Auto">
-						<ItemsControl x:Name="AgentSelectorList">
-							<ItemsControl.ItemsPanel>
-								<ItemsPanelTemplate>
-									<StackPanel Spacing="2" />
-								</ItemsPanelTemplate>
-							</ItemsControl.ItemsPanel>
-						</ItemsControl>
-					</ScrollViewer>
-				</DockPanel>
-			</Border>
-		</Popup>
-
-		<!-- 工具屏蔽 Popup -->
-		<Popup x:Name="ToolPopup" Placement="TopEdgeAlignedLeft"
-		       PlacementTarget="{Binding #ToolButton}"
-		       IsLightDismissEnabled="True">
-			<Border Background="#181818" CornerRadius="6"
-			        BorderBrush="#3c3c3c" BorderThickness="1"
-			        Padding="12" MinWidth="320">
-				<StackPanel Spacing="8">
-					<TextBlock Text="高风险工具屏蔽"
-					           Foreground="#cccccc" FontSize="12" FontWeight="SemiBold" />
-					<TextBlock Text="勾选后，本任务执行时屏蔽所选工具（默认全部允许）。"
-					           Foreground="#858585" FontSize="11" TextWrapping="Wrap" />
-					<ItemsControl ItemsSource="{Binding HighRiskTools}"
-					              x:CompileBindings="False">
-						<ItemsControl.ItemTemplate>
-							<DataTemplate>
-								<CheckBox Content="{Binding DisplayName}"
-								          IsChecked="{Binding IsBlocked, Mode=TwoWay}"
-								          ToolTip.Tip="{Binding Description}"
-								          Foreground="#cccccc" FontSize="12"
-								          Margin="0,2" />
-							</DataTemplate>
-						</ItemsControl.ItemTemplate>
-					</ItemsControl>
-				</StackPanel>
-			</Border>
-		</Popup>
 	</Grid>
 </UserControl>

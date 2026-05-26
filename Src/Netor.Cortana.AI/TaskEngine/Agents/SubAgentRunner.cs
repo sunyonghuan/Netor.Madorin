@@ -348,10 +348,115 @@ internal sealed partial class SubAgentRunner
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // 内部辅助
+    // 工具调用支持
     // ══════════════════════════════════════════════════════════════════════
 
     /// <summary>
+    /// 使用 <see cref="AIAgentFactory.BuildDynamicSubAgent"/> 构建带工具的子智能体并执行。
+    /// 当步骤有 RequiredTools 时（如 file_write、shell 等），改用此方法替代纯文本的
+    /// <see cref="RunMultiTurnAsync"/>，使 LLM 可以真正调用工具完成任务。
+    /// </summary>
+    /// <param name="systemPrompt">子智能体系统提示词（已替换所有占位符）。</param>
+    /// <param name="userMessage">初始用户消息（任务指令 + 上下文）。</param>
+    /// <param name="requiredTools">白名单工具名列表（plugin/MCP 工具名）。</param>
+    /// <param name="agentName">智能体显示名（用于日志）。</param>
+    /// <param name="onText">每次 LLM 输出文本时的回调（用于推送到 UI 对话流）。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>智能体最终输出的文本（工具调用结果已合并）。</returns>
+    public async Task<string> RunWithToolsAsync(
+        string systemPrompt,
+        string userMessage,
+        IReadOnlyList<string> requiredTools,
+        string agentName,
+        Action<string>? onText,
+        CancellationToken ct)
+    {
+        // 解析 provider/model 实体（复用与 ResolveClient 相同的优先级逻辑）
+        var (provider, model) = ResolveProviderAndModel();
+        if (provider is null || model is null)
+        {
+            _logger.LogWarning("P4 RunWithToolsAsync: 无法解析 Provider/Model，回退到纯文本执行");
+            return await RunMultiTurnAsync(systemPrompt, userMessage, 8,
+                (_, text) => onText?.Invoke(CleanLlmMarkers(text)), ct).ConfigureAwait(false);
+        }
+
+        _logger.LogDebug(
+            "P4 RunWithToolsAsync: 构建工具子智能体 [{Name}]，工具={Tools}，Provider={Provider}，Model={Model}",
+            agentName, string.Join(",", requiredTools), provider.Name, model.Name);
+
+        var agent = _agentFactory.BuildDynamicSubAgent(agentName, systemPrompt, provider, model, requiredTools);
+
+        var messages = new List<ChatMessage> { new(ChatRole.User, userMessage) };
+
+        using (await _throttle.AcquireAsync(ct).ConfigureAwait(false))
+        {
+            var response = await agent.RunAsync(messages, cancellationToken: ct).ConfigureAwait(false);
+            var text = response?.Text?.Trim() ?? string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(text))
+                onText?.Invoke(CleanLlmMarkers(text));
+
+            _logger.LogDebug("P4 RunWithToolsAsync [{Name}] 完成（{Len}c）", agentName, text.Length);
+            return text;
+        }
+    }
+
+    /// <summary>
+    /// 解析 Provider / Model 实体（与 ResolveClient 相同的优先级，但返回实体而非 IChatClient）。
+    /// 优先级：TaskEngine.ModelId → Compaction.ModelId → 工作流默认 Provider/Model → 全局第一个。
+    /// </summary>
+    private (Netor.Cortana.Entitys.AiProviderEntity? provider, Netor.Cortana.Entitys.AiModelEntity? model)
+        ResolveProviderAndModel()
+    {
+        try
+        {
+            // 按优先级尝试获取 modelId
+            var modelId = _systemSettings.GetValue<string>(TaskEngineModelKey, string.Empty);
+            if (string.IsNullOrEmpty(modelId))
+                modelId = _systemSettings.GetValue<string>(CompactionModelKey, string.Empty);
+            if (string.IsNullOrEmpty(modelId))
+                modelId = _systemSettings.GetValue<string>(WorkflowDefaultModelKey, string.Empty);
+
+            // 全局第一个可用模型（最后回退）
+            if (string.IsNullOrEmpty(modelId))
+            {
+                var defaultProvider = _providerService.GetAll().FirstOrDefault(p => p.IsDefault)
+                                      ?? _providerService.GetAll().FirstOrDefault();
+                if (defaultProvider is null) return (null, null);
+
+                var defaultModel = _modelService.GetByProviderId(defaultProvider.Id)
+                                       .FirstOrDefault(m => m.IsDefault)
+                                   ?? _modelService.GetByProviderId(defaultProvider.Id).FirstOrDefault();
+                if (defaultModel is null) return (null, null);
+
+                return (defaultProvider, defaultModel);
+            }
+
+            var resolvedModel = _modelService.GetById(modelId);
+            if (resolvedModel is null) return (null, null);
+
+            var providerId = _systemSettings.GetValue<string>(WorkflowDefaultProviderKey, string.Empty);
+            var resolvedProvider = !string.IsNullOrEmpty(providerId)
+                ? _providerService.GetById(providerId)
+                : _providerService.GetById(resolvedModel.ProviderId);
+
+            return (resolvedProvider, resolvedModel);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "P4 ResolveProviderAndModel 失败");
+            return (null, null);
+        }
+    }
+
+    private static string CleanLlmMarkers(string text)
+    {
+        return text
+            .Replace("[DONE]", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("[CONTINUE]", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("[ASK_USER]", "", StringComparison.OrdinalIgnoreCase)
+            .Trim();
+    }
     /// 解析可用的 IChatClient。
     /// 优先级：TaskEngine.ModelId → Compaction.ModelId → AIAgentFactory.ChatClient → 工作流默认 Provider/Model。
     /// </summary>

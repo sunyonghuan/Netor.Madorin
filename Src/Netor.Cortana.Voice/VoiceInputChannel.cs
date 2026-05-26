@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 using Netor.Cortana.Entitys;
 using Netor.EventHub;
-using Netor.EventHub.Interfances;
+using Netor.EventHub.Interfaces;
 
 namespace Netor.Cortana.Voice;
 
@@ -38,7 +38,7 @@ public sealed class VoiceInputChannel(
             {
                 try
                 {
-                    publisher.Emit(Events.OnSttPartial, new VoiceTextArgs("思考中..."));
+                    publisher.Publish(Events.OnSttPartial, new VoiceTextArgs("思考中..."));
                     await chatEngine.SendMessageAsync(args.Text, _serviceCts.Token);
                 }
                 catch (OperationCanceledException) { }

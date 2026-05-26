@@ -1,6 +1,6 @@
 using Netor.Cortana.Entitys;
 using Netor.EventHub;
-using Netor.EventHub.Interfances;
+using Netor.EventHub.Interfaces;
 
 namespace Netor.Cortana.Voice;
 

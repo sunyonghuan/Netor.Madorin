@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/docs/">
     <File Path="Docs/已完成功能规划/执行计划(对话流内实时过程卡片).md" />
+    <File Path="Docs/未来版本策划/聊天式任务发起与动态智能体/08-P4补充-交互模型重设计.md" />
   </Folder>
   <Folder Name="/Samples/">
     <Project Path="Plugins/Samples/KokoroAudition/KokoroAudition.csproj" />

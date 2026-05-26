@@ -1,4 +1,5 @@
 using Netor.Cortana.AI.TaskEngine.Models;
+using Netor.Cortana.AI.TaskEngine.Persistence;
 
 namespace Netor.Cortana.AI.TaskEngine.Agents;
 
@@ -21,11 +22,13 @@ public interface IOrchestratorAgent
     ///   用户交互回调：子智能体提出澄清问题时调用。
     ///   参数 (轮次, 问题文本) → 返回用户回答。传 null 则退化为 LLM 自我迭代。
     /// </param>
+    /// <param name="onAiMessage">AI 每轮回复完成时的回调（用于发布到对话流）。传 null 则不通知。</param>
     /// <param name="ct">取消令牌。</param>
     Task<RequirementsAnalysis> RunRequirementsPhaseAsync(
         string taskId,
         string userInput,
         Func<int, string, Task<string>>? onAskUser,
+        Action<string>? onAiMessage,
         CancellationToken ct);
 
     /// <summary>
@@ -40,22 +43,28 @@ public interface IOrchestratorAgent
     ///   用户交互回调：子智能体提出讨论问题时调用。
     ///   参数 (轮次, 问题文本) → 返回用户回答。传 null 则退化为单轮生成。
     /// </param>
+    /// <param name="onAiMessage">AI 每轮回复完成时的回调（用于发布到对话流）。传 null 则不通知。</param>
     /// <param name="ct">取消令牌。</param>
     Task<ExecutionPlan> RunPlanningPhaseAsync(
         string taskId,
         RequirementsAnalysis requirements,
         ExecutionTemplate? template,
         Func<int, string, Task<string>>? onAskUser,
+        Action<string>? onAiMessage,
         CancellationToken ct);
 
     /// <summary>
     /// 阶段 3 单步执行：为指定步骤创建子智能体并委托执行。
     /// 子智能体的 instructions 和工具由主智能体根据步骤描述动态生成。
     /// </summary>
+    /// <param name="onAiMessage">子智能体每轮输出时的回调（用于发布到对话流）。传 null 则不通知。</param>
+    /// <param name="workspaceDir">本步骤的工作目录（绝对路径），注入到系统提示词中。</param>
     Task<StepResult> ExecuteStepAsync(
         string taskId,
         ExecutionPlan plan,
         PlanStep step,
+        Action<string>? onAiMessage,
+        string? workspaceDir,
         CancellationToken ct);
 
     /// <summary>
@@ -76,6 +85,23 @@ public interface IOrchestratorAgent
         string taskId,
         ExecutionPlan oldPlan,
         ExecutionPlan newPlan,
+        CancellationToken ct);
+
+    /// <summary>
+    /// 文档 08 §3.2：对话模式意图识别。
+    /// 主智能体根据对话历史 + 当前用户输入，识别意图并生成回复。
+    /// </summary>
+    /// <param name="taskId">任务 ID（用于日志）。</param>
+    /// <param name="conversationHistory">对话历史（role=user/ai 的消息列表，按时间升序）。</param>
+    /// <param name="userMessage">用户当前输入。</param>
+    /// <param name="planContext">当前执行计划的简要描述（供 LLM 参考）。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>意图识别结果（意图标识 + AI 回复文本）。</returns>
+    Task<ConversationIntentResponseDto> RecognizeConversationIntentAsync(
+        string taskId,
+        IReadOnlyList<(string Role, string Content)> conversationHistory,
+        string userMessage,
+        string? planContext,
         CancellationToken ct);
 }
 

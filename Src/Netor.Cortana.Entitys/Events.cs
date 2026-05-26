@@ -196,6 +196,41 @@ public static class Events
 
     /// <summary>P4 用户已回答问题。</summary>
     public static TaskUserQuestionEvent OnTaskUserQuestionAnswered = new("task.user.question_answered");
+
+    // ──────── P4 对话模式事件（文档 08 §2/§3/§4） ────────
+
+    /// <summary>
+    /// 工作流对话消息（用户消息 / AI 回复 / 执行结果）。
+    /// 对话模式下由引擎/UI 双向发布，驱动对话气泡流更新。
+    /// </summary>
+    public static WorkflowConversationMessageEvent OnWorkflowConversationMessage
+        = new("task.conversation.message");
+
+    /// <summary>
+    /// 工作流 AI 流式增量（对话模式 AI 回复流式追加）。
+    /// </summary>
+    public static WorkflowConversationMessageEvent OnWorkflowConversationDelta
+        = new("task.conversation.delta");
+
+    /// <summary>
+    /// 工作流界面模态切换（对话模式 ↔ 执行模式）。
+    /// 引擎识别到"确认执行"意图时发布 → UI 切到执行模式；
+    /// 执行完成/暂停时发布 → UI 切回对话模式。
+    /// </summary>
+    public static WorkflowModeChangedEvent OnWorkflowModeChanged
+        = new("task.mode.changed");
+
+    /// <summary>
+    /// 危险工具授权请求（Level 2-3 工具调用时暂停并弹浮动面板）。
+    /// </summary>
+    public static WorkflowToolAuthEvent OnToolAuthorizationRequired
+        = new("task.tool.auth.required");
+
+    /// <summary>
+    /// 危险工具授权结果（用户做出决策后发布，引擎恢复执行）。
+    /// </summary>
+    public static WorkflowToolAuthEvent OnToolAuthorizationResolved
+        = new("task.tool.auth.resolved");
 }
 
 // ──────── AI 配置变更事件类型 ────────
@@ -704,13 +739,15 @@ public record TaskLifecycleEventArgs(
 /// <param name="Score">验证分数（0-100）。</param>
 /// <param name="Summary">验证摘要。</param>
 /// <param name="Issues">发现的问题列表。</param>
+/// <param name="Suggestions">改进建议列表。</param>
 public record TaskValidationEventArgs(
     string TaskId,
     DateTimeOffset OccurredAt,
     bool Passed,
     int Score,
     string? Summary = null,
-    IReadOnlyList<string>? Issues = null) : TaskEngineEventArgs(TaskId, OccurredAt);
+    IReadOnlyList<string>? Issues = null,
+    IReadOnlyList<string>? Suggestions = null) : TaskEngineEventArgs(TaskId, OccurredAt);
 
 /// <summary>
 /// P4 用户问答事件参数（子智能体提问 / 用户回答）。
@@ -745,3 +782,76 @@ public enum ChangeType
     [Display(Name = "更新")]
     Update
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// P4 对话模式 + 工具授权事件类型（文档 08 §2/§3/§4）
+// ════════════════════════════════════════════════════════════════════════
+
+/// <summary>工作流对话消息事件类型（task.conversation.message / delta）。</summary>
+public record WorkflowConversationMessageEvent(string Eventid)
+    : EventID<WorkflowConversationMessageArgs>(Eventid);
+
+/// <summary>工作流界面模态切换事件类型（task.mode.changed）。</summary>
+public record WorkflowModeChangedEvent(string Eventid)
+    : EventID<WorkflowModeChangedArgs>(Eventid);
+
+/// <summary>工具授权事件类型（task.tool.auth.required / resolved）。</summary>
+public record WorkflowToolAuthEvent(string Eventid)
+    : EventID<WorkflowToolAuthEventArgs>(Eventid);
+
+/// <summary>
+/// 工作流对话消息事件参数（文档 08 §2.2 / §3）。
+/// </summary>
+/// <param name="TaskId">任务 ID。</param>
+/// <param name="OccurredAt">事件时间。</param>
+/// <param name="MessageId">消息唯一 ID（流式消息用同一 ID 追加 delta）。</param>
+/// <param name="Role">发言方：user / ai / result / system。</param>
+/// <param name="Content">消息内容（delta 事件时为增量片段）。</param>
+/// <param name="IsStreaming">是否仍在流式输出。</param>
+/// <param name="ResultSummary">执行结果摘要（role=result 时有值）。</param>
+/// <param name="ResultFilePaths">执行产出文件路径列表（role=result 时有值）。</param>
+public record WorkflowConversationMessageArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt,
+    string MessageId,
+    string Role,
+    string Content,
+    bool IsStreaming = false,
+    string? ResultSummary = null,
+    IReadOnlyList<string>? ResultFilePaths = null) : TaskEngineEventArgs(TaskId, OccurredAt);
+
+/// <summary>
+/// 工作流界面模态切换事件参数（文档 08 §2.4）。
+/// </summary>
+/// <param name="TaskId">任务 ID。</param>
+/// <param name="OccurredAt">事件时间。</param>
+/// <param name="Mode">目标模态：conversation（对话模式）/ execution（执行模式）。</param>
+/// <param name="Reason">切换原因（日志用）。</param>
+public record WorkflowModeChangedArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt,
+    string Mode,
+    string? Reason = null) : TaskEngineEventArgs(TaskId, OccurredAt);
+
+/// <summary>
+/// 工具授权事件参数（文档 08 §4）。
+/// </summary>
+/// <param name="TaskId">任务 ID。</param>
+/// <param name="OccurredAt">事件时间。</param>
+/// <param name="RequestId">授权请求唯一 ID。</param>
+/// <param name="StepSequence">所属步骤序号。</param>
+/// <param name="ToolName">工具名称（如 file_write / send_email）。</param>
+/// <param name="RiskLevel">风险等级（2=高风险可恢复，3=极高风险不可逆）。</param>
+/// <param name="CallDescription">工具调用描述文本。</param>
+/// <param name="ParametersSummary">调用参数摘要（展示关键参数给用户）。</param>
+/// <param name="Decision">授权决策（仅 resolved 事件）：confirm / grant_all / deny。</param>
+public record WorkflowToolAuthEventArgs(
+    string TaskId,
+    DateTimeOffset OccurredAt,
+    string RequestId,
+    int StepSequence,
+    string ToolName,
+    int RiskLevel,
+    string CallDescription,
+    string? ParametersSummary = null,
+    string? Decision = null) : TaskEngineEventArgs(TaskId, OccurredAt);

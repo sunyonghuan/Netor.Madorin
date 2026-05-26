@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.EventHub;
-using Netor.EventHub.Interfances;
+using Netor.EventHub.Interfaces;
 
 using SherpaOnnx;
 
@@ -152,7 +152,7 @@ public sealed class TextToSpeechService(
             if (audio.Samples.Length > 0)
             {
                 _greetingAudioCache = audio;
-                logger.LogInformation("唤醒问候语音频已重新生成并更新缓存（{SampleCount} 采样点，文本：{Greeting}）", 
+                logger.LogInformation("唤醒问候语音频已重新生成并更新缓存（{SampleCount} 采样点，文本：{Greeting}）",
                     audio.Samples.Length, WelcomeGreeting);
             }
         }

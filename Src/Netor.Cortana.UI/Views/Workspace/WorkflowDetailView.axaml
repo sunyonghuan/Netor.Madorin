@@ -2,810 +2,311 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Netor.Cortana.UI.ViewModels.Workspace"
              xmlns:controls="using:Netor.Cortana.UI.Controls"
-             xmlns:entities="using:Netor.Cortana.Entitys"
              x:Class="Netor.Cortana.UI.Views.Workspace.WorkflowDetailView"
              x:DataType="vm:WorkspaceTabVm"
              x:CompileBindings="True"
              Background="#1e1e1e">
 
-	<!-- ════════════════════════════════════════════════════════════════
-	     P2-1：工作流任务详情视图（条款 1-12 重写版，2026-05-17）
-	     ════════════════════════════════════════════════════════════════
-	     设计原则：完全复刻 Chat 输入框（MainWindow.axaml line 263-500）的视觉与交互。
-	     - 详情区（Row 0）：保留 C4 / 5B 原有视觉规格
-	     - 输入框区（Row 1）：
-	       · 上方一行：titlebar-btn 子模式选择器（条款 9）+ Magentic 时显示子 Agent 数量按钮（条款 10）
-	       · 中间：Chat 同款 Border + chat-input TextBox + 旋转 SendButton/StopButton（条款 5/6）
-	       · 走马灯动画：4 边 Rectangle + 工作流橙色 #ffff9c40（条款 12）
-	       · 下方一行：5 个 titlebar-btn 选择器（附件/智能体/厂商/模型/工具，条款 4/7/8）
-
-	     DataContext：
-	     - 详情区 DataContext = WorkspaceTabVm（构造函数注入）
-	     - InputArea.DataContext = WorkflowInputVm（构造函数注入，x:CompileBindings="False"）
-	     ════════════════════════════════════════════════════════════════ -->
-
-	<UserControl.Styles>
-		<!-- 步骤项（保留） -->
-		<Style Selector="Border.step-item">
-			<Setter Property="Background" Value="#252526" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="Padding" Value="10,8" />
-			<Setter Property="Margin" Value="0,2" />
-			<Setter Property="BorderBrush" Value="#3c3c3c" />
-			<Setter Property="BorderThickness" Value="1" />
-		</Style>
-
-		<!-- 详情区操作按钮（保留） -->
-		<Style Selector="Button.detail-action-btn">
-			<Setter Property="Background" Value="#3a3d41" />
-			<Setter Property="Foreground" Value="#cccccc" />
-			<Setter Property="Padding" Value="12,6" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="FontSize" Value="12" />
-			<Setter Property="Cursor" Value="Hand" />
-			<Setter Property="BorderThickness" Value="0" />
-			<Setter Property="Margin" Value="0,0,8,0" />
-		</Style>
-		<Style Selector="Button.detail-action-btn:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#4a4d51" />
-		</Style>
-		<Style Selector="Button.detail-action-btn-cancel">
-			<Setter Property="Background" Value="#6e2828" />
-		</Style>
-		<Style Selector="Button.detail-action-btn-cancel:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#7a3030" />
-		</Style>
-
-		<!-- HITL 批准卡片（保留） -->
-		<Style Selector="Border.approval-card">
-			<Setter Property="Background" Value="#3a1f1f" />
-			<Setter Property="BorderBrush" Value="#a04848" />
-			<Setter Property="BorderThickness" Value="1" />
-			<Setter Property="CornerRadius" Value="6" />
-			<Setter Property="Padding" Value="16,12" />
-		</Style>
-		<Style Selector="Border.approval-plan">
-			<Setter Property="Background" Value="#252526" />
-			<Setter Property="BorderBrush" Value="#3c3c3c" />
-			<Setter Property="BorderThickness" Value="1" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="Padding" Value="12,10" />
-		</Style>
-		<Style Selector="Button.approval-btn-primary">
-			<Setter Property="Background" Value="#0e7c3c" />
-			<Setter Property="Foreground" Value="#ffffff" />
-			<Setter Property="Padding" Value="14,8" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="FontSize" Value="13" />
-			<Setter Property="FontWeight" Value="SemiBold" />
-			<Setter Property="Cursor" Value="Hand" />
-			<Setter Property="BorderThickness" Value="0" />
-			<Setter Property="Margin" Value="0,0,8,0" />
-		</Style>
-		<Style Selector="Button.approval-btn-primary:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#0e9c4c" />
-		</Style>
-		<Style Selector="Button.approval-btn-secondary">
-			<Setter Property="Background" Value="#3a3d41" />
-			<Setter Property="Foreground" Value="#cccccc" />
-			<Setter Property="Padding" Value="14,8" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="FontSize" Value="13" />
-			<Setter Property="Cursor" Value="Hand" />
-			<Setter Property="BorderThickness" Value="0" />
-			<Setter Property="Margin" Value="0,0,8,0" />
-		</Style>
-		<Style Selector="Button.approval-btn-secondary:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#4a4d51" />
-		</Style>
-		<Style Selector="Button.approval-btn-danger">
-			<Setter Property="Background" Value="#6e2828" />
-			<Setter Property="Foreground" Value="#ffffff" />
-			<Setter Property="Padding" Value="14,8" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="FontSize" Value="13" />
-			<Setter Property="Cursor" Value="Hand" />
-			<Setter Property="BorderThickness" Value="0" />
-		</Style>
-		<Style Selector="Button.approval-btn-danger:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#8a3838" />
-		</Style>
-
-		<!-- P2-1：附件 chip 样式（与 Chat 模式 attachment-tag 一致） -->
-		<Style Selector="Border.attachment-tag">
-			<Setter Property="Background" Value="#252526" />
-			<Setter Property="CornerRadius" Value="4" />
-			<Setter Property="Padding" Value="8,4" />
-			<Setter Property="Margin" Value="0,0,4,4" />
-			<Setter Property="BorderBrush" Value="#3c3c3c" />
-			<Setter Property="BorderThickness" Value="1" />
-		</Style>
-	</UserControl.Styles>
-
+	<!--
+	  ╔══════════════════════════════════════════════════════════════╗
+	  ║  重构版 2026-05-26 v2                                       ║
+	  ║  设计原则：纯对话流 + 时间线进度面板                          ║
+	  ║  文档 08 §2.2 对话模式 / §2.3 执行模式（竖线时间线）          ║
+	  ║  布局：Grid 两行                                             ║
+	  ║  Row 0 (*):    对话流（空状态 / Feed 列表）                  ║
+	  ║  Row 1 (Auto): 输入区（InputAreaView 共享控件）              ║
+	  ╚══════════════════════════════════════════════════════════════╝
+	-->
 	<Grid x:Name="DetailRoot" RowDefinitions="*,Auto">
-		<!-- ════════════════════════════════════════════════════════════════
-		     Row 0：任务详情区（与原 C4 一致，保持 100%）
-		     ════════════════════════════════════════════════════════════════ -->
+
+		<!-- ═══════════════════════════════════════════════════════════
+		     Row 0：对话流区域
+		     ═══════════════════════════════════════════════════════════ -->
 		<Panel Grid.Row="0">
+
+			<!-- 无任务选中：空状态提示 -->
 			<controls:EmptyState x:Name="EmptyHint"
 			                     IsVisible="{Binding Detail.TaskId, Converter={x:Static StringConverters.IsNullOrEmpty}}"
-			                     IconText="📋"
+			                     IconText="&#x1F4CB;"
 			                     Title="选择左侧任务查看详情"
-			                     Description="左侧任务列表为空时，在下方输入框中输入任务描述并发送即可创建新任务。&#10;运行中可在主区查看进度、最终报告和审批卡片。" />
+			                     Description="左侧任务列表为空时，在下方输入框中输入任务描述并发送即可创建新任务。" />
 
-			<!-- P4 时间线预览入口按钮（仅无任务选中时可见） -->
-			<Button x:Name="P4PreviewBtn"
-			        Classes="detail-action-btn"
-			        Content="🔬 P4 时间线预览"
-			        Click="OnP4PreviewClick"
-			        HorizontalAlignment="Center"
-			        VerticalAlignment="Bottom"
-			        Margin="0,0,0,24"
-			        IsVisible="{Binding Detail.TaskId, Converter={x:Static StringConverters.IsNullOrEmpty}}"
-			        ToolTip.Tip="打开 P4 执行引擎时间线 UI 预览（含 mock 数据）" />
+			<!-- 有任务：统一对话流 -->
+			<ScrollViewer x:Name="FeedScrollViewer"
+			              IsVisible="{Binding Detail.TaskId, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+			              VerticalScrollBarVisibility="Auto"
+			              HorizontalScrollBarVisibility="Disabled"
+			              HorizontalContentAlignment="Stretch">
 
-			<DockPanel x:Name="DetailContent"
-			           IsVisible="{Binding Detail.TaskId, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-				<Border DockPanel.Dock="Top"
-				        Background="#252526"
-				        BorderBrush="#3c3c3c" BorderThickness="0,0,0,1"
-				        Padding="16,12">
-					<StackPanel Spacing="6">
-						<Grid ColumnDefinitions="*,Auto">
-							<StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-								<TextBlock Text="{Binding Detail.Title}"
-								           Foreground="#cccccc"
-								           FontSize="16" FontWeight="SemiBold"
-								           TextTrimming="CharacterEllipsis"
-								           VerticalAlignment="Center" />
-								<Border Background="#3a2f1f" BorderBrush="#8c6e1c" BorderThickness="1"
-								        CornerRadius="3" Padding="6,2" VerticalAlignment="Center"
-								        IsVisible="{Binding Detail.IsPaused}">
-									<TextBlock Text="⏸ 等待批准"
-									           Foreground="#f4a83a" FontSize="11" FontWeight="SemiBold" />
+				<ItemsControl x:Name="FeedList"
+				              ItemsSource="{Binding Detail.FeedItems}"
+				              HorizontalAlignment="Stretch"
+				              Margin="16,10,16,60"
+				              x:CompileBindings="False">
+					<ItemsControl.ItemsPanel>
+						<ItemsPanelTemplate>
+							<StackPanel Orientation="Vertical" HorizontalAlignment="Stretch" />
+						</ItemsPanelTemplate>
+					</ItemsControl.ItemsPanel>
+					<ItemsControl.ItemTemplate>
+						<DataTemplate>
+							<Grid Margin="0,0,0,2" HorizontalAlignment="Stretch">
+
+								<!-- ── 用户消息：半透明边框气泡 ── -->
+								<Border IsVisible="{Binding IsUserMessage}"
+								        Background="#186a9fd8"
+								        BorderBrush="#406a9fd8" BorderThickness="1"
+								        CornerRadius="3" Padding="10,6"
+								        Margin="8,4,8,4">
+									<SelectableTextBlock Text="{Binding Content}"
+									                     Foreground="#d4d4d4" FontSize="13"
+									                     TextWrapping="Wrap" />
 								</Border>
-							</StackPanel>
-							<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="0">
-								<Button x:Name="AttachToConversationButton"
-								        Classes="detail-action-btn"
-								        Content="附加到对话"
-								        Click="OnAttachToConversationClick"
-								        IsVisible="{Binding Detail.IsCompleted}"
-								        ToolTip.Tip="把任务的最终报告作为助手消息追加到来源 Chat 会话" />
-								<Button x:Name="CancelButton"
-								        Classes="detail-action-btn detail-action-btn-cancel"
-								        Content="取消任务"
-								        Click="OnCancelTaskClick"
-								        IsVisible="{Binding Detail.IsRunning}" />
-							</StackPanel>
-						</Grid>
-						<Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowDefinitions="Auto">
-							<TextBlock Grid.Column="0" Text="状态：" Foreground="#858585" FontSize="12" VerticalAlignment="Center" />
-							<TextBlock Grid.Column="1" Text="{Binding Detail.StatusText}"
-							           Foreground="#cccccc" FontSize="12" VerticalAlignment="Center" Margin="0,0,16,0" />
-							<TextBlock Grid.Column="2" Text="耗时：" Foreground="#858585" FontSize="12" VerticalAlignment="Center" />
-							<TextBlock Grid.Column="3" Text="{Binding Detail.DurationText}"
-							           Foreground="#cccccc" FontSize="12" VerticalAlignment="Center" Margin="0,0,16,0" />
-							<TextBlock Grid.Column="4" Text="累计：" Foreground="#858585" FontSize="12" VerticalAlignment="Center"
-							           IsVisible="{Binding Detail.TotalTokensText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-							<TextBlock Grid.Column="5" Text="{Binding Detail.TotalTokensText}"
-							           Foreground="#cccccc" FontSize="12" VerticalAlignment="Center"
-							           IsVisible="{Binding Detail.TotalTokensText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-						</Grid>
-						<Grid ColumnDefinitions="Auto,Auto" RowDefinitions="Auto">
-							<TextBlock Grid.Column="0" Text="子模式：" Foreground="#858585" FontSize="12" />
-							<TextBlock Grid.Column="1" Text="{Binding Detail.SubMode}"
-							           Foreground="#cccccc" FontSize="12" />
-						</Grid>
-					</StackPanel>
-				</Border>
 
-				<ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,12">
-					<StackPanel Spacing="12">
-						<!-- HITL 批准卡片 -->
-						<Border Classes="approval-card"
-						        DataContext="{Binding Detail.Approval}"
-						        IsVisible="{Binding IsVisible}"
-						        x:CompileBindings="False">
-							<StackPanel Spacing="10">
-								<Grid ColumnDefinitions="Auto,*">
-									<TextBlock Grid.Column="0" Text="⏸"
-									           Foreground="#f4a83a" FontSize="20"
-									           VerticalAlignment="Center" Margin="0,0,10,0" />
-									<TextBlock Grid.Column="1" Text="{Binding PauseReasonText}"
-									           Foreground="#f4d2a3" FontSize="14" FontWeight="SemiBold"
-									           VerticalAlignment="Center" />
+								<!-- ── AI 回复：纯文本 + 流式光标 ── -->
+								<StackPanel IsVisible="{Binding IsAiMessage}"
+								            Spacing="3" Margin="8,4,8,4">
+									<SelectableTextBlock Text="{Binding Content}"
+									                     Foreground="#cccccc"
+									                     FontSize="13" TextWrapping="Wrap"
+									                     IsVisible="{Binding HasContent}" />
+									<TextBlock Text="&#x258C;" Foreground="#73c991" FontSize="13"
+									           IsVisible="{Binding IsStreaming}" />
+								</StackPanel>
+
+								<!-- ── 执行结果：摘要 + 产出文件 ── -->
+								<StackPanel IsVisible="{Binding IsResult}"
+								            Spacing="6" Margin="8,4,8,4">
+									<SelectableTextBlock Text="{Binding Content}"
+									                     Foreground="#e0c074"
+									                     FontSize="13" TextWrapping="Wrap"
+									                     IsVisible="{Binding HasContent}" />
+									<TextBlock Text="{Binding ResultSummary}"
+									           Foreground="#cccccc" FontSize="12"
+									           TextWrapping="Wrap"
+									           IsVisible="{Binding ResultSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+									<ItemsControl ItemsSource="{Binding ResultFiles}"
+									              IsVisible="{Binding HasResultFiles}"
+									              x:CompileBindings="False">
+										<ItemsControl.ItemsPanel>
+											<ItemsPanelTemplate>
+												<WrapPanel Orientation="Horizontal" />
+											</ItemsPanelTemplate>
+										</ItemsControl.ItemsPanel>
+										<ItemsControl.ItemTemplate>
+											<DataTemplate>
+												<Border Classes="attachment-tag">
+													<StackPanel Orientation="Horizontal" Spacing="4">
+														<TextBlock Text="{Binding IconText}" FontSize="12" />
+														<TextBlock Text="{Binding DisplayName}"
+														           FontSize="12" Foreground="#cccccc"
+														           ToolTip.Tip="{Binding FullPathTooltip}"
+														           MaxWidth="200"
+														           TextTrimming="CharacterEllipsis" />
+														<TextBlock Text="{Binding SizeText}"
+														           FontSize="11" Foreground="#858585"
+														           IsVisible="{Binding SizeText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+													</StackPanel>
+												</Border>
+											</DataTemplate>
+										</ItemsControl.ItemTemplate>
+									</ItemsControl>
+								</StackPanel>
+
+								<!-- ══════════════════════════════════════════════════════
+								     进度消息：竖线时间线 + 圆点 + 层级文本
+								     文档 08 §2.3 — 时间轴 + 圆点节点 + 子过程详情行
+
+								     结构（从左到右）：
+								     [竖线区 24px] [圆点+文本区]
+
+								     竖线区包含一条 1px 竖线从上到下贯穿（最后一条除外）
+								     圆点区在竖线上方叠加圆点（阶段=10px / 步骤=8px / 计划=8px）
+								     文本区根据 ProgressKind 切换字号和粗细
+								     ══════════════════════════════════════════════════════ -->
+								<Grid IsVisible="{Binding IsProgress}"
+								      ColumnDefinitions="24,*"
+								      Margin="8,0,8,0"
+								      MinHeight="22">
+
+									<!-- 左列：竖线 + 圆点 -->
+									<Panel Grid.Column="0"
+									       HorizontalAlignment="Center"
+									       VerticalAlignment="Stretch">
+
+										<!-- 向下延伸的竖线（非最后一条时显示） -->
+										<Border Width="1.5"
+										        Background="#333333"
+										        HorizontalAlignment="Center"
+										        VerticalAlignment="Stretch"
+										        IsVisible="{Binding !IsLastProgress}" />
+
+										<!-- 上半段竖线（最后一条时只画上半段到圆点中心） -->
+										<Border Width="1.5"
+										        Background="#333333"
+										        HorizontalAlignment="Center"
+										        VerticalAlignment="Top"
+										        Height="11"
+										        IsVisible="{Binding IsLastProgress}" />
+
+										<!-- 阶段级圆点（大，10x10） -->
+										<Border IsVisible="{Binding IsPhaseNode}"
+										        Width="10" Height="10"
+										        CornerRadius="5"
+										        Background="{Binding DotColor}"
+										        HorizontalAlignment="Center"
+										        VerticalAlignment="Top"
+										        Margin="0,6,0,0" />
+
+										<!-- 步骤级圆点（中，8x8） -->
+										<Border IsVisible="{Binding IsStepNode}"
+										        Width="8" Height="8"
+										        CornerRadius="4"
+										        Background="{Binding DotColor}"
+										        HorizontalAlignment="Center"
+										        VerticalAlignment="Top"
+										        Margin="0,7,0,0" />
+
+										<!-- 计划/验证/生命周期圆点（中，8x8） -->
+										<Border IsVisible="{Binding IsOtherTimelineNode}"
+										        Width="8" Height="8"
+										        CornerRadius="4"
+										        Background="{Binding DotColor}"
+										        HorizontalAlignment="Center"
+										        VerticalAlignment="Top"
+										        Margin="0,7,0,0" />
+
+										<!-- 详情行：无圆点，只有竖线穿过 -->
+									</Panel>
+
+									<!-- 右列：文本内容 -->
+									<StackPanel Grid.Column="1"
+									            Spacing="1"
+									            Margin="6,3,0,3"
+									            VerticalAlignment="Top">
+
+										<!-- 阶段标题：14px 粗体 -->
+										<TextBlock IsVisible="{Binding IsPhaseNode}"
+										           Text="{Binding TimelineTitle}"
+										           Foreground="{Binding DotColor}"
+										           FontSize="14"
+										           FontWeight="SemiBold"
+										           TextWrapping="Wrap" />
+
+										<!-- 步骤标题：13px 半粗体 -->
+										<TextBlock IsVisible="{Binding IsStepNode}"
+										           Text="{Binding TimelineTitle}"
+										           Foreground="{Binding DotColor}"
+										           FontSize="13"
+										           FontWeight="Medium"
+										           TextWrapping="Wrap" />
+
+										<!-- 计划消息：13px 普通 -->
+										<TextBlock IsVisible="{Binding IsPlanNode}"
+										           Text="{Binding TimelineTitle}"
+										           Foreground="{Binding DotColor}"
+										           FontSize="13"
+										           TextWrapping="Wrap" />
+
+										<!-- 验证消息：13px 普通 -->
+										<TextBlock IsVisible="{Binding IsValidationNode}"
+										           Text="{Binding TimelineTitle}"
+										           Foreground="{Binding DotColor}"
+										           FontSize="13"
+										           TextWrapping="Wrap" />
+
+										<!-- 生命周期消息：13px 粗体 -->
+										<TextBlock IsVisible="{Binding IsLifecycleNode}"
+										           Text="{Binding TimelineTitle}"
+										           Foreground="{Binding DotColor}"
+										           FontSize="13"
+										           FontWeight="SemiBold"
+										           TextWrapping="Wrap" />
+
+										<!-- 详情行（子过程）：11px 灰色 -->
+										<TextBlock IsVisible="{Binding IsDetailLine}"
+										           Text="{Binding Content}"
+										           Foreground="#858585"
+										           FontSize="11"
+										           TextWrapping="Wrap"
+										           Opacity="0.85" />
+
+										<!-- 副文本（步骤完成时的结果摘要等） -->
+										<TextBlock Text="{Binding TimelineSubText}"
+										           Foreground="#858585"
+										           FontSize="11"
+										           TextWrapping="Wrap"
+										           Opacity="0.85"
+										           Margin="0,1,0,0"
+										           IsVisible="{Binding TimelineSubText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+									</StackPanel>
 								</Grid>
-								<TextBlock Text="{Binding StallWarning}"
-								           Foreground="#f48771" FontSize="12"
+
+								<!-- ── 系统消息：灰色斜体 ── -->
+								<TextBlock IsVisible="{Binding IsSystem}"
+								           Text="{Binding Content}"
+								           Foreground="#858585"
+								           FontSize="12"
+								           FontStyle="Italic"
 								           TextWrapping="Wrap"
-								           IsVisible="{Binding IsStalled}" />
-								<Border Classes="approval-plan">
-									<StackPanel Spacing="6">
-										<TextBlock Text="计划详情"
-										           Foreground="#cccccc" FontSize="12" FontWeight="SemiBold" />
-										<SelectableTextBlock Text="{Binding PlanText}"
-										                     Foreground="#cccccc" FontSize="12"
-										                     TextWrapping="Wrap" />
-									</StackPanel>
-								</Border>
-								<Border Classes="approval-plan"
-								        IsVisible="{Binding ProgressSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-									<StackPanel Spacing="6">
-										<TextBlock Text="当前进度"
-										           Foreground="#cccccc" FontSize="12" FontWeight="SemiBold" />
-										<SelectableTextBlock Text="{Binding ProgressSummary}"
-										                     Foreground="#9e9e9e" FontSize="12"
-										                     TextWrapping="Wrap" />
-									</StackPanel>
-								</Border>
-								<StackPanel Spacing="4">
-									<TextBlock Text="（可选）输入修改建议，再点[提交修改]让 Manager 改进计划："
-									           Foreground="#9e9e9e" FontSize="11" />
-									<TextBox Text="{Binding RevisionInput, Mode=TwoWay}"
-									         AcceptsReturn="True" TextWrapping="Wrap"
-									         MinHeight="60" MaxHeight="120"
-									         Background="#1e1e1e" Foreground="#cccccc"
-									         BorderBrush="#3c3c3c" BorderThickness="1"
-									         IsEnabled="{Binding IsInteractive}" />
-								</StackPanel>
-								<StackPanel Orientation="Horizontal" Spacing="0">
-									<Button Classes="approval-btn-primary"
-									        Content="✓ 批准"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnApprovalApproveClick" />
-									<Button Classes="approval-btn-secondary"
-									        Content="✎ 提交修改"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnApprovalReviseClick" />
-									<Button Classes="approval-btn-danger"
-									        Content="✕ 取消任务"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnApprovalRejectClick" />
-								</StackPanel>
-							</StackPanel>
-						</Border>
+								           Margin="8,2,8,2" />
 
-						<!-- P2-4：动态子智能体创建审批卡片 -->
-						<Border Classes="approval-card"
-						        DataContext="{Binding Detail.DynamicAgentCreationApproval}"
-						        IsVisible="{Binding IsVisible}"
-						        x:CompileBindings="False">
-							<StackPanel Spacing="10">
-								<Grid ColumnDefinitions="Auto,*,Auto">
-									<TextBlock Grid.Column="0" Text="🤖"
-									           Foreground="#f4a83a" FontSize="20"
-									           VerticalAlignment="Center" Margin="0,0,10,0" />
-									<TextBlock Grid.Column="1" Text="Manager 计划创建动态子智能体"
-									           Foreground="#f4d2a3" FontSize="14" FontWeight="SemiBold"
-									           VerticalAlignment="Center" />
-									<TextBlock Grid.Column="2" Text="{Binding CountText}"
-									           Foreground="#9e9e9e" FontSize="11"
-									           VerticalAlignment="Center" />
-								</Grid>
-								<Border Classes="approval-plan">
+								<!-- ── 工具授权请求：内联在对话流中 ── -->
+								<Border IsVisible="{Binding IsToolAuth}"
+								        Background="#2a2010" BorderBrush="#e0c074" BorderThickness="1"
+								        CornerRadius="4" Padding="12,10"
+								        Margin="8,4,8,4">
 									<StackPanel Spacing="8">
-										<Grid ColumnDefinitions="Auto,*">
-											<TextBlock Grid.Column="0" Text="名称："
-											           Foreground="#858585" FontSize="12"
-											           VerticalAlignment="Center" />
-											<SelectableTextBlock Grid.Column="1" Text="{Binding ProposedName}"
-											                     Foreground="#9cdcfe" FontSize="13" FontWeight="SemiBold"
-											                     VerticalAlignment="Center" />
-										</Grid>
-										<Grid ColumnDefinitions="Auto,*">
-											<TextBlock Grid.Column="0" Text="职责："
-											           Foreground="#858585" FontSize="12"
-											           VerticalAlignment="Top" />
-											<SelectableTextBlock Grid.Column="1" Text="{Binding ProposedResponsibility}"
-											                     Foreground="#cccccc" FontSize="12"
-											                     TextWrapping="Wrap" />
-										</Grid>
-										<Grid ColumnDefinitions="Auto,*">
-											<TextBlock Grid.Column="0" Text="工具："
-											           Foreground="#858585" FontSize="12"
-											           VerticalAlignment="Top" />
-											<SelectableTextBlock Grid.Column="1" Text="{Binding ProposedRequiredToolsText}"
+										<TextBlock Text="{Binding Content}"
+										           Foreground="#d4d4d4" FontSize="13"
+										           TextWrapping="Wrap" />
+										<Border Background="#1e1e1e" CornerRadius="3" Padding="8,6"
+										        IsVisible="{Binding ParametersSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+											<SelectableTextBlock Text="{Binding ParametersSummary}"
 											                     Foreground="#9e9e9e" FontSize="12"
 											                     TextWrapping="Wrap" />
-										</Grid>
-										<StackPanel Spacing="4">
-											<TextBlock Text="提示词预览"
-											           Foreground="#858585" FontSize="11" FontWeight="SemiBold" />
-											<ScrollViewer MaxHeight="160" VerticalScrollBarVisibility="Auto"
-											              Background="#1e1e1e" Padding="8,6">
-												<SelectableTextBlock Text="{Binding ProposedInstructions}"
-												                     Foreground="#cccccc" FontSize="11"
-												                     TextWrapping="Wrap" />
-											</ScrollViewer>
+										</Border>
+										<StackPanel Orientation="Horizontal" Spacing="6">
+											<Button Classes="approval-btn-primary"
+											        Content="&#x2713; 确认执行"
+											        Tag="{Binding AuthRequestId}"
+											        Click="OnToolAuthConfirmClick" />
+											<Button Classes="approval-btn-secondary"
+											        Content="&#x2713;&#x2713; 本任务全部授权"
+											        IsVisible="{Binding ShowGrantAllOption}"
+											        Tag="{Binding}"
+											        Click="OnToolAuthGrantAllClick"
+											        ToolTip.Tip="本任务内该工具后续调用不再询问" />
+											<Button Classes="approval-btn-danger"
+											        Content="&#x2715; 拒绝本次调用"
+											        Tag="{Binding AuthRequestId}"
+											        Click="OnToolAuthDenyClick"
+											        ToolTip.Tip="拒绝本次调用，AI 自行寻找替代方案" />
 										</StackPanel>
 									</StackPanel>
 								</Border>
-								<StackPanel Orientation="Horizontal" Spacing="0">
-									<Button Classes="approval-btn-primary"
-									        Content="✓ 批准创建"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnDynamicAgentApproveClick" />
-									<Button Classes="approval-btn-secondary"
-									        Content="✓✓ 本任务全部批准"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnDynamicAgentApproveAllClick"
-									        ToolTip.Tip="本任务后续 create_subagent 不再询问" />
-									<Button Classes="approval-btn-danger"
-									        Content="✕ 拒绝创建"
-									        IsEnabled="{Binding IsInteractive}"
-									        Click="OnDynamicAgentRejectClick"
-									        ToolTip.Tip="拒绝本次创建，Manager 自行重新规划" />
-								</StackPanel>
-							</StackPanel>
-						</Border>
 
-						<!-- P4 多轮对话：用户交互问题卡片 -->
-						<Border Classes="approval-card"
-						        DataContext="{Binding Detail.PendingQuestion}"
-						        IsVisible="{Binding IsVisible}"
-						        x:CompileBindings="False"
-						        Background="#1e2a1e" BorderBrush="#4caf50">
-							<StackPanel Spacing="10">
-								<StackPanel Orientation="Horizontal" Spacing="6">
-									<TextBlock Text="💬" FontSize="14" VerticalAlignment="Center" />
-									<TextBlock Text="{Binding PhaseLabel}"
-									           FontSize="13" Foreground="#4caf50" FontWeight="Bold"
-									           VerticalAlignment="Center" />
-									<TextBlock Text="— 需要您的回答"
-									           FontSize="13" Foreground="#9e9e9e"
-									           VerticalAlignment="Center" />
-									<TextBlock Text="{Binding Round, StringFormat='(第{0}轮)'}"
-									           FontSize="11" Foreground="#858585"
-									           VerticalAlignment="Center" />
-								</StackPanel>
-								<SelectableTextBlock Text="{Binding QuestionText}"
-								                     Foreground="#e0e0e0" FontSize="13"
-								                     TextWrapping="Wrap" />
-								<TextBox Text="{Binding UserAnswer, Mode=TwoWay}"
-								         Watermark="输入您的回答..."
-								         MinHeight="60" MaxHeight="120"
-								         AcceptsReturn="True" TextWrapping="Wrap"
-								         Background="#1e1e1e" Foreground="#cccccc"
-								         BorderBrush="#3c3c3c" BorderThickness="1"
-								         IsEnabled="{Binding IsInteractive}" />
-								<Button Content="提交回答" HorizontalAlignment="Right"
-								        Classes="approval-btn-primary"
-								        Click="OnUserQuestionSubmitClick"
-								        IsEnabled="{Binding IsInteractive}" />
-							</StackPanel>
-						</Border>
-
-						<!-- 执行过程（P3-1 时间线视图） -->
-						<StackPanel Spacing="6">
-							<TextBlock Text="执行过程"
-							           Foreground="#cccccc" FontSize="13" FontWeight="SemiBold" />
-							<ScrollViewer x:Name="StepsScrollViewer"
-							              VerticalScrollBarVisibility="Auto"
-							              MaxHeight="600">
-								<ItemsControl ItemsSource="{Binding Detail.TimelineEvents}"
-								              x:CompileBindings="False">
-									<ItemsControl.ItemsPanel>
-										<ItemsPanelTemplate>
-											<VirtualizingStackPanel Orientation="Vertical" />
-										</ItemsPanelTemplate>
-									</ItemsControl.ItemsPanel>
-									<ItemsControl.ItemTemplate>
-										<DataTemplate>
-											<Grid ColumnDefinitions="58,20,*" MinHeight="40" Margin="0,0,0,4">
-												<!-- 左：时间 -->
-												<TextBlock Grid.Column="0" Text="{Binding TimeText}"
-												           Foreground="#858585" FontSize="11"
-												           HorizontalAlignment="Right" Margin="0,3,6,0" />
-												<!-- 中：竖线 + 圆点 -->
-												<Panel Grid.Column="1">
-													<Border Width="2" Background="#3c3c3c"
-													        HorizontalAlignment="Center"
-													        VerticalAlignment="Stretch" />
-													<Ellipse Width="{Binding NodeSize}" Height="{Binding NodeSize}"
-													         Fill="{Binding ActualNodeColor}"
-													         HorizontalAlignment="Center"
-													         VerticalAlignment="Top"
-													         Margin="0,4,0,0" />
-												</Panel>
-												<!-- 右：内容 -->
-												<StackPanel Grid.Column="2" Spacing="2" Margin="8,0,0,0">
-													<TextBlock Text="{Binding Title}"
-													           Foreground="{Binding TitleColor}"
-													           FontSize="13"
-													           FontWeight="{Binding TitleFontWeight}" />
-													<TextBlock Text="{Binding Detail}"
-													           Foreground="#9e9e9e" FontSize="12"
-													           TextWrapping="Wrap"
-													           MaxLines="6"
-													           IsVisible="{Binding HasDetail}" />
-												</StackPanel>
-											</Grid>
-										</DataTemplate>
-									</ItemsControl.ItemTemplate>
-								</ItemsControl>
-							</ScrollViewer>
-						</StackPanel>
-
-						<!-- 最终报告 -->
-						<StackPanel Spacing="6" IsVisible="{Binding Detail.IsCompleted}">
-							<TextBlock Text="最终报告" Foreground="#cccccc" FontSize="13" FontWeight="SemiBold" />
-							<Border Background="#252526" BorderBrush="#3c3c3c" BorderThickness="1"
-							        CornerRadius="4" Padding="14">
-								<controls:MarkdownRenderer Markdown="{Binding Detail.FinalReport}" />
-							</Border>
-						</StackPanel>
-
-						<!-- 错误信息 -->
-						<StackPanel Spacing="6" IsVisible="{Binding Detail.IsFailed}">
-							<TextBlock Text="失败详情" Foreground="#f48771" FontSize="13" FontWeight="SemiBold" />
-							<Border Background="#3a1f1f" BorderBrush="#6e2828" BorderThickness="1"
-							        CornerRadius="4" Padding="14">
-								<SelectableTextBlock Text="{Binding Detail.ErrorMessage}"
-								                     Foreground="#f48771" FontSize="13" TextWrapping="Wrap" />
-							</Border>
-						</StackPanel>
-
-						<!-- 取消提示 -->
-						<StackPanel Spacing="6" IsVisible="{Binding Detail.IsCancelled}">
-							<TextBlock Text="该任务已被取消" Foreground="#858585" FontSize="13" FontStyle="Italic" />
-						</StackPanel>
-					</StackPanel>
-				</ScrollViewer>
-			</DockPanel>
-		</Panel>
-
-		<!-- ════════════════════════════════════════════════════════════════
-		     Row 1：P2-1 聊天式输入框（完全复刻 Chat 风格，2026-05-17 重写）
-		     Bug 7 修复：去掉多余外层边框，仅保留顶部 1px 分隔线 + 极小 padding
-		     ════════════════════════════════════════════════════════════════ -->
-		<Border Grid.Row="1" x:Name="InputArea"
-		        Background="#1e1e1e"
-		        Padding="4,4"
-		        x:CompileBindings="False">
-			<StackPanel Spacing="4">
-				<!-- 校验错误提示 -->
-				<TextBlock Text="{Binding ValidationError}"
-				           Foreground="#f48771" FontSize="11"
-				           IsVisible="{Binding ValidationError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-
-				<!-- 附件预览区（Bug 8 修复：完全复刻 Chat 模式手动渲染 + WrapPanel 横向排列） -->
-				<ItemsControl x:Name="AttachmentList" Margin="4,0">
-					<ItemsControl.ItemsPanel>
-						<ItemsPanelTemplate>
-							<WrapPanel Orientation="Horizontal" />
-						</ItemsPanelTemplate>
-					</ItemsControl.ItemsPanel>
+							</Grid>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
 				</ItemsControl>
 
-				<!-- ════════════════════════════════════════════════════════
-				     输入框上方一行：子模式选择器 + 子 Agent 数量选择器（条款 9/10）
-				     ════════════════════════════════════════════════════════ -->
-				<StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0">
-					<!-- 子模式按钮（条款 9 + Bug 3 修复：去掉"模式："前缀） -->
-					<Button x:Name="SubModeBtn" Classes="titlebar-btn" Padding="6,3"
-					        Click="OnSubModeSelectorClick"
-					        IsEnabled="{Binding IsIdle}">
-						<StackPanel Orientation="Horizontal" Spacing="4">
-							<TextBlock x:Name="SubModeLabel" Text="{Binding SubModeDisplayName}"
-							           Foreground="#a0a0a0" FontSize="12" VerticalAlignment="Center" />
-							<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
-						</StackPanel>
-					</Button>
+			</ScrollViewer>
+		</Panel>
 
-					<!-- 子 Agent 数量按钮（条款 10：仅 Magentic 显示） -->
-					<Button x:Name="MaxSubAgentsBtn" Classes="titlebar-btn" Padding="6,3"
-					        Click="OnMaxSubAgentsSelectorClick"
-					        IsVisible="{Binding IsMagentic}"
-					        IsEnabled="{Binding IsIdle}">
-						<StackPanel Orientation="Horizontal" Spacing="4">
-							<TextBlock x:Name="MaxSubAgentsLabel" Text="{Binding MaxSubAgentsDisplay}"
-							           Foreground="#a0a0a0" FontSize="12" VerticalAlignment="Center" />
-							<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
-						</StackPanel>
-					</Button>
-				</StackPanel>
-
-				<!-- ════════════════════════════════════════════════════════
-				     输入框容器（条款 5/6：完全复刻 Chat InputBorder + 走马灯动画）
-				     ════════════════════════════════════════════════════════ -->
-				<Panel x:Name="InputBorderHost" ClipToBounds="True">
-					<Border x:Name="InputBorder" Background="#252526" CornerRadius="3"
-					        BorderBrush="#3c3c3c" BorderThickness="1"
-					        Padding="12"
-					        DragDrop.AllowDrop="True">
-						<Grid ColumnDefinitions="*,Auto">
-							<TextBox x:Name="InputBox" Grid.Column="0"
-							         Classes="chat-input"
-							         Text="{Binding InitialInput, Mode=TwoWay}"
-							         PlaceholderText="输入任务描述（Enter 发送，Shift+Enter 换行，# 引用文件）"
-							         TextWrapping="Wrap"
-							         AcceptsReturn="True"
-							         IsReadOnly="{Binding IsRunning}"
-							         MinHeight="80" MaxHeight="400" />
-							<!-- 发送 / 停止 图标按钮（条款 5 + Bug 2 修复：去掉 IsVisible binding，由 .cs 显式控制） -->
-							<Panel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
-								<Button x:Name="SendButton" Classes="titlebar-btn"
-								        ToolTip.Tip="发送" IsVisible="True"
-								        IsEnabled="{Binding CanSubmit}"
-								        Click="OnSendClick">
-									<Image Source="avares://Cortana/Assets/send.png" Width="14" Height="14" />
-								</Button>
-								<Button x:Name="StopButton" Classes="titlebar-btn titlebar-btn-warn"
-								        ToolTip.Tip="停止当前任务" IsVisible="False"
-								        Click="OnStopClick">
-									<Image x:Name="SpinnerIcon"
-									       Source="avares://Cortana/Assets/refresh.png"
-									       Width="14" Height="14"
-									       RenderTransformOrigin="50%,50%">
-										<Image.RenderTransform>
-											<RotateTransform Angle="0" />
-										</Image.RenderTransform>
-									</Image>
-								</Button>
-							</Panel>
-						</Grid>
-					</Border>
-
-					<!-- 走马灯霓虹边动画（条款 12：工作流橙色 #ff9c40） -->
-					<Border x:Name="InputMarqueeBorder" IsVisible="False" IsHitTestVisible="False"
-					        CornerRadius="3" ClipToBounds="True">
-						<Canvas Height="0" Margin="0,0,0,-120"
-						        HorizontalAlignment="Stretch" VerticalAlignment="Top">
-							<Rectangle x:Name="InputMarqueeTop" Width="120" Height="2"
-							           HorizontalAlignment="Left" VerticalAlignment="Top" RadiusX="1" RadiusY="1">
-								<Rectangle.Fill>
-									<LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-										<GradientStop Color="#00ff9c40" Offset="0" />
-										<GradientStop Color="#ffff9c40" Offset="0.5" />
-										<GradientStop Color="#00ff9c40" Offset="1" />
-									</LinearGradientBrush>
-								</Rectangle.Fill>
-							</Rectangle>
-							<Rectangle x:Name="InputMarqueeRight" Width="2" Height="120"
-							           HorizontalAlignment="Right" VerticalAlignment="Top" RadiusX="1" RadiusY="1">
-								<Rectangle.Fill>
-									<LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-										<GradientStop Color="#00ff9c40" Offset="0" />
-										<GradientStop Color="#ffff9c40" Offset="0.5" />
-										<GradientStop Color="#00ff9c40" Offset="1" />
-									</LinearGradientBrush>
-								</Rectangle.Fill>
-							</Rectangle>
-							<Rectangle x:Name="InputMarqueeBottom" Width="120" Height="2"
-							           HorizontalAlignment="Right" VerticalAlignment="Bottom" RadiusX="1" RadiusY="1">
-								<Rectangle.Fill>
-									<LinearGradientBrush StartPoint="100%,0%" EndPoint="0%,0%">
-										<GradientStop Color="#00ff9c40" Offset="0" />
-										<GradientStop Color="#ffff9c40" Offset="0.5" />
-										<GradientStop Color="#00ff9c40" Offset="1" />
-									</LinearGradientBrush>
-								</Rectangle.Fill>
-							</Rectangle>
-							<Rectangle x:Name="InputMarqueeLeft" Width="2" Height="120"
-							           HorizontalAlignment="Left" VerticalAlignment="Bottom" RadiusX="1" RadiusY="1">
-								<Rectangle.Fill>
-									<LinearGradientBrush StartPoint="0%,100%" EndPoint="0%,0%">
-										<GradientStop Color="#00ff9c40" Offset="0" />
-										<GradientStop Color="#ffff9c40" Offset="0.5" />
-										<GradientStop Color="#00ff9c40" Offset="1" />
-									</LinearGradientBrush>
-								</Rectangle.Fill>
-							</Rectangle>
-						</Canvas>
-					</Border>
-
-					<!-- Bug 3 修复 2026-05-17：# 文件补全弹出列表（完全复刻 Chat MainWindow.axaml line 352-369） -->
-					<Popup x:Name="FilePopup" Placement="TopEdgeAlignedLeft"
-					       PlacementTarget="{Binding #InputBorder}"
-					       IsLightDismissEnabled="True">
-						<Border Background="#181818" CornerRadius="6"
-						        BorderBrush="#3c3c3c" BorderThickness="1"
-						        Padding="4" MinWidth="300" MaxHeight="260">
-							<ScrollViewer VerticalScrollBarVisibility="Auto">
-								<ItemsControl x:Name="FileList">
-									<ItemsControl.ItemsPanel>
-										<ItemsPanelTemplate>
-											<StackPanel Spacing="1" />
-										</ItemsPanelTemplate>
-									</ItemsControl.ItemsPanel>
-								</ItemsControl>
-							</ScrollViewer>
-						</Border>
-					</Popup>
-				</Panel>
-
-				<!-- ════════════════════════════════════════════════════════
-				     输入框下方一行：5 个 titlebar-btn 选择器（条款 4/7/8）
-				     ════════════════════════════════════════════════════════ -->
-				<StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0">
-					<!-- 附件按钮（条款 4：用 attachment.png） -->
-					<Button x:Name="AttachButton" Classes="titlebar-btn" Padding="6,3"
-					        ToolTip.Tip="添加附件" Click="OnAttachClick"
-					        IsEnabled="{Binding IsIdle}">
-						<StackPanel Orientation="Horizontal" Spacing="4">
-							<Image Source="/Assets/attachment.png" Width="14" Height="14" />
-							<TextBlock Text="附件" Foreground="#a0a0a0" FontSize="12" />
-						</StackPanel>
-					</Button>
-
-					<!-- 智能体选择器（条款 7/8） -->
-					<Button x:Name="AgentSelectorBtn" Classes="titlebar-btn" Padding="6,3"
-					        Click="OnAgentSelectorClick"
-					        IsEnabled="{Binding IsIdle}">
-						<StackPanel Orientation="Horizontal" Spacing="4">
-							<Image Source="/Assets/agent.png" Width="14" Height="14" />
-							<TextBlock x:Name="ToolbarAgentLabel" Text="{Binding SelectedManagerName}"
-							           Foreground="#a0a0a0" FontSize="12" />
-							<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
-						</StackPanel>
-					</Button>
-
-					<!-- 厂商选择器（条款 7） -->
-					<Button x:Name="ProviderSelectorBtn" Classes="titlebar-btn" Padding="6,3"
-					        Click="OnProviderSelectorClick"
-					        IsEnabled="{Binding IsIdle}">
-						<StackPanel Orientation="Horizontal" Spacing="4">
-							<Image Source="/Assets/provider.png" Width="14" Height="14" />
-							<TextBlock x:Name="ToolbarProviderLabel" Text="{Binding SelectedProviderName}"
-							           Foreground="#a0a0a0" FontSize="12" />
-							<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
-						</StackPanel>
-					</Button>
-
-					<!-- 模型选择器（条款 7） -->
-					<Button x:Name="ModelSelectorBtn" Classes="titlebar-btn" Padding="6,3"
-					        Click="OnModelSelectorClick"
-					        IsEnabled="{Binding IsIdle}">
-						<StackPanel Orientation="Horizontal" Spacing="4">
-							<Image Source="/Assets/model.png" Width="14" Height="14" />
-							<TextBlock x:Name="ToolbarModelLabel" Text="{Binding SelectedModelName}"
-							           Foreground="#a0a0a0" FontSize="12" />
-							<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
-						</StackPanel>
-					</Button>
-
-					<!-- 工具屏蔽按钮（条款 4：用 tools.png） -->
-					<Button x:Name="ToolButton" Classes="titlebar-btn" Padding="6,3"
-					        ToolTip.Tip="高风险工具屏蔽（默认全部允许）"
-					        Click="OnToolPopupOpenClick"
-					        IsEnabled="{Binding IsIdle}">
-						<StackPanel Orientation="Horizontal" Spacing="4">
-							<Image Source="/Assets/tools.png" Width="14" Height="14" />
-							<TextBlock Text="工具" Foreground="#a0a0a0" FontSize="12" />
-							<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
-						</StackPanel>
-					</Button>
-				</StackPanel>
-			</StackPanel>
+		<!-- ═══════════════════════════════════════════════════════════
+		     Row 1：输入区（共享 InputAreaView）
+		     ═══════════════════════════════════════════════════════════ -->
+		<Border Grid.Row="1" x:Name="InputAreaBorder"
+		        Background="#1e1e1e"
+		        BorderBrush="#252526" BorderThickness="0,1,0,0"
+		        Padding="6,6,6,6"
+		        x:CompileBindings="False">
+			<!-- 共享输入区（Workflow 模式：橙色走马灯，含子模式+厂商/模型+工具按钮） -->
+			<controls:InputAreaView x:Name="WorkflowInputArea"
+			                        InputMode="Workflow"
+			                        MarqueeColor="#ff9c40" />
 		</Border>
 
-		<!-- ════════════════════════════════════════════════════════════════
-		     Popup 集（全部上拉 Placement="TopEdgeAlignedLeft"，条款 8）
-		     ════════════════════════════════════════════════════════════════ -->
-
-		<!-- 子模式 Popup（条款 9） -->
-		<Popup x:Name="SubModePopup" Placement="TopEdgeAlignedLeft"
-		       PlacementTarget="{Binding #SubModeBtn}"
-		       IsLightDismissEnabled="True">
-			<Border Background="#181818" CornerRadius="6"
-			        BorderBrush="#3c3c3c" BorderThickness="1"
-			        Padding="4" MinWidth="180">
-				<StackPanel Spacing="2">
-					<Button x:Name="SubModeMagenticItem" Classes="selector-item"
-					        Content="自主规划"
-					        Tag="magentic"
-					        Click="OnSubModeItemClick" />
-					<Button x:Name="SubModeParallelItem" Classes="selector-item"
-					        Content="并行分析"
-					        Tag="parallelanalysis"
-					        Click="OnSubModeItemClick" />
-				</StackPanel>
-			</Border>
-		</Popup>
-
-		<!-- 子 Agent 数量 Popup（条款 10：1-20） -->
-		<Popup x:Name="MaxSubAgentsPopup" Placement="TopEdgeAlignedLeft"
-		       PlacementTarget="{Binding #MaxSubAgentsBtn}"
-		       IsLightDismissEnabled="True">
-			<Border Background="#181818" CornerRadius="6"
-			        BorderBrush="#3c3c3c" BorderThickness="1"
-			        Padding="4" MinWidth="160" MaxHeight="280">
-				<ScrollViewer VerticalScrollBarVisibility="Auto">
-					<ItemsControl x:Name="MaxSubAgentsList">
-						<ItemsControl.ItemsPanel>
-							<ItemsPanelTemplate>
-								<StackPanel Spacing="2" />
-							</ItemsPanelTemplate>
-						</ItemsControl.ItemsPanel>
-					</ItemsControl>
-				</ScrollViewer>
-			</Border>
-		</Popup>
-
-		<!-- 智能体 Popup（条款 7/8） -->
-		<Popup x:Name="AgentSelectorPopup" Placement="TopEdgeAlignedLeft"
-		       PlacementTarget="{Binding #AgentSelectorBtn}"
-		       IsLightDismissEnabled="True">
-			<Border Background="#181818" CornerRadius="6"
-			        BorderBrush="#3c3c3c" BorderThickness="1"
-			        Padding="4" MinWidth="200" MaxHeight="300">
-				<ScrollViewer VerticalScrollBarVisibility="Auto">
-					<ItemsControl x:Name="AgentSelectorList">
-						<ItemsControl.ItemsPanel>
-							<ItemsPanelTemplate>
-								<StackPanel Spacing="2" />
-							</ItemsPanelTemplate>
-						</ItemsControl.ItemsPanel>
-					</ItemsControl>
-				</ScrollViewer>
-			</Border>
-		</Popup>
-
-		<!-- 厂商 Popup（条款 7） -->
-		<Popup x:Name="ProviderPopup" Placement="TopEdgeAlignedLeft"
-		       PlacementTarget="{Binding #ProviderSelectorBtn}"
-		       IsLightDismissEnabled="True">
-			<Border Background="#181818" CornerRadius="6"
-			        BorderBrush="#3c3c3c" BorderThickness="1"
-			        Padding="4" MinWidth="200" MaxHeight="300">
-				<ScrollViewer VerticalScrollBarVisibility="Auto">
-					<ItemsControl x:Name="ProviderList">
-						<ItemsControl.ItemsPanel>
-							<ItemsPanelTemplate>
-								<StackPanel Spacing="2" />
-							</ItemsPanelTemplate>
-						</ItemsControl.ItemsPanel>
-					</ItemsControl>
-				</ScrollViewer>
-			</Border>
-		</Popup>
-
-		<!-- 模型 Popup（条款 7） -->
-		<Popup x:Name="ModelPopup" Placement="TopEdgeAlignedLeft"
-		       PlacementTarget="{Binding #ModelSelectorBtn}"
-		       IsLightDismissEnabled="True">
-			<Border Background="#181818" CornerRadius="6"
-			        BorderBrush="#3c3c3c" BorderThickness="1"
-			        Padding="4" MinWidth="220" MaxHeight="360">
-				<ScrollViewer VerticalScrollBarVisibility="Auto">
-					<ItemsControl x:Name="ModelList">
-						<ItemsControl.ItemsPanel>
-							<ItemsPanelTemplate>
-								<StackPanel Spacing="2" />
-							</ItemsPanelTemplate>
-						</ItemsControl.ItemsPanel>
-					</ItemsControl>
-				</ScrollViewer>
-			</Border>
-		</Popup>
-
-		<!-- 工具屏蔽 Popup -->
-		<Popup x:Name="ToolPopup" Placement="TopEdgeAlignedLeft"
-		       PlacementTarget="{Binding #ToolButton}"
-		       IsLightDismissEnabled="True">
-			<Border Background="#181818" CornerRadius="6"
-			        BorderBrush="#3c3c3c" BorderThickness="1"
-			        Padding="12" MinWidth="320">
-				<StackPanel Spacing="8">
-					<TextBlock Text="高风险工具屏蔽"
-					           Foreground="#cccccc" FontSize="12" FontWeight="SemiBold" />
-					<TextBlock Text="勾选后，本任务执行时屏蔽所选工具（默认全部允许）。"
-					           Foreground="#858585" FontSize="11" TextWrapping="Wrap" />
-					<ItemsControl ItemsSource="{Binding HighRiskTools}"
-					              x:CompileBindings="False">
-						<ItemsControl.ItemTemplate>
-							<DataTemplate>
-								<CheckBox Content="{Binding DisplayName}"
-								          IsChecked="{Binding IsBlocked, Mode=TwoWay}"
-								          ToolTip.Tip="{Binding Description}"
-								          Foreground="#cccccc" FontSize="12"
-								          Margin="0,2" />
-							</DataTemplate>
-						</ItemsControl.ItemTemplate>
-					</ItemsControl>
-				</StackPanel>
-			</Border>
-		</Popup>
 	</Grid>
 </UserControl>

@@ -250,6 +250,7 @@ public partial class App : Application
             // 详见 Docs/未来版本策划/聊天式任务发起与动态智能体/01-P2方案设计.md §1.2。
             .AddSingleton<ViewModels.Workspace.WorkflowInputVm>()
             .AddSingleton<ViewModels.Workspace.GroupChatInputVm>()
+            .AddSingleton<ViewModels.Chat.ChatInputVm>()
             // 数据库
             .AddSingleton<CortanaDbContext>()
             .AddTransient<SystemSettingsService>()

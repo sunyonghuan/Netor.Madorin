@@ -3,3 +3,4 @@
 // ============================================================
 global using Netor.Cortana.Entitys.Extensions;
 global using Netor.Cortana.Plugin.Mcp;
+global using Netor.EventHub.Interfaces;

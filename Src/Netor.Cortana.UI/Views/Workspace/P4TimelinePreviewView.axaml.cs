@@ -31,18 +31,11 @@ public partial class P4TimelinePreviewView : UserControl
         DataContext = vm;
     }
 
-    /// <summary>切换计划概览面板展开/折叠。</summary>
+    /// <summary>切换计划概览面板展开/折叠（仅 mock 预览模式有效）。</summary>
     private void OnTogglePlanOverview(object? sender, RoutedEventArgs e)
     {
-        switch (DataContext)
-        {
-            case P4TimelinePreviewVm mockVm:
-                mockVm.IsPlanOverviewExpanded = !mockVm.IsPlanOverviewExpanded;
-                break;
-            case P4TaskDetailVm liveVm:
-                liveVm.IsPlanOverviewExpanded = !liveVm.IsPlanOverviewExpanded;
-                break;
-        }
+        if (DataContext is P4TimelinePreviewVm mockVm)
+            mockVm.IsPlanOverviewExpanded = !mockVm.IsPlanOverviewExpanded;
     }
 
     /// <summary>卡片内按钮点击。</summary>

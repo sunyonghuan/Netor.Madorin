@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia;
 using Avalonia.Threading;
@@ -10,6 +9,7 @@ using Netor.Cortana.AI.TaskEngine;
 using Netor.Cortana.AI.TaskEngine.Models;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
+using Netor.Cortana.UI.Controls;
 using Netor.Cortana.UI.Models;
 using Netor.EventHub;
 
@@ -18,16 +18,16 @@ using System.Globalization;
 namespace Netor.Cortana.UI.Views;
 
 /// <summary>
-/// 主对话窗口 —— 会话列表 + Markdown 消息渲染 + 文本输入。
+/// 主对话窗口（重构版，2026-05-26）。
+///
+/// 重构变更：
+/// - Chat 输入区、消息列表、附件、走马灯、选择器等全部迁移到 ChatView / InputAreaView。
+/// - 本文件只保留：窗口生命周期、EventHub 订阅、Tab 切换、左侧面板初始化。
+///
 /// 职责拆分：
 /// <list type="bullet">
 /// <item><c>MainWindow.Sessions.cs</c>：会话历史加载 / 切换 / 欢迎面板。</item>
-/// <item><c>MainWindow.Selectors.cs</c>：智能体 / 厂商 / 模型 三级选择器。</item>
-/// <item><c>MainWindow.Attachments.cs</c>：附件管理 + 拖放文件。</item>
-/// <item><c>MainWindow.Input.cs</c>：输入框键盘快捷键 + #文件 / @智能体 自动补全。</item>
-/// <item><c>MainWindow.Messaging.cs</c>：消息发送 / 取消 / 气泡渲染 / 滚动。</item>
 /// </list>
-/// 本文件仅保留窗口生命周期、事件订阅与面板切换。
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -39,56 +39,30 @@ public partial class MainWindow : Window
     private ISubscriber? _subscriber;
     private bool _forceClose;
     private bool _workspaceOpen;
-    // C5 决策 R2：_historyPanelOpen 字段删除（右侧历史抽屉已干掉，ChatHistoryPanel 挪到 LeftPanel.Tab2）。
+
 #if DEBUG
     private bool _debugSystemNoticeShown;
 #endif
 
-    // 阶段 5B Phase 3：当前展示中的 Workflow 建议数据（用于"切到工作模式"按钮预填任务）
-    // 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §5B.3。
+    // 阶段 5B Phase 3：当前展示中的 Workflow 建议数据
     private string? _pendingSuggestionInput;
     private string? _pendingSuggestionSubMode;
 
     private readonly IAiChatEngine chatEngine = App.Services.GetRequiredService<IAiChatEngine>();
 
-    // ──── 界面重设计 C2：MVVM 第一步 + 切换守卫 ────
-    // 详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §2.4。
+    // ──── C2：主窗口 ViewModel + DraftService ────
 
-    /// <summary>
-    /// 主窗口 ViewModel（C2 引入）：承载 CurrentMode 状态 + SystemSettings 持久化（决策 DT-3）。
-    /// 本期仅承载模式状态，InputBox 等内容控件仍为 code-behind 操作，
-    /// 后续可考虑 Chat 全面 MVVM 化（HistoryLabel 已在 C5 决策 R1 时删除）。
-    /// </summary>
     private readonly Netor.Cortana.UI.ViewModels.MainWindowVm _mainVm =
         App.Services.GetRequiredService<Netor.Cortana.UI.ViewModels.MainWindowVm>();
 
-    /// <summary>
-    /// 对话草稿暂存服务（C2 引入，决策 UI-7 D2 "保留内容" 分支用）。
-    /// 内存级单例，进程退出即丢失（不入数据库）。
-    /// </summary>
     private readonly Netor.Cortana.UI.Services.ChatDraftService _draftService =
         App.Services.GetRequiredService<Netor.Cortana.UI.Services.ChatDraftService>();
 
-    /// <summary>
-    /// 工作台 VM（C4 引入，决策 DT-11 / DT-13）：DI Singleton，
-    /// 与 TaskListPanel（左 Tab2）+ WorkflowDetailView（主区）共享同一实例。
-    /// MainWindow 持有引用是为了 tab 切换时调 OnAttachedAsync 触发列表刷新
-    /// （C4 之前是调 WorkflowTabContent.OnAttachedAsync，C4 拆分后 WorkflowDetailView
-    /// 不再暴露此方法，改由 MainWindow 直接调 VM）。
-    /// </summary>
+    /// <summary>工作台 VM（与 TaskListPanel + WorkflowDetailView 共享同一 DI Singleton 实例）。</summary>
     private readonly Netor.Cortana.UI.ViewModels.Workspace.WorkspaceTabVm _workspaceTabVm =
         App.Services.GetRequiredService<Netor.Cortana.UI.ViewModels.Workspace.WorkspaceTabVm>();
 
-    /// <summary>
-    /// P1 群聊真实化（收尾决策 DT-9，2026-05-16 落地）：「工作流」tab 包含的 SubMode 集合。
-    /// 在 <see cref="ApplyModeToUI"/> / tab 切换 / suggestion accept 三处调用 <see cref="WorkspaceTabVm.OnAttachedAsync"/> 时传入。
-    /// 详见 Docs/未来版本策划/界面重设计/05-阶段总结.md §3.1 + §6.2。
-    /// </summary>
     private static readonly IReadOnlyList<string> WorkflowSubModes = ["magentic", "parallelanalysis"];
-
-    /// <summary>
-    /// P1 群聊真实化：「群聊」tab 包含的 SubMode 集合（仅 groupchat）。
-    /// </summary>
     private static readonly IReadOnlyList<string> GroupChatSubModes = ["groupchat"];
 
     public MainWindow()
@@ -102,63 +76,35 @@ public partial class MainWindow : Window
     {
         SubscribeEvents();
         LoadInitialData();
-        MessageScroller.ScrollChanged += OnScrollChanged;
-        InputBox.TextChanged += OnInputTextChanged;
 
-        // 拖放文件支持
-        InputBorder.AddHandler(DragDrop.DragOverEvent, OnDragOver);
-        InputBorder.AddHandler(DragDrop.DragEnterEvent, OnDragEnter);
-        InputBorder.AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
-        InputBorder.AddHandler(DragDrop.DropEvent, OnDrop);
-
-        // 输入框焦点激活效果
-        InputBox.GotFocus += OnInputBoxGotFocus;
-        InputBox.LostFocus += OnInputBoxLostFocus;
-
-        // 隧道阶段拦截 Enter 发送，优先于 TextBox 自身的 AcceptsReturn 处理
-        InputBox.AddHandler(KeyDownEvent, OnInputKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-
-        // 界面重设计 C3：左侧面板初始化（替代原 WorkspacePanel，引入底部 Tab 切换 + L2 联动）。
-        // DataContext = LeftPanelVm（DI Singleton，与 MainWindowVm 共享 PropertyChanged 联动）。
-        // 详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §3。
+        // 左侧面板初始化
         LeftPanelHost.DataContext = App.Services.GetRequiredService<Netor.Cortana.UI.ViewModels.LeftPanelVm>();
         LeftPanelHost.WorkspaceDirectory = App.WorkspaceDirectory;
         LeftPanelHost.AttachmentRequested += OnWorkspaceAttachmentRequested;
         LeftPanelHost.WorkflowAttachmentRequested += paths => WorkflowTabContent.AddExternalAttachments(paths);
         LeftPanelHost.GroupChatAttachmentRequested += paths => GroupChatTabContent.AddExternalAttachments(paths);
 
-        // 界面重设计 C5：会话历史面板事件订阅（决策 R2/R3）。
-        // 原 HistoryPanel.X → LeftPanelHost.X：ChatHistoryPanel 已挪到 LeftPanel.Tab2 内部，
-        // 由 LeftPanel 转发对外 API（事件签名 + 调用方式不变，只换路径）。
-        // 详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §5.3。
         LeftPanelHost.SessionSelected += OnHistoryPanelSessionSelected;
         LeftPanelHost.RequestNewSession += OnHistoryPanelRequestNewSession;
         LeftPanelHost.AttachHistoryScrollHandler();
 
-        // Token 使用量变更 → 实时刷新进度条（跨 ChatClient 重建保留数值）
+        // Token 使用量变更 → 刷新（通过 ChatView 的 RefreshTokenProgress）
         var factory = App.Services.GetRequiredService<AIAgentFactory>();
         factory.TokenUsageChanged += RefreshTokenProgress;
         RefreshTokenProgress();
 
-        // 界面重设计 C2：启动时按 _mainVm.CurrentMode 恢复 UI 状态（决策 DT-3）。
-        // _mainVm 构造函数已从 SystemSettings 恢复值，这里只需把 UI 同步到 VM。
-        // 注意：不能调用 _mainVm.CurrentMode = ... 触发 setter，因为那会触发持久化写一遍。
-        // 仅当 VM 恢复值非 Chat（默认）时才同步 UI，避免对已 active 的 ChatTab 反复重设。
-        // 详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §2.4 + 03-交互细节.md §1.1。
-        if (_mainVm.CurrentMode != Netor.Cortana.UI.Models.WorkMode.Chat)
+        // ChatView：WorkflowSuggestion Banner 事件
+        ChatTabContent.WorkflowSuggestionAccepted += OnChatViewWorkflowSuggestionAccepted;
+        ChatTabContent.WorkflowSuggestionDismissed += OnChatViewWorkflowSuggestionDismissed;
+
+        // 启动时按 _mainVm.CurrentMode 恢复 UI 状态
+        if (_mainVm.CurrentMode != WorkMode.Chat)
         {
             ApplyModeToUI(_mainVm.CurrentMode);
-
-            // 工作流 / 群聊模式：触发 WorkspaceTab 数据加载（C4 改为直接调 DI Singleton VM）。
-            // P1 群聊真实化（收尾决策 DT-9）：按当前 WorkMode 传入对应的 SubModes 过滤。
-            if (_mainVm.CurrentMode == Netor.Cortana.UI.Models.WorkMode.Workflow)
-            {
+            if (_mainVm.CurrentMode == WorkMode.Workflow)
                 _ = _workspaceTabVm.OnAttachedAsync(workspaceId: string.Empty, WorkflowSubModes);
-            }
-            else if (_mainVm.CurrentMode == Netor.Cortana.UI.Models.WorkMode.GroupChat)
-            {
+            else if (_mainVm.CurrentMode == WorkMode.GroupChat)
                 _ = _workspaceTabVm.OnAttachedAsync(workspaceId: string.Empty, GroupChatSubModes);
-            }
         }
 
         ShowDebugSystemNotice();
@@ -167,14 +113,10 @@ public partial class MainWindow : Window
     private void ShowDebugSystemNotice()
     {
 #if DEBUG
-        if (_debugSystemNoticeShown)
-        {
-            return;
-        }
-
+        if (_debugSystemNoticeShown) return;
         _debugSystemNoticeShown = true;
-        HideWelcome();
-        AddSystemNotice(new SystemNoticeArgs(
+        ChatTabContent.HideWelcome();
+        ChatTabContent.AddSystemNotice(new SystemNoticeArgs(
             "这是调试模式下用于验收 system.notice 样式的系统提醒。\n当前默认只预览两行内容。\n点击标题左侧图标可以展开完整详情。\n再次点击可以折叠回预览状态。",
             "系统提醒样式验收",
             "info",
@@ -183,15 +125,13 @@ public partial class MainWindow : Window
 #endif
     }
 
-    /// <summary>加载初始数据（会话历史、智能体、厂商、模型选择器）。</summary>
+    /// <summary>加载初始数据（会话历史）。</summary>
     private void LoadInitialData()
     {
         LoadSessions();
-        LoadAgents();
-        LoadProviders();
     }
 
-    // ──────── 工作台 / 历史面板切换 ────────
+    // ──────── 工作台切换 ────────
 
     private void OnWorkspaceToggleClick(object? sender, RoutedEventArgs e)
     {
@@ -211,70 +151,82 @@ public partial class MainWindow : Window
         }
     }
 
-    // ──────── 事件订阅（EventHub） ────────
+    // ──────── EventHub 订阅 ────────
 
-    /// <summary>
-    /// 订阅 EventHub 事件，接收 AI 回复和配置变更。
-    /// </summary>
     private void SubscribeEvents()
     {
         _subscriber = App.Services.GetRequiredService<ISubscriber>();
 
-        // AI 配置变更 → 刷新选择器
-        _subscriber.Subscribe<DataChangeArgs>(Events.OnAiProviderChange, (_, _) =>
+        // 用户发送消息 → 显示用户气泡（InputBox 发送路径）
+        _subscriber.Subscribe<ConversationUserMessageArgs>(Events.OnConversationUserMessage, (_, args) =>
         {
-            Dispatcher.UIThread.Post(LoadProviders);
+            if (string.IsNullOrWhiteSpace(args.Content) && args.Attachments.Count == 0)
+                return Task.FromResult(false);
+
+            // 构建显示文本：正文 + 附件名列表
+            var attachmentNames = args.Attachments.Count > 0
+                ? string.Join(", ", args.Attachments.Select(a => $"📎 {a.Name}"))
+                : string.Empty;
+            var displayText = string.IsNullOrWhiteSpace(attachmentNames)
+                ? args.Content
+                : string.IsNullOrWhiteSpace(args.Content)
+                    ? attachmentNames
+                    : $"{args.Content}\n{attachmentNames}";
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                ChatTabContent.HideWelcome();
+                ChatTabContent.AddMessageBubble(displayText, isUser: true);
+            });
             return Task.FromResult(false);
         });
 
-        _subscriber.Subscribe<DataChangeArgs>(Events.OnAiModelChange, (_, _) =>
+        // AI 推理开始 → ChatView 已通过 ChatInputVm 自动处理走马灯，这里只做 Token 刷新
+        _subscriber.Subscribe<VoiceSignalArgs>(Events.OnAiStarted, (_, _) =>
+        {
+            // ChatInputVm 已订阅 OnAiStarted → IsRunning=true → InputAreaView 走马灯启动
+            return Task.FromResult(false);
+        });
+
+        // AI 推理完成 → 刷新会话标题
+        _subscriber.Subscribe<VoiceSignalArgs>(Events.OnAiCompleted, (_, _) =>
         {
             Dispatcher.UIThread.Post(() =>
             {
-                if (!string.IsNullOrEmpty(_currentProviderId))
-                    LoadModels(_currentProviderId);
+                RefreshCurrentSessionTitle();
+                RefreshTokenProgress();
+            });
+            return Task.FromResult(false);
+        });
+
+        // AI 配置变更 → ChatInputVm.LoadAvailableAgents/Providers 已自动重载（监听 OnAgentChange 等）
+        // 此处保留 Selectors 刷新以兼容旧 ChatService 路径
+        _subscriber.Subscribe<DataChangeArgs>(Events.OnAiProviderChange, (_, _) =>
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                var chatInputVm = App.Services.GetRequiredService<ViewModels.Chat.ChatInputVm>();
+                chatInputVm.LoadAvailableProviders();
+                if (chatInputVm.SelectedProvider is not null)
+                    chatInputVm.LoadModelsForProvider(chatInputVm.SelectedProvider.Id);
             });
             return Task.FromResult(false);
         });
 
         _subscriber.On(Events.OnAgentChange, (_, _) =>
         {
-            Dispatcher.UIThread.Post(LoadAgents);
-            return Task.FromResult(false);
-        });
-
-        // AI 推理开始 → 切换按钮为取消状态
-        _subscriber.Subscribe<VoiceSignalArgs>(Events.OnAiStarted, (_, _) =>
-        {
-            Dispatcher.UIThread.Post(() => SetSendingState(true));
-            return Task.FromResult(false);
-        });
-
-        // AI 推理完成 → 恢复按钮为发送状态 + 刷新侧边栏标题
-        _subscriber.Subscribe<VoiceSignalArgs>(Events.OnAiCompleted, (_, _) =>
-        {
             Dispatcher.UIThread.Post(() =>
             {
-                SetSendingState(false);
-                RefreshCurrentSessionTitle();
+                var chatInputVm = App.Services.GetRequiredService<ViewModels.Chat.ChatInputVm>();
+                chatInputVm.LoadAvailableAgents();
             });
             return Task.FromResult(false);
         });
 
-        // AI 生成会话标题完成 → 刷新标题
+        // AI 生成会话标题完成 → 刷新左侧列表
         _subscriber.Subscribe<SessionTitleUpdatedArgs>(Events.OnSessionTitleUpdated, (_, args) =>
         {
-            Dispatcher.UIThread.Post(() =>
-            {
-                // C5 决策 R1：HistoryLabel 已删除（顶栏 "最近 ▼" 按钮被砍）。
-                // 这里只需调 RefreshCurrentSessionTitle，由 LeftPanel 内部 ChatHistoryPanel
-                // 的列表自然刷新。CurrentSessionId 比对逻辑保留，避免误刷新非当前会话。
-                if (string.Equals(LeftPanelHost.CurrentSessionId, args.SessionId, StringComparison.OrdinalIgnoreCase))
-                {
-                    // 当前会话标题刷新由 RefreshCurrentSessionTitle 统一处理
-                }
-                RefreshCurrentSessionTitle();
-            });
+            Dispatcher.UIThread.Post(() => RefreshCurrentSessionTitle());
             return Task.FromResult(false);
         });
 
@@ -284,8 +236,8 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(args.Text)) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
-                HideWelcome();
-                AddMessageBubble(args.Text, isUser: true);
+                ChatTabContent.HideWelcome();
+                ChatTabContent.AddMessageBubble(args.Text, isUser: true);
             });
             return Task.FromResult(false);
         });
@@ -293,25 +245,20 @@ public partial class MainWindow : Window
         _subscriber.Subscribe<WebSocketUserMessageReceivedArgs>(Events.OnWebSocketUserMessageReceived, (_, args) =>
         {
             var attachmentNames = args.Attachments.Count > 0
-                ? string.Join(", ", args.Attachments.Select(attachment => $"📎 {attachment.Name}"))
+                ? string.Join(", ", args.Attachments.Select(a => $"📎 {a.Name}"))
                 : string.Empty;
             var displayText = string.IsNullOrWhiteSpace(attachmentNames)
                 ? args.Text
                 : string.IsNullOrWhiteSpace(args.Text)
                     ? attachmentNames
                     : $"{args.Text}\n{attachmentNames}";
-
-            if (string.IsNullOrWhiteSpace(displayText))
-            {
-                return Task.FromResult(false);
-            }
+            if (string.IsNullOrWhiteSpace(displayText)) return Task.FromResult(false);
 
             Dispatcher.UIThread.Post(() =>
             {
-                HideWelcome();
-                AddMessageBubble(displayText, isUser: true);
+                ChatTabContent.HideWelcome();
+                ChatTabContent.AddMessageBubble(displayText, isUser: true);
             });
-
             return Task.FromResult(false);
         });
 
@@ -320,8 +267,8 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(args.Content)) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
-                HideWelcome();
-                AddSystemNotice(args);
+                ChatTabContent.HideWelcome();
+                ChatTabContent.AddSystemNotice(args);
             });
             return Task.FromResult(false);
         });
@@ -333,13 +280,7 @@ public partial class MainWindow : Window
             {
                 LeftPanelHost.WorkspaceDirectory = args.Path;
                 LoadSessions();
-
-                // C5 决策 R2：右侧抽屉已删除，会话历史列表现在常驻在 LeftPanel.Tab2 内的 ChatHistoryPanel。
-                // 工作区变化后直接刷新左侧列表（不再判断 _historyPanelOpen，左侧列表始终可见）。
                 LeftPanelHost.ReloadHistory();
-
-                // 新工作目录没有任何会话时，LoadSessions 内部已主动创建（详见 MainWindow.Sessions.cs §LoadSessions）；
-                // C5 删除原冗余的 HistoryList.Items.Count == 0 判断（HistoryList Popup 已不存在）。
             });
             return Task.FromResult(false);
         });
@@ -349,19 +290,14 @@ public partial class MainWindow : Window
         {
             Dispatcher.UIThread.Post(() =>
             {
-                MessageList.Items.Clear();
-                // C5 决策 R1：HistoryLabel 已删除（顶栏 "最近 ▼" 按钮被砍）。
-                // 新会话标题由 LeftPanel.Tab2 内 ChatHistoryPanel 列表自然刷新。
-                ShowWelcome();
+                ChatTabContent.Clear();
                 LoadSessions();
-                // 关键：切换到新创建的会话，而不是继续在旧会话上
                 SwitchToSession(args.SessionId, "新对话");
             });
             return Task.FromResult(false);
         });
 
-        // 阶段 5B Phase 3：订阅 Chat→Workflow 启发式建议事件，UI 端弹 banner
-        // 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §5B.3
+        // Chat→Workflow 建议事件
         _subscriber.Subscribe<WorkflowSuggestionArgs>(Events.OnWorkflowSuggestion, (_, args) =>
         {
             Dispatcher.UIThread.Post(() =>
@@ -369,22 +305,76 @@ public partial class MainWindow : Window
                 _pendingSuggestionInput = args.OriginalInput;
                 _pendingSuggestionSubMode = args.SuggestedSubMode;
 
-                WorkflowSuggestionReason.Text = args.Reason;
-                // input preview 截断到 80 字符方便单行展示
                 var preview = args.OriginalInput.Length > 80
                     ? args.OriginalInput[..80] + "…"
                     : args.OriginalInput;
-                WorkflowSuggestionInputPreview.Text = preview;
-
-                WorkflowSuggestionBanner.IsVisible = true;
+                ChatTabContent.ShowWorkflowSuggestion(args.Reason, preview, args.SuggestedSubMode, args.OriginalInput);
             });
             return Task.FromResult(false);
         });
     }
 
+    // ──────── Token 进度条 ────────
+
+    private void RefreshTokenProgress()
+    {
+        var factory = App.Services.GetRequiredService<AIAgentFactory>();
+        var max = factory.MaxContextTokens;
+        if (max <= 0) return;
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            ChatTabContent.RefreshTokenProgress(factory.LastInputTokens, max);
+        });
+    }
+
+    // ──────── 工作区附件回调 ────────
+
+    private void OnWorkspaceAttachmentRequested(IReadOnlyList<string> filePaths)
+    {
+        // Chat 模式下通过 ChatView 的 InputAreaView 注入附件
+        ChatTabContent.AddExternalAttachments(filePaths);
+    }
+
+    // ──────── ChatView WorkflowSuggestion 事件 ────────
+
+    private async void OnChatViewWorkflowSuggestionAccepted(string? pendingInput, string? subMode)
+    {
+        var input = pendingInput ?? _pendingSuggestionInput ?? string.Empty;
+        var mode = subMode ?? _pendingSuggestionSubMode ?? "Magentic";
+        _pendingSuggestionInput = null;
+        _pendingSuggestionSubMode = null;
+
+        try
+        {
+            if (_currentTab != "workflow")
+            {
+                ApplyModeToUI(WorkMode.Workflow);
+                _mainVm.CurrentMode = WorkMode.Workflow;
+                try { await _workspaceTabVm.OnAttachedAsync(workspaceId: string.Empty, WorkflowSubModes); }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[MainWindow] WorkflowTab attach error: {ex.Message}"); }
+            }
+
+            var engine = App.Services.GetRequiredService<TaskExecutionEngine>();
+            var options = new TaskStartOptions { SubMode = mode };
+            var taskId = await engine.StartTaskAsync(input, workspaceId: string.Empty, templateId: null, options, CancellationToken.None);
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] WorkflowSuggestionAccepted: taskId={taskId}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow] WorkflowSuggestionAccepted error: {ex.Message}");
+        }
+    }
+
+    private void OnChatViewWorkflowSuggestionDismissed()
+    {
+        _pendingSuggestionInput = null;
+        _pendingSuggestionSubMode = null;
+    }
+
     // ──────── 设置 / 关闭 ────────
 
-    private void OnSettingsClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private void OnSettingsClick(object? sender, RoutedEventArgs e)
     {
         var settings = App.Services.GetRequiredService<SettingsWindow>();
         settings.Show();
@@ -393,7 +383,6 @@ public partial class MainWindow : Window
 
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
     {
-        // 用户点关闭按钮时隐藏窗口，不退出程序
         if (!_forceClose && !App.IsShuttingDown)
         {
             e.Cancel = true;
@@ -401,7 +390,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>从系统设置恢复主窗口位置和大小；首次启动无设置时保持 XAML 的居中启动。</summary>
     internal void ApplySavedPlacement()
     {
         var settings = App.Services.GetRequiredService<SystemSettingsService>();
@@ -409,15 +397,10 @@ public partial class MainWindow : Window
         var y = ReadInt(settings, PlacementYKey);
         var width = ReadDouble(settings, PlacementWidthKey);
         var height = ReadDouble(settings, PlacementHeightKey);
-
-        if (x is null || y is null || width is null || height is null)
-        {
-            return;
-        }
+        if (x is null || y is null || width is null || height is null) return;
 
         Width = Math.Max(MinWidth, width.Value);
         Height = Math.Max(MinHeight, height.Value);
-
         var position = new PixelPoint(x.Value, y.Value);
         if (IsPositionVisible(position))
         {
@@ -426,14 +409,9 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>保存当前主窗口位置和大小到系统设置表。</summary>
     internal void SaveCurrentPlacement()
     {
-        if (WindowState != WindowState.Normal)
-        {
-            return;
-        }
-
+        if (WindowState != WindowState.Normal) return;
         var settings = App.Services.GetRequiredService<SystemSettingsService>();
         settings.SetValue(PlacementXKey, Position.X.ToString(CultureInfo.InvariantCulture));
         settings.SetValue(PlacementYKey, Position.Y.ToString(CultureInfo.InvariantCulture));
@@ -448,29 +426,17 @@ public partial class MainWindow : Window
             var area = screen.WorkingArea;
             if (position.X >= area.X && position.X < area.X + area.Width
                 && position.Y >= area.Y && position.Y < area.Y + area.Height)
-            {
                 return true;
-            }
         }
-
         return false;
     }
 
     private static int? ReadInt(SystemSettingsService settings, string key)
-    {
-        return int.TryParse(settings.GetValue(key), CultureInfo.InvariantCulture, out var value)
-            ? value
-            : null;
-    }
+        => int.TryParse(settings.GetValue(key), CultureInfo.InvariantCulture, out var value) ? value : null;
 
     private static double? ReadDouble(SystemSettingsService settings, string key)
-    {
-        return double.TryParse(settings.GetValue(key), CultureInfo.InvariantCulture, out var value)
-            ? value
-            : null;
-    }
+        => double.TryParse(settings.GetValue(key), CultureInfo.InvariantCulture, out var value) ? value : null;
 
-    /// <summary>强制关闭窗口（退出应用时使用）。</summary>
     internal void ForceClose()
     {
         _forceClose = true;
@@ -480,29 +446,19 @@ public partial class MainWindow : Window
             var factory = App.Services.GetRequiredService<AIAgentFactory>();
             factory.TokenUsageChanged -= RefreshTokenProgress;
         }
-        catch { /* 关闭路径安静处理 */ }
+        catch { }
         Close();
     }
 
-    // ────────────────────────────────────────────────────────────
-    // 阶段 3B：Chat / Workspace Tab 切换
-    // 界面重设计 C2：扩展为 3 tab（对话 / 工作流 / 群聊）+ 未保存确认守卫（决策 UI-3 + UI-7）
-    // ────────────────────────────────────────────────────────────
+    // ──────── Tab 切换 ────────
 
-    /// <summary>
-    /// 当前激活的 tab 字符串（保留供 5B 阶段已有逻辑兼容；C2 起以 _mainVm.CurrentMode 为权威源）。
-    /// </summary>
     private string _currentTab = "chat";
 
-    /// <summary>
-    /// 把 Models.WorkMode 映射到 axaml 控件可见性 + tab 按钮 active 样式 + _currentTab。
-    /// 注意：本方法只改 UI，不改 VM。VM 由调用方在合适时机设置以触发持久化（决策 DT-3）。
-    /// </summary>
-    private void ApplyModeToUI(Netor.Cortana.UI.Models.WorkMode mode)
+    private void ApplyModeToUI(WorkMode mode)
     {
-        var toChat = mode == Netor.Cortana.UI.Models.WorkMode.Chat;
-        var toWorkflow = mode == Netor.Cortana.UI.Models.WorkMode.Workflow;
-        var toGroupChat = mode == Netor.Cortana.UI.Models.WorkMode.GroupChat;
+        var toChat = mode == WorkMode.Chat;
+        var toWorkflow = mode == WorkMode.Workflow;
+        var toGroupChat = mode == WorkMode.GroupChat;
 
         ChatTabContent.IsVisible = toChat;
         WorkflowTabContent.IsVisible = toWorkflow;
@@ -515,166 +471,98 @@ public partial class MainWindow : Window
         _currentTab = mode.ToPersistenceString();
     }
 
-    /// <summary>
-    /// 顶部 Tab 按钮点击：在 对话 / 工作流 / 群聊 之间切换主内容区。
-    ///
-    /// 界面重设计 C2 行为（决策 UI-7 D2）：
-    /// - 从 对话 → 工作流/群聊 且输入框 / 附件有未保存内容时，弹 Dialogs.UnsavedChangesDialog
-    /// - 用户选 取消：留在 对话 模式，不切换
-    /// - 用户选 保留内容：切换 + ChatDraftService.Save 暂存（IsVisible 切换自然保留 InputBox 状态）
-    /// - 用户选 丢弃并切换：清空 InputBox + 附件 + 切换
-    ///
-    /// 切换时仅修改 IsVisible 与按钮 active 样式，不卸载控件本身（决策 DT-5 A：保留 Chat Tab 状态）。
-    /// </summary>
-    private async void OnTabSwitchClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void OnTabSwitchClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button btn || btn.Tag is not string tab) return;
         if (_currentTab == tab) return;
 
-        var targetMode = Netor.Cortana.UI.Models.WorkModeExtensions.FromPersistenceString(tab);
+        var targetMode = WorkModeExtensions.FromPersistenceString(tab);
 
-        // C2 守卫：仅当从 Chat → Workflow/GroupChat 且有未保存内容时弹确认对话框
-        if (_currentTab == "chat" && targetMode != Netor.Cortana.UI.Models.WorkMode.Chat)
+        // C2 守卫：从 Chat → Workflow/GroupChat 且有未保存内容时弹确认对话框
+        if (_currentTab == "chat" && targetMode != WorkMode.Chat)
         {
-            var hasText = !string.IsNullOrWhiteSpace(InputBox?.Text);
-            var hasAttachments = _attachments.Count > 0;
+            var chatInputVm = App.Services.GetRequiredService<ViewModels.Chat.ChatInputVm>();
+            var hasText = !string.IsNullOrWhiteSpace(chatInputVm.InitialInput);
+            var hasAttachments = chatInputVm.Attachments.Count > 0;
             if (hasText || hasAttachments)
             {
                 try
                 {
-                    var preview = hasText ? InputBox!.Text! : string.Empty;
+                    var preview = hasText ? chatInputVm.InitialInput : string.Empty;
                     if (preview.Length > 50) preview = string.Concat(preview.AsSpan(0, 50), "…");
 
-                    var choice = await Netor.Cortana.UI.Views.Dialogs.UnsavedChangesDialog
-                        .ShowDialogAsync(this, preview, _attachments.Count);
+                    var choice = await Views.Dialogs.UnsavedChangesDialog
+                        .ShowDialogAsync(this, preview, chatInputVm.Attachments.Count);
 
                     switch (choice)
                     {
-                        case Netor.Cortana.UI.Views.Dialogs.UnsavedChoice.Cancel:
-                            return; // 用户取消 → 不切
+                        case Views.Dialogs.UnsavedChoice.Cancel:
+                            return;
 
-                        case Netor.Cortana.UI.Views.Dialogs.UnsavedChoice.Save:
-                            // 切走，通过 DraftService 暂存（IsVisible 切换自然保留 InputBox 状态；
-                            // Save 调用为 C5+ Chat 全面 MVVM 化后真正销毁/重建 ChatTab 时的铺路）。
-                            _draftService.Save(InputBox?.Text, _attachments);
+                        case Views.Dialogs.UnsavedChoice.Save:
+                            _draftService.Save(chatInputVm.InitialInput, [.. chatInputVm.Attachments]);
                             break;
 
-                        case Netor.Cortana.UI.Views.Dialogs.UnsavedChoice.Discard:
-                            // 切走，清空 InputBox + 附件
-                            if (InputBox is not null) InputBox.Text = string.Empty;
-                            _attachments.Clear();
-                            // 附件 UI 重绘由 AttachmentList ItemsSource 重新设置触发；
-                            // C2 阶段简化处理：用户切到工作流后再切回对话时附件 UI 可能仍残留旧 chip，
-                            // 这是已知小问题，留待 C5 收尾时附 attachment ItemsSource 绑定方案统一修复。
+                        case Views.Dialogs.UnsavedChoice.Discard:
+                            chatInputVm.InitialInput = string.Empty;
+                            chatInputVm.Attachments.Clear();
                             break;
                     }
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"[MainWindow] UnsavedChangesDialog 异常：{ex.Message}");
-                    return; // 异常 fallback：不切（保守，避免静默丢失数据）
+                    System.Diagnostics.Debug.WriteLine($"[MainWindow] UnsavedChangesDialog 异常：{ex.Message}");
+                    return;
                 }
             }
         }
 
-        // 执行切换
         ApplyModeToUI(targetMode);
-        _mainVm.CurrentMode = targetMode; // 触发 PropertyChanged + 持久化到 SystemSettings（决策 DT-3）
+        _mainVm.CurrentMode = targetMode;
 
-        if (targetMode != Netor.Cortana.UI.Models.WorkMode.Chat)
+        if (targetMode == WorkMode.Workflow)
         {
-            // C5 决策 R1：HistoryPopup 已删除（顶栏 "最近 ▼" 按钮 + 浮窗式历史列表全部砍掉）。
-            // 切换到非对话模式时不再需要关闭历史下拉，本判断块保留为占位（C6+ 可能加其他切换前清理）。
+            try { await _workspaceTabVm.OnAttachedAsync(workspaceId: string.Empty, WorkflowSubModes); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[MainWindow] WorkflowTab attach error: {ex.Message}"); }
         }
-
-        if (targetMode == Netor.Cortana.UI.Models.WorkMode.Workflow)
+        else if (targetMode == WorkMode.GroupChat)
         {
-            // 通知 WorkspaceTab 拉取最新列表（C4：改为直接调 DI Singleton VM；workspaceId 简化版传空字符串）
-            // P1 群聊真实化（收尾决策 DT-9）：传入 WorkflowSubModes 仅过滤 magentic / parallelanalysis 任务
-            try
-            {
-                await _workspaceTabVm.OnAttachedAsync(workspaceId: string.Empty, WorkflowSubModes);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[MainWindow] WorkflowTab attach error: {ex.Message}");
-            }
-        }
-        else if (targetMode == Netor.Cortana.UI.Models.WorkMode.GroupChat)
-        {
-            // P1 群聊真实化（收尾决策 DT-9）：群聊 tab 与工作流 tab 共用 WorkspaceTabVm，
-            // 但传入 GroupChatSubModes 仅过滤 groupchat 任务，让两个 tab 看到的列表互相隔离。
-            // 之前 C4 时这里没有 OnAttachedAsync 调用（占位实现），P1 补全。
-            try
-            {
-                await _workspaceTabVm.OnAttachedAsync(workspaceId: string.Empty, GroupChatSubModes);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[MainWindow] GroupChatTab attach error: {ex.Message}");
-            }
+            try { await _workspaceTabVm.OnAttachedAsync(workspaceId: string.Empty, GroupChatSubModes); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[MainWindow] GroupChatTab attach error: {ex.Message}"); }
         }
     }
 
-    // ──────── 阶段 5B Phase 3：Chat→Workflow 启发式建议 banner ────────
+    // ──────── 代理方法（供 UiChatOutputChannel / App.axaml.cs 调用） ────────
+
+    /// <summary>代理 → ChatTabContent.AddMessageBubble（UiChatOutputChannel 调用）。</summary>
+    internal void AddMessageBubble(string content, bool isUser,
+        IReadOnlyList<ChatMessageAssetEntity>? assets = null,
+        string? authorName = null, DateTimeOffset? timestamp = null)
+        => ChatTabContent.AddMessageBubble(content, isUser, assets, authorName, timestamp);
+
+    /// <summary>代理 → ChatTabContent.AddSystemNotice（App.axaml.cs 调用）。</summary>
+    internal void AddSystemNotice(SystemNoticeArgs args)
+        => ChatTabContent.AddSystemNotice(args);
+
+    /// <summary>代理 → ChatTabContent.AutoScrollToBottom（UiChatOutputChannel 调用）。</summary>
+    internal void AutoScrollToBottom()
+        => ChatTabContent.AutoScrollToBottom();
+
+    /// <summary>代理 → ChatTabContent.ForceScrollToBottom（UiChatOutputChannel 调用）。</summary>
+    internal void ForceScrollToBottom()
+        => ChatTabContent.ForceScrollToBottom();
+
+    /// <summary>代理 → ChatTabContent.AddRealtimeProcessCard（UiChatOutputChannel 调用）。</summary>
+    internal RealtimeProcessCardHandle AddRealtimeProcessCard(RealtimeProcessEvent initial)
+        => ChatTabContent.AddRealtimeProcessCard(initial);
 
     /// <summary>
-    /// 用户点击 [切到工作模式]：跳转到工作台 Tab + 启动新任务。
-    /// P4: 通过 TaskExecutionEngine.StartTaskAsync 启动任务。
-    /// 详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §5B.3。
+    /// 供 UiChatOutputChannel.EnsureBubbleCreated 直接访问消息列表（流式 AI 气泡追加）。
     /// </summary>
-    private async void OnWorkflowSuggestionAcceptClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        var input = _pendingSuggestionInput ?? string.Empty;
-        var subMode = _pendingSuggestionSubMode ?? "Magentic";
-
-        // 1) 隐藏 banner（无论后续步骤是否成功）
-        WorkflowSuggestionBanner.IsVisible = false;
-        _pendingSuggestionInput = null;
-        _pendingSuggestionSubMode = null;
-
-        try
-        {
-            // 2) 切到工作流 Tab（界面重设计 C2：复用 ApplyModeToUI + VM 设值，与 OnTabSwitchClick 一致）
-            if (_currentTab != "workflow")
-            {
-                ApplyModeToUI(Netor.Cortana.UI.Models.WorkMode.Workflow);
-                _mainVm.CurrentMode = Netor.Cortana.UI.Models.WorkMode.Workflow;
-
-                try
-                {
-                    await _workspaceTabVm.OnAttachedAsync(workspaceId: string.Empty, WorkflowSubModes);
-                }
-                catch (Exception innerEx)
-                {
-                    System.Diagnostics.Debug.WriteLine(
-                        $"[MainWindow] WorkflowTab attach error: {innerEx.Message}");
-                }
-            }
-
-            // 3) 通过 P4 TaskExecutionEngine 启动任务
-            var engine = App.Services.GetRequiredService<TaskExecutionEngine>();
-            var options = new TaskStartOptions { SubMode = subMode };
-            var taskId = await engine.StartTaskAsync(input, workspaceId: string.Empty, templateId: null, options, CancellationToken.None);
-
-            System.Diagnostics.Debug.WriteLine(
-                $"[MainWindow] OnWorkflowSuggestionAcceptClick: 任务已启动 taskId='{taskId}', input='{input}', subMode='{subMode}'");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine(
-                $"[MainWindow] OnWorkflowSuggestionAcceptClick error: {ex.Message}");
-        }
-    }
+    internal ItemsControl ChatMessageList => ChatTabContent.Messages;
 
     /// <summary>
-    /// 用户点击 [✕] 忽略本次建议：仅隐藏 banner，不影响下次触发判断。
+    /// 供 UiChatOutputChannel.EnsureBubbleCreated 读取当前智能体名称（气泡头部显示）。
     /// </summary>
-    private void OnWorkflowSuggestionDismissClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        WorkflowSuggestionBanner.IsVisible = false;
-        _pendingSuggestionInput = null;
-        _pendingSuggestionSubMode = null;
-    }
+    internal string CurrentAgentName => ChatTabContent.CurrentAgentName;
 }

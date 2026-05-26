@@ -55,6 +55,181 @@
 		<Setter Property="Foreground" Value="#ff7070" />
 	</Style>
 
+	<!-- ══════ 输入框样式 ══════ -->
+	<Style Selector="TextBox.chat-input">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="#cccccc" />
+		<Setter Property="CaretBrush" Value="#007acc" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="FontSize" Value="13" />
+		<Setter Property="Padding" Value="0" />
+	</Style>
+	<Style Selector="TextBox.chat-input:focus /template/ Border">
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Background" Value="Transparent" />
+	</Style>
+	<Style Selector="TextBox.chat-input:pointerover /template/ Border">
+		<Setter Property="Background" Value="Transparent" />
+	</Style>
+
+	<!-- ══════ 拖拽分隔条 ══════ -->
+	<Style Selector="GridSplitter">
+		<Setter Property="Background" Value="Transparent" />
+	</Style>
+	<Style Selector="GridSplitter:pointerover">
+		<Setter Property="Background" Value="#3c3c3c" />
+	</Style>
+
+	<!-- ══════ Popup 选择器项 ══════ -->
+	<Style Selector="Button.selector-item">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="#cccccc" />
+		<Setter Property="HorizontalAlignment" Value="Stretch" />
+		<Setter Property="HorizontalContentAlignment" Value="Left" />
+		<Setter Property="Padding" Value="10,6" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+	</Style>
+	<Style Selector="Button.selector-item:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#252526" />
+	</Style>
+	<Style Selector="Button.selector-item-active">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="Foreground" Value="#007acc" />
+		<Setter Property="HorizontalAlignment" Value="Stretch" />
+		<Setter Property="HorizontalContentAlignment" Value="Left" />
+		<Setter Property="Padding" Value="10,6" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+	</Style>
+	<Style Selector="Button.selector-item-active /template/ ContentPresenter">
+		<Setter Property="Background" Value="#252526" />
+	</Style>
+
+	<!-- ══════ 顶部模式切换 Tab 按钮 ══════ -->
+	<Style Selector="Button.tab-btn">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="#858585" />
+		<Setter Property="FontSize" Value="13" />
+		<Setter Property="FontWeight" Value="SemiBold" />
+		<Setter Property="Padding" Value="12,4" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+	</Style>
+	<Style Selector="Button.tab-btn:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="Foreground" Value="#cccccc" />
+	</Style>
+	<Style Selector="Button.tab-btn-active">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="Foreground" Value="#007acc" />
+	</Style>
+	<Style Selector="Button.tab-btn-active /template/ ContentPresenter">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="Foreground" Value="#007acc" />
+	</Style>
+
+	<!-- ══════ 附件 chip 标签 ══════ -->
+	<Style Selector="Border.attachment-tag">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Padding" Value="8,4" />
+		<Setter Property="Margin" Value="0,0,4,4" />
+		<Setter Property="BorderBrush" Value="#3c3c3c" />
+		<Setter Property="BorderThickness" Value="1" />
+	</Style>
+
+	<!-- ══════ 详情区操作按钮 ══════ -->
+	<Style Selector="Button.detail-action-btn">
+		<Setter Property="Background" Value="#3a3d41" />
+		<Setter Property="Foreground" Value="#cccccc" />
+		<Setter Property="Padding" Value="12,6" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="FontSize" Value="12" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Margin" Value="0,0,8,0" />
+	</Style>
+	<Style Selector="Button.detail-action-btn:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#4a4d51" />
+	</Style>
+	<Style Selector="Button.detail-action-btn-cancel">
+		<Setter Property="Background" Value="#6e2828" />
+	</Style>
+	<Style Selector="Button.detail-action-btn-cancel:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#7a3030" />
+	</Style>
+
+	<!-- ══════ HITL 批准卡片 ══════ -->
+	<Style Selector="Border.approval-card">
+		<Setter Property="Background" Value="#3a1f1f" />
+		<Setter Property="BorderBrush" Value="#a04848" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="6" />
+		<Setter Property="Padding" Value="16,12" />
+	</Style>
+	<Style Selector="Border.approval-plan">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="BorderBrush" Value="#3c3c3c" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Padding" Value="12,10" />
+	</Style>
+
+	<!-- ══════ HITL 批准按钮 ══════ -->
+	<Style Selector="Button.approval-btn-primary">
+		<Setter Property="Background" Value="#0e7c3c" />
+		<Setter Property="Foreground" Value="#ffffff" />
+		<Setter Property="Padding" Value="14,8" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="FontSize" Value="13" />
+		<Setter Property="FontWeight" Value="SemiBold" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Margin" Value="0,0,8,0" />
+	</Style>
+	<Style Selector="Button.approval-btn-primary:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#0e9c4c" />
+	</Style>
+	<Style Selector="Button.approval-btn-secondary">
+		<Setter Property="Background" Value="#3a3d41" />
+		<Setter Property="Foreground" Value="#cccccc" />
+		<Setter Property="Padding" Value="14,8" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="FontSize" Value="13" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Margin" Value="0,0,8,0" />
+	</Style>
+	<Style Selector="Button.approval-btn-secondary:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#4a4d51" />
+	</Style>
+	<Style Selector="Button.approval-btn-danger">
+		<Setter Property="Background" Value="#6e2828" />
+		<Setter Property="Foreground" Value="#ffffff" />
+		<Setter Property="Padding" Value="14,8" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="FontSize" Value="13" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+	</Style>
+	<Style Selector="Button.approval-btn-danger:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#8a3838" />
+	</Style>
+
+	<!-- ══════ GroupChat 步骤项 ══════ -->
+	<Style Selector="Border.step-item">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Padding" Value="10,8" />
+		<Setter Property="Margin" Value="0,2" />
+		<Setter Property="BorderBrush" Value="#3c3c3c" />
+		<Setter Property="BorderThickness" Value="1" />
+	</Style>
+
 	<!-- ══════ 超链接：主链接（用于空状态主操作 / 引导链接） ══════ -->
 	<Style Selector="Button.btn-link">
 		<Setter Property="Background" Value="Transparent" />

@@ -554,12 +554,13 @@ namespace Netor.Cortana.Entitys
         /// <returns>数据库文件的完整路径</returns>
         public static string GetDefaultDbPath()
         {
-            var folder = Environment.CurrentDirectory;
+            // 使用 exe 所在目录，而非进程工作目录（CurrentDirectory）。
+            // 用 Start-Process / PowerShell 启动时 CurrentDirectory 是调用方目录，会导致找不到数据库。
+            var folder = Path.GetDirectoryName(Environment.ProcessPath)
+                         ?? Environment.CurrentDirectory;
 
             if (!Directory.Exists(folder))
-            {
                 Directory.CreateDirectory(folder);
-            }
 
             return Path.Combine(folder, "cortana.db");
         }

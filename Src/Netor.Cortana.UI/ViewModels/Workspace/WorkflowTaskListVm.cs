@@ -151,6 +151,17 @@ public sealed class WorkflowTaskListVm : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// 清空列表选中项及 pending 请求（切换 Tab 时调用）。
+    /// </summary>
+    public void ClearSelection()
+    {
+        _pendingSelectedTaskId = null;
+        if (_selectedItem is null) return;
+        _selectedItem = null;
+        OnPropertyChanged(nameof(SelectedItem));
+    }
+
+    /// <summary>
     /// 按任务 ID 选中列表项。若任务开始事件尚未插入列表，则暂存选中请求。
     /// </summary>
     public bool SelectTaskById(string taskId)
@@ -195,7 +206,10 @@ public sealed class WorkflowTaskListVm : INotifyPropertyChanged
 
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                var selectedTaskId = _pendingSelectedTaskId ?? _selectedItem?.TaskId;
+                // 决策 8-A：不自动选中历史任务。
+                // 只恢复 _pendingSelectedTaskId（由 ShowTaskAsync/SelectTaskById 明确设置的选中请求），
+                // 不恢复 _selectedItem（用户上次手动选中的旧任务），避免切换 Tab 时展示旧的失败/取消任务。
+                var selectedTaskId = _pendingSelectedTaskId;
                 Items.Clear();
                 foreach (var info in taskList)
                 {

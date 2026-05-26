@@ -1,3 +1,6 @@
+using Anthropic;
+
+using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
 using Netor.Cortana.Entitys;

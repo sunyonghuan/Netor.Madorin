@@ -55,5 +55,6 @@
 	<SolidColorBrush x:Key="UserBubbleBorderBrush" Color="#3A4452" />
 	<SolidColorBrush x:Key="AiBubbleBrush"         Color="#252526" />
 	<SolidColorBrush x:Key="AiBubbleBorderBrush"   Color="#3c3c3c" />
-	<SolidColorBrush x:Key="AiAvatarBorderBrush" Color="#08FFFFFF" />
+	<SolidColorBrush x:Key="AiAvatarBorderBrush"   Color="#08FFFFFF" />
+
 </ResourceDictionary>

@@ -9,6 +9,7 @@ using Netor.Cortana.AI.TaskEngine.Persistence;
 using Netor.Cortana.AI.TaskEngine.Scheduling;
 using Netor.Cortana.Entitys;
 using Netor.EventHub;
+using TaskFileResolver = Netor.Cortana.AI.TaskEngine.Persistence.TaskFileResolver;
 
 namespace Netor.Cortana.AI.TaskEngine;
 
@@ -30,6 +31,7 @@ public sealed class TaskExecutionEngine : IHostedService
     private readonly IPlanPersistence _persistence;
     private readonly IPublisher _publisher;
     private readonly TaskEngineOptions _options;
+    private readonly TaskFileResolver _fileResolver;
     private readonly ILogger<TaskExecutionEngine> _logger;
 
     /// <summary>运行中的任务上下文。</summary>
@@ -41,6 +43,7 @@ public sealed class TaskExecutionEngine : IHostedService
         IPlanPersistence persistence,
         IPublisher publisher,
         TaskEngineOptions options,
+        TaskFileResolver fileResolver,
         ILogger<TaskExecutionEngine> logger)
     {
         _orchestrator = orchestrator;
@@ -48,6 +51,7 @@ public sealed class TaskExecutionEngine : IHostedService
         _persistence = persistence;
         _publisher = publisher;
         _options = options;
+        _fileResolver = fileResolver;
         _logger = logger;
     }
 
@@ -167,6 +171,7 @@ public sealed class TaskExecutionEngine : IHostedService
         {
             ctx.ResumeSignal.TrySetCanceled();
             ctx.PlanConfirmationSignal.TrySetCanceled();
+            ctx.UserSatisfactionSignal.TrySetCanceled(); // §8.3 永续对话循环信号
         }
 
         // 3. 取消所有运行中任务
@@ -281,6 +286,8 @@ public sealed class TaskExecutionEngine : IHostedService
 
         // P4-7: 解除暂停等待（TCS 可能正在 await 中）
         context.ResumeSignal.TrySetCanceled();
+        // §8.3: 解除永续对话等待信号
+        context.UserSatisfactionSignal.TrySetCanceled();
 
         await context.Cts.CancelAsync().ConfigureAwait(false);
         _logger.LogInformation("P4 任务已请求取消: {TaskId}", taskId);
@@ -440,6 +447,11 @@ public sealed class TaskExecutionEngine : IHostedService
                 throw new InvalidOperationException($"运行时上下文丢失: {taskId}");
 
             // ── 继续执行阶段 ──
+            // 文档 08 §2.4：断点恢复 → 切换到执行模式
+            _publisher.Publish(Events.OnWorkflowModeChanged,
+                new WorkflowModeChangedArgs(taskId, DateTimeOffset.UtcNow,
+                    "execution", "checkpoint_recovery"));
+
             _publisher.Publish(Events.OnTaskPhaseStarted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "executing"));
 
@@ -462,7 +474,7 @@ public sealed class TaskExecutionEngine : IHostedService
             _publisher.Publish(Events.OnTaskValidationCompleted,
                 new TaskValidationEventArgs(taskId, DateTimeOffset.UtcNow,
                     validationResult.Passed, validationResult.Score,
-                    validationResult.Summary, validationResult.Issues));
+                    validationResult.Summary, validationResult.Issues, validationResult.Suggestions));
 
             _publisher.Publish(Events.OnTaskPhaseCompleted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "validating"));
@@ -473,9 +485,25 @@ public sealed class TaskExecutionEngine : IHostedService
 
             _publisher.Publish(Events.OnTaskEngineCompleted,
                 new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow,
-                    validationResult.Summary));
+                    BuildFinalReport(validationResult)));
+
+            // 文档 08 §8.2：执行完成 → 发布一句话摘要结果消息（role=result）+ 切回对话模式
+            var resultMsgId = $"result-{Guid.NewGuid():N}";
+            _publisher.Publish(Events.OnWorkflowConversationMessage,
+                new WorkflowConversationMessageArgs(
+                    taskId, DateTimeOffset.UtcNow,
+                    resultMsgId, "result",
+                    validationResult.Summary ?? "执行完成",
+                    ResultSummary: validationResult.Summary));
+
+            _publisher.Publish(Events.OnWorkflowModeChanged,
+                new WorkflowModeChangedArgs(taskId, DateTimeOffset.UtcNow,
+                    "conversation", "execution_completed"));
 
             _logger.LogInformation("P4 断点恢复任务已完成: {TaskId}", taskId);
+
+            // 文档 08 §8.3：永续对话循环
+            await WaitForUserSatisfactionAsync(taskId, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -876,8 +904,264 @@ public sealed class TaskExecutionEngine : IHostedService
         => _runningTasks.TryGetValue(taskId, out var ctx) ? ctx.CurrentUserInputRequest : null;
 
     // ══════════════════════════════════════════════════════════════════════
-    // 内部执行循环
+    // 文档 08 §3：对话模式消息 API
     // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 用户在对话模式中发送消息（文档 08 §3.1 / §3.2）。
+    /// 流程：
+    ///   1. 发布用户消息气泡到 UI
+    ///   2. 若正在等待用户输入（ASK_USER），直接路由给已有的 TCS
+    ///   3. 否则调用 Orchestrator 意图识别（fire-and-forget，不阻塞调用方）
+    ///   4. 根据意图驱动引擎状态（confirm_execute → 解除计划确认 / satisfied → 完成 / cancel → 取消）
+    ///   5. 将 AI 回复发布到对话流
+    /// </summary>
+    /// <param name="taskId">任务 ID。</param>
+    /// <param name="userMessage">用户输入文本。</param>
+    /// <param name="ct">取消令牌。</param>
+    /// <returns>true = 消息已接受；false = 任务不存在或正在执行非对话状态。</returns>
+    public async Task<bool> SendConversationMessageAsync(string taskId, string userMessage, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userMessage);
+
+        if (!_runningTasks.TryGetValue(taskId, out var context))
+            return false;
+
+        // 执行中（非对话等待状态）时拒绝接收对话消息
+        // 注：§8.3 永续对话循环：WaitingUserSatisfaction 也是合法的对话状态
+        if (!context.WaitingPlanConfirmation && !context.WaitingUserInput
+            && !context.PauseRequested && !context.WaitingUserSatisfaction)
+        {
+            _logger.LogWarning("P4 对话消息被拒绝（任务正在执行中）: {TaskId}", taskId);
+            return false;
+        }
+
+        // 1. 追加用户消息到对话历史（供意图识别使用）
+        context.AppendConversationHistory("user", userMessage);
+
+        // 2. 发布用户消息气泡到 UI 对话流
+        var userMsgId = $"user-{Guid.NewGuid():N}";
+        _publisher.Publish(Events.OnWorkflowConversationMessage,
+            new WorkflowConversationMessageArgs(
+                taskId, DateTimeOffset.UtcNow,
+                userMsgId, "user", userMessage));
+
+        // 3. 若正在等待用户输入（需求分析/计划制定的 ASK_USER 阶段），直接路由
+        if (context.WaitingUserInput)
+        {
+            // 先保存当前 request 信息再清空（避免 null ref）
+            var answeredRequest = context.CurrentUserInputRequest;
+            context.UserInputSignal.TrySetResult(userMessage);
+            context.WaitingUserInput = false;
+            context.CurrentUserInputRequest = null;
+
+            _publisher.Publish(Events.OnTaskUserQuestionAnswered,
+                new TaskUserQuestionEventArgs(
+                    taskId, DateTimeOffset.UtcNow,
+                    answeredRequest?.RequestId ?? "",
+                    answeredRequest?.Phase ?? "",
+                    answeredRequest?.Question ?? "",
+                    userMessage, answeredRequest?.Round ?? 0));
+
+            _logger.LogInformation("P4 对话消息路由到用户输入回调: {TaskId}", taskId);
+            return true;
+        }
+
+        // 4. 调用 Orchestrator 进行意图识别 + 生成 AI 回复
+        // fire-and-forget 式启动，避免阻塞 UI 调用方（UI 立刻返回，AI 回复异步追加）
+        _ = ProcessConversationIntentAsync(taskId, userMessage, context, ct);
+
+        return true;
+    }
+
+    /// <summary>
+    /// 意图识别处理（fire-and-forget 从 SendConversationMessageAsync 启动）。
+    /// 调用 Orchestrator → 根据意图驱动引擎状态 → 发布 AI 回复到对话流。
+    /// </summary>
+    private async Task ProcessConversationIntentAsync(
+        string taskId, string userMessage,
+        RunningTaskEngineContext context, CancellationToken ct)
+    {
+        try
+        {
+            // 构建当前计划上下文（供意图识别参考）
+            string? planContext = null;
+            var plan = await _persistence.LoadPlanAsync(taskId, ct).ConfigureAwait(false);
+            if (plan?.Steps is { Count: > 0 })
+            {
+                var planSb = new System.Text.StringBuilder();
+                planSb.AppendLine($"任务目标：{plan.FinalGoal}");
+                planSb.AppendLine($"计划步骤（共 {plan.Steps.Count} 步）：");
+                foreach (var s in plan.Steps.OrderBy(x => x.Sequence))
+                    planSb.AppendLine($"  {s.Sequence}. {s.Title}（{s.Status}）");
+                planContext = planSb.ToString();
+            }
+
+            // 调用意图识别
+            var intentResult = await _orchestrator.RecognizeConversationIntentAsync(
+                taskId,
+                context.ConversationHistory,
+                userMessage,
+                planContext,
+                ct).ConfigureAwait(false);
+
+            var intent = intentResult.Intent ?? "other";
+            var aiReply = intentResult.Response ?? "好的，我已收到你的消息。";
+
+            // 追加 AI 回复到对话历史
+            context.AppendConversationHistory("ai", aiReply);
+
+            // 发布 AI 回复气泡到 UI 对话流
+            var aiMsgId = $"ai-{Guid.NewGuid():N}";
+            _publisher.Publish(Events.OnWorkflowConversationMessage,
+                new WorkflowConversationMessageArgs(
+                    taskId, DateTimeOffset.UtcNow,
+                    aiMsgId, "ai", aiReply));
+
+            _logger.LogInformation(
+                "P4 意图处理: {TaskId} intent={Intent}", taskId, intent);
+
+            // 根据意图驱动引擎状态
+            switch (intent)
+            {
+                case "confirm_execute":
+                    // 解除计划确认等待 → 引擎继续进入执行阶段
+                    if (context.WaitingPlanConfirmation)
+                    {
+                        context.PlanConfirmationSignal.TrySetResult(null); // null = 用户确认
+                        _logger.LogInformation("P4 意图 confirm_execute：计划已确认，进入执行: {TaskId}", taskId);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("P4 意图 confirm_execute：但非计划确认状态，忽略: {TaskId}", taskId);
+                    }
+                    break;
+
+                case "modify_plan":
+                    // 将修改意见发给引擎（重新生成计划）
+                    if (context.WaitingPlanConfirmation)
+                    {
+                        var modificationRequest = userMessage;
+                        if (!string.IsNullOrEmpty(intentResult.UpdatedPlanSummary))
+                            modificationRequest = $"{userMessage}\n（AI建议：{intentResult.UpdatedPlanSummary}）";
+                        context.PlanConfirmationSignal.TrySetResult(modificationRequest);
+                        _logger.LogInformation("P4 意图 modify_plan：修改意见已提交: {TaskId}", taskId);
+                    }
+                    break;
+
+                case "satisfied":
+                    // 用户满意 → 触发 §8.3 满意信号，引擎退出永续对话等待
+                    _logger.LogInformation("P4 意图 satisfied：用户满意，触发满意信号: {TaskId}", taskId);
+                    context.UserSatisfactionSignal.TrySetResult(true);
+                    break;
+
+                case "cancel":
+                    // 用户取消 → 取消任务
+                    _logger.LogInformation("P4 意图 cancel：用户取消任务: {TaskId}", taskId);
+                    await CancelTaskAsync(taskId, ct).ConfigureAwait(false);
+                    break;
+
+                // question / specify_path / other → 仅发布 AI 回复，不驱动状态变化
+                default:
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 任务被取消，正常退出
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "P4 意图识别处理异常: {TaskId}", taskId);
+
+            // 发布友好错误消息到对话流
+            _publisher.Publish(Events.OnWorkflowConversationMessage,
+                new WorkflowConversationMessageArgs(
+                    taskId, DateTimeOffset.UtcNow,
+                    $"ai-err-{Guid.NewGuid():N}", "ai",
+                    "抱歉，处理你的消息时遇到了问题，请稍后重试。"));
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 文档 08 §4：工具授权 API
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 用户确认执行危险工具（文档 08 §4.3 "确认执行"）。
+    /// </summary>
+    public Task<bool> GrantToolAuthorizationAsync(string taskId, string requestId, CancellationToken ct)
+    {
+        if (!_runningTasks.TryGetValue(taskId, out var context))
+            return Task.FromResult(false);
+
+        if (context.PendingToolAuthRequestId != requestId)
+            return Task.FromResult(false);
+
+        context.ToolAuthSignal.TrySetResult("confirm");
+
+        _publisher.Publish(Events.OnToolAuthorizationResolved,
+            new WorkflowToolAuthEventArgs(
+                taskId, DateTimeOffset.UtcNow,
+                requestId, 0, string.Empty, 0, string.Empty,
+                Decision: "confirm"));
+
+        _logger.LogInformation("P4 工具授权确认: {TaskId} RequestId={RequestId}", taskId, requestId);
+        return Task.FromResult(true);
+    }
+
+    /// <summary>
+    /// 用户选择"本任务中该工具全部授权"（文档 08 §4.3 "全部授权"，仅 Level 2）。
+    /// </summary>
+    public Task<bool> GrantAllToolAuthorizationAsync(string taskId, string requestId, string toolName, CancellationToken ct)
+    {
+        if (!_runningTasks.TryGetValue(taskId, out var context))
+            return Task.FromResult(false);
+
+        if (context.PendingToolAuthRequestId != requestId)
+            return Task.FromResult(false);
+
+        // 记录该工具的全局授权（本任务生命周期内）
+        context.GrantedAllTools.Add(toolName);
+        context.ToolAuthSignal.TrySetResult("grant_all");
+
+        _publisher.Publish(Events.OnToolAuthorizationResolved,
+            new WorkflowToolAuthEventArgs(
+                taskId, DateTimeOffset.UtcNow,
+                requestId, 0, toolName, 0, string.Empty,
+                Decision: "grant_all"));
+
+        _logger.LogInformation("P4 工具全部授权: {TaskId} Tool={ToolName}", taskId, toolName);
+        return Task.FromResult(true);
+    }
+
+    /// <summary>
+    /// 用户拒绝工具调用（文档 08 §4.3 "拒绝本次调用"）。
+    /// 引擎将"用户拒绝使用[工具名]"反馈给子智能体，AI 自主决定替代方案。
+    /// </summary>
+    public Task<bool> DenyToolAuthorizationAsync(string taskId, string requestId, CancellationToken ct)
+    {
+        if (!_runningTasks.TryGetValue(taskId, out var context))
+            return Task.FromResult(false);
+
+        if (context.PendingToolAuthRequestId != requestId)
+            return Task.FromResult(false);
+
+        context.ToolAuthSignal.TrySetResult("deny");
+
+        _publisher.Publish(Events.OnToolAuthorizationResolved,
+            new WorkflowToolAuthEventArgs(
+                taskId, DateTimeOffset.UtcNow,
+                requestId, 0, string.Empty, 0, string.Empty,
+                Decision: "deny"));
+
+        _logger.LogInformation("P4 工具调用被拒绝: {TaskId} RequestId={RequestId}", taskId, requestId);
+        return Task.FromResult(true);
+    }
+
+    /// <summary>查询指定工具是否已获得本任务全局授权（文档 08 §4.6）。</summary>
+    public bool IsToolGrantedAll(string taskId, string toolName)
+        => _runningTasks.TryGetValue(taskId, out var ctx) && ctx.GrantedAllTools.Contains(toolName);
 
     /// <summary>
     /// 完整任务生命周期：需求分析 → 计划制定 → 执行 → 验证 → 完成。
@@ -889,12 +1173,15 @@ public sealed class TaskExecutionEngine : IHostedService
         try
         {
             // ── 阶段 1: 需求分析（支持多轮用户讨论） ──
+
             _publisher.Publish(Events.OnTaskPhaseStarted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "requirements"));
 
             var requirements = await _orchestrator.RunRequirementsPhaseAsync(
-                taskId, userInput, CreateUserInputCallback(taskId, "requirements"), ct)
-                .ConfigureAwait(false);
+                taskId, userInput,
+                CreateUserInputCallback(taskId, "requirements"),
+                CreateAiMessageCallback(taskId),
+                ct).ConfigureAwait(false);
             await _persistence.SaveRequirementsAsync(taskId, requirements, ct).ConfigureAwait(false);
 
             _publisher.Publish(Events.OnTaskPhaseCompleted,
@@ -909,9 +1196,18 @@ public sealed class TaskExecutionEngine : IHostedService
                 template = await _persistence.LoadTemplateAsync(templateId, ct).ConfigureAwait(false);
 
             var plan = await _orchestrator.RunPlanningPhaseAsync(
-                taskId, requirements, template, CreateUserInputCallback(taskId, "planning"), ct)
-                .ConfigureAwait(false);
+                taskId, requirements, template,
+                CreateUserInputCallback(taskId, "planning"),
+                CreateAiMessageCallback(taskId),
+                ct).ConfigureAwait(false);
             await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
+
+            // 先置标志再发事件，避免 UI 解锁输入后消息被拒（race condition）
+            if (!_options.AutoConfirmPlan && _runningTasks.TryGetValue(taskId, out var planCtx))
+            {
+                planCtx.WaitingPlanConfirmation = true;
+                planCtx.ResetPlanConfirmationSignal();
+            }
 
             _publisher.Publish(Events.OnTaskPlanCreated,
                 new TaskPlanEventArgs(taskId, DateTimeOffset.UtcNow, plan.PlanId, plan.Version, plan.Steps.Count));
@@ -926,6 +1222,11 @@ public sealed class TaskExecutionEngine : IHostedService
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "planning"));
 
             // ── 阶段 3: 执行 ──
+            // 文档 08 §2.4：切换到执行模式（UI 显示时间线进度面板）
+            _publisher.Publish(Events.OnWorkflowModeChanged,
+                new WorkflowModeChangedArgs(taskId, DateTimeOffset.UtcNow,
+                    "execution", "confirm_execute"));
+
             _publisher.Publish(Events.OnTaskPhaseStarted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "executing"));
 
@@ -952,7 +1253,7 @@ public sealed class TaskExecutionEngine : IHostedService
             _publisher.Publish(Events.OnTaskValidationCompleted,
                 new TaskValidationEventArgs(taskId, DateTimeOffset.UtcNow,
                     validationResult.Passed, validationResult.Score,
-                    validationResult.Summary, validationResult.Issues));
+                    validationResult.Summary, validationResult.Issues, validationResult.Suggestions));
 
             _publisher.Publish(Events.OnTaskPhaseCompleted,
                 new TaskPhaseEventArgs(taskId, DateTimeOffset.UtcNow, "validating"));
@@ -963,9 +1264,27 @@ public sealed class TaskExecutionEngine : IHostedService
 
             _publisher.Publish(Events.OnTaskEngineCompleted,
                 new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow,
-                    validationResult.Summary));
+                    BuildFinalReport(validationResult)));
+
+            // 文档 08 §8.2：执行完成 → 发布一句话摘要结果消息（role=result）+ 切回对话模式
+            var resultMsgId = $"result-{Guid.NewGuid():N}";
+            _publisher.Publish(Events.OnWorkflowConversationMessage,
+                new WorkflowConversationMessageArgs(
+                    taskId, DateTimeOffset.UtcNow,
+                    resultMsgId, "result",
+                    validationResult.Summary ?? "执行完成",
+                    ResultSummary: validationResult.Summary));
+
+            _publisher.Publish(Events.OnWorkflowModeChanged,
+                new WorkflowModeChangedArgs(taskId, DateTimeOffset.UtcNow,
+                    "conversation", "execution_completed"));
 
             _logger.LogInformation("P4 任务已完成: {TaskId}", taskId);
+
+            // 文档 08 §8.3：永续对话循环 ——
+            // 执行完成后，任务留在 _runningTasks 中（对话模式），
+            // 等待用户表达"满意/完成"意图后才真正退出生命周期。
+            await WaitForUserSatisfactionAsync(taskId, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -1029,6 +1348,7 @@ public sealed class TaskExecutionEngine : IHostedService
                 // 阻塞等待用户回答（UI 调用 SubmitUserInputAsync 后解除）
                 var userAnswer = await context.UserInputSignal.Task
                     .WaitAsync(context.Cts.Token).ConfigureAwait(false);
+
                 return userAnswer;
             }
             finally
@@ -1037,6 +1357,58 @@ public sealed class TaskExecutionEngine : IHostedService
                 context.CurrentUserInputRequest = null;
             }
         };
+    }
+
+    /// <summary>
+    /// 创建 AI 消息回调：每当 LLM 完成一轮输出时，发布到对话流显示（文档 08 §2.2）。
+    /// </summary>
+    private Action<string> CreateAiMessageCallback(string taskId)
+    {
+        return text =>
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            _publisher.Publish(Events.OnWorkflowConversationMessage,
+                new WorkflowConversationMessageArgs(
+                    taskId, DateTimeOffset.UtcNow,
+                    $"msg-{Guid.NewGuid():N}", "ai", text));
+        };
+    }
+
+    /// <summary>
+    /// 文档 08 §8.3：永续对话循环 — 等待用户满意信号。
+    /// 执行完成后任务不立即退出，而是在对话模式中等待用户表达满意意图。
+    /// 用户说"可以了"/"满意了"/"结束" → ProcessConversationIntentAsync 触发 UserSatisfactionSignal。
+    /// 超时（24h）或被取消时强制退出。
+    /// </summary>
+    private async Task WaitForUserSatisfactionAsync(string taskId, CancellationToken ct)
+    {
+        if (!_runningTasks.TryGetValue(taskId, out var context))
+            return;
+
+        context.WaitingUserSatisfaction = true;
+
+        _logger.LogInformation("P4 §8.3 进入永续对话模式，等待用户满意: {TaskId}", taskId);
+
+        try
+        {
+            // 最多等待 24 小时（后台任务超时保护）
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(TimeSpan.FromHours(24));
+
+            await context.UserSatisfactionSignal.Task
+                .WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+
+            _logger.LogInformation("P4 §8.3 用户表达满意，任务生命周期结束: {TaskId}", taskId);
+        }
+        catch (OperationCanceledException)
+        {
+            // 超时或外部取消，正常退出
+            _logger.LogInformation("P4 §8.3 永续对话循环结束（取消/超时）: {TaskId}", taskId);
+        }
+        finally
+        {
+            context.WaitingUserSatisfaction = false;
+        }
     }
 
     /// <summary>
@@ -1113,8 +1485,9 @@ public sealed class TaskExecutionEngine : IHostedService
                 ComplexityLevel = requirements.ComplexityLevel,
             };
 
-            plan = await _orchestrator.RunPlanningPhaseAsync(taskId, modifiedRequirements, template, null, ct)
-                .ConfigureAwait(false);
+            plan = await _orchestrator.RunPlanningPhaseAsync(
+                taskId, modifiedRequirements, template, null,
+                CreateAiMessageCallback(taskId), ct).ConfigureAwait(false);
             plan.Version = round + 2; // 版本号递增
             await _persistence.SavePlanAsync(plan, ct).ConfigureAwait(false);
 
@@ -1240,6 +1613,11 @@ public sealed class TaskExecutionEngine : IHostedService
         _publisher.Publish(Events.OnTaskEnginePaused,
             new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow, reason));
 
+        // 文档 08 §2.4：执行暂停 → 切回对话模式（UI 显示对话气泡流，用户可继续讨论）
+        _publisher.Publish(Events.OnWorkflowModeChanged,
+            new WorkflowModeChangedArgs(taskId, DateTimeOffset.UtcNow,
+                "conversation", reason));
+
         _logger.LogInformation("P4 任务已暂停: {TaskId} (reason={Reason})", taskId, reason);
 
         // 5. 等待恢复信号（阻塞直到 ResumeTaskAsync 被调用）
@@ -1250,6 +1628,11 @@ public sealed class TaskExecutionEngine : IHostedService
         plan.Status = PlanStatus.Executing;
         _publisher.Publish(Events.OnTaskEngineResumed,
             new TaskLifecycleEventArgs(taskId, DateTimeOffset.UtcNow));
+
+        // 文档 08 §2.4：恢复执行 → 切回执行模式
+        _publisher.Publish(Events.OnWorkflowModeChanged,
+            new WorkflowModeChangedArgs(taskId, DateTimeOffset.UtcNow,
+                "execution", "task_resumed"));
 
         _logger.LogInformation("P4 任务已恢复: {TaskId}", taskId);
     }
@@ -1338,9 +1721,18 @@ public sealed class TaskExecutionEngine : IHostedService
                 using var stepCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 stepCts.CancelAfter(_options.PerStepTimeout);
 
-                // 主智能体为这个步骤创建子智能体并委托执行
+                // 主智能体为这个步骤创建子智能体并委托执行（onAiMessage 把执行过程推到 UI 对话流）
                 // 注：LLM 并发节流已在 SubAgentRunner 层处理（每次 LLM 调用都通过 GlobalLlmThrottle）
-                var result = await _orchestrator.ExecuteStepAsync(taskId, plan, step, stepCts.Token)
+                var onAiMessage = CreateAiMessageCallback(taskId);
+
+                // 获取本步骤的工作目录（基于 RunId 隔离）
+                var runId = _persistence.GetActiveRunId(taskId);
+                var workspaceDir = runId is not null
+                    ? _fileResolver.GetStepWorkspaceDir(taskId, runId, step.StepId)
+                    : null;
+
+                var result = await _orchestrator.ExecuteStepAsync(
+                        taskId, plan, step, onAiMessage, workspaceDir, stepCts.Token)
                     .ConfigureAwait(false);
 
                 // 成功
@@ -1401,6 +1793,39 @@ public sealed class TaskExecutionEngine : IHostedService
     // ══════════════════════════════════════════════════════════════════════
     // 辅助方法
     // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 将验证结果构建为完整 Markdown 报告（用于 FinalReport 显示，问题 7d）。
+    /// </summary>
+    private static string BuildFinalReport(ValidationResult result)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("## 执行完成");
+        sb.AppendLine();
+        var statusIcon = result.Passed ? "✓" : "✗";
+        var statusText = result.Passed ? "通过" : "未通过";
+        sb.AppendLine($"**验证结果**：{statusIcon} {statusText}（{result.Score}/100）");
+        sb.AppendLine();
+        if (!string.IsNullOrWhiteSpace(result.Summary))
+        {
+            sb.AppendLine(result.Summary);
+            sb.AppendLine();
+        }
+        if (result.Issues is { Count: > 0 })
+        {
+            sb.AppendLine("### 发现的问题");
+            foreach (var issue in result.Issues)
+                sb.AppendLine($"- {issue}");
+            sb.AppendLine();
+        }
+        if (result.Suggestions is { Count: > 0 })
+        {
+            sb.AppendLine("### 改进建议");
+            foreach (var suggestion in result.Suggestions)
+                sb.AppendLine($"- {suggestion}");
+        }
+        return sb.ToString();
+    }
 
     /// <summary>
     /// 计算指数退避延迟。
@@ -1520,6 +1945,57 @@ internal sealed class RunningTaskEngineContext : IDisposable
         if (!UserInputSignal.Task.IsCompleted)
             UserInputSignal.TrySetCanceled();
         UserInputSignal = new TaskCompletionSource<string>();
+    }
+
+    // ── 文档 08 §4：工具授权状态（内存级，任务生命周期） ──
+
+    /// <summary>当前等待授权的工具请求 ID。</summary>
+    public string? PendingToolAuthRequestId { get; set; }
+
+    /// <summary>工具授权信号。引擎等待用户决策时 await 此 TCS。</summary>
+    public TaskCompletionSource<string> ToolAuthSignal { get; private set; } = new();
+
+    // ── 文档 08 §8.3：永续对话循环 ──
+
+    /// <summary>
+    /// 用户满意信号。
+    /// 执行完成后，引擎进入"等待用户满意"状态（对话模式）；
+    /// 用户在对话中表达满意意图时 SetResult(true)，引擎才真正退出生命周期。
+    /// </summary>
+    public TaskCompletionSource<bool> UserSatisfactionSignal { get; private set; } = new();
+
+    /// <summary>标记是否正在等待用户满意（执行完成后进入此状态）。</summary>
+    public volatile bool WaitingUserSatisfaction;
+
+    /// <summary>
+    /// 本任务中已获得"全部授权"的工具名称集合（文档 08 §4.6）。
+    /// 粒度：本任务内该工具，任务结束即清除（不持久化）。
+    /// </summary>
+    public HashSet<string> GrantedAllTools { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>重置工具授权信号（每次新授权请求前调用）。</summary>
+    public void ResetToolAuthSignal()
+    {
+        if (!ToolAuthSignal.Task.IsCompleted)
+            ToolAuthSignal.TrySetCanceled();
+        ToolAuthSignal = new TaskCompletionSource<string>();
+    }
+
+    // ── 文档 08 §3.3：对话上下文管理 ──
+
+    /// <summary>
+    /// 对话历史（role=user/ai，按时间升序）。
+    /// 用于意图识别时传给 Orchestrator 作为上下文。
+    /// 最多保留最近 20 条，防止 token 过多。
+    /// </summary>
+    public List<(string Role, string Content)> ConversationHistory { get; } = [];
+
+    /// <summary>追加一条消息到对话历史（自动裁剪到最近 20 条）。</summary>
+    public void AppendConversationHistory(string role, string content)
+    {
+        ConversationHistory.Add((role, content));
+        if (ConversationHistory.Count > 20)
+            ConversationHistory.RemoveAt(0);
     }
 
     public void Dispose() => Cts.Dispose();

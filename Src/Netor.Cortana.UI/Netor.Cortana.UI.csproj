@@ -64,33 +64,36 @@
 
   <!-- Avalonia -->
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.0.1" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.0.1" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.1" />
+    <PackageReference Include="Avalonia" Version="12.0.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.0.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.3" />
     <!-- Avalonia 12 诊断功能已内置，无需独立包 -->
   </ItemGroup>
 
   <!-- Markdown 解析 -->
   <ItemGroup>
     <PackageReference Include="Markdig" Version="1.1.2" />
+    <PackageReference Include="Netor.Agents.AI.Anthropic" Version="0.1.0" />
+    <PackageReference Include="Netor.Anthropic" Version="12.21.3" />
+    <PackageReference Include="Netor.Anthropic.Mcp" Version="0.1.2" />
   </ItemGroup>
 
   <!-- 基础设施 -->
   <ItemGroup>
-    <PackageReference Include="Netor.EventHub" Version="1.2.6" />
+    <PackageReference Include="Netor.EventHub" Version="1.2.8" />
     <PackageReference Include="Netor.EventHub.SourceGenerator" Version="1.1.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-preview.3.26207.106" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="11.0.0-preview.3.26207.106" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="11.0.0-preview.3.26207.106" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="11.0.0-preview.3.26207.106" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0-preview.3.26207.106" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
     <PackageReference Include="Serilog" Version="4.3.2-dev-02419" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="8.0.0-nblumhardt-02322" />
-    <PackageReference Include="Tmds.DBus.Protocol" Version="0.92.0" />
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.0" />
   </ItemGroup>
 
   <!-- 业务模块引用 -->

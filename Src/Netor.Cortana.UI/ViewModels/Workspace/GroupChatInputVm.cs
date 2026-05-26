@@ -31,7 +31,7 @@ namespace Netor.Cortana.UI.ViewModels.Workspace;
 ///
 /// 详见 Docs/未来版本策划/聊天式任务发起与动态智能体/01-P2方案设计.md §2.1（条款 11 + 群聊 A）。
 /// </summary>
-public sealed class GroupChatInputVm : INotifyPropertyChanged
+public sealed class GroupChatInputVm : IInputVm
 {
     private readonly AgentService _agentService;
     private readonly TaskExecutionEngine _engine;
@@ -113,6 +113,9 @@ public sealed class GroupChatInputVm : INotifyPropertyChanged
         1 => "已选 1 个智能体（至少需要 2 个才能开始讨论）",
         _ => string.Empty,
     };
+
+    /// <summary>输入框占位文本（IInputVm 接口，群聊模式固定文本）。</summary>
+    public string InputPlaceholderText => "输入讨论话题（Enter 发送，Shift+Enter 换行，# 引用文件）";
 
     /// <summary>
     /// 高风险工具屏蔽项（复用 <see cref="HighRiskToolItem"/>，决策 6-2-A 黑名单模式）。
@@ -268,9 +271,11 @@ public sealed class GroupChatInputVm : INotifyPropertyChanged
         IsRunning = true;
         try
         {
+            var userInput = _initialInput.Trim();
+
             // P4 过渡：使用 TaskExecutionEngine.StartTaskAsync 启动任务
             var taskId = await _engine.StartTaskAsync(
-                _initialInput.Trim(),
+                userInput,
                 _workspaceId,
                 templateId: null,
                 cancellationToken);
@@ -280,6 +285,10 @@ public sealed class GroupChatInputVm : INotifyPropertyChanged
             _initialInput = string.Empty;
             OnPropertyChanged(nameof(InitialInput));
             OnPropertyChanged(nameof(CanSubmit));
+
+            // 启动成功后立即切换 Feed 区到新任务详情，并写入首条用户消息
+            var workspaceVm = App.Services.GetRequiredService<WorkspaceTabVm>();
+            await workspaceVm.ShowTaskAsync(taskId, title: null, initialUserInput: userInput);
 
             return taskId;
         }
@@ -314,6 +323,18 @@ public sealed class GroupChatInputVm : INotifyPropertyChanged
         IsRunning = false;
         CurrentTaskId = null;
     }
+
+    // ──── IInputVm 接口显式实现（SubmitAsync / CancelAsync） ────
+
+    /// <inheritdoc cref="IInputVm.SubmitAsync"/>
+    /// <remarks>群聊模式下委托到 <see cref="StartAsync"/>，忽略返回的 taskId。</remarks>
+    public async Task SubmitAsync(CancellationToken cancellationToken = default)
+        => await StartAsync(cancellationToken);
+
+    /// <inheritdoc cref="IInputVm.CancelAsync"/>
+    /// <remarks>群聊模式下委托到 <see cref="StopAsync"/>，忽略返回值。</remarks>
+    public async Task CancelAsync(CancellationToken cancellationToken = default)
+        => await StopAsync(cancellationToken);
 
     // ──── INotifyPropertyChanged ────
 
