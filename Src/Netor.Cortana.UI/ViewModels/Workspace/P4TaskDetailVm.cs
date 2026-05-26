@@ -360,9 +360,26 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
+                // 任务总结卡片（Reason 携带 BuildFinalReport 内容）
+                if (!string.IsNullOrWhiteSpace(args.Reason))
+                {
+                    var summaryCard = new ConversationMessageVm
+                    {
+                        MessageId = $"card-summary-{_taskId}",
+                        Timestamp = DateTimeOffset.Now,
+                        Role = "step_card",
+                        CardTitle = "任务总结",
+                        IsExpanded = true,
+                        Content = args.Reason,
+                        IsCardCompleted = true,
+                    };
+                    FeedItems.Add(summaryCard);
+                }
+
                 AppendTimeline(ProgressKind.Lifecycle, "✓ 任务已完成", "#73c991");
                 StatusText = "已完成";
                 StatusColor = "#73c991";
+                FinalReport = args.Reason;
                 UpdateDuration();
             });
             return Task.FromResult(false);
