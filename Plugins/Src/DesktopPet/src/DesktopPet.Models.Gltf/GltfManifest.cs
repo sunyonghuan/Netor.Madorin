@@ -18,7 +18,8 @@ internal sealed record GltfManifest(
     IReadOnlyList<string>? ExtensionsUsed,
     IReadOnlyList<string>? ExtensionsRequired,
     IReadOnlyDictionary<string, JsonElement>? Extensions,
-    int? Scene);
+    int? Scene,
+    IReadOnlyList<GltfSkin>? Skins = null);
 
 internal sealed record GltfAsset(string? Version, string? Generator);
 
@@ -31,7 +32,8 @@ internal sealed record GltfNode(
     float[]? Translation,
     float[]? Rotation,
     float[]? Scale,
-    float[]? Matrix);
+    float[]? Matrix,
+    int? Skin = null);
 
 internal sealed record GltfMesh(string? Name, IReadOnlyList<GltfPrimitive>? Primitives);
 
@@ -69,6 +71,13 @@ internal sealed record GltfBufferView(int? Buffer, int? ByteOffset, int ByteLeng
 
 internal sealed record GltfAccessor(int? BufferView, int? ByteOffset, int ComponentType, int Count, string? Type);
 
+/// <summary>glTF skin: joints list + optional inverseBindMatrices accessor index.</summary>
+internal sealed record GltfSkin(
+    string? Name,
+    IReadOnlyList<int>? Joints,
+    int? InverseBindMatrices,
+    int? Skeleton);
+
 [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(GltfManifest))]
 [JsonSerializable(typeof(GltfAsset))]
@@ -88,6 +97,7 @@ internal sealed record GltfAccessor(int? BufferView, int? ByteOffset, int Compon
 [JsonSerializable(typeof(GltfAnimationSampler))]
 [JsonSerializable(typeof(GltfBufferView))]
 [JsonSerializable(typeof(GltfAccessor))]
+[JsonSerializable(typeof(GltfSkin))]
 [JsonSerializable(typeof(float[]))]
 [JsonSerializable(typeof(Dictionary<string, int>))]
 [JsonSerializable(typeof(List<Dictionary<string, int>>))]

@@ -5,9 +5,10 @@ namespace DesktopPet.Models.Gltf;
 
 internal static class GltfMeshExtractor
 {
+    private const int ComponentTypeUnsignedByte  = 5121;
     private const int ComponentTypeUnsignedShort = 5123;
-    private const int ComponentTypeUnsignedInt = 5125;
-    private const int ComponentTypeFloat = 5126;
+    private const int ComponentTypeUnsignedInt   = 5125;
+    private const int ComponentTypeFloat         = 5126;
 
     public static IReadOnlyList<GltfMeshPrimitive> Extract(GltfManifest manifest, byte[] binaryChunk)
     {
@@ -34,6 +35,11 @@ internal static class GltfMeshExtractor
             {
                 continue;
             }
+
+            // The skin index for this node (may be -1 if not skinned)
+            var nodeSkinIndex = manifest.Nodes is not null && nodeIndex < manifest.Nodes.Count
+                ? (manifest.Nodes[nodeIndex].Skin ?? -1)
+                : -1;
 
             for (var pi = 0; pi < primitives.Count; pi++)
             {
@@ -83,6 +89,23 @@ internal static class GltfMeshExtractor
                     morphDeltas = deltas;
                 }
 
+                // ── Skinning data (JOINTS_0 + WEIGHTS_0) ─────────────────────
+                ushort[]? jointIndices = null;
+                float[]? weights = null;
+
+                if (nodeSkinIndex >= 0)
+                {
+                    if (attributes.TryGetValue("JOINTS_0", out var jointsAccessorIdx))
+                    {
+                        jointIndices = ReadJointsVec4Accessor(accessors, bufferViews, binaryChunk, jointsAccessorIdx);
+                    }
+
+                    if (attributes.TryGetValue("WEIGHTS_0", out var weightsAccessorIdx))
+                    {
+                        weights = ReadWeightsVec4Accessor(accessors, bufferViews, binaryChunk, weightsAccessorIdx);
+                    }
+                }
+
                 result.Add(new GltfMeshPrimitive(
                     mesh.Name ?? $"Mesh{result.Count}",
                     pi,
@@ -93,7 +116,10 @@ internal static class GltfMeshExtractor
                     indices,
                     prim.Material)
                 {
-                    MorphPositionDeltas = morphDeltas
+                    MorphPositionDeltas = morphDeltas,
+                    JointIndices        = jointIndices,
+                    Weights             = weights,
+                    SkinIndex           = (jointIndices is not null && weights is not null) ? nodeSkinIndex : -1
                 });
             }
         }
@@ -285,6 +311,96 @@ internal static class GltfMeshExtractor
         else
         {
             return null;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Reads JOINTS_0: VEC4 of UNSIGNED_BYTE or UNSIGNED_SHORT.
+    /// Returns flat array [v0j0, v0j1, v0j2, v0j3, v1j0, ...] as ushort[vertexCount*4].
+    /// </summary>
+    private static ushort[]? ReadJointsVec4Accessor(
+        IReadOnlyList<GltfAccessor> accessors,
+        IReadOnlyList<GltfBufferView> bufferViews,
+        byte[] binaryChunk,
+        int accessorIndex)
+    {
+        if (accessorIndex < 0 || accessorIndex >= accessors.Count)
+            return null;
+
+        var accessor = accessors[accessorIndex];
+        if (accessor.Type != "VEC4")
+            return null;
+
+        var span = GetAccessorSpan(accessor, bufferViews, binaryChunk);
+        if (span.IsEmpty)
+            return null;
+
+        var result = new ushort[accessor.Count * 4];
+
+        if (accessor.ComponentType == ComponentTypeUnsignedByte)
+        {
+            var stride = GetStride(accessor, bufferViews, 4); // 4 bytes × 1 byte/component
+            for (var i = 0; i < accessor.Count; i++)
+            {
+                var off = i * stride;
+                result[i * 4 + 0] = span[off + 0];
+                result[i * 4 + 1] = span[off + 1];
+                result[i * 4 + 2] = span[off + 2];
+                result[i * 4 + 3] = span[off + 3];
+            }
+        }
+        else if (accessor.ComponentType == ComponentTypeUnsignedShort)
+        {
+            var stride = GetStride(accessor, bufferViews, 8); // 4 components × 2 bytes
+            for (var i = 0; i < accessor.Count; i++)
+            {
+                var off = i * stride;
+                result[i * 4 + 0] = BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(off + 0, 2));
+                result[i * 4 + 1] = BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(off + 2, 2));
+                result[i * 4 + 2] = BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(off + 4, 2));
+                result[i * 4 + 3] = BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(off + 6, 2));
+            }
+        }
+        else
+        {
+            return null;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Reads WEIGHTS_0: VEC4 of FLOAT.
+    /// Returns flat array [v0w0, v0w1, v0w2, v0w3, v1w0, ...] as float[vertexCount*4].
+    /// </summary>
+    private static float[]? ReadWeightsVec4Accessor(
+        IReadOnlyList<GltfAccessor> accessors,
+        IReadOnlyList<GltfBufferView> bufferViews,
+        byte[] binaryChunk,
+        int accessorIndex)
+    {
+        if (accessorIndex < 0 || accessorIndex >= accessors.Count)
+            return null;
+
+        var accessor = accessors[accessorIndex];
+        if (accessor.ComponentType != ComponentTypeFloat || accessor.Type != "VEC4")
+            return null;
+
+        var span = GetAccessorSpan(accessor, bufferViews, binaryChunk);
+        if (span.IsEmpty)
+            return null;
+
+        var result = new float[accessor.Count * 4];
+        var stride = GetStride(accessor, bufferViews, 16); // 4 × 4 bytes
+        for (var i = 0; i < accessor.Count; i++)
+        {
+            var off = i * stride;
+            result[i * 4 + 0] = BinaryPrimitives.ReadSingleLittleEndian(span.Slice(off +  0, 4));
+            result[i * 4 + 1] = BinaryPrimitives.ReadSingleLittleEndian(span.Slice(off +  4, 4));
+            result[i * 4 + 2] = BinaryPrimitives.ReadSingleLittleEndian(span.Slice(off +  8, 4));
+            result[i * 4 + 3] = BinaryPrimitives.ReadSingleLittleEndian(span.Slice(off + 12, 4));
         }
 
         return result;

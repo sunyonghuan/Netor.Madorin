@@ -1,6 +1,7 @@
 using DesktopPet.Ai;
 using DesktopPet.Behaviors;
 using DesktopPet.Configuration;
+using DesktopPet.Models.Gltf;
 using DesktopPet.Platform.Win32;
 using DesktopPet.Rendering.D3D11;
 using System.Diagnostics;
@@ -19,13 +20,25 @@ GltfStartup.TryLogSelectedModel(args, logger);
 var enableD3D11 = !args.Any(argument => string.Equals(argument, "--no-d3d11", StringComparison.OrdinalIgnoreCase));
 var window = new DesktopPetWindow(settingsStore, useLayeredWindow: !enableD3D11);
 window.Create();
-WireWindowCommands(window, paths, startupRegistration, logger);
 
+// ── Live2D 模型列表 ────────────────────────────────────────────────────────
 var modelsDirectory = Path.Combine(AppContext.BaseDirectory, "assets", "live2d", "models");
 var availableModels = Directory.Exists(modelsDirectory)
     ? Directory.GetDirectories(modelsDirectory)
         .Select(d => Path.GetFileName(d)!)
         .Where(n => !string.IsNullOrWhiteSpace(n))
+        .Order(StringComparer.OrdinalIgnoreCase)
+        .ToArray()
+    : [];
+
+// ── GLB/VRM 模型列表 ──────────────────────────────────────────────────────
+var gltfModelsDirectory = Path.Combine(AppContext.BaseDirectory, "assets", "gltf", "models");
+var loader = new GltfModelLoader();
+var availableGltfModels = Directory.Exists(gltfModelsDirectory)
+    ? loader.FindModelFiles(gltfModelsDirectory)
+        .Select(p => Path.GetFileNameWithoutExtension(p)!)
+        .Where(n => !string.IsNullOrWhiteSpace(n)
+                    && !string.Equals(n, "Triangle", StringComparison.OrdinalIgnoreCase)) // 跳过最小测试用三角形
         .Order(StringComparer.OrdinalIgnoreCase)
         .ToArray()
     : [];
@@ -41,12 +54,17 @@ var initialMouthLoop = initialLive2DModel is null ? null : new SimpleMouthMotion
 using var behaviorRuntime = new PetBehaviorRuntime(behaviorStateMachine, initialMouthLoop, logger.Error);
 initialMouthLoop?.Start();
 
+// 在 behaviorRuntime 创建之后才能注册设置对话框（需要传入 behaviorRuntime）
+WireWindowCommands(window, paths, startupRegistration, settingsStore, behaviorRuntime, logger);
+
 // Mutable references to the active Live2D session; updated on model switch.
 var activeLive2DModel = initialLive2DModel;
 var activeMouthLoop = initialMouthLoop;
 
 window.SetAvailableModels(availableModels);
 window.CurrentModelName = activeLive2DModel?.Info.Name;
+window.SetAvailableGltfModels(availableGltfModels);
+
 if (activeMouthLoop is not null && args.Any(argument => string.Equals(argument, "--preview-speak", StringComparison.OrdinalIgnoreCase)))
 {
     behaviorRuntime.Apply(new PetEvent(PetEventKind.Speak, "预览说话中"));
@@ -57,7 +75,17 @@ else if (activeMouthLoop is not null && args.Any(argument => string.Equals(argum
     behaviorRuntime.Apply(new PetEvent(PetEventKind.Think, "思考中"));
 }
 
+// ── WebSocket 连接：命令行优先，否则读取持久化设置（AutoConnect）──────────
 var webSocketUri = ResolveWebSocketUri(args);
+if (webSocketUri is null)
+{
+    var conn = settingsStore.Load().Connection;
+    if (conn.AutoConnect)
+    {
+        webSocketUri = CortanaRealtimeClient.CreateDefaultUri(conn.Host, conn.Port);
+        logger.Info($"AutoConnect enabled: connecting to {webSocketUri}");
+    }
+}
 if (webSocketUri is not null)
 {
     behaviorRuntime.StartWebSocket(webSocketUri);
@@ -68,21 +96,34 @@ if (!enableD3D11)
 {
     logger.Info("D3D11 renderer disabled by --no-d3d11.");
 }
+
+// ── 字幕联动：把 AI 行为事件里的字幕推给渲染器 ───────────────────────────
+if (renderHost is not null)
+{
+    behaviorRuntime.SubtitleChanged += subtitle => renderHost.SetSubtitle(subtitle);
+}
 var enableLive2DSubmit = !args.Any(argument => string.Equals(argument, "--no-live2d-submit", StringComparison.OrdinalIgnoreCase));
 var enableLive2DMotion = !args.Any(argument => string.Equals(argument, "--no-live2d-motion", StringComparison.OrdinalIgnoreCase));
 var activeLive2DLoop = activeLive2DModel is not null && renderHost is not null && enableLive2DSubmit
     ? new Live2DRenderSubmissionLoop(activeLive2DModel, renderHost, enableLive2DMotion)
     : null;
 activeLive2DLoop?.Start();
+
 using var preview3DSubmissionLoop =
     renderHost is not null && args.Any(argument => string.Equals(argument, "--preview-3d", StringComparison.OrdinalIgnoreCase))
         ? new Preview3DSubmissionLoop(renderHost)
         : null;
 preview3DSubmissionLoop?.Start();
-using var gltfMeshSubmissionLoop = renderHost is not null
+
+// ── GLB/VRM mesh submission（可在运行时热切换）────────────────────────────
+// 启动时若命令行指定了 --gltf-model，则立即加载
+var activeGltfLoop = renderHost is not null
     ? GltfStartup.TryCreateMeshSubmissionLoop(args, renderHost, logger)
     : null;
-gltfMeshSubmissionLoop?.Start();
+activeGltfLoop?.Start();
+window.CurrentGltfModelName = activeGltfLoop is not null
+    ? ReadArgumentValue(args, "--gltf-model")
+    : null;
 
 if (renderHost is not null)
 {
@@ -94,15 +135,29 @@ if (renderHost is not null)
         renderHost.ModelScale = Math.Clamp(renderHost.ModelScale + direction * step, 0.1f, 5.0f);
     };
 
+    // 鼠标进入/离开窗口时显示/隐藏边框提示线
+    window.MouseHoverChanged += (_, inside) => renderHost.ShowBorder = inside;
+
+    // Right-mouse-drag: rotate the 3D mesh model.
+    // Sensitivity: 0.5° per pixel (≈ 0.00873 rad/px).
+    window.RightMouseDragged += (_, drag) =>
+    {
+        const float sensitivity = 0.5f * MathF.PI / 180f;
+        var (yaw, pitch) = renderHost.MeshExtraRotation;
+        yaw   += drag.DeltaX * sensitivity;
+        pitch  = Math.Clamp(pitch + drag.DeltaY * sensitivity, -MathF.PI / 2f, MathF.PI / 2f);
+        renderHost.MeshExtraRotation = (yaw, pitch);
+    };
+
     // --preview-subtitle：启动后持续循环显示演示字幕
     if (args.Any(a => string.Equals(a, "--preview-subtitle", StringComparison.OrdinalIgnoreCase)))
     {
         var subtitleTexts = new[]
         {
-            "你好！我是你的桌面助手 Cortana ✨",
-            "今天天气不错，适合编程 ☀️",
-            "字幕功能已就绪，支持中文与 Emoji 🎉",
-            "这是第四条测试字幕，稍后会自动循环 🔁",
+            "你好！我是你的桌面助手 Cortana",
+            "今天天气不错，适合编程",
+            "字幕功能已就绪，支持中文",
+            "这是第四条测试字幕，稍后会自动循环",
         };
         var subtitleIndex = 0;
         var subtitleTimer = new System.Threading.Timer(_ =>
@@ -110,16 +165,20 @@ if (renderHost is not null)
             renderHost.SetSubtitle(subtitleTexts[subtitleIndex % subtitleTexts.Length]);
             subtitleIndex++;
         }, null, TimeSpan.Zero, TimeSpan.FromSeconds(3));
-        // Timer 生命周期绑定到 window.Closing
         window.Closing += (_, _) => subtitleTimer.Dispose();
     }
 }
 
+// ── Live2D 模型热切换 ─────────────────────────────────────────────────────
 window.ModelSwitchRequested += (_, modelName) =>
 {
     if (renderHost is null || !enableLive2DSubmit) return;
 
-    // Tear down the current Live2D session.
+    // 切换到 Live2D 时先停掉 GLB（两者互斥）
+    activeGltfLoop?.Dispose();
+    activeGltfLoop = null;
+    window.CurrentGltfModelName = null;
+
     activeLive2DLoop?.Dispose();
     activeLive2DLoop = null;
     activeMouthLoop?.Dispose();
@@ -127,7 +186,6 @@ window.ModelSwitchRequested += (_, modelName) =>
     activeLive2DModel?.Dispose();
     activeLive2DModel = null;
 
-    // Load the new model.
     var newModel = Live2DStartup.TryLoadModel(modelName, modelsDirectory, logger);
     if (newModel is null) return;
 
@@ -145,6 +203,39 @@ window.ModelSwitchRequested += (_, modelName) =>
     window.CurrentModelName = modelName;
 };
 
+// ── GLB/VRM 模型热切换 ────────────────────────────────────────────────────
+window.GltfModelSwitchRequested += (_, modelName) =>
+{
+    if (renderHost is null) return;
+
+    // 切换到 GLB 时先停掉 Live2D（两者互斥）
+    activeLive2DLoop?.Dispose();
+    activeLive2DLoop = null;
+    renderHost.SubmitRenderItems([]);  // 立即清空 Live2D 画面，不等渲染线程
+    activeMouthLoop?.Dispose();
+    activeMouthLoop = null;
+    activeLive2DModel?.Dispose();
+    activeLive2DModel = null;
+    window.CurrentModelName = null;
+    behaviorRuntime.SetMouthMotionLoop(null);
+
+    // 停掉当前 GLB 循环，并立即清空 mesh 队列避免旧模型残留
+    activeGltfLoop?.Dispose();
+    activeGltfLoop = null;
+    renderHost.SubmitMeshItems([]);   // 确保旧帧立即清空，不等渲染线程
+    window.CurrentGltfModelName = null;
+
+    // 加载并启动新模型
+    var newLoop = GltfStartup.TryCreateMeshSubmissionLoopByName(modelName, gltfModelsDirectory, renderHost, logger);
+    if (newLoop is null) return;
+
+    newLoop.Start();
+    activeGltfLoop = newLoop;
+    window.CurrentGltfModelName = modelName;
+    logger.Info($"GLB/VRM model switched: {modelName}");
+};
+
+// ── 关闭时清理 ────────────────────────────────────────────────────────────
 var renderShutdownStarted = 0;
 window.Closing += (_, _) =>
 {
@@ -156,7 +247,7 @@ window.Closing += (_, _) =>
     logger.Info("DesktopPet render shutdown: stopping preview submission.");
     preview3DSubmissionLoop?.Dispose();
     logger.Info("DesktopPet render shutdown: stopping GLB mesh submission.");
-    gltfMeshSubmissionLoop?.Dispose();
+    activeGltfLoop?.Dispose();
     logger.Info("DesktopPet render shutdown: stopping mouth motion.");
     activeMouthLoop?.Dispose();
     logger.Info("DesktopPet render shutdown: stopping Live2D submission.");
@@ -245,6 +336,8 @@ static void WireWindowCommands(
     DesktopPetWindow window,
     DesktopPetAppPaths paths,
     StartupRegistrationService startupRegistration,
+    DesktopPetSettingsStore settingsStore,
+    PetBehaviorRuntime behaviorRuntime,
     DesktopPetLogger logger)
 {
     window.OpenModelsDirectoryRequested += (_, _) => OpenDirectory(
@@ -263,6 +356,27 @@ static void WireWindowCommands(
         catch (Exception ex)
         {
             logger.Error(ex, "Failed to toggle startup registration");
+        }
+    };
+    window.SettingsRequested += (_, _) =>
+    {
+        try
+        {
+            var dialog = new DesktopPetSettingsDialog();
+            var newConn = dialog.ShowModal(window.Handle, window.ConnectionSettings);
+            if (newConn is null) return; // 用户取消
+
+            window.SaveConnectionSettings(newConn);
+            logger.Info($"Connection settings saved: {newConn.Host}:{newConn.Port}, AutoConnect={newConn.AutoConnect}");
+
+            // 立即用新设置重启 WebSocket 连接
+            var newUri = CortanaRealtimeClient.CreateDefaultUri(newConn.Host, newConn.Port);
+            behaviorRuntime.RestartWebSocket(newUri);
+            logger.Info($"WebSocket restarted: {newUri}");
+        }
+        catch (Exception ex)
+        {
+            logger.Error(ex, "Settings dialog error");
         }
     };
     window.ExitRequested += (_, _) => logger.Info("DesktopPet exit requested.");

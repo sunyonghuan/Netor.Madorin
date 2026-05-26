@@ -69,13 +69,18 @@ internal static class GltfNodeTransformTree
 
     private static Matrix4x4 ComputeLocalMatrix(GltfNode node, GltfNodeOverride? nodeOverride)
     {
-        // If a raw matrix is set and no animation override, use it directly
+        // If a raw matrix is set and no animation override, use it directly.
+        // glTF node.matrix is 16 floats stored column-major.
+        // System.Numerics uses row-vector convention (v' = v * M), where the Matrix4x4
+        // constructor fills elements row-by-row.  Reading the column-major glTF data
+        // directly into the constructor (no explicit transpose) produces the correct
+        // row-vector matrix — the implicit reinterpretation acts as a transpose.
         if (nodeOverride is null && node.Matrix is { Length: 16 } m)
         {
             return new Matrix4x4(
-                m[0], m[1], m[2], m[3],
-                m[4], m[5], m[6], m[7],
-                m[8], m[9], m[10], m[11],
+                m[0],  m[1],  m[2],  m[3],
+                m[4],  m[5],  m[6],  m[7],
+                m[8],  m[9],  m[10], m[11],
                 m[12], m[13], m[14], m[15]);
         }
 

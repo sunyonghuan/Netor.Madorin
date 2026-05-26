@@ -31,7 +31,10 @@ public sealed class D3D11RenderHost : IRenderHost
     private ID3D11PixelShader? _meshPixelShader;
     private ID3D11InputLayout? _meshInputLayout;
     private ID3D11Buffer? _meshConstantsBuffer;
+    private ID3D11Buffer? _meshBoneBuffer;         // cbuffer BoneMatrices b1: 128 × mat4x4
+    private const int MaxBones = 128;
     private ID3D11BlendState? _alphaBlendState;
+    private ID3D11BlendState? _meshPremultipliedBlendState;
     private ID3D11BlendState? _colorWriteDisabledBlendState;
     private ID3D11RasterizerState? _rasterizerState;
     private ID3D11RasterizerState? _cullingRasterizerState;
@@ -77,6 +80,8 @@ public sealed class D3D11RenderHost : IRenderHost
     private bool _enableLive2DDrawing = true;
     private int _maxLive2DDrawItems = int.MaxValue;
     private float _modelScale = 1.0f;
+    private float _meshExtraYaw;    // radians, Y-axis (horizontal drag)
+    private float _meshExtraPitch;  // radians, X-axis (vertical drag)
 
     // Subtitle
     private readonly SubtitleRenderer _subtitleRenderer = new();
@@ -88,6 +93,13 @@ public sealed class D3D11RenderHost : IRenderHost
     private ID3D11VertexShader? _subtitleVertexShader;
     private ID3D11PixelShader? _subtitlePixelShader;
     private ID3D11InputLayout? _subtitleInputLayout;
+
+    // Border overlay — 4 thin quads drawn via the flat-color shader when mouse is inside window
+    private bool _showBorder;
+    private ID3D11VertexShader? _borderVertexShader;
+    private ID3D11PixelShader? _borderPixelShader;
+    private ID3D11InputLayout? _borderInputLayout;
+    private ID3D11Buffer? _borderVertexBuffer;   // dynamic, 4 strips × 4 verts × (x,y)
 
     public D3D11RenderHost(IRenderSurface surface)
     {
@@ -195,9 +207,21 @@ public sealed class D3D11RenderHost : IRenderHost
         set { lock (_sync) { _modelScale = Math.Clamp(value, 0.1f, 5.0f); } }
     }
 
+    public (float Yaw, float Pitch) MeshExtraRotation
+    {
+        get { lock (_sync) { return (_meshExtraYaw, _meshExtraPitch); } }
+        set { lock (_sync) { _meshExtraYaw = value.Yaw; _meshExtraPitch = value.Pitch; } }
+    }
+
     public void SetSubtitle(string? text)
     {
         lock (_sync) { _subtitleText = text; }
+    }
+
+    public bool ShowBorder
+    {
+        get { lock (_sync) { return _showBorder; } }
+        set { lock (_sync) { _showBorder = value; } }
     }
 
     public void Start()
@@ -315,17 +339,19 @@ public sealed class D3D11RenderHost : IRenderHost
                     return;
                 }
 
-                // Clear to fully transparent black so DWM per-pixel alpha compositing
-                // shows the desktop through any un-drawn pixels.
+                // Clear to fully transparent black; DwmExtendFrameIntoClientArea makes
+                // alpha=0 pixels show the desktop, mesh pixels output alpha=1 so they
+                // appear solid on top.
                 _context.ClearRenderTargetView(_renderTargetView, new Color4(0.0f, 0.0f, 0.0f, 0.0f));
                 if (_depthStencilView is not null)
                 {
                     _context.ClearDepthStencilView(_depthStencilView, DepthStencilClearFlags.Depth | DepthStencilClearFlags.Stencil, 1.0f, 0);
                 }
 
-                DrawMeshItems();
                 DrawRenderItems();
+                DrawMeshItems();
                 DrawSubtitle();
+                DrawBorder();
 
                 // Capture swap chain reference before releasing the lock.
                 chainToPresent = _swapChain;
@@ -383,11 +409,14 @@ public sealed class D3D11RenderHost : IRenderHost
             return;
         }
 
+        // Use the classic D3D11CreateDeviceAndSwapChain path (SwapEffect.Discard).
+        // Combined with DwmExtendFrameIntoClientArea(MARGINS{-1,-1,-1,-1}) on the window,
+        // this is the standard per-pixel-alpha path for a WS_POPUP D3D11 window on Windows 8+.
         var swapChainDescription = new SwapChainDescription
         {
             BufferDescription = new ModeDescription
             {
-                Width = (uint)_width,
+                Width  = (uint)_width,
                 Height = (uint)_height,
                 Format = Format.B8G8R8A8_UNorm
             },
@@ -395,8 +424,8 @@ public sealed class D3D11RenderHost : IRenderHost
             BufferUsage = Usage.RenderTargetOutput,
             BufferCount = 2,
             OutputWindow = _hwnd,
-            Windowed = true,
-            SwapEffect = SwapEffect.Discard
+            Windowed    = true,
+            SwapEffect  = SwapEffect.Discard
         };
 
         var result = VorticeD3D11.D3D11CreateDeviceAndSwapChain(
@@ -538,7 +567,14 @@ public sealed class D3D11RenderHost : IRenderHost
                 float4x4 WorldViewProjection;
                 float4 BaseColorFactor;
                 float HasTexture;
-                float3 _Pad;
+                float IsSkinned;  // >0.5 = use bone matrices
+                float2 _Pad;
+            };
+
+            // Bone matrices cbuffer (register b1): up to 128 joints
+            cbuffer BoneMatrices : register(b1)
+            {
+                float4x4 BoneMatrix[128];
             };
 
             Texture2D MeshTexture : register(t1);
@@ -547,32 +583,87 @@ public sealed class D3D11RenderHost : IRenderHost
             struct VertexIn
             {
                 float3 Position : POSITION;
-                float4 Color : COLOR0;
+                float4 Color    : COLOR0;
                 float2 TexCoord : TEXCOORD0;
+                uint4  Joints   : BLENDINDICES0;
+                float4 Weights  : BLENDWEIGHT0;
             };
 
             struct PixelIn
             {
                 float4 Position : SV_POSITION;
-                float4 Color : COLOR0;
+                float4 Color    : COLOR0;
                 float2 TexCoord : TEXCOORD0;
             };
 
             PixelIn VSMain(VertexIn input)
             {
                 PixelIn output;
-                output.Position = mul(float4(input.Position, 1.0f), WorldViewProjection);
-                output.Color = input.Color;
+
+                float4 localPos = float4(input.Position, 1.0f);
+
+                if (IsSkinned > 0.5f)
+                {
+                    // Linear Blend Skinning
+                    float4 skinnedPos =
+                        input.Weights.x * mul(localPos, BoneMatrix[input.Joints.x]) +
+                        input.Weights.y * mul(localPos, BoneMatrix[input.Joints.y]) +
+                        input.Weights.z * mul(localPos, BoneMatrix[input.Joints.z]) +
+                        input.Weights.w * mul(localPos, BoneMatrix[input.Joints.w]);
+                    // WorldViewProjection already has View*Proj baked in (no extra world for skinned meshes)
+                    output.Position = mul(skinnedPos, WorldViewProjection);
+
+                    // Transform normal for lighting (same blending, ignore translation row)
+                    float3 n = normalize(input.Color.rgb * 2.0f - 1.0f);
+                    float3 skinnedN =
+                        input.Weights.x * mul(n, (float3x3)BoneMatrix[input.Joints.x]) +
+                        input.Weights.y * mul(n, (float3x3)BoneMatrix[input.Joints.y]) +
+                        input.Weights.z * mul(n, (float3x3)BoneMatrix[input.Joints.z]) +
+                        input.Weights.w * mul(n, (float3x3)BoneMatrix[input.Joints.w]);
+                    output.Color = float4(normalize(skinnedN) * 0.5f + 0.5f, 1.0f);
+                }
+                else
+                {
+                    output.Position = mul(localPos, WorldViewProjection);
+                    output.Color = input.Color;
+                }
+
                 output.TexCoord = input.TexCoord;
                 return output;
             }
 
             float4 PSMain(PixelIn input) : SV_TARGET
             {
+                // When textured: sample the texture.
+                // When untextured: use solid white so BaseColorFactor drives the final colour.
+                // NOTE: input.Color stores the packed normal (normal * 0.5 + 0.5), NOT a
+                //       surface colour — never use it as a base colour.
                 float4 base = HasTexture > 0.5f
                     ? MeshTexture.Sample(MeshSampler, input.TexCoord)
-                    : input.Color;
-                return base * BaseColorFactor;
+                    : float4(1.0f, 1.0f, 1.0f, 1.0f);
+                float4 result = base * BaseColorFactor;
+
+                // Simple Lambert lighting using normal stored in vertex COLOR
+                // (GltfMeshItemMapper encodes: normal * 0.5 + 0.5 → [0,1] RGB).
+                // When model has no normals the mapper writes (1,1,1) which decodes
+                // to a diagonal normal; lighting is then ~0.85, still looks fine.
+                float3 normal = normalize(input.Color.rgb * 2.0f - 1.0f);
+
+                // Key light: upper-right-front (warm)
+                float3 keyDir  = normalize(float3( 0.5f,  0.8f,  0.6f));
+                // Fill light: left-front (cool, dimmer)
+                float3 fillDir = normalize(float3(-0.6f,  0.2f,  0.5f));
+
+                float ambient = 0.35f;
+                float key     = max(dot(normal, keyDir),  0.0f) * 0.50f;
+                float fill    = max(dot(normal, fillDir), 0.0f) * 0.18f;
+                float light   = saturate(ambient + key + fill);   // ~[0.35, 1.03]
+
+                result.rgb = saturate(result.rgb * light);
+                // Force alpha=1 so mesh pixels are always opaque against the
+                // DwmExtendFrameIntoClientArea transparent background.
+                result.a = 1.0f;
+                return result;
             }
             """;
 
@@ -580,13 +671,24 @@ public sealed class D3D11RenderHost : IRenderHost
         using var meshPixelShaderBlob = D3D11ShaderCompiler.Compile(meshShaderSource, "PSMain", "ps_4_0");
         _meshVertexShader = _device.CreateVertexShader(meshVertexShaderBlob);
         _meshPixelShader = _device.CreatePixelShader(meshPixelShaderBlob);
+
+        // Vertex layout now includes joint indices (uint4) and blend weights (float4)
+        // D3D11MeshVertex layout (60 bytes total):
+        //   [0]  POSITION  R32G32B32_Float     offset  0  (12 bytes)
+        //   [12] COLOR0    R32G32B32A32_Float  offset 12  (16 bytes)
+        //   [28] TEXCOORD0 R32G32_Float        offset 28  ( 8 bytes)
+        //   [36] BLENDINDICES0 R16G16B16A16_UInt offset 36 ( 8 bytes)
+        //   [44] BLENDWEIGHT0  R32G32B32A32_Float offset 44 (16 bytes)
         _meshInputLayout = _device.CreateInputLayout(
             [
-                new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0),
-                new InputElementDescription("COLOR", 0, Format.R32G32B32A32_Float, 12, 0),
-                new InputElementDescription("TEXCOORD", 0, Format.R32G32_Float, 28, 0)
+                new InputElementDescription("POSITION",      0, Format.R32G32B32_Float,    0,  0),
+                new InputElementDescription("COLOR",         0, Format.R32G32B32A32_Float, 12,  0),
+                new InputElementDescription("TEXCOORD",      0, Format.R32G32_Float,       28,  0),
+                new InputElementDescription("BLENDINDICES",  0, Format.R16G16B16A16_UInt,  36,  0),
+                new InputElementDescription("BLENDWEIGHT",   0, Format.R32G32B32A32_Float, 44,  0),
             ],
             meshVertexShaderBlob);
+
         _meshConstantsBuffer = _device.CreateBuffer(
             new BufferDescription(
                 (uint)Marshal.SizeOf<D3D11MeshConstants>(),
@@ -595,7 +697,20 @@ public sealed class D3D11RenderHost : IRenderHost
                 CpuAccessFlags.None,
                 ResourceOptionFlags.None,
                 0));
+
+        // Bone matrix cbuffer: MaxBones × 64 bytes (4×4 float matrix)
+        _meshBoneBuffer = _device.CreateBuffer(
+            new BufferDescription(
+                (uint)(MaxBones * 64),
+                BindFlags.ConstantBuffer,
+                ResourceUsage.Dynamic,
+                CpuAccessFlags.Write,
+                ResourceOptionFlags.None,
+                0));
         _alphaBlendState = _device.CreateBlendState(BlendDescription.NonPremultiplied);
+        // Mesh shader outputs premultiplied alpha (rgb*a, a); use BlendDescription.Opaque
+        // for testing to confirm geometry is visible, then tune alpha.
+        _meshPremultipliedBlendState = _device.CreateBlendState(BlendDescription.Opaque);
         var noColorWriteBlend = BlendDescription.Opaque;
         noColorWriteBlend.RenderTarget[0].RenderTargetWriteMask = ColorWriteEnable.None;
         _colorWriteDisabledBlendState = _device.CreateBlendState(noColorWriteBlend);
@@ -732,6 +847,41 @@ public sealed class D3D11RenderHost : IRenderHost
             BindFlags.VertexBuffer,
             ResourceUsage.Dynamic,
             CpuAccessFlags.Write));
+
+        // ── 边框 shader（纯色，无纹理）────────────────────────────────────────
+        const string borderShaderSource = """
+            struct VertexIn  { float2 Position : POSITION; };
+            struct PixelIn   { float4 Position : SV_POSITION; };
+
+            PixelIn VSMain(VertexIn v)
+            {
+                PixelIn o;
+                o.Position = float4(v.Position, 0.0f, 1.0f);
+                return o;
+            }
+
+            float4 PSMain(PixelIn p) : SV_TARGET
+            {
+                // 半透明白色边框（更淡，仅作窗口边界提示）
+                return float4(1.0f, 1.0f, 1.0f, 0.18f);
+            }
+            """;
+
+        using var borderVsBlob = D3D11ShaderCompiler.Compile(borderShaderSource, "VSMain", "vs_4_0");
+        using var borderPsBlob = D3D11ShaderCompiler.Compile(borderShaderSource, "PSMain", "ps_4_0");
+        _borderVertexShader = _device.CreateVertexShader(borderVsBlob);
+        _borderPixelShader  = _device.CreatePixelShader(borderPsBlob);
+        _borderInputLayout  = _device.CreateInputLayout(
+            [new InputElementDescription("POSITION", 0, Format.R32G32_Float, 0, 0)],
+            borderVsBlob);
+
+        // 边框顶点 buffer：4条边 × 4顶点 × (x, y)
+        // TriangleStrip 每条边4顶点画一个细矩形，各边 Draw(4) 独立调用
+        _borderVertexBuffer = _device.CreateBuffer(new BufferDescription(
+            4 * (uint)(2 * sizeof(float)),   // 每次 Draw 4 verts × float2
+            BindFlags.VertexBuffer,
+            ResourceUsage.Dynamic,
+            CpuAccessFlags.Write));
     }
 
     private static RasterizerDescription CreateLive2DRasterizerDescription(CullMode cullMode)
@@ -755,6 +905,7 @@ public sealed class D3D11RenderHost : IRenderHost
         _rasterizerState?.Dispose();
         _cullingRasterizerState?.Dispose();
         _depthEnabledState?.Dispose();
+        _meshBoneBuffer?.Dispose();
         _meshConstantsBuffer?.Dispose();
         _meshInputLayout?.Dispose();
         _meshPixelShader?.Dispose();
@@ -766,6 +917,7 @@ public sealed class D3D11RenderHost : IRenderHost
         _textureSampler?.Dispose();
         _meshTextureSampler?.Dispose();
         _colorWriteDisabledBlendState?.Dispose();
+        _meshPremultipliedBlendState?.Dispose();
         _alphaBlendState?.Dispose();
         _inputLayout?.Dispose();
         _pixelShader?.Dispose();
@@ -777,6 +929,7 @@ public sealed class D3D11RenderHost : IRenderHost
         _rasterizerState = null;
         _cullingRasterizerState = null;
         _depthEnabledState = null;
+        _meshBoneBuffer = null;
         _meshConstantsBuffer = null;
         _meshInputLayout = null;
         _meshPixelShader = null;
@@ -788,6 +941,7 @@ public sealed class D3D11RenderHost : IRenderHost
         _textureSampler = null;
         _meshTextureSampler = null;
         _colorWriteDisabledBlendState = null;
+        _meshPremultipliedBlendState = null;
         _alphaBlendState = null;
         _inputLayout = null;
         _pixelShader = null;
@@ -796,6 +950,14 @@ public sealed class D3D11RenderHost : IRenderHost
         _subtitlePixelShader = null;
         _subtitleVertexShader = null;
         _subtitleVertexBuffer = null;
+        _borderInputLayout?.Dispose();
+        _borderPixelShader?.Dispose();
+        _borderVertexShader?.Dispose();
+        _borderVertexBuffer?.Dispose();
+        _borderInputLayout = null;
+        _borderPixelShader = null;
+        _borderVertexShader = null;
+        _borderVertexBuffer = null;
     }
 
     private unsafe void DrawSubtitle()
@@ -899,6 +1061,66 @@ public sealed class D3D11RenderHost : IRenderHost
         _context.PSSetShaderResource(0, null!);
     }
 
+    /// <summary>
+    /// 在窗口四条边各画一个细矩形（半透明白色），帮助用户识别透明窗口的边界。
+    /// 复用 subtitle shader 管线，不需要额外资源。
+    /// 边框厚度：2px（NDC 换算）。
+    /// </summary>
+    private unsafe void DrawBorder()
+    {
+        if (_device is null
+            || _context is null
+            || _renderTargetView is null
+            || _borderVertexShader is null
+            || _borderPixelShader is null
+            || _borderInputLayout is null
+            || _borderVertexBuffer is null
+            || _alphaBlendState is null
+            || _noDepthState is null
+            || !_showBorder)
+        {
+            return;
+        }
+
+        // 边框厚度（像素）→ NDC
+        const float BorderPx = 2f;
+        var bx = BorderPx * 2f / Math.Max(1, _width);   // NDC 水平厚度
+        var by = BorderPx * 2f / Math.Max(1, _height);  // NDC 垂直厚度
+
+        // 四条边的 NDC 坐标（TriangleStrip：左上, 右上, 左下, 右下）
+        Span<(float x0, float y0, float x1, float y1)> sides = stackalloc[]
+        {
+            (-1f,  1f - by,  1f,  1f),          // 上
+            (-1f, -1f,       1f, -1f + by),      // 下
+            (-1f, -1f,      -1f + bx,  1f),      // 左
+            ( 1f - bx, -1f,  1f,  1f),           // 右
+        };
+
+        _context.OMSetRenderTargets(_renderTargetView);
+        _context.OMSetBlendState(_alphaBlendState);
+        _context.OMSetDepthStencilState(_noDepthState, 0);
+        _context.RSSetViewport(new Viewport(0, 0, _width, _height));
+        _context.IASetInputLayout(_borderInputLayout);
+        _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleStrip);
+        _context.IASetVertexBuffer(0, _borderVertexBuffer, 2 * sizeof(float), 0);
+        _context.VSSetShader(_borderVertexShader);
+        _context.PSSetShader(_borderPixelShader);
+
+        Span<float> v = stackalloc float[8];   // 4 顶点 × 2 分量，循环复用
+        foreach (var (x0, y0, x1, y1) in sides)
+        {
+            v[0] = x0; v[1] = y1;   // 左上
+            v[2] = x1; v[3] = y1;   // 右上
+            v[4] = x0; v[5] = y0;   // 左下
+            v[6] = x1; v[7] = y0;   // 右下
+
+            var mapped = _context.Map(_borderVertexBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
+            MemoryMarshal.AsBytes(v).CopyTo(new Span<byte>((void*)mapped.DataPointer, v.Length * sizeof(float)));
+            _context.Unmap(_borderVertexBuffer, 0);
+            _context.Draw(4, 0);
+        }
+    }
+
     private void DrawRenderItems()
     {
         if (_device is null
@@ -978,7 +1200,7 @@ public sealed class D3D11RenderHost : IRenderHost
             || _meshPixelShader is null
             || _meshInputLayout is null
             || _meshConstantsBuffer is null
-            || _alphaBlendState is null
+            || _meshPremultipliedBlendState is null
             || _rasterizerState is null
             || _depthEnabledState is null
             || _meshItems.Length == 0)
@@ -987,7 +1209,7 @@ public sealed class D3D11RenderHost : IRenderHost
         }
 
         _context.OMSetRenderTargets(_renderTargetView, _depthStencilView);
-        _context.OMSetBlendState(_alphaBlendState);
+        _context.OMSetBlendState(_meshPremultipliedBlendState);
         _context.OMSetDepthStencilState(_depthEnabledState, 0);
         _context.RSSetState(_rasterizerState);
         _context.RSSetViewport(new Viewport(0, 0, _width, _height));
@@ -996,17 +1218,23 @@ public sealed class D3D11RenderHost : IRenderHost
         _context.VSSetShader(_meshVertexShader);
         _context.VSSetConstantBuffer(0, _meshConstantsBuffer);
         _context.PSSetShader(_meshPixelShader);
+        _context.PSSetConstantBuffer(0, _meshConstantsBuffer);
+
+        // Read extra rotation once per frame (lock-free copy for the render thread).
+        float extraYaw, extraPitch;
+        lock (_sync) { extraYaw = _meshExtraYaw; extraPitch = _meshExtraPitch; }
+        var extraRotation = Matrix4x4.CreateRotationX(extraPitch) * Matrix4x4.CreateRotationY(extraYaw);
 
         foreach (var meshItem in _meshItems)
         {
-            DrawMeshItem(meshItem);
+            DrawMeshItem(meshItem, extraRotation);
         }
 
         // Restore explicit no-depth state (do not pass null; null re-enables depth test by default).
         _context.OMSetDepthStencilState(_noDepthState, 0);
     }
 
-    private void DrawMeshItem(D3D11MeshItem item)
+    private unsafe void DrawMeshItem(D3D11MeshItem item, Matrix4x4 extraRotation)
     {
         if (_device is null || _context is null || _meshConstantsBuffer is null || item.Vertices.Count == 0 || item.Indices.Count == 0)
         {
@@ -1015,7 +1243,7 @@ public sealed class D3D11RenderHost : IRenderHost
 
         var (vertexBuffer, indexBuffer) = GetOrCreateMeshBuffers(item);
 
-        var world = item.WorldTransform;
+        var isSkinned = item.JointMatrices is { Length: > 0 };
         var cameraDistance = 2.8f / _modelScale;
         var view = Matrix4x4.CreateLookAt(
             new Vector3(0.0f, 0.15f, cameraDistance),
@@ -1028,18 +1256,54 @@ public sealed class D3D11RenderHost : IRenderHost
             0.05f,
             32.0f);
 
-        var textureView = item.Texture is not null ? GetOrCreateMeshTextureView(item.Texture) : null;
+        Matrix4x4 wvp;
+        if (isSkinned)
+        {
+            // For skinned meshes, WorldTransform already has the normalizeTransform baked
+            // into every joint matrix.  The per-mesh world is just the view×proj here.
+            // Extra rotation is applied *after* normalizeTransform inside the joint matrices:
+            // we need to bake extraRotation into the view.
+            var rotatedView = extraRotation * view;
+            wvp = Matrix4x4.Transpose(rotatedView * projection);
+        }
+        else
+        {
+            // Non-skinned: apply extra rotation to world, then view×proj
+            var world = item.WorldTransform * extraRotation;
+            wvp = Matrix4x4.Transpose(world * view * projection);
+        }
+
+        var textureView    = item.Texture is not null ? GetOrCreateMeshTextureView(item.Texture) : null;
         var baseColorFactor = item.BaseColorFactor == default ? Vector4.One : item.BaseColorFactor;
         var constants = new D3D11MeshConstants(
-            Matrix4x4.Transpose(world * view * projection),
+            wvp,
             baseColorFactor,
-            textureView is not null ? 1.0f : 0.0f);
+            textureView is not null ? 1.0f : 0.0f,
+            isSkinned    ? 1.0f : 0.0f);
 
         if (!_meshConstantsInBuffer.HasValue || _meshConstantsInBuffer.Value != constants)
         {
             _context.UpdateSubresource(constants, _meshConstantsBuffer);
             _meshConstantsInBuffer = constants;
         }
+
+        // Upload bone matrices when skinned
+        if (isSkinned && _meshBoneBuffer is not null)
+        {
+            var bones = item.JointMatrices!;
+            var mapped = _context.Map(_meshBoneBuffer, 0, MapMode.WriteDiscard, Vortice.Direct3D11.MapFlags.None);
+            var dst = new Span<Matrix4x4>((void*)mapped.DataPointer, MaxBones);
+            // Write transposed bone matrices (HLSL expects row-major for mul(v, M))
+            var count = Math.Min(bones.Length, MaxBones);
+            for (var j = 0; j < count; j++)
+                dst[j] = Matrix4x4.Transpose(bones[j]);
+            // Fill remaining with identity
+            for (var j = count; j < MaxBones; j++)
+                dst[j] = Matrix4x4.Identity;
+            _context.Unmap(_meshBoneBuffer, 0);
+            _context.VSSetConstantBuffer(1, _meshBoneBuffer);
+        }
+
         _context.IASetVertexBuffer(0, vertexBuffer, (uint)Marshal.SizeOf<D3D11MeshVertex>(), 0);
         _context.IASetIndexBuffer(indexBuffer, Format.R16_UInt, 0);
         if (textureView is not null)

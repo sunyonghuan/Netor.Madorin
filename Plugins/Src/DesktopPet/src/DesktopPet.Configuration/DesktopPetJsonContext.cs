@@ -8,6 +8,7 @@ namespace DesktopPet.Configuration;
     WriteIndented = true)]
 [JsonSerializable(typeof(DesktopPetSettings))]
 [JsonSerializable(typeof(PetWindowPlacement))]
+[JsonSerializable(typeof(PetConnectionSettings))]
 public sealed partial class DesktopPetJsonContext : JsonSerializerContext
 {
 }

@@ -79,6 +79,51 @@ public sealed class GltfModel
 
     public int AnimationCount => _manifest.Animations?.Count ?? 0;
 
+    /// <summary>
+    /// Returns the inverse-bind matrices for the given skin.
+    /// Returns an array of length == joints.Count, or an empty array if not available.
+    /// </summary>
+    public Matrix4x4[] GetSkinInverseBindMatrices(int skinIndex)
+        => GltfSkinExtractor.ExtractInverseBindMatrices(_manifest, BinaryChunk, skinIndex);
+
+    /// <summary>Returns the joint node indices for the given skin.</summary>
+    public IReadOnlyList<int> GetSkinJoints(int skinIndex)
+    {
+        var skins = _manifest.Skins;
+        if (skins is null || skinIndex < 0 || skinIndex >= skins.Count)
+            return [];
+        return skins[skinIndex].Joints ?? [];
+    }
+
+    /// <summary>返回所有动画的名称列表（索引对应 <see cref="CreateAnimationEvaluator"/> 的 animationIndex）。</summary>
+    public IReadOnlyList<string> GetAnimationNames()
+    {
+        var animations = _manifest.Animations;
+        if (animations is null || animations.Count == 0) return [];
+        return animations.Select(a => a.Name ?? string.Empty).ToArray();
+    }
+
+    /// <summary>
+    /// 从动画列表中按名字优先级挑选最合适的"待机"动画索引。
+    /// 优先顺序：idle > survey > stand > wait > breathe > idle_normal > 动画0。
+    /// </summary>
+    public int PickIdleAnimationIndex()
+    {
+        var names = GetAnimationNames();
+        if (names.Count == 0) return -1;
+
+        string[] priority = ["idle", "survey", "stand", "wait", "breathe", "neutral", "rest"];
+        foreach (var kw in priority)
+        {
+            for (var i = 0; i < names.Count; i++)
+            {
+                if (names[i].Contains(kw, StringComparison.OrdinalIgnoreCase))
+                    return i;
+            }
+        }
+        return 0;  // fallback: 用第一个动画
+    }
+
     public GltfAnimationEvaluator? CreateAnimationEvaluator(int animationIndex)
         => GltfAnimationEvaluator.Build(_manifest, BinaryChunk, animationIndex);
 

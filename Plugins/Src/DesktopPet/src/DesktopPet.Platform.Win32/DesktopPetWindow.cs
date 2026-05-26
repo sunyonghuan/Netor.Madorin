@@ -33,9 +33,13 @@ public sealed class DesktopPetWindow
     private const int MenuOpacity85 = 1021;
     private const int MenuOpacity70 = 1022;
     private const int MenuStartup = 1030;
-    // IDs 1040–1079 reserved for dynamic model entries (up to 40 models)
+    private const int MenuSettings = 1035;
+    // IDs 1040–1079 reserved for dynamic Live2D model entries (up to 40 models)
     private const int MenuModelBase = 1040;
     private const int MenuModelMax = 1079;
+    // IDs 1080–1119 reserved for dynamic GLB/VRM model entries (up to 40 models)
+    private const int MenuGltfModelBase = 1080;
+    private const int MenuGltfModelMax = 1119;
     private const int MenuExit = 1099;
 
     private readonly DesktopPetSettingsStore _settingsStore;
@@ -48,6 +52,21 @@ public sealed class DesktopPetWindow
     private bool _isHidden;
     private bool _isCreated;
     private string[] _availableModels = [];
+    private string[] _availableGltfModels = [];
+
+    // Right-mouse-button drag state (for 3D model rotation)
+    private bool  _rmbDragging;     // true once drag threshold crossed
+    private bool  _rmbDown;         // true between WM_RBUTTONDOWN and WM_RBUTTONUP
+    private bool  _rmbSelfRelease;  // true when WE call ReleaseCapture (suppress WM_CAPTURECHANGED reset)
+    private int   _rmbStartX;
+    private int   _rmbStartY;
+    private int   _rmbLastX;
+    private int   _rmbLastY;
+    private const int RmbDragThreshold = 8; // pixels before drag is recognised
+
+    // Mouse hover / border overlay state
+    private bool _mouseInWindow;    // true while mouse is inside the client area
+    private nint _arrowCursor;      // IDC_ARROW handle, loaded once
 
     public DesktopPetWindow(DesktopPetSettingsStore settingsStore, bool useLayeredWindow = true)
     {
@@ -67,6 +86,8 @@ public sealed class DesktopPetWindow
 
     public event EventHandler? StartupToggleRequested;
 
+    public event EventHandler? SettingsRequested;
+
     public event EventHandler? ExitRequested;
 
     public event EventHandler? Closing;
@@ -74,16 +95,50 @@ public sealed class DesktopPetWindow
     /// <summary>Fired when the user picks a model from the tray menu. Arg is the model folder name.</summary>
     public event EventHandler<string>? ModelSwitchRequested;
 
+    /// <summary>Fired when the user picks a GLB/VRM model from the tray menu. Arg is the model file name (without extension).</summary>
+    public event EventHandler<string>? GltfModelSwitchRequested;
+
     /// <summary>Fired when the user scrolls the mouse wheel over the pet window. Delta is +1 (up) or -1 (down).</summary>
     public event EventHandler<int>? MouseWheelScrolled;
 
+    /// <summary>
+    /// Fired continuously while the user right-mouse-drags over the pet window.
+    /// Args are (deltaX, deltaY) in screen pixels since the last event.
+    /// </summary>
+    public event EventHandler<(int DeltaX, int DeltaY)>? RightMouseDragged;
+
+    /// <summary>
+    /// Fired when the mouse enters or leaves the window client area.
+    /// True = mouse entered (show border), False = mouse left (hide border).
+    /// </summary>
+    public event EventHandler<bool>? MouseHoverChanged;
+
+    /// <summary>当前连接设置（供外部读取，用于打开设置对话框时填入初值）。</summary>
+    public PetConnectionSettings ConnectionSettings => _settings.Connection;
+
+    /// <summary>保存新的连接设置到持久化存储。</summary>
+    public void SaveConnectionSettings(PetConnectionSettings connection)
+    {
+        _settings = _settings with { Connection = connection };
+        _settingsStore.Save(_settings);
+    }
+
     /// <summary>The currently displayed model name (shown with a checkmark in the menu).</summary>
     public string? CurrentModelName { get; set; }
+
+    /// <summary>The currently displayed GLB/VRM model name (shown with a checkmark in the 3D model menu).</summary>
+    public string? CurrentGltfModelName { get; set; }
 
     /// <summary>Provides the list of available model names shown in the "更换模型" submenu.</summary>
     public void SetAvailableModels(IEnumerable<string> modelNames)
     {
         _availableModels = modelNames.Take(MenuModelMax - MenuModelBase + 1).ToArray();
+    }
+
+    /// <summary>Provides the list of available GLB/VRM model names shown in the "3D 模型" submenu.</summary>
+    public void SetAvailableGltfModels(IEnumerable<string> modelNames)
+    {
+        _availableGltfModels = modelNames.Take(MenuGltfModelMax - MenuGltfModelBase + 1).ToArray();
     }
 
     public nint Handle => _hwnd;
@@ -142,6 +197,8 @@ public sealed class DesktopPetWindow
 
     private void RegisterWindowClass()
     {
+        _arrowCursor = Win32Native.LoadCursorW(0, Win32Native.IDC_ARROW);
+
         var className = Marshal.StringToHGlobalUni(WindowClassName);
         try
         {
@@ -150,7 +207,7 @@ public sealed class DesktopPetWindow
                 cbSize = (uint)Marshal.SizeOf<Win32Native.WNDCLASSEXW>(),
                 lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_windowProc),
                 hInstance = Win32Native.GetModuleHandleW(0),
-                hCursor = 0,
+                hCursor = _arrowCursor,   // 设置默认箭头光标，避免显示等待转圈
                 hbrBackground = 0,
                 lpszClassName = className
             };
@@ -217,9 +274,10 @@ public sealed class DesktopPetWindow
         }
         else
         {
-            // D3D11 mode: extend DWM glass frame to the whole window so that pixels
-            // with alpha=0 in the swap-chain back buffer show the desktop beneath.
-            // This is the official per-pixel-alpha path for D3D11 on a WS_POPUP window.
+            // D3D11 / Flip mode: extend DWM glass frame across the entire window so that
+            // pixels with alpha=0 in the swap-chain back buffer show the desktop beneath.
+            // The Flip present model (FlipDiscard) ensures DWM sees the actual rendered
+            // pixels, unlike the old Discard path where DWM ignored them.
             var margins = new Win32Native.MARGINS { Left = -1, Right = -1, Top = -1, Bottom = -1 };
             Win32Native.DwmExtendFrameIntoClientArea(_hwnd, ref margins);
         }
@@ -264,9 +322,114 @@ public sealed class DesktopPetWindow
                 return 1;
             case Win32Native.WM_NCHITTEST:
                 return HitTest(lParam);
-            case Win32Native.WM_RBUTTONUP:
-                ShowContextMenu();
+            case Win32Native.WM_SETCURSOR:
+            {
+                // 强制整个客户区使用箭头光标，防止系统根据 HTCLIENT 显示默认的等待光标
+                if ((lParam & 0xFFFF) == Win32Native.HTCLIENT)
+                {
+                    Win32Native.SetCursor(_arrowCursor);
+                    return 1;
+                }
+                return Win32Native.DefWindowProcW(hwnd, message, wParam, lParam);
+            }
+            case Win32Native.WM_LBUTTONDOWN:
+            {
+                // Simulate dragging by re-posting as a non-client left-button-down
+                // on the caption. This lets the OS move the window natively without
+                // us returning HTCAPTION from WM_NCHITTEST (which would block
+                // WM_RBUTTONDOWN from reaching us as a client message).
+                Win32Native.ReleaseCapture();
+                Win32Native.SendMessageW(hwnd, (uint)Win32Native.WM_NCLBUTTONDOWN,
+                    (nuint)Win32Native.HTCAPTION, lParam);
                 return 0;
+            }
+            case Win32Native.WM_RBUTTONDOWN:
+            {
+                // Begin tracking a potential right-drag.
+                var x = (short)(lParam & 0xFFFF);
+                var y = (short)((lParam >> 16) & 0xFFFF);
+                _rmbDown     = true;
+                _rmbDragging = false;
+                _rmbStartX   = x;
+                _rmbStartY   = y;
+                _rmbLastX    = x;
+                _rmbLastY    = y;
+                Win32Native.SetCapture(hwnd);
+                return 0;
+            }
+            case Win32Native.WM_MOUSEMOVE:
+            {
+                // 鼠标首次进入窗口：订阅 WM_MOUSELEAVE 通知，触发边框显示
+                if (!_mouseInWindow)
+                {
+                    _mouseInWindow = true;
+                    var tme = new Win32Native.TRACKMOUSEEVENT
+                    {
+                        cbSize    = (uint)System.Runtime.InteropServices.Marshal.SizeOf<Win32Native.TRACKMOUSEEVENT>(),
+                        dwFlags   = Win32Native.TME_LEAVE,
+                        hwndTrack = hwnd,
+                        dwHoverTime = 0
+                    };
+                    Win32Native.TrackMouseEvent(ref tme);
+                    MouseHoverChanged?.Invoke(this, true);
+                }
+
+                if (!_rmbDown) return Win32Native.DefWindowProcW(hwnd, message, wParam, lParam);
+                var x = (short)(lParam & 0xFFFF);
+                var y = (short)((lParam >> 16) & 0xFFFF);
+                var dx = x - _rmbStartX;
+                var dy = y - _rmbStartY;
+                if (!_rmbDragging && (Math.Abs(dx) > RmbDragThreshold || Math.Abs(dy) > RmbDragThreshold))
+                {
+                    _rmbDragging = true;
+                }
+                if (_rmbDragging)
+                {
+                    var moveDx = x - _rmbLastX;
+                    var moveDy = y - _rmbLastY;
+                    if (moveDx != 0 || moveDy != 0)
+                    {
+                        RightMouseDragged?.Invoke(this, (moveDx, moveDy));
+                    }
+                    _rmbLastX = x;
+                    _rmbLastY = y;
+                }
+                return 0;
+            }
+            case Win32Native.WM_MOUSELEAVE:
+            {
+                // 鼠标离开窗口：隐藏边框
+                _mouseInWindow = false;
+                MouseHoverChanged?.Invoke(this, false);
+                return 0;
+            }
+            case Win32Native.WM_RBUTTONUP:
+            {
+                // Save dragging state BEFORE we call ReleaseCapture.
+                // ReleaseCapture() synchronously dispatches WM_CAPTURECHANGED; we mark
+                // _rmbSelfRelease=true so that handler knows not to interfere.
+                var wasDragging = _rmbDragging;
+                _rmbDown        = false;
+                _rmbDragging    = false;
+                _rmbSelfRelease = true;
+                Win32Native.ReleaseCapture();
+                _rmbSelfRelease = false;
+                // Only show the context menu if the button was released without dragging.
+                if (!wasDragging)
+                {
+                    ShowContextMenu();
+                }
+                return 0;
+            }
+            case Win32Native.WM_CAPTURECHANGED:
+            {
+                // Ignore if we triggered the release ourselves (WM_RBUTTONUP path).
+                if (_rmbSelfRelease) return 0;
+                // Mouse capture lost externally — cancel drag without showing menu.
+                _rmbDown     = false;
+                _rmbDragging = false;
+                return 0;
+            }
             case TrayCallbackMessage:
                 HandleTrayMessage((uint)lParam);
                 return 0;
@@ -318,68 +481,30 @@ public sealed class DesktopPetWindow
 
     private nint HitTest(nint lParam)
     {
-        if (_settings.Window.Locked)
-        {
-            return Win32Native.HTCLIENT;
-        }
+        // 边缘/角落返回对应的 resize hit code，使鼠标悬停时显示正确的缩放光标
+        // 并让系统处理拖拽缩放。内部区域返回 HTCLIENT（左键拖动由 WM_LBUTTONDOWN 转发）。
+        Win32Native.GetWindowRect(_hwnd, out var rect);
+        var ptX = (short)(lParam & 0xFFFF);
+        var ptY = (short)((lParam >> 16) & 0xFFFF);
 
-        var x = unchecked((short)((long)lParam & 0xffff));
-        var y = unchecked((short)(((long)lParam >> 16) & 0xffff));
+        // 边缘感应厚度（像素），使用系统推荐的 resize frame 宽度
+        const int EdgeThickness = 8;
 
-        if (!Win32Native.GetWindowRect(_hwnd, out var rect))
-        {
-            return Win32Native.HTCAPTION;
-        }
+        var left   = ptX - rect.Left   < EdgeThickness;
+        var right  = rect.Right - ptX  < EdgeThickness;
+        var top    = ptY - rect.Top    < EdgeThickness;
+        var bottom = rect.Bottom - ptY < EdgeThickness;
 
-        var frameX = Math.Max(8, Win32Native.GetSystemMetrics(SM_CXSIZEFRAME));
-        var frameY = Math.Max(8, Win32Native.GetSystemMetrics(SM_CYSIZEFRAME));
+        if (top    && left)  return Win32Native.HTTOPLEFT;
+        if (top    && right) return Win32Native.HTTOPRIGHT;
+        if (bottom && left)  return Win32Native.HTBOTTOMLEFT;
+        if (bottom && right) return Win32Native.HTBOTTOMRIGHT;
+        if (top)             return Win32Native.HTTOP;
+        if (bottom)          return Win32Native.HTBOTTOM;
+        if (left)            return Win32Native.HTLEFT;
+        if (right)           return Win32Native.HTRIGHT;
 
-        var left = x < rect.Left + frameX;
-        var right = x >= rect.Right - frameX;
-        var top = y < rect.Top + frameY;
-        var bottom = y >= rect.Bottom - frameY;
-
-        if (left && top)
-        {
-            return Win32Native.HTTOPLEFT;
-        }
-
-        if (right && top)
-        {
-            return Win32Native.HTTOPRIGHT;
-        }
-
-        if (left && bottom)
-        {
-            return Win32Native.HTBOTTOMLEFT;
-        }
-
-        if (right && bottom)
-        {
-            return Win32Native.HTBOTTOMRIGHT;
-        }
-
-        if (left)
-        {
-            return Win32Native.HTLEFT;
-        }
-
-        if (right)
-        {
-            return Win32Native.HTRIGHT;
-        }
-
-        if (top)
-        {
-            return Win32Native.HTTOP;
-        }
-
-        if (bottom)
-        {
-            return Win32Native.HTBOTTOM;
-        }
-
-        return Win32Native.HTCAPTION;
+        return Win32Native.HTCLIENT;
     }
 
     private void ShowContextMenu()
@@ -400,16 +525,33 @@ public sealed class DesktopPetWindow
             Append(menu, MenuLockPosition, _settings.Window.Locked ? "解锁位置" : "锁定位置");
             Append(menu, MenuResetPlacement, "重置到右下角");
             Separator(menu);
-            if (_availableModels.Length > 0)
+            // ── 更换角色：2D 和 3D 模型合并为一个子菜单（互斥选择）──────────────
+            if (_availableModels.Length > 0 || _availableGltfModels.Length > 0)
             {
-                var modelSubMenu = Win32Native.CreatePopupMenu();
-                for (var i = 0; i < _availableModels.Length; i++)
+                var characterSubMenu = Win32Native.CreatePopupMenu();
+                if (_availableModels.Length > 0)
                 {
-                    var name = _availableModels[i];
-                    var isCurrent = string.Equals(name, CurrentModelName, StringComparison.OrdinalIgnoreCase);
-                    Append(modelSubMenu, MenuModelBase + i, isCurrent ? $"✓ {name}" : name);
+                    for (var i = 0; i < _availableModels.Length; i++)
+                    {
+                        var name = _availableModels[i];
+                        var isCurrent = string.Equals(name, CurrentModelName, StringComparison.OrdinalIgnoreCase);
+                        Append(characterSubMenu, MenuModelBase + i, isCurrent ? $"✓ {name}" : name);
+                    }
                 }
-                Win32Native.AppendMenuW(menu, MF_POPUP, (nuint)modelSubMenu, "更换模型");
+                if (_availableGltfModels.Length > 0)
+                {
+                    if (_availableModels.Length > 0)
+                    {
+                        Separator(characterSubMenu);
+                    }
+                    for (var i = 0; i < _availableGltfModels.Length; i++)
+                    {
+                        var name = _availableGltfModels[i];
+                        var isCurrent = string.Equals(name, CurrentGltfModelName, StringComparison.OrdinalIgnoreCase);
+                        Append(characterSubMenu, MenuGltfModelBase + i, isCurrent ? $"✓ {name}" : name);
+                    }
+                }
+                Win32Native.AppendMenuW(menu, MF_POPUP, (nuint)characterSubMenu, "更换角色");
                 Separator(menu);
             }
             Append(menu, MenuOpenModelsDirectory, "打开模型目录");
@@ -417,6 +559,7 @@ public sealed class DesktopPetWindow
             Append(menu, MenuOpenLogsDirectory, "打开日志目录");
             Separator(menu);
             Append(menu, MenuStartup, "切换开机启动");
+            Append(menu, MenuSettings, "设置…");
             Separator(menu);
             Append(menu, MenuSizeSmall, "窗口大小：小");
             Append(menu, MenuSizeMedium, "窗口大小：中");
@@ -512,6 +655,7 @@ public sealed class DesktopPetWindow
                 break;
             case MenuClickThrough:
                 UpdateWindowSettings(_settings.Window with { ClickThrough = !_settings.Window.ClickThrough });
+                ApplyClickThrough(_settings.Window.ClickThrough);
                 break;
             case MenuLockPosition:
                 UpdateWindowSettings(_settings.Window with { Locked = !_settings.Window.Locked });
@@ -549,6 +693,9 @@ public sealed class DesktopPetWindow
             case MenuStartup:
                 StartupToggleRequested?.Invoke(this, EventArgs.Empty);
                 break;
+            case MenuSettings:
+                SettingsRequested?.Invoke(this, EventArgs.Empty);
+                break;
             case MenuExit:
                 ExitRequested?.Invoke(this, EventArgs.Empty);
                 Closing?.Invoke(this, EventArgs.Empty);
@@ -561,6 +708,14 @@ public sealed class DesktopPetWindow
                     if (modelIndex < _availableModels.Length)
                     {
                         ModelSwitchRequested?.Invoke(this, _availableModels[modelIndex]);
+                    }
+                }
+                else if (command >= MenuGltfModelBase && command <= MenuGltfModelMax)
+                {
+                    var modelIndex = command - MenuGltfModelBase;
+                    if (modelIndex < _availableGltfModels.Length)
+                    {
+                        GltfModelSwitchRequested?.Invoke(this, _availableGltfModels[modelIndex]);
                     }
                 }
                 break;
@@ -659,6 +814,20 @@ public sealed class DesktopPetWindow
             0,
             0,
             Win32Native.SWP_NOMOVE | Win32Native.SWP_NOSIZE | Win32Native.SWP_NOACTIVATE);
+    }
+
+    private void ApplyClickThrough(bool clickThrough)
+    {
+        var exStyle = Win32Native.GetWindowLongPtrW(_hwnd, Win32Native.GWL_EXSTYLE);
+        if (clickThrough)
+        {
+            exStyle |= Win32Native.WS_EX_TRANSPARENT;
+        }
+        else
+        {
+            exStyle &= ~Win32Native.WS_EX_TRANSPARENT;
+        }
+        Win32Native.SetWindowLongPtrW(_hwnd, Win32Native.GWL_EXSTYLE, exStyle);
     }
 
     private void SaveCurrentPlacement()

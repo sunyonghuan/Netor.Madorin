@@ -8,4 +8,6 @@ public sealed record D3D11MeshItem(
     IReadOnlyList<ushort> Indices,
     Matrix4x4 WorldTransform,
     D3D11MeshTexture? Texture = null,
-    Vector4 BaseColorFactor = default);
+    Vector4 BaseColorFactor = default,
+    Matrix4x4[]? JointMatrices = null);
+

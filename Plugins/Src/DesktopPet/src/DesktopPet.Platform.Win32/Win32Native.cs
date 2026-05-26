@@ -13,6 +13,7 @@ internal static partial class Win32Native
     internal const int WS_EX_TOPMOST = 0x00000008;
     internal const int WS_EX_TOOLWINDOW = 0x00000080;
     internal const int WS_EX_TRANSPARENT = 0x00000020;
+    internal const int WS_EX_NOREDIRECTIONBITMAP = 0x00200000;
 
     internal const int WM_DESTROY = 0x0002;
     internal const int WM_MOVE = 0x0003;
@@ -23,12 +24,30 @@ internal static partial class Win32Native
     internal const int WM_NCHITTEST = 0x0084;
     internal const int WM_PAINT = 0x000F;
     internal const int WM_USER = 0x0400;
+    internal const int WM_LBUTTONDOWN   = 0x0201;
     internal const int WM_LBUTTONDBLCLK = 0x0203;
-    internal const int WM_RBUTTONUP = 0x0205;
-    internal const int WM_MOUSEWHEEL = 0x020A;
+    internal const int WM_RBUTTONDOWN   = 0x0204;
+    internal const int WM_RBUTTONUP     = 0x0205;
+    internal const int WM_MOUSEMOVE     = 0x0200;
+    internal const int WM_MOUSEWHEEL    = 0x020A;
+    internal const int WM_CAPTURECHANGED = 0x0215;
     internal const int WM_NCCALCSIZE = 0x0083;
     internal const int WM_NCACTIVATE = 0x0086;
+    internal const int WM_NCLBUTTONDOWN = 0x00A1;
+    internal const int WM_QUIT = 0x0012;
+    internal const int WM_SETCURSOR = 0x0020;
+    internal const int WM_MOUSELEAVE = 0x02A3;
 
+    internal const int HTCLIENT_CURSOR = 1; // alias for clarity in WM_SETCURSOR
+    internal static readonly nint IDC_ARROW = new(32512);
+
+    [LibraryImport("user32.dll")]
+    internal static partial nint LoadCursorW(nint hInstance, nint lpCursorName);
+
+    [LibraryImport("user32.dll")]
+    internal static partial nint SetCursor(nint hCursor);
+
+    internal const int HTTRANSPARENT = -1;
     internal const int HTCLIENT = 1;
     internal const int HTCAPTION = 2;
     internal const int HTLEFT = 10;
@@ -230,6 +249,16 @@ internal static partial class Win32Native
     internal static partial bool DestroyMenu(nint menu);
 
     [LibraryImport("user32.dll")]
+    internal static partial nint SetCapture(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool ReleaseCapture();
+
+    [LibraryImport("user32.dll")]
+    internal static partial nint SendMessageW(nint hwnd, uint msg, nuint wParam, nint lParam);
+
+    [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool GetCursorPos(out POINT point);
 
@@ -287,4 +316,51 @@ internal static partial class Win32Native
     /// </summary>
     [LibraryImport("dwmapi.dll")]
     internal static partial int DwmFlush();
+
+    // ── Dialog helpers ────────────────────────────────────────────────────────
+
+    internal const int WHITE_BRUSH      = 0;
+    internal const int DEFAULT_GUI_FONT = 17;
+
+    internal const uint TME_LEAVE = 0x00000002;
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct TRACKMOUSEEVENT
+    {
+        public uint  cbSize;
+        public uint  dwFlags;
+        public nint  hwndTrack;
+        public uint  dwHoverTime;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool TrackMouseEvent(ref TRACKMOUSEEVENT tme);
+
+    [LibraryImport("gdi32.dll")]
+    internal static partial nint GetStockObject(int fnObject);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsDialogMessageW(nint hwnd, ref MSG msg);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool PeekMessageW(out MSG message, nint hwnd, uint msgFilterMin, uint msgFilterMax, uint removeMsg);
+
+    // ── 窗口样式动态修改 ──────────────────────────────────────────────────────
+
+    internal const int GWL_EXSTYLE = -20;
+
+    /// <summary>
+    /// 64 位进程必须用 GetWindowLongPtrW；此处用 nint 返回值兼容 32/64 位。
+    /// </summary>
+    [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    internal static partial nint GetWindowLongPtrW(nint hwnd, int nIndex);
+
+    /// <summary>
+    /// 64 位进程必须用 SetWindowLongPtrW；此处用 nint 兼容 32/64 位。
+    /// </summary>
+    [LibraryImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+    internal static partial nint SetWindowLongPtrW(nint hwnd, int nIndex, nint dwNewLong);
 }

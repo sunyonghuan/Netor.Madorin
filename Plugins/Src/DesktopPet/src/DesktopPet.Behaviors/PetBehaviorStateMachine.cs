@@ -53,6 +53,7 @@ public sealed class PetBehaviorStateMachine
                 if (_state != PetState.Hidden)
                 {
                     _state = PetState.Idle;
+                    _subtitle.Clear();   // tts_completed/done → 清空字幕，不残留
                 }
 
                 break;
@@ -78,8 +79,9 @@ public sealed class PetBehaviorStateMachine
             case PetEventKind.TextDelta:
                 if (_state != PetState.Hidden)
                 {
-                    _state = PetState.Speaking;
-                    _subtitle.Append(petEvent.Text);
+                    // token 流仅作为"AI 正在思考/生成"的状态信号，
+                    // 不把逐字内容累积到字幕。真正的字幕由后续 tts_subtitle 设置。
+                    _state = PetState.Thinking;
                 }
 
                 break;

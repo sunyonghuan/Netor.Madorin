@@ -63,9 +63,9 @@ internal sealed class SubtitleRenderer
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
         g.Clear(Color.Transparent);
 
-        // 半透明背景（alpha=110，更通透，不遮挡模型）
+        // 半透明背景（alpha=185，在亮色背景下也能保证文字可读）
         var bgRect = new RectangleF(pad / 2, pad / 2, texW - pad, texH - pad);
-        using var bgBrush = new SolidBrush(Color.FromArgb(110, 0, 0, 0));
+        using var bgBrush = new SolidBrush(Color.FromArgb(185, 0, 0, 0));
         FillRoundedRectangle(g, bgBrush, bgRect, 12f);
 
         // 文字（多行自动换行，不省略）
@@ -147,8 +147,8 @@ internal sealed class SubtitleRenderer
     private static StringFormat BuildFormat() => new()
     {
         Alignment     = StringAlignment.Center,
-        LineAlignment = StringAlignment.Near,
-        Trimming      = StringTrimming.None,   // 不省略，允许自动换行
+        LineAlignment = StringAlignment.Center,  // 垂直居中
+        Trimming      = StringTrimming.None,     // 不省略，允许自动换行
     };
 
     private static void FillRoundedRectangle(Graphics g, Brush brush, RectangleF rect, float radius)

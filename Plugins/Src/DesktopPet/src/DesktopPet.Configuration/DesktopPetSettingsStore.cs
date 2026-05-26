@@ -27,8 +27,14 @@ public sealed class DesktopPetSettingsStore
         }
 
         using var stream = File.OpenRead(_settingsPath);
-        return JsonSerializer.Deserialize(stream, DesktopPetJsonContext.Default.DesktopPetSettings)
+        var loaded = JsonSerializer.Deserialize(stream, DesktopPetJsonContext.Default.DesktopPetSettings)
             ?? new DesktopPetSettings();
+
+        // 向后兼容：旧 settings.json 没有 connection 字段，反序列化后为 null
+        return loaded with
+        {
+            Connection = loaded.Connection ?? new()
+        };
     }
 
     public void Save(DesktopPetSettings settings)
