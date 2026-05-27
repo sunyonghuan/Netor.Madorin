@@ -134,7 +134,7 @@ internal static class OrchestratorPrompts
               "executionMode": "sequential",
               "dependsOn": [],
               "agentTypeDescription": "执行此步骤需要的具体专业能力描述（如：精通Python数据分析，熟悉Pandas/Matplotlib）",
-              "requiredTools": [],
+              "requiredTools": ["工具名1", "工具名2"],
               "requireUserConfirmation": false,
               "estimatedDurationSeconds": 30,
               "subTasks": []
@@ -150,6 +150,7 @@ internal static class OrchestratorPrompts
         - 步骤数量：简单任务 2-4 步，中等 4-8 步，复杂不超过 12 步
         - estimatedDurationSeconds 用于 UI 进度展示（粗略估计即可）
         - agentTypeDescription 不要写"通用专家"，要写具体能力（如"擅长竞品分析和市场调研的分析师"）
+        - requiredTools：当步骤需要调用系统工具（如文件读写、网络搜索、代码执行等）时，从用户消息中"当前可用工具"列表里选择对应的工具名填入。纯文本分析/创作类步骤留空数组 []。工具名必须与可用工具列表中的名称完全一致。
         """;
 
     /// <summary>

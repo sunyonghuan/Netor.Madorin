@@ -86,6 +86,9 @@ public sealed class ConversationMessageVm : INotifyPropertyChanged
     /// </summary>
     public required string Role { get; init; }
 
+    /// <summary>当卡片内容更新时触发，用于通知视图层滚动 ScrollViewer。</summary>
+    public event Action? ContentUpdated;
+
     /// <summary>消息文本内容（流式 AI 回复时动态追加）。</summary>
     public string Content
     {
@@ -96,6 +99,8 @@ public sealed class ConversationMessageVm : INotifyPropertyChanged
             _content = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasContent));
+            if (IsStepCard && _isExpanded)
+                ContentUpdated?.Invoke();
         }
     }
 
@@ -228,7 +233,7 @@ public sealed class ConversationMessageVm : INotifyPropertyChanged
     public string CardStatusText => _isCardCompleted ? "✓" : "…";
 
     /// <summary>卡片状态颜色（XAML 绑定用）。</summary>
-    public string CardStatusColor => _isCardCompleted ? "#73c991" : "#858585";
+    public string CardStatusColor => _isCardCompleted ? "#cccccc" : "#858585";
 
     /// <summary>是否为步骤执行卡片消息。</summary>
     public bool IsStepCard => Role == "step_card";

@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -45,9 +46,24 @@ public partial class WorkflowDetailView : UserControl
         // 注入 WorkflowInputVm 到共享输入区
         WorkflowInputArea.SetInputVm(_inputVm);
 
-        // Feed 有新消息时自动滚到底部
-        _vm.Detail.FeedItems.CollectionChanged += (_, _) =>
+        // Feed 有新消息时自动滚到底部 + 订阅卡片内容更新
+        _vm.Detail.FeedItems.CollectionChanged += (_, args) =>
+        {
             Dispatcher.UIThread.Post(ScrollFeedToEnd, DispatcherPriority.Background);
+
+            // 新增的 step_card 消息：订阅 ContentUpdated 事件以自动滚动卡片内 ScrollViewer
+            if (args.NewItems is not null)
+            {
+                foreach (var item in args.NewItems)
+                {
+                    if (item is ConversationMessageVm { IsStepCard: true } cardVm)
+                    {
+                        cardVm.ContentUpdated += () =>
+                            Dispatcher.UIThread.Post(() => ScrollStepCard(cardVm), DispatcherPriority.Background);
+                    }
+                }
+            }
+        };
 
         // 订阅引擎生命周期事件 → 复位 InputVm 状态
         SubscribeTaskEvents();
@@ -180,5 +196,41 @@ public partial class WorkflowDetailView : UserControl
     private void ScrollFeedToEnd()
     {
         FeedScrollViewer?.ScrollToEnd();
+    }
+
+    /// <summary>
+    /// 找到指定卡片 VM 对应的 ScrollViewer 并滚动到底部。
+    /// 通过遍历 ItemsControl 可视树，匹配 DataContext 为目标 VM 的容器。
+    /// </summary>
+    private void ScrollStepCard(ConversationMessageVm cardVm)
+    {
+        try
+        {
+            // 遍历 FeedList 的子项，找到 DataContext 匹配的容器
+            foreach (var container in FeedList.GetRealizedContainers())
+            {
+                if (container.DataContext != cardVm) continue;
+
+                // 在容器可视树中查找 ScrollViewer
+                var scroller = FindDescendant<ScrollViewer>(container);
+                scroller?.ScrollToEnd();
+                break;
+            }
+        }
+        catch
+        {
+            // 可视树未就绪时忽略
+        }
+    }
+
+    private static T? FindDescendant<T>(Visual root) where T : Visual
+    {
+        foreach (var child in root.GetVisualChildren())
+        {
+            if (child is T target) return target;
+            var found = FindDescendant<T>(child);
+            if (found is not null) return found;
+        }
+        return null;
     }
 }

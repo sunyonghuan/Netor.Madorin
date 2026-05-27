@@ -121,7 +121,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         TaskId = taskId;
         Title = title;
         StatusText = "运行中";
-        StatusColor = "#007acc";
+        StatusColor = "#cccccc";
         _startedAt = DateTimeOffset.Now;
 
         if (!string.IsNullOrWhiteSpace(initialUserInput))
@@ -165,10 +165,10 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
 
             (StatusText, StatusColor) = detail.Status switch
             {
-                "completed" => ("已完成", "#73c991"),
-                "failed"    => ("失败",   "#f48771"),
-                "paused"    => ("已暂停", "#e0c074"),
-                "running"   => ("运行中", "#007acc"),
+                "completed" => ("已完成", "#cccccc"),
+                "failed"    => ("失败",   "#cccccc"),
+                "paused"    => ("已暂停", "#cccccc"),
+                "running"   => ("运行中", "#cccccc"),
                 "cancelled" => ("已取消", "#858585"),
                 _           => (detail.Status, "#858585"),
             };
@@ -195,7 +195,9 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
 
     private void SubscribeEvents()
     {
-        // ── 阶段事件 → 时间线阶段节点 ──
+        // ── 阶段事件 ──
+        // 设计原则：时间线只在用户确认执行后才出现（executing/validating阶段）
+        // 需求分析/计划制定阶段保持对话模式，不产生时间线节点
 
         _subscriber.Subscribe<TaskPhaseEventArgs>(Events.OnTaskPhaseStarted, (_, args) =>
         {
@@ -203,24 +205,32 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             var name = FormatPhaseName(args.Phase);
             Dispatcher.UIThread.Post(() =>
             {
-                AppendTimeline(ProgressKind.PhaseStart, $"▶ {name}", "#007acc");
                 StatusText = $"执行中 — {name}";
 
-                // 验证阶段：创建折叠卡片，AI 输出将路由到此卡片
-                if (args.Phase == "validating")
+                // 需求分析/计划制定阶段：纯对话模式，不产生时间线节点，不创建卡片
+                if (args.Phase is "requirements" or "planning")
+                    return;
+
+                // 执行阶段：时间线开始，AI 消息靠 StepId 路由到步骤卡片
+                if (args.Phase == "executing")
                 {
-                    var card = new ConversationMessageVm
-                    {
-                        MessageId = $"card-phase-validating",
-                        Timestamp = DateTimeOffset.Now,
-                        Role = "step_card",
-                        CardTitle = "验证过程",
-                        IsExpanded = true,
-                        Content = string.Empty,
-                    };
-                    FeedItems.Add(card);
-                    _activePhaseCard = card;
+                    AppendTimeline(ProgressKind.PhaseStart, "开始执行", "#cccccc");
+                    return;
                 }
+
+                // 验证阶段：时间线节点 + 创建卡片收纳验证过程
+                AppendTimeline(ProgressKind.PhaseStart, name, "#cccccc");
+                var card = new ConversationMessageVm
+                {
+                    MessageId = $"card-phase-{args.Phase}",
+                    Timestamp = DateTimeOffset.Now,
+                    Role = "step_card",
+                    CardTitle = $"{name}过程",
+                    IsExpanded = true,
+                    Content = string.Empty,
+                };
+                FeedItems.Add(card);
+                _activePhaseCard = card;
             });
             return Task.FromResult(false);
         });
@@ -228,11 +238,14 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         _subscriber.Subscribe<TaskPhaseEventArgs>(Events.OnTaskPhaseCompleted, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
-            var name = FormatPhaseName(args.Phase);
             Dispatcher.UIThread.Post(() =>
             {
+                // 需求分析/计划制定阶段完成：不产生时间线节点
+                if (args.Phase is "requirements" or "planning")
+                    return;
+
                 // 折叠阶段卡片
-                if (args.Phase == "validating" && _activePhaseCard is not null)
+                if (_activePhaseCard is not null)
                 {
                     _activePhaseCard.IsStreaming = false;
                     _activePhaseCard.IsCardCompleted = true;
@@ -240,33 +253,29 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
                     _activePhaseCard = null;
                 }
 
-                AppendTimeline(ProgressKind.PhaseEnd, $"✓ {name} 完成", "#73c991");
+                var name = FormatPhaseName(args.Phase);
+                AppendTimeline(ProgressKind.PhaseEnd, $"{name}完成", "#cccccc");
             });
             return Task.FromResult(false);
         });
 
-        // ── 计划事件 → 计划节点 ──
+        // ── 计划事件 ──
+        // 计划创建/确认不产生时间线节点（还在对话模式中）
 
         _subscriber.Subscribe<TaskPlanEventArgs>(Events.OnTaskPlanCreated, (_, args) =>
         {
-            if (args.TaskId != _taskId) return Task.FromResult(false);
-            Dispatcher.UIThread.Post(() =>
-                AppendTimeline(ProgressKind.Plan, $"■ 计划已生成（{args.StepCount} 步），等待确认", "#e0c074"));
+            // 不产生时间线节点，计划详情已通过对话消息展示
             return Task.FromResult(false);
         });
 
         _subscriber.Subscribe<TaskPlanEventArgs>(Events.OnTaskPlanConfirmed, (_, args) =>
         {
-            if (args.TaskId != _taskId) return Task.FromResult(false);
-            Dispatcher.UIThread.Post(() => AppendTimeline(ProgressKind.Plan, "✓ 计划已确认，开始执行", "#73c991"));
+            // 不产生时间线节点，执行阶段的 PhaseStarted 会产生时间线起点
             return Task.FromResult(false);
         });
 
         _subscriber.Subscribe<TaskPlanEventArgs>(Events.OnTaskPlanUpdated, (_, args) =>
         {
-            if (args.TaskId != _taskId) return Task.FromResult(false);
-            Dispatcher.UIThread.Post(() =>
-                AppendTimeline(ProgressKind.Plan, $"↻ 计划已更新 (v{args.Version}, {args.StepCount} 步)", "#e0c074"));
             return Task.FromResult(false);
         });
 
@@ -278,7 +287,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             Dispatcher.UIThread.Post(() =>
             {
                 // 1) 时间线节点：步骤开始
-                AppendTimeline(ProgressKind.StepStart, $"步骤 {args.StepSequence}: {args.Title}", "#007acc");
+                AppendTimeline(ProgressKind.StepStart, $"步骤 {args.StepSequence}: {args.Title}", "#cccccc");
 
                 // 2) 创建步骤执行卡片（AI 输出将累积到此卡片的 Content 中）
                 var card = new ConversationMessageVm
@@ -309,7 +318,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
                 CompleteStepCard(args.StepId);
 
                 AppendTimeline(ProgressKind.StepEnd,
-                    $"步骤 {args.StepSequence} 完成: {args.Title}", "#73c991",
+                    $"步骤 {args.StepSequence} 完成", "#cccccc",
                     subText: args.ResultSummary);
                 UpdateDuration();
             });
@@ -324,7 +333,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
                 // 折叠步骤卡片
                 CompleteStepCard(args.StepId);
 
-                AppendTimeline(ProgressKind.StepFail, $"步骤 {args.StepSequence} 失败: {args.Title}", "#f48771");
+                AppendTimeline(ProgressKind.StepFail, $"步骤 {args.StepSequence} 失败", "#cccccc");
             });
             return Task.FromResult(false);
         });
@@ -333,7 +342,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
-                AppendTimeline(ProgressKind.StepAux, $"↻ 步骤 {args.StepSequence} 重试 ({args.RetryCount}/{args.MaxRetries})", "#e0c074"));
+                AppendTimeline(ProgressKind.StepAux, $"步骤 {args.StepSequence} 重试 ({args.RetryCount}/{args.MaxRetries})", "#858585"));
             return Task.FromResult(false);
         });
 
@@ -341,7 +350,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
-                AppendTimeline(ProgressKind.StepAux, $"⏸ 步骤 {args.StepSequence} 等待确认: {args.Title}", "#e0c074"));
+                AppendTimeline(ProgressKind.StepAux, $"步骤 {args.StepSequence} 等待确认", "#858585"));
             return Task.FromResult(false);
         });
 
@@ -349,18 +358,18 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
-                AppendTimeline(ProgressKind.StepAux, $"⏭ 步骤 {args.StepSequence} 已跳过: {args.Title}", "#858585"));
+                AppendTimeline(ProgressKind.StepAux, $"步骤 {args.StepSequence} 已跳过", "#858585"));
             return Task.FromResult(false);
         });
 
-        // ── 生命周期事件 → 进度/系统消息 ──
+        // ── 生命周期事件 ──
 
         _subscriber.Subscribe<TaskLifecycleEventArgs>(Events.OnTaskEngineCompleted, (_, args) =>
         {
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
-                // 任务总结卡片（Reason 携带 BuildFinalReport 内容）
+                // 任务总结卡片
                 if (!string.IsNullOrWhiteSpace(args.Reason))
                 {
                     var summaryCard = new ConversationMessageVm
@@ -376,9 +385,9 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
                     FeedItems.Add(summaryCard);
                 }
 
-                AppendTimeline(ProgressKind.Lifecycle, "✓ 任务已完成", "#73c991");
+                AppendTimeline(ProgressKind.Lifecycle, "✓ 任务已完成", "#cccccc");
                 StatusText = "已完成";
-                StatusColor = "#73c991";
+                StatusColor = "#cccccc";
                 FinalReport = args.Reason;
                 UpdateDuration();
             });
@@ -393,15 +402,15 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             {
                 if (cancelled)
                 {
-                    AppendTimeline(ProgressKind.Lifecycle, "⏹ 任务已取消", "#858585");
+                    AppendTimeline(ProgressKind.Lifecycle, "⏹ 任务已取消", "#cccccc");
                     StatusText = "已取消";
                     StatusColor = "#858585";
                 }
                 else
                 {
-                    AppendTimeline(ProgressKind.Lifecycle, $"✗ 任务失败：{args.Reason}", "#f48771");
+                    AppendTimeline(ProgressKind.Lifecycle, $"✗ 任务失败：{args.Reason}", "#cccccc");
                     StatusText = "失败";
-                    StatusColor = "#f48771";
+                    StatusColor = "#cccccc";
                 }
                 UpdateDuration();
             });
@@ -413,9 +422,9 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
-                AppendTimeline(ProgressKind.Lifecycle, "⏸ 任务已暂停", "#e0c074");
+                AppendTimeline(ProgressKind.Lifecycle, "⏸ 任务已暂停", "#cccccc");
                 StatusText = "已暂停";
-                StatusColor = "#e0c074";
+                StatusColor = "#cccccc";
             });
             return Task.FromResult(false);
         });
@@ -425,9 +434,9 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
             if (args.TaskId != _taskId) return Task.FromResult(false);
             Dispatcher.UIThread.Post(() =>
             {
-                AppendTimeline(ProgressKind.Lifecycle, "▶ 任务已恢复", "#007acc");
+                AppendTimeline(ProgressKind.Lifecycle, "▶ 任务已恢复", "#cccccc");
                 StatusText = "运行中";
-                StatusColor = "#007acc";
+                StatusColor = "#cccccc";
             });
             return Task.FromResult(false);
         });
@@ -442,7 +451,7 @@ public sealed class P4TaskDetailVm : INotifyPropertyChanged
                 var title = args.Passed
                     ? $"✓ 验证通过（{args.Score}/100）"
                     : $"✗ 验证未通过（{args.Score}/100）";
-                var color = args.Passed ? "#73c991" : "#f48771";
+                var color = "#cccccc";
                 string? sub = null;
                 if (args.Issues is { Count: > 0 })
                     sub = string.Join("\n", args.Issues.Select(i => $"└ {i}"));

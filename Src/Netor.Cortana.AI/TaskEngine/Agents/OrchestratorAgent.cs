@@ -26,6 +26,7 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
 {
     private readonly SubAgentRunner _runner;
     private readonly IPlanPersistence _persistence;
+    private readonly AIAgentFactory _agentFactory;
     private readonly ILogger<OrchestratorAgent> _logger;
 
     /// <summary>需求分析多轮对话最大轮次。</summary>
@@ -37,10 +38,12 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
     public OrchestratorAgent(
         SubAgentRunner runner,
         IPlanPersistence persistence,
+        AIAgentFactory agentFactory,
         ILogger<OrchestratorAgent> logger)
     {
         _runner = runner;
         _persistence = persistence;
+        _agentFactory = agentFactory;
         _logger = logger;
     }
 
@@ -177,6 +180,21 @@ internal sealed class OrchestratorAgent : IOrchestratorAgent
         userMessageBuilder.AppendLine(requirements.ExpectedDeliverable);
         userMessageBuilder.AppendLine();
         userMessageBuilder.AppendLine($"## 复杂度评估: {requirements.ComplexityLevel}");
+
+        // 注入当前系统可用工具列表（让 LLM 知道有哪些工具可分配给步骤）
+        var availableTools = _agentFactory.GetAvailableToolNames();
+        if (availableTools.Count > 0)
+        {
+            userMessageBuilder.AppendLine();
+            userMessageBuilder.AppendLine("## 当前可用工具");
+            userMessageBuilder.AppendLine("以下是系统中已注册的工具，你可以在步骤的 requiredTools 中引用它们的名称：");
+            foreach (var toolName in availableTools)
+            {
+                userMessageBuilder.AppendLine($"- {toolName}");
+            }
+            userMessageBuilder.AppendLine();
+            userMessageBuilder.AppendLine("注意：只有当步骤确实需要调用工具时才填写 requiredTools，纯文本分析/创作类步骤不需要工具。");
+        }
 
         // 构建 system prompt（可选追加模板）
         var systemPrompt = OrchestratorPrompts.PlanningExpert;

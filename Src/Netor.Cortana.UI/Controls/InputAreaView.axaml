@@ -1,8 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Netor.Cortana.UI.ViewModels.Workspace"
+             xmlns:vmi="using:Netor.Cortana.UI.ViewModels"
              x:Class="Netor.Cortana.UI.Controls.InputAreaView"
-             x:CompileBindings="False">
+             x:DataType="vmi:IInputVm"
+             x:CompileBindings="True">
 
 	<!--
 	  ════════════════════════════════════════════════════════════════
@@ -363,7 +365,7 @@
 					           Foreground="#858585" FontSize="11" TextWrapping="Wrap" />
 					<ItemsControl x:Name="ToolRiskItemsControl">
 						<ItemsControl.ItemTemplate>
-							<DataTemplate>
+							<DataTemplate x:DataType="vm:HighRiskToolItem">
 								<CheckBox Content="{Binding DisplayName}"
 								          IsChecked="{Binding IsBlocked, Mode=TwoWay}"
 								          ToolTip.Tip="{Binding Description}"

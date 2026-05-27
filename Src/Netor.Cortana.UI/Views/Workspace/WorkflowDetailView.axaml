@@ -41,15 +41,14 @@
 				<ItemsControl x:Name="FeedList"
 				              ItemsSource="{Binding Detail.FeedItems}"
 				              HorizontalAlignment="Stretch"
-				              Margin="16,10,16,60"
-				              x:CompileBindings="False">
+				              Margin="16,10,16,60">
 					<ItemsControl.ItemsPanel>
 						<ItemsPanelTemplate>
 							<StackPanel Orientation="Vertical" HorizontalAlignment="Stretch" />
 						</ItemsPanelTemplate>
 					</ItemsControl.ItemsPanel>
 					<ItemsControl.ItemTemplate>
-						<DataTemplate>
+						<DataTemplate x:DataType="vm:ConversationMessageVm">
 							<Grid Margin="0,0,0,2" HorizontalAlignment="Stretch">
 
 								<!-- ── 用户消息：半透明边框气泡 ── -->
@@ -63,13 +62,11 @@
 									                     TextWrapping="Wrap" />
 								</Border>
 
-								<!-- ── AI 回复：纯文本 + 流式光标 ── -->
+								<!-- ── AI 回复：Markdown 渲染 + 流式光标 ── -->
 								<StackPanel IsVisible="{Binding IsAiMessage}"
 								            Spacing="3" Margin="8,4,8,4">
-									<SelectableTextBlock Text="{Binding Content}"
-									                     Foreground="#cccccc"
-									                     FontSize="13" TextWrapping="Wrap"
-									                     IsVisible="{Binding HasContent}" />
+									<controls:MarkdownRenderer Markdown="{Binding Content}"
+									                           IsVisible="{Binding HasContent}" />
 									<TextBlock Text="&#x258C;" Foreground="#73c991" FontSize="13"
 									           IsVisible="{Binding IsStreaming}" />
 								</StackPanel>
@@ -77,24 +74,21 @@
 								<!-- ── 执行结果：摘要 + 产出文件 ── -->
 								<StackPanel IsVisible="{Binding IsResult}"
 								            Spacing="6" Margin="8,4,8,4">
-									<SelectableTextBlock Text="{Binding Content}"
-									                     Foreground="#e0c074"
-									                     FontSize="13" TextWrapping="Wrap"
-									                     IsVisible="{Binding HasContent}" />
+									<controls:MarkdownRenderer Markdown="{Binding Content}"
+									                           IsVisible="{Binding HasContent}" />
 									<TextBlock Text="{Binding ResultSummary}"
 									           Foreground="#cccccc" FontSize="12"
 									           TextWrapping="Wrap"
 									           IsVisible="{Binding ResultSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 									<ItemsControl ItemsSource="{Binding ResultFiles}"
-									              IsVisible="{Binding HasResultFiles}"
-									              x:CompileBindings="False">
+									              IsVisible="{Binding HasResultFiles}">
 										<ItemsControl.ItemsPanel>
 											<ItemsPanelTemplate>
 												<WrapPanel Orientation="Horizontal" />
 											</ItemsPanelTemplate>
 										</ItemsControl.ItemsPanel>
 										<ItemsControl.ItemTemplate>
-											<DataTemplate>
+											<DataTemplate x:DataType="vm:ResultFileVm">
 												<Border Classes="attachment-tag">
 													<StackPanel Orientation="Horizontal" Spacing="4">
 														<TextBlock Text="{Binding IconText}" FontSize="12" />
@@ -185,20 +179,18 @@
 									            Margin="6,3,0,3"
 									            VerticalAlignment="Top">
 
-										<!-- 阶段标题：13px 粗体（与步骤同级，统一文字层次） -->
+										<!-- 阶段标题：13px -->
 										<TextBlock IsVisible="{Binding IsPhaseNode}"
 										           Text="{Binding TimelineTitle}"
 										           Foreground="{Binding DotColor}"
 										           FontSize="13"
-										           FontWeight="SemiBold"
 										           TextWrapping="Wrap" />
 
-										<!-- 步骤标题：13px 半粗体 -->
+										<!-- 步骤标题：13px -->
 										<TextBlock IsVisible="{Binding IsStepNode}"
 										           Text="{Binding TimelineTitle}"
 										           Foreground="{Binding DotColor}"
 										           FontSize="13"
-										           FontWeight="Medium"
 										           TextWrapping="Wrap" />
 
 										<!-- 计划消息：13px 普通 -->
@@ -215,12 +207,11 @@
 										           FontSize="13"
 										           TextWrapping="Wrap" />
 
-										<!-- 生命周期消息：13px 粗体 -->
+										<!-- 生命周期消息：13px -->
 										<TextBlock IsVisible="{Binding IsLifecycleNode}"
 										           Text="{Binding TimelineTitle}"
 										           Foreground="{Binding DotColor}"
 										           FontSize="13"
-										           FontWeight="SemiBold"
 										           TextWrapping="Wrap" />
 
 										<!-- 详情行（子过程）：11px 灰色 -->
@@ -323,12 +314,13 @@
 											        BorderBrush="#1AFFFFFF"
 											        BorderThickness="0,1,0,0">
 												<StackPanel Spacing="2">
-													<SelectableTextBlock Text="{Binding Content}"
-													                     Foreground="#6E6E6E"
-													                     FontSize="12"
-													                     TextWrapping="Wrap"
-													                     MaxHeight="300"
-													                     IsVisible="{Binding HasContent}" />
+													<ScrollViewer x:Name="StepCardScroller"
+													              MaxHeight="320"
+													              VerticalScrollBarVisibility="Auto"
+													              HorizontalScrollBarVisibility="Disabled">
+														<controls:MarkdownRenderer Markdown="{Binding Content}"
+														                           IsVisible="{Binding HasContent}" />
+													</ScrollViewer>
 													<!-- 流式光标 -->
 													<TextBlock Text="&#x258C;" Foreground="#4A7A5A" FontSize="11"
 													           IsVisible="{Binding IsStreaming}" />
@@ -396,8 +388,7 @@
 		<Border Grid.Row="1" x:Name="InputAreaBorder"
 		        Background="#1e1e1e"
 		        BorderBrush="#252526" BorderThickness="0,1,0,0"
-		        Padding="6,6,6,6"
-		        x:CompileBindings="False">
+		        Padding="6,6,6,6">
 			<!-- 共享输入区（Workflow 模式：橙色走马灯，含子模式+厂商/模型+工具按钮） -->
 			<controls:InputAreaView x:Name="WorkflowInputArea"
 			                        InputMode="Workflow"
