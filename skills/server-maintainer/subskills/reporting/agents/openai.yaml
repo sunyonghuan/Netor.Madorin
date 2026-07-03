@@ -1,0 +1,5 @@
+interface:
+  display_name: "Server Maintainer Reporting"
+  short_description: "Collect server reports through SSH plugin tools"
+  default_prompt: "Use $reporting for server reports. Remote metric collection must use SSH plugin tools, not PowerShell-wrapped ssh/scp commands."
+

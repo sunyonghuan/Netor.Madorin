@@ -1,0 +1,5 @@
+interface:
+  display_name: "Plugin Development MCP"
+  short_description: "Help with Plugin Development MCP workflows"
+  default_prompt: "Use $mcp to help with Plugin Development MCP tasks."
+

@@ -1,0 +1,73 @@
+{
+  "endpoint": "ws://localhost:{pluginBusPort}/internal",
+  "protocol": "cortana.plugin-bus",
+  "version": "1.4.0",
+  "clientMessages": [
+    {
+      "type": "subscribe",
+      "protocol": "cortana.plugin-bus",
+      "version": "1.4.0",
+      "topics": ["conversation"]
+    },
+    {
+      "type": "request",
+      "protocol": "cortana.plugin-bus",
+      "version": "1.4.0",
+      "topic": "conversation",
+      "op": "conversation.chat.message.send",
+      "payload": {
+        "type": "send",
+        "data": "text"
+      }
+    },
+    {
+      "type": "request",
+      "protocol": "cortana.plugin-bus",
+      "version": "1.4.0",
+      "topic": "conversation",
+      "op": "conversation.chat.generation.stop",
+      "payload": {
+        "type": "stop"
+      }
+    },
+    {
+      "type": "pong"
+    }
+  ],
+  "serverMessages": [
+    {
+      "type": "connected",
+      "protocol": "cortana.plugin-bus",
+      "version": "1.4.0"
+    },
+    {
+      "type": "subscribed",
+      "protocol": "cortana.plugin-bus",
+      "version": "1.4.0"
+    },
+    {
+      "type": "event",
+      "protocol": "cortana.plugin-bus",
+      "version": "1.4.0",
+      "topic": "conversation",
+      "op": "conversation.chat.token",
+      "payload": {
+        "type": "token",
+        "data": "text"
+      }
+    },
+    {
+      "type": "event",
+      "protocol": "cortana.plugin-bus",
+      "version": "1.4.0",
+      "topic": "conversation",
+      "op": "conversation.chat.done",
+      "payload": {
+        "type": "done"
+      }
+    },
+    {
+      "type": "ping"
+    }
+  ]
+}

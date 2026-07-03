@@ -1,0 +1,302 @@
+@model Netor.Cortana.Platform.Admin.Models.Docs.DocArticleEditViewModel
+@using Netor.Cortana.Platform.Entitys.Enums
+
+<form method="post" class="doc-editor-form layui-form layui-form-pane">
+    @Html.AntiForgeryToken()
+    <input asp-for="Id" type="hidden" />
+    <div asp-validation-summary="ModelOnly" class="admin-validation-summary"></div>
+
+    <section class="admin-card doc-editor-panel">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">文章信息</h2>
+                <div class="text-secondary">用于官网文档导航、检索和发布控制</div>
+            </div>
+            <div class="doc-editor-status">
+                <span class="admin-badge admin-badge-muted">Markdown</span>
+            </div>
+        </div>
+        <div class="admin-card-body">
+            <div class="doc-editor-meta-grid">
+                <div class="layui-form-item doc-editor-field-span-2">
+                    <label asp-for="Title" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="Title" class="layui-input" placeholder="例如：下载并登录" />
+                        <span asp-validation-for="Title" class="admin-field-validation"></span>
+                    </div>
+                </div>
+
+                <div class="layui-form-item">
+                    <label asp-for="Slug" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="Slug" class="layui-input" placeholder="download-and-login" />
+                        <span asp-validation-for="Slug" class="admin-field-validation"></span>
+                    </div>
+                </div>
+
+                <div class="layui-form-item">
+                    <label asp-for="CategoryId" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <select asp-for="CategoryId">
+                            @foreach (var category in Model.Categories)
+                            {
+                                <option value="@category.Id">@category.Name</option>
+                            }
+                        </select>
+                        <span asp-validation-for="CategoryId" class="admin-field-validation"></span>
+                    </div>
+                </div>
+
+                <div class="layui-form-item">
+                    <label asp-for="Status" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <select asp-for="Status">
+                            <option value="@DocArticleStatus.Draft">草稿</option>
+                            <option value="@DocArticleStatus.Published">已发布</option>
+                            <option value="@DocArticleStatus.Offline">下架</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="layui-form-item">
+                    <label asp-for="SortOrder" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="SortOrder" class="layui-input" type="number" />
+                        <span asp-validation-for="SortOrder" class="admin-field-validation"></span>
+                    </div>
+                </div>
+
+                <div class="layui-form-item doc-editor-field-span-2">
+                    <label asp-for="Keywords" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="Keywords" class="layui-input" placeholder="多个关键词用逗号分隔" />
+                        <span asp-validation-for="Keywords" class="admin-field-validation"></span>
+                    </div>
+                </div>
+
+                <div class="layui-form-item layui-form-text doc-editor-field-span-full">
+                    <label asp-for="Summary" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <textarea asp-for="Summary" class="layui-textarea" rows="3" placeholder="用于列表、搜索结果和文章开头的摘要"></textarea>
+                        <span asp-validation-for="Summary" class="admin-field-validation"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="admin-card doc-markdown-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">正文编辑</h2>
+                <div class="text-secondary">支持标题、列表、引用、代码、图片和分隔线</div>
+            </div>
+            <div class="doc-editor-counter" data-markdown-counter>0 字 / 0 行</div>
+        </div>
+        <div class="admin-card-body">
+            <div class="doc-markdown-toolbar" role="toolbar" aria-label="Markdown 工具栏">
+                <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md-insert="## " title="二级标题">H2</button>
+                <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md-insert="### " title="三级标题">H3</button>
+                <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md-wrap="**" title="加粗">B</button>
+                <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md-line="- " title="无序列表">列表</button>
+                <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md-line="1. " title="有序列表">编号</button>
+                <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md-line="> " title="引用">引用</button>
+                <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md-code title="代码块">代码</button>
+                <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md-link title="链接">链接</button>
+                <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md-image title="图片">图片</button>
+                <button type="button" class="layui-btn layui-btn-primary layui-btn-sm" data-md-preview-toggle>预览</button>
+            </div>
+            <div class="doc-markdown-workspace" data-markdown-workspace>
+                <div class="doc-markdown-editor-pane">
+                    <label asp-for="ContentMarkdown" class="doc-markdown-label"></label>
+                    <textarea asp-for="ContentMarkdown" class="doc-markdown-input" spellcheck="false" placeholder="# 文档标题&#10;&#10;在这里编写官网文档正文。"></textarea>
+                    <span asp-validation-for="ContentMarkdown" class="admin-field-validation"></span>
+                </div>
+                <div class="doc-markdown-preview-pane">
+                    <div class="doc-markdown-label">实时预览</div>
+                    <article class="doc-markdown-preview" data-markdown-preview></article>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="doc-editor-submitbar">
+        <a class="layui-btn layui-btn-primary" asp-action="Index">返回列表</a>
+        <button class="layui-btn layui-btn-normal" type="submit">保存文章</button>
+    </div>
+</form>
+
+<script>
+    (() => {
+        const input = document.getElementById("@Html.IdFor(x => x.ContentMarkdown)");
+        const preview = document.querySelector("[data-markdown-preview]");
+        const counter = document.querySelector("[data-markdown-counter]");
+        const workspace = document.querySelector("[data-markdown-workspace]");
+        if (!(input instanceof HTMLTextAreaElement) || !preview) {
+            return;
+        }
+
+        const escapeHtml = (value) => value
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+
+        const inlineMarkdown = (value) => escapeHtml(value)
+            .replace(/!\[([^\]]*)\]\(((?:\/docs-media\/|https?:\/\/)[^)\s]+)\)/g, "<img src=\"$2\" alt=\"$1\" loading=\"lazy\" />")
+            .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+            .replace(/`([^`]+)`/g, "<code>$1</code>")
+            .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, "<a href=\"$2\" target=\"_blank\" rel=\"noopener noreferrer\">$1</a>");
+
+        const renderMarkdown = (value) => {
+            const lines = value.replace(/\r\n/g, "\n").split("\n");
+            const html = [];
+            let inCode = false;
+            let listType = "";
+
+            const closeList = () => {
+                if (listType) {
+                    html.push(`</${listType}>`);
+                    listType = "";
+                }
+            };
+
+            lines.forEach((line) => {
+                if (line.trim().startsWith("```")) {
+                    closeList();
+                    if (inCode) {
+                        html.push("</code></pre>");
+                    } else {
+                        html.push("<pre><code>");
+                    }
+                    inCode = !inCode;
+                    return;
+                }
+
+                if (inCode) {
+                    html.push(`${escapeHtml(line)}\n`);
+                    return;
+                }
+
+                if (!line.trim()) {
+                    closeList();
+                    return;
+                }
+
+                if (/^###\s+/.test(line)) {
+                    closeList();
+                    html.push(`<h3>${inlineMarkdown(line.replace(/^###\s+/, ""))}</h3>`);
+                    return;
+                }
+
+                if (/^##\s+/.test(line)) {
+                    closeList();
+                    html.push(`<h2>${inlineMarkdown(line.replace(/^##\s+/, ""))}</h2>`);
+                    return;
+                }
+
+                if (/^#\s+/.test(line)) {
+                    closeList();
+                    html.push(`<h1>${inlineMarkdown(line.replace(/^#\s+/, ""))}</h1>`);
+                    return;
+                }
+
+                if (/^>\s?/.test(line)) {
+                    closeList();
+                    html.push(`<blockquote>${inlineMarkdown(line.replace(/^>\s?/, ""))}</blockquote>`);
+                    return;
+                }
+
+                if (/^-\s+/.test(line)) {
+                    if (listType !== "ul") {
+                        closeList();
+                        html.push("<ul>");
+                        listType = "ul";
+                    }
+                    html.push(`<li>${inlineMarkdown(line.replace(/^-\s+/, ""))}</li>`);
+                    return;
+                }
+
+                if (/^\d+\.\s+/.test(line)) {
+                    if (listType !== "ol") {
+                        closeList();
+                        html.push("<ol>");
+                        listType = "ol";
+                    }
+                    html.push(`<li>${inlineMarkdown(line.replace(/^\d+\.\s+/, ""))}</li>`);
+                    return;
+                }
+
+                if (/^---+$/.test(line.trim())) {
+                    closeList();
+                    html.push("<hr />");
+                    return;
+                }
+
+                closeList();
+                html.push(`<p>${inlineMarkdown(line)}</p>`);
+            });
+
+            closeList();
+            if (inCode) {
+                html.push("</code></pre>");
+            }
+
+            return html.join("");
+        };
+
+        const update = () => {
+            const value = input.value || "";
+            preview.innerHTML = value.trim() ? renderMarkdown(value) : "<p class=\"doc-markdown-empty\">暂无预览内容</p>";
+            if (counter) {
+                const lines = value.length === 0 ? 0 : value.replace(/\r\n/g, "\n").split("\n").length;
+                counter.textContent = `${value.length} 字 / ${lines} 行`;
+            }
+        };
+
+        const replaceSelection = (before, after = "", placeholder = "") => {
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            const selected = input.value.slice(start, end) || placeholder;
+            input.setRangeText(`${before}${selected}${after}`, start, end, "select");
+            input.focus();
+            update();
+        };
+
+        const prefixLines = (prefix) => {
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            const selected = input.value.slice(start, end) || "";
+            const replacement = (selected || "列表项").split(/\r?\n/).map((line) => `${prefix}${line}`).join("\n");
+            input.setRangeText(replacement, start, end, "select");
+            input.focus();
+            update();
+        };
+
+        document.querySelectorAll("[data-md-insert]").forEach((button) => {
+            button.addEventListener("click", () => replaceSelection(button.getAttribute("data-md-insert") || "", "", "标题"));
+        });
+
+        document.querySelectorAll("[data-md-wrap]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const token = button.getAttribute("data-md-wrap") || "";
+                replaceSelection(token, token, "重点内容");
+            });
+        });
+
+        document.querySelectorAll("[data-md-line]").forEach((button) => {
+            button.addEventListener("click", () => prefixLines(button.getAttribute("data-md-line") || ""));
+        });
+
+        document.querySelector("[data-md-code]")?.addEventListener("click", () => replaceSelection("```\n", "\n```", "code"));
+        document.querySelector("[data-md-link]")?.addEventListener("click", () => replaceSelection("[", "](https://)", "链接文本"));
+        document.querySelector("[data-md-image]")?.addEventListener("click", () => replaceSelection("![", "](/docs-media/category-slug/article-slug/image.png)", "图片说明"));
+        document.querySelector("[data-md-preview-toggle]")?.addEventListener("click", () => {
+            workspace?.classList.toggle("is-preview-only");
+        });
+
+        input.addEventListener("input", update);
+        update();
+    })();
+</script>

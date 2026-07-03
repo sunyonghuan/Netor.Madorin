@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <MSTestParallelizeWorkers>0</MSTestParallelizeWorkers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+    <PackageReference Include="MSTest.TestAdapter" Version="4.0.2" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Src\Netor.Cortana.AI\Netor.Cortana.AI.csproj" />
+    <ProjectReference Include="..\..\Src\Netor.Cortana.Entitys\Netor.Cortana.Entitys.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- TaskEngine 已迁移删除，保留旧测试文件但不参与当前测试工程编译。 -->
+    <Compile Remove="TaskEngine\**\*.cs" />
+  </ItemGroup>
+
+</Project>

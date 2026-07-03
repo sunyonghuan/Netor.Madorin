@@ -1,0 +1,92 @@
+@model Netor.Cortana.Platform.Admin.Models.Accounts.AccountEditViewModel
+@{
+    ViewData["Title"] = "编辑用户";
+    var mode = Context.Request.Query["mode"].ToString();
+    var isDrawer = string.Equals(mode, "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="admin-drawer-page">
+    <section class="admin-card admin-form-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">编辑用户资料</h2>
+                <div class="admin-inline-stat">@Model.LoginUserName</div>
+            </div>
+            @if (isDrawer)
+            {
+                <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" data-drawer-close>关闭</button>
+            }
+            else
+            {
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Details" asp-route-id="@Model.Id" asp-route-mode="drawer" data-admin-drawer="right" data-title="用户详情" data-width="820px">返回详情</a>
+            }
+        </div>
+        <div class="admin-card-body">
+            <form method="post" class="layui-form layui-form-pane" data-admin-ajax-form="@isDrawer.ToString().ToLowerInvariant()" data-admin-table-id="accountTable" data-admin-success-message="用户基本信息已保存。">
+                @Html.AntiForgeryToken()
+                <input asp-for="Id" type="hidden" />
+                <input asp-for="LoginUserName" type="hidden" />
+                <input name="mode" type="hidden" value="@mode" />
+                <div asp-validation-summary="ModelOnly" class="layui-elem-quote layui-quote-nm"></div>
+
+                <div class="layui-form-item">
+                    <label asp-for="LoginUserName" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="LoginUserName" class="layui-input" disabled />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label asp-for="NickName" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="NickName" class="layui-input" lay-verify="required" />
+                        <span asp-validation-for="NickName" class="field-validation-error"></span>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label asp-for="RealName" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="RealName" class="layui-input" />
+                        <span asp-validation-for="RealName" class="field-validation-error"></span>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label asp-for="Phone" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="Phone" class="layui-input" lay-verify="required" />
+                        <span asp-validation-for="Phone" class="field-validation-error"></span>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label asp-for="Email" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="Email" class="layui-input" lay-verify="email" />
+                        <span asp-validation-for="Email" class="field-validation-error"></span>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">认证</label>
+                    <div class="layui-input-block">
+                        <input asp-for="PhoneConfirmed" type="checkbox" title="手机已验证" lay-skin="primary" />
+                        <input asp-for="EmailConfirmed" type="checkbox" title="邮箱已验证" lay-skin="primary" />
+                    </div>
+                </div>
+
+                <div class="admin-drawer-footer">
+                    <button class="layui-btn layui-btn-normal" type="submit" lay-submit lay-filter="adminAjaxSubmit">保存资料</button>
+                    @if (isDrawer)
+                    {
+                        <button class="layui-btn layui-btn-primary" type="button" data-drawer-close>取消</button>
+                    }
+                    else
+                    {
+                        <a class="layui-btn layui-btn-primary" asp-action="Details" asp-route-id="@Model.Id" asp-route-mode="drawer" data-admin-drawer="right" data-title="用户详情" data-width="820px">取消</a>
+                    }
+                </div>
+            </form>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

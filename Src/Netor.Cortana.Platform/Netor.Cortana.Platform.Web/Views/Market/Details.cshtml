@@ -1,0 +1,83 @@
+@model Netor.Cortana.Platform.Web.Models.Market.MarketAssetDetailViewModel
+@{
+    ViewData["Title"] = Model.Name;
+}
+
+<div class="detail-hero mb-4">
+    <div>
+        <span class="asset-badge price">@Model.TypeName</span>
+        @if (!string.IsNullOrWhiteSpace(Model.CategoryName))
+        {
+            <span class="asset-badge">@Model.CategoryName</span>
+        }
+        <h1 class="mt-3">@Model.Name</h1>
+        <p class="lead">@Model.ShortDescription</p>
+        <div class="asset-meta justify-content-start">
+            <span>@Model.DeveloperName</span>
+            <span>@Model.DownloadCount 次下载</span>
+            <span>@Model.PublishedAtUtc?.ToString("yyyy-MM-dd")</span>
+        </div>
+    </div>
+    <div class="detail-action">
+        <h2>获取资源</h2>
+        <p>订阅后即可在 Madorin 中使用。</p>
+        @foreach (var plan in Model.PricingPlans)
+        {
+            <form asp-controller="Orders" asp-action="Create" method="post" class="plan-row">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="assetId" value="@Model.Id" />
+                <input type="hidden" name="pricingPlanId" value="@plan.Id" />
+                <div>
+                    <strong>@plan.Name</strong>
+                    <div class="small">@plan.PlanTypeName · @plan.DurationDays 天</div>
+                </div>
+                <button class="btn btn-madorin-primary btn-sm" type="submit">@(plan.Price <= 0 ? "免费获取" : $"¥{plan.Price:0.##} 订阅")</button>
+            </form>
+        }
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="content-panel">
+            <h2>资源说明</h2>
+            <p>@Model.Description</p>
+            <p class="muted-line">标签：@Model.Tags</p>
+        </div>
+        @if (Model.SolutionSummary is not null)
+        {
+            <div class="content-panel mt-4">
+                <h2>方案内容</h2>
+                @if (!Model.SolutionSummary.IsValid)
+                {
+                    <p class="muted-line">方案清单解析失败：@Model.SolutionSummary.ErrorMessage</p>
+                }
+                else
+                {
+                    <p class="muted-line">@Model.SolutionSummary.CountSummary</p>
+                    @foreach (var item in Model.SolutionSummary.AllAssets)
+                    {
+                        <div class="version-row">
+                            <strong>@item.TypeName · @item.Slug</strong>
+                            <p>@(string.IsNullOrWhiteSpace(item.Version) ? item.Path : $"{item.Version} · {item.Path}")</p>
+                        </div>
+                    }
+                    <p class="muted-line">下载的是外层解决方案 ZIP。桌面端安装时会把插件、技能、智能体分别解压到对应目录，并保留解决方案安装记录。</p>
+                    <p class="muted-line">解决方案更新可能包含子资源新增、更新和移除；其中插件更新会先停用并卸载旧插件，再替换新版本。</p>
+                }
+            </div>
+        }
+    </div>
+    <div class="col-lg-4">
+        <div class="content-panel">
+            <h2>版本</h2>
+            @foreach (var version in Model.Versions)
+            {
+                <div class="version-row">
+                    <strong>@version.VersionName</strong>
+                    <p>@version.ReleaseNotes</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>

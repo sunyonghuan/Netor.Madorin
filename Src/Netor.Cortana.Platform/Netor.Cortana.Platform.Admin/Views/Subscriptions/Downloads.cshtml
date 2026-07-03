@@ -1,0 +1,117 @@
+@model Netor.Cortana.Platform.Admin.Models.Subscriptions.DownloadRecordIndexViewModel
+@{
+    ViewData["Title"] = "下载记录";
+    var isDrawer = string.Equals(Context.Request.Query["mode"], "drawer", StringComparison.OrdinalIgnoreCase);
+    var subscriptionId = Context.Request.Query["subscriptionId"].ToString();
+}
+
+<div class="@(isDrawer ? "admin-drawer-page" : string.Empty)">
+    <section class="admin-card admin-filter-card">
+        <div class="admin-card-body">
+            <form id="downloadFilter" class="layui-form layui-form-pane" lay-filter="downloadFilter">
+                <input type="hidden" name="subscriptionId" value="@subscriptionId" />
+                <div class="admin-filter-grid">
+                    <div class="layui-form-item admin-filter-span-2">
+                        <label class="layui-form-label">关键词</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="keyword" value="@Model.Keyword" placeholder="下载ID/订阅ID/用户/资源/版本/IP/客户端" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">用户</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="accountKeyword" placeholder="账号关键词" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">资源</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="assetKeyword" placeholder="资源名/标识" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">版本</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="versionKeyword" placeholder="版本名称" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">IP</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="ipAddress" placeholder="IP 地址" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">客户端</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="userAgent" placeholder="User-Agent" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">订阅</label>
+                        <div class="layui-input-block">
+                            <select name="hasSubscription">
+                                <option value="">全部</option>
+                                <option value="true">有订阅</option>
+                                <option value="false">无订阅</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item admin-filter-submit">
+                        <button class="layui-btn layui-btn-normal" lay-submit lay-filter="downloadSearch">查询</button>
+                        <button class="layui-btn layui-btn-primary" type="button" data-download-filter-reset>重置</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="admin-card admin-layui-table-card">
+        <div class="admin-card-body">
+            <table id="downloadTable" lay-filter="downloadTable"></table>
+        </div>
+    </section>
+</div>
+
+<script type="text/html" id="downloadAssetTpl">
+    <div>{{ d.assetName }}</div>
+    <div class="admin-text-muted">{{ d.versionName }}</div>
+</script>
+
+<script type="text/html" id="downloadClientTpl">
+    <div>{{ d.ipAddress }}</div>
+    <div class="admin-text-muted">{{ d.userAgent }}</div>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table"], function () {
+            const form = layui.form;
+            const filterSelector = "#downloadFilter";
+            const tableId = "downloadTable";
+
+            window.adminTable.render({
+                elem: "#downloadTable",
+                id: tableId,
+                url: "@Url.Action("DownloadsTableData", "Subscriptions")",
+                where: window.adminFilter.collect(filterSelector),
+                cols: [[
+                    { field: "accountName", title: "用户", minWidth: 160, sort: true },
+                    { field: "assetName", title: "资源/版本", minWidth: 220, templet: "#downloadAssetTpl", sort: true },
+                    { field: "subscriptionId", title: "订阅ID", minWidth: 180, sort: true },
+                    { field: "ipAddress", title: "访问来源", minWidth: 240, templet: "#downloadClientTpl", sort: true },
+                    { field: "timeStamp", title: "记录标记", width: 150, sort: true }
+                ]]
+            });
+
+            form.on("submit(downloadSearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-download-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+        });
+    </script>
+}

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Server Maintainer Operations"
+  short_description: "Run server maintenance through SSH plugin tools"
+  default_prompt: "Use $operations for server maintenance tasks. Remote commands and scripts must use SSH plugin tools, not PowerShell-wrapped ssh/scp commands."
+

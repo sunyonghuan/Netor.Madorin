@@ -1,0 +1,147 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <BrandDesktopAssemblyName Condition="'$(BrandDesktopAssemblyName)' == ''">Madorin</BrandDesktopAssemblyName>
+    <BrandAssemblyTitle Condition="'$(BrandAssemblyTitle)' == ''">Madorin</BrandAssemblyTitle>
+    <BrandApplicationIcon Condition="'$(BrandApplicationIcon)' == ''">Assets\logo.200.ico</BrandApplicationIcon>
+    <AssemblyName>$(BrandDesktopAssemblyName)</AssemblyName>
+    <AssemblyTitle>$(BrandAssemblyTitle)</AssemblyTitle>
+    <Version>1.3.9</Version>
+    <AssemblyVersion>1.3.9.0</AssemblyVersion>
+    <FileVersion>1.3.9.0</FileVersion>
+    <InformationalVersion>1.3.9</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <ApplicationIcon>$(BrandApplicationIcon)</ApplicationIcon>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="ProjectVersion" Value="$(Version)" />
+  </ItemGroup>
+
+  <!-- 图片资源 -->
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\*.ico" />
+    <AvaloniaResource Include="Assets\*.png" />
+    <Content Include="Resources\FileIcons\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="agents-seed\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- 发布配置：Native AOT -->
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <PublishAot>true</PublishAot>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
+    <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+    <!-- 不生成 PDB / XML -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- 阻止将符号文件复制到发布目录 -->
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+  </PropertyGroup> 
+
+  <!-- AOT trimming：保留 AI / Agent 相关程序集。语音 native runtime 已拆到插件包内。 -->
+  <ItemGroup Condition=" '$(Configuration)' == 'Release' ">
+    <!-- 阶段 0 新增：保留 Microsoft.Agents.AI 全家桶（关联 [05] §风险 17） -->
+    <TrimmerRootAssembly Include="Microsoft.Agents.AI" />
+    <TrimmerRootAssembly Include="Microsoft.Agents.AI.Abstractions" />
+    <TrimmerRootAssembly Include="Microsoft.Agents.AI.OpenAI" />
+    <TrimmerRootAssembly Include="Microsoft.Agents.AI.Workflows" />
+    <TrimmerRootAssembly Include="Microsoft.Extensions.AI" />
+    <TrimmerRootAssembly Include="Microsoft.Extensions.AI.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <RdXmlFile Include="rd.xml" />
+  </ItemGroup>
+
+  <!-- 发布后清理：删除 NuGet 原生包附带的 PDB / XML 文件 -->
+  <Target Name="CleanPublishOutput" AfterTargets="Publish" Condition=" '$(Configuration)' == 'Release' ">
+    <ItemGroup>
+      <_FilesToDelete Include="$(PublishDir)**\*.pdb" />
+      <_FilesToDelete Include="$(PublishDir)**\*.xml" />
+    </ItemGroup>
+    <Delete Files="@(_FilesToDelete)" />
+    <Message Importance="high" Text="已清理发布目录中的 PDB/XML 文件：@(_FilesToDelete-&gt;Count()) 个" />
+  </Target>
+
+  <!-- Avalonia -->
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.0.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.0.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.3" />
+    <!-- Avalonia 12 诊断功能已内置，无需独立包 -->
+  </ItemGroup>
+
+  <!-- Markdown 解析 -->
+  <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.1.2" />
+    <PackageReference Include="Netor.Agents.AI.Anthropic" Version="0.1.0" />
+  </ItemGroup>
+
+  <!-- 基础设施 -->
+  <ItemGroup>
+    <PackageReference Include="Netor.EventHub" Version="1.2.8" />
+    <PackageReference Include="Netor.EventHub.SourceGenerator" Version="1.1.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
+    <PackageReference Include="Serilog" Version="4.3.2-dev-02419" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="8.0.0-nblumhardt-02322" />
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.0" />
+  </ItemGroup>
+
+  <!-- 业务模块引用 -->
+  <ItemGroup>
+    <ProjectReference Include="..\Netor.Cortana.Entitys\Netor.Cortana.Entitys.csproj" />
+    <ProjectReference Include="..\Netor.Cortana.AI\Netor.Cortana.AI.csproj" />
+    <ProjectReference Include="..\Netor.Cortana.Voice\Netor.Cortana.Voice.csproj" />
+    <ProjectReference Include="..\Netor.Cortana.Plugin\Netor.Cortana.Plugin.csproj" />
+    <ProjectReference Include="..\Netor.Cortana.Networks\Netor.Cortana.Networks.csproj" />
+    <ProjectReference Include="..\Netor.Cortana.Store\Netor.Cortana.Store.csproj" />
+  </ItemGroup>
+
+  <!-- 嵌入 appsettings.json -->
+  <ItemGroup>
+    <None Remove="appsettings.json" />
+    <None Remove="cortana.db" />
+    <None Remove="cortana.db.corrupted" />
+    <EmbeddedResource Include="appsettings.json" />
+  </ItemGroup>
+
+  <!-- 语音模型不再随主程序发布。KWS/STT/TTS 模型由对应语音插件包携带。 -->
+  <ItemGroup>
+    <AvaloniaXaml Remove="artifacts\**" />
+    <AvaloniaXaml Remove="publish\**" />
+    <Compile Remove="artifacts\**" />
+    <Compile Remove="publish\**" />
+    <EmbeddedResource Remove="artifacts\**" />
+    <EmbeddedResource Remove="publish\**" />
+    <None Remove="artifacts\**" />
+    <None Remove="publish\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Views\Proxy\" />
+  </ItemGroup>
+
+</Project>

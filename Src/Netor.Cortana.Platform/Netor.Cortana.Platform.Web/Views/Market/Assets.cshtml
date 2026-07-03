@@ -1,0 +1,49 @@
+@model Netor.Cortana.Platform.Web.Models.Market.MarketAssetListViewModel
+@{
+    ViewData["Title"] = "资源列表";
+}
+
+<section class="resource-list-hero reveal-up">
+    <div>
+        <span class="eyebrow">ASSETS</span>
+        <h1>全部资源</h1>
+        <p>@Model.TotalCount 个能力。按岗位、价格和热度筛选，把合适的资源加入 Madorin。</p>
+    </div>
+    <div class="resource-flow-visual" aria-hidden="true">
+        <div class="resource-chip">技能</div>
+        <div class="resource-chip">插件</div>
+        <div class="resource-chip">智能体</div>
+        <span></span>
+        <strong>Madorin 工作流</strong>
+    </div>
+</section>
+
+<form class="filter-panel mb-4 resource-filter" method="get">
+    <div class="row g-2">
+        <div class="col-md-4">
+            <input class="form-control" name="keyword" value="@Model.Keyword" placeholder="搜索插件、技能、智能体" />
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="pricing">
+                <option value="">全部价格</option>
+                <option value="free" selected="@(Model.Pricing == "free")">免费</option>
+                <option value="paid" selected="@(Model.Pricing == "paid")">付费</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <select class="form-select" name="sort">
+                <option value="">最新</option>
+                <option value="featured" selected="@(Model.Sort == "featured")">推荐</option>
+                <option value="downloads" selected="@(Model.Sort == "downloads")">下载量</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-madorin-primary w-100" type="submit">筛选</button>
+        </div>
+        <div class="col-md-2">
+            <a class="btn btn-madorin-secondary w-100" asp-controller="Market" asp-action="Assets">重置</a>
+        </div>
+    </div>
+</form>
+
+<partial name="_AssetCards" model="Model.Items" />

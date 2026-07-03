@@ -1,0 +1,93 @@
+@inject Netor.Cortana.Platform.Admin.Services.AdminBrandingService BrandingService
+@{
+    var title = ViewData["Title"] as string ?? "控制台";
+    var adminTitle = await BrandingService.GetAdminTitleAsync();
+    var currentSection = ViewData["AdminSection"] as string ?? title;
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@title - @adminTitle</title>
+    <link rel="stylesheet" href="~/lib/layui/css/layui.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="layui-layout-body admin-page">
+    <div class="layui-layout layui-layout-admin admin-layout">
+        <div class="layui-header admin-header">
+            <div class="layui-logo admin-logo">
+                <a asp-controller="Home" asp-action="Index">@adminTitle</a>
+            </div>
+            <ul class="layui-nav layui-layout-left admin-header-nav">
+                <li class="layui-nav-item">
+                    <a href="javascript:;" data-admin-toggle="sidebar" aria-label="展开或收起菜单">
+                        <i class="layui-icon layui-icon-shrink-right"></i>
+                    </a>
+                </li>
+                <li class="layui-nav-item">
+                    <a href="javascript:;" data-admin-refresh aria-label="刷新当前页" title="刷新">
+                        <i class="layui-icon layui-icon-refresh"></i>
+                    </a>
+                </li>
+                <li class="layui-nav-item admin-breadcrumb-item">
+                    @await Html.PartialAsync("_ContentHeader", new[] { title })
+                </li>
+                <li class="layui-nav-item admin-header-module">
+                    <span>@currentSection</span>
+                </li>
+            </ul>
+            <ul class="layui-nav layui-layout-right admin-header-nav">
+                <li class="layui-nav-item">
+                    <a href="javascript:;" data-admin-fullscreen aria-label="全屏" title="全屏">
+                        <i class="layui-icon layui-icon-screen-full"></i>
+                    </a>
+                </li>
+                <li class="layui-nav-item">
+                    <a href="javascript:;">
+                        <i class="layui-icon layui-icon-username"></i>
+                        @(User.Identity?.Name ?? "admin")
+                    </a>
+                    <dl class="layui-nav-child">
+                        <dd><a asp-controller="Profile" asp-action="Mcp">我的 MCP 令牌</a></dd>
+                        <dd><a asp-controller="Settings" asp-action="Index">系统设置</a></dd>
+                        <dd><a asp-controller="Accounts" asp-action="Index">用户账户</a></dd>
+                    </dl>
+                </li>
+                <li class="layui-nav-item">
+                    <form asp-controller="Auth" asp-action="Logout" method="post" class="admin-logout-form" data-admin-confirm-submit="确定退出登录吗？">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" aria-label="退出登录" title="退出登录">
+                            <i class="layui-icon layui-icon-logout"></i>
+                        </button>
+                    </form>
+                </li>
+            </ul>
+        </div>
+
+        <div class="layui-side layui-bg-black admin-side" id="adminSidebar">
+            <div class="layui-side-scroll">
+                @await Html.PartialAsync("_NavPartial")
+            </div>
+        </div>
+
+        <div class="layui-body admin-body">
+            @await Html.PartialAsync("_WorkspacePartial", title)
+            <main class="admin-content" role="main">
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/layui/layui.js" asp-append-version="true"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @if (TempData["AdminToast"] is string toast)
+    {
+        <script>
+            window.__adminToast = @Json.Serialize(toast);
+        </script>
+    }
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

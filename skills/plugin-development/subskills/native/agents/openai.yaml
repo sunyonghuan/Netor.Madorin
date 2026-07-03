@@ -1,0 +1,5 @@
+interface:
+  display_name: "Plugin Development Native"
+  short_description: "Help with Plugin Development Native workflows"
+  default_prompt: "Use $native to help with Plugin Development Native tasks."
+

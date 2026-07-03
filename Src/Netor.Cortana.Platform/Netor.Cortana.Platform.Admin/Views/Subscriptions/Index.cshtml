@@ -1,0 +1,291 @@
+@model Netor.Cortana.Platform.Admin.Models.Subscriptions.SubscriptionIndexViewModel
+@using Netor.Cortana.Platform.Entitys.Enums
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    ViewData["Title"] = "订阅管理";
+    ViewData["WorkspaceTags"] = new[]
+    {
+        new AdminWorkspaceTag("全部订阅", Model.TotalCount.ToString(), Url.Action("Index", "Subscriptions")),
+        new AdminWorkspaceTag("有效订阅", Model.ActiveCount.ToString(), Url.Action("Index", "Subscriptions", new { status = (int)SubscriptionStatus.Active })),
+        new AdminWorkspaceTag("已过期", Model.ExpiredCount.ToString(), Url.Action("Index", "Subscriptions", new { status = (int)SubscriptionStatus.Expired })),
+        new AdminWorkspaceTag("已取消", Model.CanceledCount.ToString(), Url.Action("Index", "Subscriptions", new { status = (int)SubscriptionStatus.Canceled })),
+        new AdminWorkspaceTag("下载记录", Model.DownloadCount.ToString(), Url.Action("Downloads", "Subscriptions"))
+    };
+}
+
+<section class="admin-card admin-filter-card">
+    <div class="admin-card-body">
+        <form id="subscriptionFilter" class="layui-form layui-form-pane" lay-filter="subscriptionFilter">
+            <div class="admin-filter-grid">
+                <div class="layui-form-item admin-filter-span-2">
+                    <label class="layui-form-label">关键词</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="keyword" value="@Model.Keyword" placeholder="订阅ID/订单ID/用户/资源/方案" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">状态</label>
+                    <div class="layui-input-block">
+                        <select name="status">
+                            <option value="">全部</option>
+                            @foreach (var option in Enum.GetValues<SubscriptionStatus>())
+                            {
+                                <option value="@((int)option)" selected="@(Model.Status == option)">@GetSubscriptionStatusName(option)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">用户</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="accountKeyword" placeholder="账号关键词" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">资源</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="assetKeyword" placeholder="资源名/标识" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">方案</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="pricingPlanKeyword" placeholder="方案名/币种" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">订单</label>
+                    <div class="layui-input-block">
+                        <select name="hasOrder">
+                            <option value="">全部</option>
+                            <option value="true">有订单</option>
+                            <option value="false">无订单</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">下载最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="downloadMin" type="number" min="0" placeholder="0" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">下载最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="downloadMax" type="number" min="0" placeholder="100" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">开始自</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="startedStart" data-laydate placeholder="开始日期" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">开始至</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="startedEnd" data-laydate placeholder="结束日期" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">到期自</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="expiresStart" data-laydate placeholder="开始日期" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">到期至</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="expiresEnd" data-laydate placeholder="结束日期" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">取消自</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="canceledStart" data-laydate placeholder="开始日期" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">取消至</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="canceledEnd" data-laydate placeholder="结束日期" />
+                    </div>
+                </div>
+                <div class="layui-form-item admin-filter-submit">
+                    <button class="layui-btn layui-btn-normal" lay-submit lay-filter="subscriptionSearch">查询</button>
+                    <button class="layui-btn layui-btn-primary" type="button" data-subscription-filter-reset>重置</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="admin-card admin-layui-table-card">
+    <div class="admin-card-body">
+        <input name="__RequestVerificationToken" type="hidden" value="@AntiforgeryToken()" />
+        <table id="subscriptionTable" lay-filter="subscriptionTable"></table>
+    </div>
+</section>
+
+<script type="text/html" id="subscriptionAssetTpl">
+    <div class="admin-text-strong">{{ d.assetName }}</div>
+    <div class="admin-text-muted">{{ d.pricingPlanName }}</div>
+</script>
+
+<script type="text/html" id="subscriptionStatusTpl">
+    <span class="admin-badge {{ d.statusBadgeClass }}">{{ d.statusName }}</span>
+    <div class="admin-text-muted">{{ d.remainingDays }} 天</div>
+</script>
+
+<script type="text/html" id="subscriptionDateTpl">
+    <div>{{ d.startedAtText }}</div>
+    <div class="admin-text-muted">至 {{ d.expiresAtText }}</div>
+    <div class="admin-text-muted">取消 {{ d.canceledAtText }}</div>
+</script>
+
+<script type="text/html" id="subscriptionActionsTpl">
+    <div class="layui-btn-group admin-row-actions">
+        <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="downloads">下载</a>
+        {{# if (d.status === 3) { }}
+            <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="restore">恢复</a>
+        {{# } else { }}
+            <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="cancel">取消</a>
+        {{# } }}
+    </div>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table", "layer"], function () {
+            const form = layui.form;
+            const table = layui.table;
+            const layer = layui.layer;
+            const filterSelector = "#subscriptionFilter";
+            const tableId = "subscriptionTable";
+            const token = () => document.querySelector("input[name='__RequestVerificationToken']").value;
+            const postAction = (url, values, done) => {
+                const formData = new FormData();
+                Object.keys(values || {}).forEach((key) => formData.append(key, values[key]));
+                formData.append("__RequestVerificationToken", token());
+                fetch(url, { method: "POST", body: formData }).then(() => {
+                    table.reload(tableId);
+                    if (done) {
+                        done();
+                    }
+                });
+            };
+
+            window.adminTable.render({
+                elem: "#subscriptionTable",
+                id: tableId,
+                url: "@Url.Action("TableData", "Subscriptions")",
+                where: window.adminFilter.collect(filterSelector),
+                toolbar: "#subscriptionTableToolbarTpl",
+                cols: [[
+                    { type: "checkbox", fixed: "left" },
+                    { field: "accountName", title: "用户", minWidth: 160, sort: true },
+                    { field: "assetName", title: "资源/方案", minWidth: 220, templet: "#subscriptionAssetTpl", sort: true },
+                    { field: "status", title: "状态", width: 120, templet: "#subscriptionStatusTpl", sort: true },
+                    { title: "有效期", minWidth: 230, templet: "#subscriptionDateTpl" },
+                    { field: "downloadCount", title: "下载", width: 90, sort: true },
+                    { field: "orderId", title: "订单", minWidth: 180 },
+                    { field: "timeStamp", title: "创建标记", width: 150, sort: true },
+                    { title: "操作", width: 136, fixed: "right", toolbar: "#subscriptionActionsTpl" }
+                ]]
+            });
+
+            form.on("submit(subscriptionSearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-subscription-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+
+            const submitBatch = function () {
+                const checked = table.checkStatus(tableId).data;
+                if (checked.length === 0) {
+                    layer.msg("请先选择要操作的订阅。");
+                    return;
+                }
+
+                const operation = document.getElementById("subscriptionBatchOperation").value;
+                layer.confirm(`确定批量处理 ${checked.length} 条订阅吗？`, { icon: 3, title: "批量操作" }, function (index) {
+                    const formData = new FormData();
+                    checked.forEach((item) => formData.append("ids", item.id));
+                    formData.append("operation", operation);
+                    formData.append("__RequestVerificationToken", token());
+                    fetch("@Url.Action("Batch", "Subscriptions")", { method: "POST", body: formData }).then(() => {
+                        table.reload(tableId);
+                        layer.msg("批量操作已提交。");
+                    });
+                    layer.close(index);
+                });
+            };
+
+            table.on("toolbar(subscriptionTable)", function (obj) {
+                if (obj.event === "downloads") {
+                    window.location.href = "@Url.Action("Downloads", "Subscriptions")";
+                    return;
+                }
+
+                if (obj.event === "batchApply") {
+                    submitBatch();
+                }
+            });
+
+            table.on("tool(subscriptionTable)", function (obj) {
+                const item = obj.data;
+                if (obj.event === "downloads") {
+                    window.adminDrawer.openBottom({
+                        title: `下载记录 - ${item.accountName}`,
+                        url: `@Url.Action("Downloads", "Subscriptions")?subscriptionId=${encodeURIComponent(item.id)}&mode=drawer`,
+                        height: "76%"
+                    });
+                } else if (obj.event === "cancel") {
+                    layer.confirm("确定取消该订阅吗？", { icon: 3, title: "取消订阅" }, function (index) {
+                        postAction(`@Url.Action("Cancel", "Subscriptions")?id=${encodeURIComponent(item.id)}`, {}, () => layer.msg("订阅已取消。"));
+                        layer.close(index);
+                    });
+                } else if (obj.event === "restore") {
+                    layer.confirm("确定恢复该订阅吗？", { icon: 3, title: "恢复订阅" }, function (index) {
+                        postAction(`@Url.Action("Restore", "Subscriptions")?id=${encodeURIComponent(item.id)}`, {}, () => layer.msg("订阅已恢复。"));
+                        layer.close(index);
+                    });
+                }
+            });
+        });
+    </script>
+}
+
+<script type="text/html" id="subscriptionTableToolbarTpl">
+    <div class="admin-table-toolbar">
+        <div class="admin-table-toolbar-group">
+            <button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="downloads">下载记录</button>
+        </div>
+        <div class="admin-table-toolbar-group">
+            <select id="subscriptionBatchOperation" class="layui-select admin-table-toolbar-select" aria-label="批量操作">
+                <option value="active">批量恢复有效</option>
+                <option value="cancel">批量取消</option>
+                <option value="expired">批量设为过期</option>
+            </select>
+            <button class="layui-btn layui-btn-sm layui-btn-normal" lay-event="batchApply">应用</button>
+        </div>
+    </div>
+</script>
+
+@functions {
+    private static string GetSubscriptionStatusName(SubscriptionStatus status) => status switch
+    {
+        SubscriptionStatus.Active => "有效",
+        SubscriptionStatus.Expired => "已过期",
+        SubscriptionStatus.Canceled => "已取消",
+        _ => status.ToString()
+    };
+
+    private string AntiforgeryToken()
+    {
+        return Antiforgery.GetAndStoreTokens(Context).RequestToken ?? string.Empty;
+    }
+}

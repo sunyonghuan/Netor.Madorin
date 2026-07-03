@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wm="using:Netor.Cortana.UI.Controls.WorkMode"
+             x:Class="Netor.Cortana.UI.Controls.WorkMode.SubStepCard"
+             x:CompileBindings="True">
+
+    <!--
+      ════════════════════════════════════════════════════════════════
+      子步骤卡片（SubStepCard）
+      ─ 视觉规范来源：09-界面交互设计.md §2.3 §3.6
+      ─ 复用 FoldableCard，内部串行展示思维/工具/验收卡片
+      ─ 内嵌于 TimelineBlock 主步骤的子步骤列表（IndentLevel=1，无左缩进）
+      ────────────────────────────────────────────────────────────────  -->
+
+    <wm:FoldableCard x:Name="OuterCard"
+                     IndentLevel="1"
+                     Margin="0,2,0,2" />
+</UserControl>

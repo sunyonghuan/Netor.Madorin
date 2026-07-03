@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Netor.Cortana.UI.Controls.Common"
+             x:Class="Netor.Cortana.UI.Controls.WorkMode.AiContent"
+             x:CompileBindings="True">
+
+    <!--
+      ════════════════════════════════════════════════════════════════
+      AI 平铺内容（AiContent） - 工作模式专用
+      ─ 视觉规范来源：09-界面交互设计.md §3.3
+      ─ 直接平铺，无 Border / Background / CornerRadius
+      ─ 与 UserBubble 同间距(Margin=16/4/16/8)，保持视觉节奏
+      ─ 前置卡片列表（思维/工具/验收）+ Markdown 主体
+      ────────────────────────────────────────────────────────────────  -->
+
+    <StackPanel x:Name="RootStack"
+                Margin="16,4,16,8"
+                Spacing="6"
+                HorizontalAlignment="Stretch">
+
+        <!-- 前置卡片（思维/工具/验收等），由 code-behind 追加 -->
+        <StackPanel x:Name="PrependedCardsHost" Spacing="4" />
+
+        <!-- 主体 Markdown 内容 -->
+        <controls:MarkdownRenderer x:Name="ContentRenderer"
+                                   TextColor="#b8b8b8" />
+
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,239 @@
+@model Netor.Cortana.Platform.Admin.Models.Settlements.SettlementIndexViewModel
+@using Netor.Cortana.Platform.Entitys.Enums
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    ViewData["Title"] = "收益结算";
+    ViewData["WorkspaceTags"] = new[]
+    {
+        new AdminWorkspaceTag("全部结算", Model.TotalCount.ToString(), Url.Action("Index", "Settlements")),
+        new AdminWorkspaceTag("待结算", Model.PendingCount.ToString(), Url.Action("Index", "Settlements", new { status = (int)SettlementStatus.Pending })),
+        new AdminWorkspaceTag("已结算", Model.SettledCount.ToString(), Url.Action("Index", "Settlements", new { status = (int)SettlementStatus.Settled })),
+        new AdminWorkspaceTag("待结算金额", Model.PendingNetAmount.ToString("0.00"), Url.Action("Index", "Settlements", new { status = (int)SettlementStatus.Pending })),
+        new AdminWorkspaceTag("已结算金额", Model.SettledNetAmount.ToString("0.00"), Url.Action("Index", "Settlements", new { status = (int)SettlementStatus.Settled }))
+    };
+}
+
+<section class="admin-card admin-filter-card">
+    <div class="admin-card-body">
+        <form id="settlementFilter" class="layui-form layui-form-pane" lay-filter="settlementFilter">
+            <div class="admin-filter-grid">
+                <div class="layui-form-item admin-filter-span-2">
+                    <label class="layui-form-label">关键词</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="keyword" value="@Model.Keyword" placeholder="创作者/资源/订单/币种/备注" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">创作者</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="creatorKeyword" placeholder="账号关键词" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">资源</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="assetKeyword" placeholder="资源名/标识" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">订单号</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="orderNo" placeholder="订单号" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">状态</label>
+                    <div class="layui-input-block">
+                        <select name="status">
+                            <option value="">全部</option>
+                            @foreach (var option in Enum.GetValues<SettlementStatus>())
+                            {
+                                <option value="@((int)option)" selected="@(Model.Status == option)">@GetSettlementStatusName(option)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">币种</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="currency" placeholder="CNY" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">总额最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="grossMin" type="number" step="0.01" placeholder="0.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">总额最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="grossMax" type="number" step="0.01" placeholder="9999.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">费用最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="feeMin" type="number" step="0.01" placeholder="0.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">净额最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="netMin" type="number" step="0.01" placeholder="0.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">净额最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="netMax" type="number" step="0.01" placeholder="9999.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">结算自</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="settledStart" data-laydate placeholder="开始日期" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">结算至</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="settledEnd" data-laydate placeholder="结束日期" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">备注</label>
+                    <div class="layui-input-block">
+                        <select name="hasNotes">
+                            <option value="">全部</option>
+                            <option value="true">有备注</option>
+                            <option value="false">无备注</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item admin-filter-submit">
+                    <button class="layui-btn layui-btn-normal" lay-submit lay-filter="settlementSearch">查询</button>
+                    <button class="layui-btn layui-btn-primary" type="button" data-settlement-filter-reset>重置</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="admin-card admin-layui-table-card">
+    <div class="admin-card-body">
+        <input name="__RequestVerificationToken" type="hidden" value="@AntiforgeryToken()" />
+        <table id="settlementTable" lay-filter="settlementTable"></table>
+    </div>
+</section>
+
+<script type="text/html" id="settlementAssetTpl">
+    <div class="admin-text-strong">{{ d.assetName }}</div>
+    <div class="admin-text-muted">{{ d.orderNo }}</div>
+</script>
+
+<script type="text/html" id="settlementMoneyTpl">
+    <div class="admin-text-strong">{{ d.netAmount }} {{ d.currency }}</div>
+    <div class="admin-text-muted">总额 {{ d.grossAmount }} / 费用 {{ d.platformFeeAmount }}</div>
+</script>
+
+<script type="text/html" id="settlementStatusTpl">
+    <span class="admin-badge {{ d.statusBadgeClass }}">{{ d.statusName }}</span>
+    <div class="admin-text-muted">{{ d.settledAtText }}</div>
+</script>
+
+<script type="text/html" id="settlementActionsTpl">
+    <div class="layui-btn-group admin-row-actions">
+        <a class="layui-btn layui-btn-xs" lay-event="view">查看</a>
+        {{# if (d.status === 1) { }}
+            <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="settle">结算</a>
+        {{# } }}
+        {{# if (d.status !== 2) { }}
+            <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="freeze">冻结</a>
+            <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="reject">驳回</a>
+        {{# } }}
+    </div>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table", "layer"], function () {
+            const form = layui.form;
+            const table = layui.table;
+            const layer = layui.layer;
+            const filterSelector = "#settlementFilter";
+            const tableId = "settlementTable";
+            const token = () => document.querySelector("input[name='__RequestVerificationToken']").value;
+            const postWithNotes = (url, defaultNotes, successMessage) => {
+                layer.prompt({ title: "操作备注", value: defaultNotes, formType: 2 }, function (value, index) {
+                    const formData = new FormData();
+                    formData.append("notes", value || defaultNotes);
+                    formData.append("__RequestVerificationToken", token());
+                    fetch(url, { method: "POST", body: formData }).then(() => {
+                        table.reload(tableId);
+                        layer.msg(successMessage);
+                    });
+                    layer.close(index);
+                });
+            };
+
+            window.adminTable.render({
+                elem: "#settlementTable",
+                id: tableId,
+                url: "@Url.Action("TableData", "Settlements")",
+                where: window.adminFilter.collect(filterSelector),
+                cols: [[
+                    { field: "creatorAccountName", title: "创作者", minWidth: 160, sort: true },
+                    { field: "assetName", title: "资源/订单", minWidth: 220, templet: "#settlementAssetTpl", sort: true },
+                    { field: "netAmount", title: "金额", width: 190, templet: "#settlementMoneyTpl", sort: true },
+                    { field: "status", title: "状态", width: 130, templet: "#settlementStatusTpl", sort: true },
+                    { field: "notes", title: "备注", minWidth: 180 },
+                    { field: "timeStamp", title: "创建标记", width: 150, sort: true },
+                    { title: "操作", width: 190, fixed: "right", toolbar: "#settlementActionsTpl" }
+                ]]
+            });
+
+            form.on("submit(settlementSearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-settlement-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+
+            table.on("tool(settlementTable)", function (obj) {
+                const item = obj.data;
+                if (obj.event === "view") {
+                    window.adminDrawer.openRight({
+                        title: `结算详情 - ${item.orderNo}`,
+                        url: `@Url.Action("Details", "Settlements")?id=${encodeURIComponent(item.id)}&mode=drawer`,
+                        width: "760px"
+                    });
+                } else if (obj.event === "settle") {
+                    postWithNotes(`@Url.Action("Settle", "Settlements")?id=${encodeURIComponent(item.id)}`, "人工结算完成", "结算记录已提交。");
+                } else if (obj.event === "freeze") {
+                    postWithNotes(`@Url.Action("Freeze", "Settlements")?id=${encodeURIComponent(item.id)}`, "人工冻结", "冻结操作已提交。");
+                } else if (obj.event === "reject") {
+                    postWithNotes(`@Url.Action("Reject", "Settlements")?id=${encodeURIComponent(item.id)}`, "人工驳回", "驳回操作已提交。");
+                }
+            });
+        });
+    </script>
+}
+
+@functions {
+    private static string GetSettlementStatusName(SettlementStatus status) => status switch
+    {
+        SettlementStatus.Pending => "待结算",
+        SettlementStatus.Settled => "已结算",
+        SettlementStatus.Frozen => "已冻结",
+        SettlementStatus.Rejected => "已驳回",
+        _ => status.ToString()
+    };
+
+    private string AntiforgeryToken()
+    {
+        return Antiforgery.GetAndStoreTokens(Context).RequestToken ?? string.Empty;
+    }
+}

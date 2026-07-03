@@ -1,0 +1,5 @@
+interface:
+  display_name: "Server Maintainer"
+  short_description: "Manage servers through the dedicated SSH plugin tools"
+  default_prompt: "Use $server-maintainer for server maintenance. Remote server operations must use the dedicated SSH plugin tools, not PowerShell-wrapped ssh/scp commands."
+

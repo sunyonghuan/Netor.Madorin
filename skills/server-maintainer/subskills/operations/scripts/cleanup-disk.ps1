@@ -1,0 +1,1 @@
+& "$PSScriptRoot\..\..\..\scripts\cleanup-disk.ps1" @args

@@ -1,0 +1,150 @@
+@model Netor.Cortana.Platform.Admin.Models.Accounts.AccountTransactionsViewModel
+@{
+    ViewData["Title"] = "用户交易记录";
+}
+
+<div class="admin-drawer-page">
+    <section class="admin-card admin-filter-card">
+        <div class="admin-card-body">
+            <form id="accountTransactionFilter" class="layui-form layui-form-pane" lay-filter="accountTransactionFilter">
+                <input type="hidden" name="accountId" value="@Model.AccountId" />
+                <div class="admin-filter-grid">
+                    <div class="layui-form-item admin-filter-span-2">
+                        <label class="layui-form-label">关键词</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="keyword" placeholder="交易号/订单号/第三方流水号/标题/内容" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">支付状态</label>
+                        <div class="layui-input-block">
+                            <select name="payStatus">
+                                <option value="">全部</option>
+                                <option value="1">待支付</option>
+                                <option value="2">已支付</option>
+                                <option value="3">已取消</option>
+                                <option value="4">失败</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">支付方式</label>
+                        <div class="layui-input-block">
+                            <select name="payMethod">
+                                <option value="">全部</option>
+                                <option value="1">余额</option>
+                                <option value="2">微信</option>
+                                <option value="3">支付宝</option>
+                                <option value="4">银行卡</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">交易类型</label>
+                        <div class="layui-input-block">
+                            <select name="type">
+                                <option value="">全部</option>
+                                <option value="1">收入</option>
+                                <option value="2">支出</option>
+                                <option value="3">退款</option>
+                                <option value="9">钱包充值</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">金额最小</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="moneyMin" type="number" step="0.01" placeholder="0.00" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">金额最大</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="moneyMax" type="number" step="0.01" placeholder="9999.00" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">实付最小</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="realMoneyMin" type="number" step="0.01" placeholder="0.00" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">实付最大</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="realMoneyMax" type="number" step="0.01" placeholder="9999.00" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">支付开始</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="payTimeStart" data-laydate data-laydate-type="datetime" placeholder="开始时间" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">支付结束</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="payTimeEnd" data-laydate data-laydate-type="datetime" placeholder="结束时间" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item admin-filter-submit">
+                        <button class="layui-btn layui-btn-normal" lay-submit lay-filter="accountTransactionSearch">查询</button>
+                        <button class="layui-btn layui-btn-primary" type="button" data-transaction-filter-reset>重置</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="admin-card admin-layui-table-card">
+        <div class="admin-card-body">
+            <table id="accountTransactionTable" lay-filter="accountTransactionTable"></table>
+        </div>
+    </section>
+</div>
+
+<script type="text/html" id="transactionPayStatusTpl">
+    <span class="admin-badge {{ d.payStatus === 2 ? 'admin-badge-success' : (d.payStatus === 4 ? 'admin-badge-danger' : 'admin-badge-warning') }}">{{ d.payStatusName }}</span>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table"], function () {
+            const form = layui.form;
+            const filterSelector = "#accountTransactionFilter";
+            const tableId = "accountTransactionTable";
+
+            window.adminTable.render({
+                elem: "#accountTransactionTable",
+                id: tableId,
+                url: "@Url.Action("TransactionsForAccount", "Accounts")",
+                where: window.adminFilter.collect(filterSelector),
+                cols: [[
+                    { field: "no", title: "交易号", minWidth: 180, sort: true },
+                    { field: "orderNo", title: "订单号", minWidth: 180, sort: true },
+                    { field: "thirdNo", title: "第三方流水", minWidth: 180 },
+                    { field: "title", title: "标题", minWidth: 180 },
+                    { field: "assetName", title: "资源", minWidth: 160 },
+                    { field: "pricingPlanName", title: "价格计划", minWidth: 120 },
+                    { field: "money", title: "金额", width: 110, sort: true },
+                    { field: "realMoney", title: "实付", width: 110, sort: true },
+                    { field: "type", title: "类型", width: 90, sort: true },
+                    { field: "payStatus", title: "支付状态", width: 120, templet: "#transactionPayStatusTpl", sort: true },
+                    { field: "payMethodName", title: "支付方式", width: 110 },
+                    { field: "orderStatusName", title: "订单状态", width: 110 },
+                    { field: "payTimeText", title: "支付时间", width: 170, sort: true },
+                    { field: "timeStamp", title: "创建标记", width: 150, sort: true }
+                ]]
+            });
+
+            form.on("submit(accountTransactionSearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-transaction-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+        });
+    </script>
+}

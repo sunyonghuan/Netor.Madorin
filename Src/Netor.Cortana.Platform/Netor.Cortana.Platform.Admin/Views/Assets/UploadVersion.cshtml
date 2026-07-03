@@ -1,0 +1,296 @@
+@model Netor.Cortana.Platform.Admin.Models.Assets.AssetVersionUploadViewModel
+@{
+    ViewData["Title"] = "上新";
+    var mode = Context.Request.Query["mode"].ToString();
+    var isDrawer = string.Equals(mode, "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="admin-drawer-page asset-editor-page">
+<section class="admin-card asset-editor-shell">
+    <div class="admin-card-header">
+        <div>
+            <h2 class="admin-card-title">上新</h2>
+            <div class="admin-text-muted">当前资源：@Model.AssetName（@Model.AssetSlug）</div>
+        </div>
+        @if (isDrawer)
+        {
+            <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" data-drawer-close>关闭</button>
+        }
+        else
+        {
+            <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Details" asp-route-id="@Model.AssetId">返回详情</a>
+        }
+    </div>
+    <div class="admin-card-body asset-version-body">
+        <form asp-action="UploadVersion" method="post" class="layui-form asset-version-form" data-admin-ajax-form="@isDrawer.ToString().ToLowerInvariant()" data-admin-table-id="assetTable" data-admin-success-message="新版本已上传并生效。">
+            @Html.AntiForgeryToken()
+            <input name="mode" type="hidden" value="@mode" />
+            <input asp-for="AssetId" type="hidden" />
+            <input asp-for="AssetName" type="hidden" />
+            <input asp-for="AssetSlug" type="hidden" />
+            <input asp-for="AssetType" type="hidden" />
+            <input asp-for="CurrentVersionName" type="hidden" />
+            <input asp-for="UploadedPackageToken" type="hidden" />
+            <input asp-for="UploadedPackageFileName" type="hidden" />
+            <input asp-for="UploadedPackageSize" type="hidden" />
+
+            <div asp-validation-summary="ModelOnly" class="layui-elem-quote layui-quote-nm"></div>
+
+            <section class="admin-card asset-version-summary-card">
+                <div class="admin-card-body">
+                    <div class="asset-section-header asset-version-header">
+                        <div>
+                            <h3>上传新版本资源包</h3>
+                            <p>先确认当前资源信息，再上传新版本包并填写版本说明。</p>
+                        </div>
+                        <div class="asset-version-current">
+                            <span>当前版本</span>
+                            <strong>@Model.CurrentVersionName</strong>
+                        </div>
+                    </div>
+
+                    <div class="asset-version-summary-grid">
+                        <div class="asset-version-summary-item">
+                            <span>资源名称</span>
+                            <strong>@Model.AssetName</strong>
+                        </div>
+                        <div class="asset-version-summary-item">
+                            <span>资源标识</span>
+                            <strong>@Model.AssetSlug</strong>
+                        </div>
+                        <div class="asset-version-summary-item">
+                            <span>资源类型</span>
+                            <strong>@Model.AssetTypeName</strong>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="admin-card asset-version-main-card">
+                <div class="admin-card-body asset-version-main-body">
+                    <div class="asset-version-upload-panel">
+                        <div class="asset-upload-dropzone asset-upload-dropzone-primary asset-version-upload-zone">
+                            <div class="asset-upload-head">
+                                <div class="asset-upload-title">上传并解析新版本资源包</div>
+                                <span class="asset-upload-badge">支持拖动 ZIP 上传 · 当前按 @Model.AssetTypeName 校验</span>
+                            </div>
+
+                            <div class="layui-upload-drag asset-layui-upload asset-version-upload-drag" id="assetVersionUpload">
+                                <i class="layui-icon layui-icon-upload-drag"></i>
+                                <div>点击上传，或将 ZIP 新版本包拖拽到这里</div>
+                                <p>系统会解析包内 @Model.ManifestFileName，并自动回填新版本号与升级说明。</p>
+                                <div class="asset-upload-file" id="assetVersionUploadFile">
+                                    @if (!string.IsNullOrWhiteSpace(Model.UploadedPackageFileName))
+                                    {
+                                        @($"{Model.UploadedPackageFileName} · {((Model.UploadedPackageSize ?? 0) / 1024d / 1024d):0.00} MB")
+                                    }
+                                    else
+                                    {
+                                        @:未上传新版本资源包
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="asset-upload-parsed" id="assetVersionParsedState">
+                                @if (!string.IsNullOrWhiteSpace(Model.UploadedPackageToken))
+                                {
+                                    <span class="admin-badge admin-badge-success">已上传</span>
+                                    <span class="admin-text-muted">新版本资源包已就绪，可以直接保存并切换版本。</span>
+                                }
+                                else
+                                {
+                                    <span class="admin-badge admin-badge-warning">待上传</span>
+                                    <span class="admin-text-muted">请先上传新版本资源包。</span>
+                                }
+                            </div>
+
+                            <dl class="asset-upload-meta asset-version-upload-meta">
+                                <dt>清单要求</dt>
+                                <dd>当前资源包需要包含 @Model.ManifestFileName。</dd>
+                                <dt>字段要求</dt>
+                                <dd>至少提供 name、slug、version、description，建议补充 author、tags、releaseNotes、readme。</dd>
+                                <dt>打包格式</dt>
+                                <dd>@Model.ManifestFileName 放在 ZIP 根目录，不要再嵌套一层外部文件夹。</dd>
+                                <dt>生效方式</dt>
+                                <dd>保存后会新增版本记录，并立即切换为当前版本，不经过审核。</dd>
+                            </dl>
+                        </div>
+                    </div>
+
+                    <div class="asset-version-form-panel">
+                        <div class="asset-section-header">
+                            <div>
+                                <h3>版本信息</h3>
+                                <p>上传新包后会自动回填版本号，你也可以根据需要手动调整。</p>
+                            </div>
+                        </div>
+
+                        <div class="asset-form-grid cols-2 asset-form-grid-compact asset-version-edit-grid">
+                            <div class="asset-form-field">
+                                <label>当前版本</label>
+                                <div class="asset-version-readonly">@Model.CurrentVersionName</div>
+                            </div>
+                            <div class="asset-form-field">
+                                <label asp-for="VersionName">新版本号</label>
+                                <input asp-for="VersionName" class="layui-input" placeholder="例如：1.1.0" />
+                                <span asp-validation-for="VersionName" class="field-validation-error"></span>
+                            </div>
+                            <div class="asset-form-field asset-form-field-span-full">
+                                <label>升级说明</label>
+                                <textarea asp-for="ReleaseNotes" class="layui-textarea" rows="6" placeholder="填写本次升级的主要变化"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="asset-submit-bar">
+                <div class="asset-submit-copy">
+                    <strong>保存后会新增版本记录并立即切到当前版本。</strong>
+                    <p>这里不会进入审核流程，请确认上传的版本包已经准备好。</p>
+                </div>
+                <div class="admin-form-actions">
+                    <button class="layui-btn layui-btn-normal" id="assetVersionSubmitButton" type="submit" lay-submit lay-filter="adminAjaxSubmit" @(string.IsNullOrWhiteSpace(Model.UploadedPackageToken) ? "disabled" : null)>保存新版本</button>
+                    @if (isDrawer)
+                    {
+                        <button class="layui-btn layui-btn-primary" type="button" data-drawer-close>取消</button>
+                    }
+                    else
+                    {
+                        <a class="layui-btn layui-btn-primary" asp-action="Details" asp-route-id="@Model.AssetId">取消</a>
+                    }
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        layui.use(["form", "upload", "layer"], function () {
+            const form = layui.form;
+            const upload = layui.upload;
+            const layer = layui.layer;
+            const tokenInput = document.querySelector("input[name='__RequestVerificationToken']");
+            const uploadTokenInput = document.getElementById("UploadedPackageToken");
+            const uploadNameInput = document.getElementById("UploadedPackageFileName");
+            const uploadSizeInput = document.getElementById("UploadedPackageSize");
+            const versionInput = document.getElementById("VersionName");
+            const releaseNotesInput = document.getElementById("ReleaseNotes");
+            const fileLabel = document.getElementById("assetVersionUploadFile");
+            const parsedState = document.getElementById("assetVersionParsedState");
+            const submitButton = document.getElementById("assetVersionSubmitButton");
+            const uploadZone = document.getElementById("assetVersionUpload");
+            let dragDepth = 0;
+
+            const updateSubmitState = (enabled) => {
+                if (submitButton) {
+                    submitButton.disabled = !enabled;
+                }
+            };
+
+            const setDragState = (isActive) => {
+                uploadZone?.classList.toggle("is-dragover", isActive);
+            };
+
+            const setParsedState = (uploaded, message, badgeClass) => {
+                if (!parsedState) {
+                    return;
+                }
+
+                parsedState.innerHTML = `<span class="admin-badge ${badgeClass}">${uploaded ? "已上传" : "待上传"}</span><span class="admin-text-muted">${message}</span>`;
+                updateSubmitState(uploaded);
+            };
+
+            upload.render({
+                elem: "#assetVersionUpload",
+                url: "@Url.Action("UploadPackage", "Assets")",
+                accept: "file",
+                exts: "zip",
+                field: "packageFile",
+                size: 204800,
+                drag: true,
+                headers: tokenInput ? { "RequestVerificationToken": tokenInput.value } : {},
+                data: {
+                    "__RequestVerificationToken": tokenInput ? tokenInput.value : "",
+                    "assetType": "@((int)Model.AssetType)"
+                },
+                before() {
+                    dragDepth = 0;
+                    setDragState(false);
+                    setParsedState(false, "资源包上传中，请稍候。", "admin-badge-warning");
+                },
+                done(result) {
+                    if (!result || result.success !== true) {
+                        setParsedState(false, result?.message || "资源包上传失败。", "admin-badge-danger");
+                        layer.msg(result?.message || "资源包上传失败。", { icon: 2 });
+                        return;
+                    }
+
+                    if (uploadTokenInput) {
+                        uploadTokenInput.value = result.token || "";
+                    }
+                    if (uploadNameInput) {
+                        uploadNameInput.value = result.fileName || "";
+                    }
+                    if (uploadSizeInput) {
+                        uploadSizeInput.value = result.packageSize || "";
+                    }
+                    if (versionInput && result.formData?.versionName) {
+                        versionInput.value = result.formData.versionName;
+                    }
+                    if (releaseNotesInput && result.formData?.releaseNotes) {
+                        releaseNotesInput.value = result.formData.releaseNotes;
+                    }
+                    if (fileLabel) {
+                        const sizeText = typeof result.packageSize === "number"
+                            ? `${(result.packageSize / 1024 / 1024).toFixed(2)} MB`
+                            : "";
+                        fileLabel.textContent = [result.fileName, sizeText].filter(Boolean).join(" · ");
+                        fileLabel.classList.add("is-ready");
+                    }
+
+                    form.render();
+                    setParsedState(true, "新版本资源包已上传，保存后会立即切换为当前版本。", "admin-badge-success");
+                    layer.msg(result.message || "资源包上传成功。", { icon: 1 });
+                },
+                error() {
+                    dragDepth = 0;
+                    setDragState(false);
+                    setParsedState(false, "资源包上传失败，请重新尝试。", "admin-badge-danger");
+                    layer.msg("资源包上传失败，请稍后重试。", { icon: 2 });
+                }
+            });
+
+            if (uploadZone) {
+                ["dragenter", "dragover"].forEach((eventName) => {
+                    uploadZone.addEventListener(eventName, function (event) {
+                        event.preventDefault();
+                        dragDepth = Math.max(1, dragDepth + (eventName === "dragenter" ? 1 : 0));
+                        setDragState(true);
+                    });
+                });
+
+                uploadZone.addEventListener("dragleave", function (event) {
+                    event.preventDefault();
+                    dragDepth = Math.max(0, dragDepth - 1);
+                    if (dragDepth === 0) {
+                        setDragState(false);
+                    }
+                });
+
+                uploadZone.addEventListener("drop", function (event) {
+                    event.preventDefault();
+                    dragDepth = 0;
+                    setDragState(false);
+                });
+            }
+
+            if (uploadTokenInput?.value) {
+                updateSubmitState(true);
+            }
+        });
+    </script>
+}

@@ -1,0 +1,115 @@
+---
+name: skill-plugin-installation
+description: '安装 Cortana 技能或插件。处理 zip 安装、技能目录选择、插件全局安装、解压和结构校验。'
+user-invocable: true
+---
+
+# Skill Plugin Installation
+
+用于指导 AI 安装 Cortana 技能和插件。
+
+## 目标
+
+- 安装 skill 或 plugin
+- 支持单个 zip 或目录批量安装
+- 让脚本执行安装、解压和校验
+- AI 通过系统工具获取最终安装目录并传给脚本
+- AI 根据脚本结果判断是否成功和失败原因
+
+## 目录规则
+
+### 技能目录
+
+- 公共/工作区技能目录：通过 `sys_get_workspace_skills_directory` 获取。
+- 全局技能目录：通过 `sys_get_user_skills_directory` 获取。
+- 安装 skill 时，AI 需要先确认安装到公共/工作区技能目录还是全局技能目录，再调用对应工具获取目录。
+- 安装 skill 时不要手动拼接 `{工作目录}/.cortana/skills/` 或 `{用户数据目录}/skills/` 作为安装路径。
+
+### 插件目录
+
+- 全局插件目录：通过 `sys_get_user_plugins_directory` 获取。
+- 工作区插件安装方案已取消，不再安装到工作区插件目录。
+- 安装 plugin 时，默认直接使用全局插件目录，不再询问安装范围。
+- 安装 plugin 时不要手动拼接 `{工作目录}/.cortana/plugins/` 或 `{用户数据目录}/plugins/` 作为安装路径。
+
+## 输入规则
+
+- 用户必须提供 zip 文件路径或目录路径。
+- 如果提供目录，只处理该目录下的 `.zip`。
+- 一个技能或插件安装后必须对应一个文件夹。
+- 安装 skill 时需要确认安装到公共/工作区技能目录还是全局技能目录，并通过工具获取对应目录。
+- 安装 plugin 时默认安装到全局插件目录，不需要询问安装范围，并通过工具获取全局插件目录。
+- 复杂安装过程不要在技能文件里展开，交给脚本处理。
+
+## 执行流程
+
+1. 获取 zip 文件路径或目录路径。
+2. 判断或确认安装对象是 skill 还是 plugin：
+   - 用户已明确则直接使用。
+   - 用户未明确时，可根据包结构中的 `skill.md` 或 `plugin.json` 判断。
+   - 如果无法判断，再询问用户。
+3. 如果安装对象是 skill：
+   - 询问安装到公共/工作区技能目录还是全局技能目录。
+   - 选择公共/工作区技能目录时，调用 `sys_get_workspace_skills_directory` 获取安装目录。
+   - 选择全局技能目录时，调用 `sys_get_user_skills_directory` 获取安装目录。
+4. 如果安装对象是 plugin：
+   - 不询问安装范围。
+   - 直接调用 `sys_get_user_plugins_directory` 获取全局插件目录作为安装目录。
+5. 解析安装脚本绝对路径并调用安装脚本。
+6. 根据脚本执行结果判断安装成功或失败原因。
+
+## 校验规则
+
+### 技能
+
+- 根目录必须直接存在 `skill.md`。
+- `skill.md` 必须是有效的技能描述文件。
+- 缺少或格式明显不对时，安装失败。
+
+### 插件
+
+- 根目录必须直接存在 `plugin.json`。
+- `plugin.json` 必须位于插件根目录。
+- 不允许再多嵌套一层插件目录。
+- 正确：`plugins/add-services/plugin.json`。
+- 错误：`plugins/add-services/add-services/plugin.json`。
+
+## 脚本
+
+```powershell
+scripts\install-package.ps1
+```
+
+- 脚本路径是相对于当前技能目录 `skill-plugin-installation` 的路径，不是相对于 PowerShell 当前工作目录的路径。
+- 调用脚本前必须先解析出安装技能目录下的脚本绝对路径，例如：`{skill-plugin-installation}/scripts/install-package.ps1`。
+- 不要直接依赖当前工作目录执行 `scripts\install-package.ps1`，否则可能因为工作目录不同而读取不到安装脚本。
+- 脚本负责解压、覆盖、结构校验和结果输出。
+- AI 不需要在技能文件里展开脚本内部实现。
+- 如果脚本返回失败，AI 根据失败信息继续分析。
+
+## 示例
+
+```powershell
+# skill：安装到全局技能目录，InstallDirectory 来自 sys_get_user_skills_directory
+& "{skill-plugin-installation}/scripts/install-package.ps1" -PackageType skill -SourcePath C:\Packages\my-skill.zip -InstallDirectory "{sys_get_user_skills_directory 返回值}"
+
+# skill：安装到公共/工作区技能目录，InstallDirectory 来自 sys_get_workspace_skills_directory
+& "{skill-plugin-installation}/scripts/install-package.ps1" -PackageType skill -SourcePath C:\Packages\my-skill.zip -InstallDirectory "{sys_get_workspace_skills_directory 返回值}"
+
+# plugin：默认安装到全局插件目录，InstallDirectory 来自 sys_get_user_plugins_directory
+& "{skill-plugin-installation}/scripts/install-package.ps1" -PackageType plugin -SourcePath C:\Packages\my-plugin.zip -InstallDirectory "{sys_get_user_plugins_directory 返回值}"
+
+# plugin：目录批量安装，默认安装到全局插件目录，InstallDirectory 来自 sys_get_user_plugins_directory
+& "{skill-plugin-installation}/scripts/install-package.ps1" -PackageType plugin -SourcePath C:\Packages -InstallDirectory "{sys_get_user_plugins_directory 返回值}"
+```
+
+## 约束
+
+- 安装 skill 前需要确认安装到公共/工作区技能目录还是全局技能目录，并调用工具获取目录。
+- 安装 plugin 不再询问安装范围，默认调用 `sys_get_user_plugins_directory` 获取全局插件目录。
+- 插件禁止安装到工作区插件目录；不得手动拼接 `.cortana/plugins` 作为安装目录。
+- 安装目录必须通过对应工具获取，不要手动拼接路径。
+- 脚本路径必须按当前技能目录解析为绝对路径后再执行。
+- 安装和校验主要由脚本完成。
+- AI 依据脚本结果判断原因。
+- 批量安装时，单个失败不影响其他包继续处理。

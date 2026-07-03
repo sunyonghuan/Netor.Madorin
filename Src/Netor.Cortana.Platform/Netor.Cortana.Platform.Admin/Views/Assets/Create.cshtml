@@ -1,0 +1,705 @@
+@model Netor.Cortana.Platform.Admin.Models.Assets.AssetCreateViewModel
+@using Netor.Cortana.Platform.Entitys.Enums
+@{
+    ViewData["Title"] = Model.IsEdit ? "编辑资源" : "上传资源";
+    var mode = Context.Request.Query["mode"].ToString();
+    var isDrawer = string.Equals(mode, "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="admin-drawer-page asset-editor-page">
+<section class="admin-card asset-editor-shell">
+    <div class="admin-card-header">
+        <div>
+            <h2 class="admin-card-title">@(Model.IsEdit ? "编辑资源" : "上传资源")</h2>
+            <div class="admin-text-muted">@(Model.IsEdit ? "按资源类型分别编辑资料与定价；如需更换资源包请重新创建或上新。" : "按资源类型分别上传、解析和验证资源包，再完成资料与定价配置。")</div>
+        </div>
+        @if (isDrawer)
+        {
+            <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" data-drawer-close>关闭</button>
+        }
+        else
+        {
+            <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Index">返回列表</a>
+        }
+    </div>
+
+    <form asp-action="@(Model.IsEdit ? "Edit" : "Create")" method="post" class="layui-form" data-admin-ajax-form="@isDrawer.ToString().ToLowerInvariant()" data-admin-table-id="assetTable" data-admin-success-message="@(Model.IsEdit ? "资源已保存。" : "资源已上传并创建。")">
+        @Html.AntiForgeryToken()
+        <input asp-for="Id" type="hidden" />
+        <input name="mode" type="hidden" value="@mode" />
+        <input asp-for="UploadedPackageToken" type="hidden" />
+        <input asp-for="UploadedPackageFileName" type="hidden" />
+        <input asp-for="UploadedPackageSize" type="hidden" />
+
+        <div class="admin-card-body asset-create-grid">
+            <div class="asset-create-main">
+                <div class="asset-type-tabs @(Model.IsEdit ? "is-readonly" : null)">
+                    <ul class="asset-type-tab-list">
+                        <li class="@(Model.Type == AssetType.Plugin ? "is-active" : null)" data-asset-type="@((int)AssetType.Plugin)">插件</li>
+                        <li class="@(Model.Type == AssetType.Skill ? "is-active" : null)" data-asset-type="@((int)AssetType.Skill)">技能</li>
+                        <li class="@(Model.Type == AssetType.Solution ? "is-active" : null)" data-asset-type="@((int)AssetType.Solution)">解决方案</li>
+                        <li class="@(Model.Type == AssetType.Agent ? "is-active" : null)" data-asset-type="@((int)AssetType.Agent)">智能体</li>
+                    </ul>
+                </div>
+
+                <section class="admin-card">
+                    <div class="admin-card-body">
+                        <div asp-validation-summary="ModelOnly" class="layui-elem-quote layui-quote-nm"></div>
+
+                        <div class="asset-section-header">
+                            <div>
+                                <h3>@(Model.IsEdit ? "资源包状态" : "上传资源包")</h3>
+                                <p id="assetTypeGuide">
+                                    当前按@Model.TypeName资源处理，上传包内必须包含 @Model.ManifestFileName。
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="asset-upload-dropzone asset-upload-dropzone-primary">
+                            <div class="asset-upload-head">
+                                <div class="asset-upload-title">@(Model.IsEdit ? "当前资源包" : "上传并解析资源包")</div>
+                                <span class="asset-upload-badge">@(Model.IsEdit ? $"{Model.TypeName}已绑定现有资源包" : $"支持拖动 ZIP 上传 · 当前按{Model.TypeName}校验")</span>
+                            </div>
+
+                            <div class="layui-upload-drag asset-layui-upload" id="assetPackageUpload">
+                                <i class="layui-icon layui-icon-upload-drag"></i>
+                                <div>@(Model.IsEdit ? "当前资源已绑定资源包，可直接修改资料并保存" : "点击上传，或将 ZIP 资源包拖拽到这里")</div>
+                                <p>@(Model.IsEdit ? "编辑模式默认复用现有资源包，不重新上传。" : "系统会根据当前选中的资源类型分别解析和校验清单文件。")</p>
+                                <div class="asset-upload-file" id="assetPackageUploadFile">
+                                    @if (!string.IsNullOrWhiteSpace(Model.UploadedPackageFileName))
+                                    {
+                                        @($"{Model.UploadedPackageFileName} · {((Model.UploadedPackageSize ?? 0) / 1024d / 1024d):0.00} MB")
+                                    }
+                                    else
+                                    {
+                                        @:未上传资源包
+                                    }
+                                </div>
+                            </div>
+                            @if (!Model.IsEdit)
+                            {
+                                <input asp-for="PackageFile" class="asset-upload-native-input" type="file" accept=".zip" tabindex="-1" />
+                            }
+                            <span asp-validation-for="UploadedPackageToken" class="field-validation-error"></span>
+
+                            <div class="asset-upload-parsed" id="assetPackageParsedState">
+                                @if (!string.IsNullOrWhiteSpace(Model.UploadedPackageToken))
+                                {
+                                    <span class="admin-badge admin-badge-success">@(Model.IsEdit ? "已绑定" : "已上传")</span>
+                                    <span class="admin-text-muted">@(Model.IsEdit ? "当前资源包已绑定，可以继续修改并保存。" : "资源包已就绪，可以继续填写表单并保存。")</span>
+                                }
+                                else
+                                {
+                                    <span class="admin-badge admin-badge-warning">待上传</span>
+                                    <span class="admin-text-muted">请先上传资源包，系统会按当前类型进行校验。</span>
+                                }
+                            </div>
+
+                            <dl class="asset-upload-meta">
+                                <dt>清单要求</dt>
+                                <dd id="assetManifestGuide">
+                                    当前资源包需要包含 @Model.ManifestFileName。
+                                </dd>
+                                <dt>字段要求</dt>
+                                <dd id="assetManifestFieldGuide">
+                                    至少提供 name、slug、version、description，建议补充 author、tags、releaseNotes、readme。
+                                </dd>
+                                <dt>打包格式</dt>
+                                <dd id="assetPackageStructureGuide">
+                                    请直接上传 ZIP，@Model.ManifestFileName 放在压缩包根目录，不要再套一层外部文件夹。
+                                </dd>
+                                <dt>保存方式</dt>
+                                <dd>@(Model.IsEdit ? "编辑模式继续复用当前版本包文件。" : "上传成功后资源包会先进入正式存储，创建资源时直接复用。")</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="admin-card">
+                    <div class="admin-card-body">
+                        <div class="asset-section-header">
+                            <div>
+                                <h3>资源信息</h3>
+                                <p>@(Model.IsEdit ? "可以继续修改分类、标签、描述、推荐状态和默认定价。资源标识、类型和版本号暂不支持直接改动。" : "上传成功后会自动回填关键信息，你也可以继续补充分类、标签、描述和发布说明。")</p>
+                            </div>
+                        </div>
+
+                        <div class="asset-form-grid cols-3 asset-form-grid-compact">
+                            <div class="asset-form-field">
+                                <label asp-for="Name">资源名称</label>
+                                <input asp-for="Name" class="layui-input" placeholder="请输入资源名称" />
+                                <span asp-validation-for="Name" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="Slug">资源标识</label>
+                                <input asp-for="Slug" class="layui-input" placeholder="例如：google-search-plugin" />
+                                <p class="asset-form-hint">@(Model.IsEdit ? "当前资源已入库，标识暂不支持直接修改。" : "标识需与包内清单保持一致。")</p>
+                                <span asp-validation-for="Slug" class="field-validation-error"></span>
+                            </div>
+
+                            <input asp-for="Type" type="hidden" />
+                            <div class="asset-form-field">
+                                <label>资源类型</label>
+                                <input class="layui-input" id="assetTypeDisplayName" value="@Model.TypeName" readonly />
+                                <p class="asset-form-hint">@(Model.IsEdit ? "编辑页不支持切换资源类型；如需更换类型，请重新创建资源。" : "请在顶部页签中选择资源类型，系统会按对应清单文件进行解析和校验。")</p>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="CategoryId">所属分类</label>
+                                <select asp-for="CategoryId">
+                                    <option value="">未分类</option>
+                                    @foreach (var category in Model.Categories)
+                                    {
+                                        <option value="@category.Id">@category.Name</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="DeveloperName">开发者名称</label>
+                                <input asp-for="DeveloperName" class="layui-input" placeholder="例如：Netor 官方" />
+                                <span asp-validation-for="DeveloperName" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="VersionName">版本号</label>
+                                <input asp-for="VersionName" class="layui-input" placeholder="例如：1.0.0" />
+                                <span asp-validation-for="VersionName" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="Tags">标签</label>
+                                <input asp-for="Tags" class="layui-input" placeholder="多个标签用逗号分隔" />
+                            </div>
+
+                            <div class="asset-form-field asset-form-field-span-full">
+                                <label asp-for="ShortDescription">简短描述</label>
+                                <input asp-for="ShortDescription" class="layui-input" placeholder="一句话说明资源用途和场景" />
+                                <span asp-validation-for="ShortDescription" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="Description">详细说明</label>
+                                <textarea asp-for="Description" class="layui-textarea" rows="5" placeholder="补充功能说明、交付内容、使用边界"></textarea>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="ReleaseNotes">发布说明</label>
+                                <textarea asp-for="ReleaseNotes" class="layui-textarea" rows="4" placeholder="例如：新增能力、适配范围、已知限制"></textarea>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <div class="asset-form-checks">
+                                    <input asp-for="IsFeatured" type="checkbox" title="加入推荐资源" lay-skin="primary" />
+                                    <input asp-for="PublishNow" type="checkbox" title="保存后立即发布" lay-skin="primary" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="admin-card">
+                    <div class="admin-card-body">
+                        <div class="asset-section-header">
+                            <div>
+                                <h3>定价与有效期</h3>
+                                <p>确认默认定价方案，保存后会同步创建或更新价格方案。</p>
+                            </div>
+                        </div>
+
+                        <div class="asset-form-grid cols-4 asset-form-grid-compact">
+                            <div class="asset-form-field">
+                                <label asp-for="PlanType">方案类型</label>
+                                <select asp-for="PlanType" asp-items="Html.GetEnumSelectList<PricingPlanType>()"></select>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="Price">价格</label>
+                                <input asp-for="Price" class="layui-input" type="number" step="0.01" />
+                                <span asp-validation-for="Price" class="field-validation-error"></span>
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="Currency">货币单位</label>
+                                <input asp-for="Currency" class="layui-input" placeholder="例如：CNY" />
+                            </div>
+
+                            <div class="asset-form-field">
+                                <label asp-for="DurationDays">有效天数</label>
+                                <input asp-for="DurationDays" class="layui-input" type="number" />
+                                <p class="asset-form-hint">免费为 0，月付建议 30，年付建议 365。</p>
+                                <span asp-validation-for="DurationDays" class="field-validation-error"></span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <aside class="asset-create-aside">
+                <section class="asset-aside-card">
+                    <h3 id="assetAsideTitle">插件包说明</h3>
+                    <div class="asset-aside-note" id="assetAsideContent">
+                        <div class="asset-aside-block">
+                            <strong>清单文件</strong>
+                            <p>`plugin.json` 必须位于 ZIP 根目录。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>必填字段</strong>
+                            <p>`name` 资源名称，`slug` 唯一标识，`version` 版本号，`description` 简短说明。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>推荐字段</strong>
+                            <p>`author` 开发者名称，`tags` 标签数组或字符串，`releaseNotes` 发布说明，`readme` 详细介绍。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>打包规则</strong>
+                            <p>压缩包根目录至少包含 `plugin.json` 和实际插件文件，不要把整个目录再包一层。</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="asset-aside-card">
+                    <h3>@(Model.IsEdit ? "编辑说明" : "录入说明")</h3>
+                    <div class="asset-aside-note" id="assetAsideWorkflow">
+                        <div class="asset-aside-block">
+                            <strong>当前类型</strong>
+                            <p>顶部页签决定资源类型，上传时只校验当前类型对应的清单文件。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>资源包更新</strong>
+                            <p>请使用“上新”入口，不要在编辑页直接替换资源包。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>强一致性</strong>
+                            <p>资源类型、标识和版本号要与清单保持一致，否则需要重新上传资源包。</p>
+                        </div>
+                    </div>
+                </section>
+            </aside>
+        </div>
+
+        <div class="asset-submit-bar">
+            <div class="asset-submit-copy">
+                <strong>@(Model.IsEdit ? "当前资源包已就绪，可直接保存资源修改。" : "保存前必须先完成资源包上传。")</strong>
+                <p>如果勾选“立即发布”，资源仍会走现有发布前校验。</p>
+            </div>
+            <div class="admin-form-actions">
+                <button class="layui-btn layui-btn-normal" id="assetSubmitButton" type="submit" lay-submit lay-filter="adminAjaxSubmit" @(string.IsNullOrWhiteSpace(Model.UploadedPackageToken) ? "disabled" : null)>@(Model.IsEdit ? "保存修改" : "保存资源")</button>
+                @if (isDrawer)
+                {
+                    <button class="layui-btn layui-btn-primary" type="button" data-drawer-close>取消</button>
+                }
+                else
+                {
+                    <a class="layui-btn layui-btn-primary" asp-action="Index">取消</a>
+                }
+            </div>
+        </div>
+    </form>
+</section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        layui.use(["form", "upload", "layer"], function () {
+            const form = layui.form;
+            const upload = layui.upload;
+            const layer = layui.layer;
+            const assetTypeInput = document.getElementById("Type");
+            const uploadTokenInput = document.getElementById("UploadedPackageToken");
+            const uploadNameInput = document.getElementById("UploadedPackageFileName");
+            const uploadSizeInput = document.getElementById("UploadedPackageSize");
+            const fileLabel = document.getElementById("assetPackageUploadFile");
+            const parsedState = document.getElementById("assetPackageParsedState");
+            const submitButton = document.getElementById("assetSubmitButton");
+            const tokenInput = document.querySelector("input[name='__RequestVerificationToken']");
+            const uploadZone = document.getElementById("assetPackageUpload");
+            const typeGuide = document.getElementById("assetTypeGuide");
+            const manifestGuide = document.getElementById("assetManifestGuide");
+            const manifestFieldGuide = document.getElementById("assetManifestFieldGuide");
+            const packageStructureGuide = document.getElementById("assetPackageStructureGuide");
+            const typeDisplayNameInput = document.getElementById("assetTypeDisplayName");
+            const asideTitle = document.getElementById("assetAsideTitle");
+            const asideContent = document.getElementById("assetAsideContent");
+            const isEditMode = @Model.IsEdit.ToString().ToLowerInvariant();
+            let dragDepth = 0;
+
+            const typeMessages = {
+                "@((int)AssetType.Plugin)": {
+                    name: "插件",
+                    guide: "当前按插件资源处理，上传包内必须包含 plugin.json。",
+                    manifest: "当前资源包需要包含 plugin.json。",
+                    manifestFields: "至少提供 name、slug、version、description，建议补充 author、tags、releaseNotes、readme。",
+                    packageStructure: "请直接上传 ZIP，plugin.json 放在压缩包根目录，不要再套一层外部文件夹。",
+                    asideTitle: "插件包说明",
+                    asideHtml: `
+                        <div class="asset-aside-block">
+                            <strong>清单文件</strong>
+                            <p><code>plugin.json</code> 必须位于 ZIP 根目录。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>必填字段</strong>
+                            <p><code>name</code> 资源名称，<code>slug</code> 唯一标识，<code>version</code> 版本号，<code>description</code> 简短说明。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>推荐字段</strong>
+                            <p><code>author</code> 开发者名称，<code>tags</code> 标签数组或字符串，<code>releaseNotes</code> 发布说明，<code>readme</code> 详细介绍。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>打包规则</strong>
+                            <p>压缩包根目录至少包含 <code>plugin.json</code> 和实际插件文件，不要把整个目录再包一层。</p>
+                        </div>`
+                },
+                "@((int)AssetType.Skill)": {
+                    name: "技能",
+                    guide: "当前按技能资源处理，上传包内必须包含 skill.md。",
+                    manifest: "当前资源包需要包含 skill.md，可选 skill.json 用于补充平台元数据。",
+                    manifestFields: "skill.md 建议以一级标题作为技能名称；skill.json 可选提供 name、slug、version、description、author、tags、releaseNotes、readme。",
+                    packageStructure: "请直接上传 ZIP，skill.md 放在压缩包根目录，同时包含技能脚本、提示词或依赖文件。",
+                    asideTitle: "技能包说明",
+                    asideHtml: `
+                        <div class="asset-aside-block">
+                            <strong>清单文件</strong>
+                            <p><code>skill.md</code> 必须位于 ZIP 根目录；<code>skill.json</code> 可选，用于平台自动填表。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>技能内容</strong>
+                            <p><code>skill.md</code> 建议用一级标题写技能名称，正文写技能说明和使用提示。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>可选元数据</strong>
+                            <p><code>author</code> 技能作者，<code>tags</code> 场景标签，<code>releaseNotes</code> 更新记录，<code>readme</code> 使用方式。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>打包规则</strong>
+                            <p>压缩包根目录至少包含 <code>skill.md</code>，并把提示词、脚本模板、示例文件一起打进 ZIP。</p>
+                        </div>`
+                },
+                "@((int)AssetType.Solution)": {
+                    name: "解决方案",
+                    guide: "当前按解决方案资源处理，上传包内必须包含 solution.json。",
+                    manifest: "当前资源包需要包含 solution.json，并在 assets.plugins、assets.skills、assets.agents 中声明子资源；三类可以只包含其中一种或两种，但合计不能为 0。",
+                    manifestFields: "至少提供 name、slug、version、description；子资源需要提供 slug、version、path，插件目录包含 plugin.json，技能目录包含 skill.md，智能体目录包含 agent.json。",
+                    packageStructure: "请直接上传 ZIP，solution.json 放在压缩包根目录，同时包含 plugins/、skills/、agents/ 中实际声明的组合资源。",
+                    asideTitle: "解决方案包说明",
+                    asideHtml: `
+                        <div class="asset-aside-block">
+                            <strong>清单文件</strong>
+                            <p><code>solution.json</code> 必须位于 ZIP 根目录。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>组合语义</strong>
+                            <p>解决方案是插件、技能、智能体的组合包，可以只包含其中一种或两种，但至少要声明一个有效子资源。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>子资源校验</strong>
+                            <p>插件目录必须有 <code>plugin.json</code>，技能目录必须有 <code>skill.md</code>，智能体目录必须有 <code>agent.json</code>。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>打包规则</strong>
+                            <p>外层 ZIP 保留解决方案记录；安装时会把插件、技能、智能体分别解压到对应目录。</p>
+                        </div>`
+                },
+                "@((int)AssetType.Agent)": {
+                    name: "智能体",
+                    guide: "当前按智能体资源处理，上传包内必须包含 agent.json。",
+                    manifest: "当前资源包需要包含 agent.json。",
+                    manifestFields: "至少提供 name、slug、version、description，建议补充 author、tags、releaseNotes、readme。",
+                    packageStructure: "请直接上传 ZIP，agent.json 放在压缩包根目录，同时包含角色配置、提示词和依赖资源。",
+                    asideTitle: "智能体包说明",
+                    asideHtml: `
+                        <div class="asset-aside-block">
+                            <strong>清单文件</strong>
+                            <p><code>agent.json</code> 必须位于 ZIP 根目录。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>必填字段</strong>
+                            <p><code>name</code> 智能体名称，<code>slug</code> 唯一标识，<code>version</code> 版本号，<code>description</code> 智能体简介。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>推荐字段</strong>
+                            <p><code>author</code> 开发者，<code>tags</code> 能力标签，<code>releaseNotes</code> 发布说明，<code>readme</code> 使用边界和接入方式。</p>
+                        </div>
+                        <div class="asset-aside-block">
+                            <strong>打包规则</strong>
+                            <p>压缩包根目录至少包含 <code>agent.json</code>，角色设定、提示词、知识配置和依赖文件一起打包。</p>
+                        </div>`
+                }
+            };
+
+            const typeAliasMap = {
+                "Plugin": "@((int)AssetType.Plugin)",
+                "Skill": "@((int)AssetType.Skill)",
+                "Solution": "@((int)AssetType.Solution)",
+                "Agent": "@((int)AssetType.Agent)"
+            };
+
+            const normalizeTypeValue = (typeValue) => {
+                if (typeValue == null) {
+                    return "@((int)AssetType.Plugin)";
+                }
+
+                const normalized = String(typeValue).trim();
+                if (typeMessages[normalized]) {
+                    return normalized;
+                }
+
+                return typeAliasMap[normalized] || "@((int)AssetType.Plugin)";
+            };
+
+            const updateSubmitState = (enabled) => {
+                if (submitButton) {
+                    submitButton.disabled = !enabled;
+                }
+            };
+
+            const setDragState = (isActive) => {
+                uploadZone?.classList.toggle("is-dragover", isActive);
+            };
+
+            const setParsedState = (uploaded, message, badgeClass) => {
+                if (!parsedState) {
+                    return;
+                }
+
+                parsedState.innerHTML = `<span class="admin-badge ${badgeClass}">${uploaded ? "已上传" : "待上传"}</span><span class="admin-text-muted">${message}</span>`;
+                updateSubmitState(uploaded);
+            };
+
+            const clearUploadedPackage = (message) => {
+                if (uploadTokenInput) {
+                    uploadTokenInput.value = "";
+                }
+
+                if (uploadNameInput) {
+                    uploadNameInput.value = "";
+                }
+
+                if (uploadSizeInput) {
+                    uploadSizeInput.value = "";
+                }
+
+                if (fileLabel) {
+                    fileLabel.textContent = "未上传资源包";
+                    fileLabel.classList.remove("is-ready");
+                }
+
+                setParsedState(false, message, "admin-badge-warning");
+            };
+
+            const applyTypeGuide = (typeValue) => {
+                const normalizedTypeValue = normalizeTypeValue(typeValue);
+                const message = typeMessages[normalizedTypeValue] || typeMessages["@((int)AssetType.Plugin)"];
+                if (typeGuide) {
+                    typeGuide.textContent = message.guide;
+                }
+                if (manifestGuide) {
+                    manifestGuide.textContent = message.manifest;
+                }
+                if (manifestFieldGuide) {
+                    manifestFieldGuide.textContent = message.manifestFields;
+                }
+                if (packageStructureGuide) {
+                    packageStructureGuide.textContent = message.packageStructure;
+                }
+                if (typeDisplayNameInput) {
+                    typeDisplayNameInput.value = message.name;
+                }
+                if (asideTitle) {
+                    asideTitle.textContent = message.asideTitle;
+                }
+                if (asideContent) {
+                    asideContent.innerHTML = message.asideHtml;
+                }
+            };
+
+            const setFieldValue = (selector, value) => {
+                const input = document.querySelector(selector);
+                if (!input || !value) {
+                    return;
+                }
+
+                if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
+                    input.value = value;
+                } else if (input instanceof HTMLSelectElement) {
+                    input.value = String(value);
+                }
+            };
+
+            const applyFormData = (formData) => {
+                if (!formData) {
+                    return;
+                }
+
+                setFieldValue("#Name", formData.name);
+                setFieldValue("#Slug", formData.slug);
+                if (!isEditMode) {
+                    setFieldValue("#Type", formData.type);
+                }
+                setFieldValue("#DeveloperName", formData.developerName);
+                setFieldValue("#ShortDescription", formData.shortDescription);
+                setFieldValue("#Description", formData.description);
+                setFieldValue("#Tags", formData.tags);
+                setFieldValue("#VersionName", formData.versionName);
+                setFieldValue("#ReleaseNotes", formData.releaseNotes);
+                form.render();
+                applyTypeGuide(document.getElementById("Type")?.value);
+            };
+
+            @if (!Model.IsEdit)
+            {
+            <text>
+            upload.render({
+                elem: "#assetPackageUpload",
+                url: "@Url.Action("UploadPackage", "Assets")",
+                accept: "file",
+                exts: "zip",
+                field: "packageFile",
+                size: 204800,
+                drag: true,
+                headers: tokenInput ? { "RequestVerificationToken": tokenInput.value } : {},
+                data: {
+                    "__RequestVerificationToken": tokenInput ? tokenInput.value : "",
+                    "assetType": function () { return assetTypeInput?.value || "@((int)AssetType.Plugin)"; }
+                },
+                before() {
+                    dragDepth = 0;
+                    setDragState(false);
+                    setParsedState(false, "资源包上传中，请稍候。", "admin-badge-warning");
+                },
+                done(result) {
+                    if (!result || result.success !== true) {
+                        setParsedState(false, result?.message || "资源包上传失败。", "admin-badge-danger");
+                        layer.msg(result?.message || "资源包上传失败。", { icon: 2 });
+                        return;
+                    }
+
+                    if (uploadTokenInput) {
+                        uploadTokenInput.value = result.token || "";
+                    }
+
+                    if (uploadNameInput) {
+                        uploadNameInput.value = result.fileName || "";
+                    }
+
+                    if (uploadSizeInput) {
+                        uploadSizeInput.value = result.packageSize || "";
+                    }
+
+                    if (fileLabel) {
+                        const sizeText = typeof result.packageSize === "number"
+                            ? `${(result.packageSize / 1024 / 1024).toFixed(2)} MB`
+                            : "";
+                        fileLabel.textContent = [result.fileName, sizeText].filter(Boolean).join(" · ");
+                        fileLabel.classList.add("is-ready");
+                    }
+
+                    applyFormData(result.formData);
+                    const solutionSummary = result.formData?.solutionSummary
+                        ? `方案内容：${result.formData.solutionSummary}。`
+                        : "";
+                    setParsedState(true, `资源包上传完成，已按当前类型解析并回填表单。${solutionSummary}`, "admin-badge-success");
+                    layer.msg(result.message || "资源包上传成功。", { icon: 1 });
+                },
+                error() {
+                    dragDepth = 0;
+                    setDragState(false);
+                    setParsedState(false, "资源包上传失败，请重新尝试。", "admin-badge-danger");
+                    layer.msg("资源包上传失败，请稍后重试。", { icon: 2 });
+                }
+            });
+
+            if (uploadZone) {
+                ["dragenter", "dragover"].forEach((eventName) => {
+                    uploadZone.addEventListener(eventName, function (event) {
+                        event.preventDefault();
+                        dragDepth = Math.max(1, dragDepth + (eventName === "dragenter" ? 1 : 0));
+                        setDragState(true);
+                    });
+                });
+
+                uploadZone.addEventListener("dragleave", function (event) {
+                    event.preventDefault();
+                    dragDepth = Math.max(0, dragDepth - 1);
+                    if (dragDepth === 0) {
+                        setDragState(false);
+                    }
+                });
+
+                uploadZone.addEventListener("drop", function (event) {
+                    event.preventDefault();
+                    dragDepth = 0;
+                    setDragState(false);
+                });
+            }
+            </text>
+            }
+
+            if (uploadTokenInput?.value) {
+                updateSubmitState(true);
+            }
+
+            const assetTypeTabs = Array.from(document.querySelectorAll(".asset-type-tabs .asset-type-tab-list li"));
+            const syncActiveTab = (typeValue) => {
+                const normalizedTypeValue = normalizeTypeValue(typeValue);
+                assetTypeTabs.forEach((tab) => {
+                    const isActive = tab.getAttribute("data-asset-type") === normalizedTypeValue;
+                    tab.classList.toggle("is-active", isActive);
+                });
+            };
+
+            document.querySelectorAll("[data-asset-type]").forEach((tab) => {
+                tab.addEventListener("click", function () {
+                    const typeValue = this.getAttribute("data-asset-type");
+                    if (!typeValue || !assetTypeInput) {
+                        return;
+                    }
+
+                    if (isEditMode) {
+                        syncActiveTab(assetTypeInput.value || "@((int)AssetType.Plugin)");
+                        return;
+                    }
+
+                    const previousTypeValue = normalizeTypeValue(assetTypeInput.value);
+                    const normalizedTypeValue = normalizeTypeValue(typeValue);
+                    assetTypeInput.value = normalizedTypeValue;
+                    syncActiveTab(normalizedTypeValue);
+                    applyTypeGuide(normalizedTypeValue);
+                    if (previousTypeValue !== normalizedTypeValue && uploadTokenInput?.value) {
+                        clearUploadedPackage("资源类型已切换，请重新上传与当前类型匹配的资源包。");
+                    }
+                });
+            });
+
+            if (assetTypeInput) {
+                assetTypeInput.value = normalizeTypeValue(assetTypeInput.value);
+            }
+
+            syncActiveTab(assetTypeInput?.value || "@((int)AssetType.Plugin)");
+            applyTypeGuide(assetTypeInput?.value || "@((int)AssetType.Plugin)");
+
+            @if (!Model.IsEdit)
+            {
+            <text>
+            const packageSensitiveFields = ["#Slug", "#Type", "#VersionName"];
+            packageSensitiveFields.forEach((selector) => {
+                const input = document.querySelector(selector);
+                if (!input) {
+                    return;
+                }
+
+                input.addEventListener("change", function () {
+                    if (!uploadTokenInput?.value) {
+                        return;
+                    }
+
+                    clearUploadedPackage("资源类型、标识或版本已变更，请重新上传资源包。");
+                });
+            });
+            </text>
+            }
+        });
+    </script>
+}

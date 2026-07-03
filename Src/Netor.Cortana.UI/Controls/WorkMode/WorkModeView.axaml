@@ -1,0 +1,101 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Netor.Cortana.UI.Controls.ExpertMode"
+             xmlns:wm="using:Netor.Cortana.UI.Controls.WorkMode"
+             x:Class="Netor.Cortana.UI.Controls.WorkMode.WorkModeView"
+             x:CompileBindings="False"
+             Background="#1e1e1e">
+
+    <!--
+      ════════════════════════════════════════════════════════════════
+      工作模式主视图（WorkModeView）
+      ─ 视觉规范来源：09-界面交互设计.md §1 §2 §3
+      ─ 复用 InputAreaView（橙色 #FF8C00 走马灯）
+      ─ 顶部 = 消息流；底部 = 输入区；授权浮窗覆盖在输入区上方
+      ─ 阶段标号、阶段标题全部隐式（不显示）
+      ─ 任务结束消息不清空，永续滚动
+      ════════════════════════════════════════════════════════════════ -->
+
+    <DockPanel>
+
+        <!-- ════ 底部输入区 + 授权浮窗 ════ -->
+        <Border DockPanel.Dock="Bottom" Background="#1e1e1e"
+                BorderBrush="#252526" BorderThickness="0,1,0,0"
+                Padding="0,6,6,6">
+            <StackPanel Spacing="4">
+                <!-- 共享输入区（工作模式专属橙色走马灯） -->
+                <controls:InputAreaView x:Name="WorkInputArea"
+                                        InputMode="Chat"
+                                        MarqueeColor="#FF8C00" />
+
+                <!-- Token 进度条 -->
+                <ProgressBar x:Name="AiProgressBar"
+                             Minimum="0" Maximum="100" Value="0"
+                             Height="1" Margin="0,2,0,0"
+                             Foreground="#FF8C00"
+                             Background="{DynamicResource Surface1Brush}" />
+
+            </StackPanel>
+        </Border>
+
+        <!-- ════ 消息区 ════ -->
+        <Grid>
+
+            <!-- 欢迎面板（无消息时显示） -->
+            <StackPanel x:Name="WelcomePanel"
+                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Spacing="8">
+                <Image x:Name="WelcomeLogoImage"
+                       Width="160" Height="160"
+                       Stretch="Uniform"
+                       HorizontalAlignment="Center"
+                       Opacity="0.8" />
+                <TextBlock Text="告诉我要完成什么工作"
+                           FontSize="18" FontWeight="SemiBold"
+                           Foreground="#cccccc" HorizontalAlignment="Center" />
+                <TextBlock Text="我会和你确认需求、编写计划、分步执行"
+                           FontSize="13" Foreground="#7a7a7a"
+                           HorizontalAlignment="Center" />
+            </StackPanel>
+
+            <!-- 消息滚动区域 -->
+            <ScrollViewer x:Name="MessageScroller"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Background="Transparent"
+                          ScrollChanged="OnScrollChanged">
+                <ItemsControl x:Name="MessageList" Padding="-12,12,0,12">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="0" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- 滚动到底部按钮 -->
+            <Button x:Name="ScrollToBottomBtn"
+                    IsVisible="False"
+                    HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    Margin="0,0,16,8"
+                    Background="#252526" Foreground="#cccccc"
+                    BorderBrush="#3c3c3c" BorderThickness="1"
+                    CornerRadius="4" Padding="10,6"
+                    Cursor="Hand" FontSize="12"
+                    Click="OnScrollToBottomClick">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="↓" FontSize="13" VerticalAlignment="Center" />
+                    <TextBlock Text="滚动到底" FontSize="12" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+
+            <!-- 工具/沙盒授权浮窗：浮动覆盖，不参与底部输入区布局 -->
+            <wm:ApprovalFloatPopup x:Name="ApprovalPopup"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Bottom"
+                                   Margin="50,0,50,8" />
+
+        </Grid>
+
+    </DockPanel>
+</UserControl>

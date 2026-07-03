@@ -1,0 +1,118 @@
+@model Netor.Cortana.Platform.Admin.Models.Settings.SettingsEditViewModel
+@using Netor.Database.Abstractions.Enums
+@{
+    ViewData["Title"] = Model.IsCreate ? "新增系统设置" : "编辑系统设置";
+    var isDrawer = string.Equals(Context.Request.Query["mode"], "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="@(isDrawer ? "admin-drawer-page" : string.Empty)">
+    <section class="admin-card admin-form-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">@(Model.IsCreate ? "新增系统设置" : "编辑系统设置")</h2>
+                <div class="admin-inline-stat">配置项按分组展示，保护项不会在列表中直接保存。</div>
+            </div>
+            @if (isDrawer)
+            {
+                <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" data-drawer-close>关闭</button>
+            }
+            else
+            {
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Index" asp-route-group="@Model.Group">返回设置</a>
+            }
+        </div>
+        <div class="admin-card-body">
+            <form asp-action="@(Model.IsCreate ? "Create" : "Edit")" method="post" class="admin-edit-form layui-form layui-form-pane" data-admin-ajax-form="@isDrawer.ToString().ToLowerInvariant()" data-admin-table-id="settingTable" data-admin-success-message="@(Model.IsCreate ? "系统设置已创建。" : "系统设置已保存。")">
+                @Html.AntiForgeryToken()
+                <input asp-for="Id" type="hidden" />
+                <input asp-for="IsCreate" type="hidden" />
+                @if (isDrawer)
+                {
+                    <input type="hidden" name="mode" value="drawer" />
+                }
+                <div asp-validation-summary="ModelOnly" class="admin-validation-summary"></div>
+
+                <div class="layui-form-item">
+                    <label asp-for="Key" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="Key" class="layui-input" placeholder="例如 platform.name" />
+                        <span asp-validation-for="Key" class="admin-field-validation"></span>
+                    </div>
+                </div>
+
+                <div class="layui-form-item">
+                    <label asp-for="Name" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="Name" class="layui-input" placeholder="例如 平台名称" />
+                        <span asp-validation-for="Name" class="admin-field-validation"></span>
+                    </div>
+                </div>
+
+                <div class="layui-form-item">
+                    <label asp-for="Group" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="Group" class="layui-input" list="settingGroups" placeholder="例如 平台设置" />
+                        <datalist id="settingGroups">
+                            <option value="平台设置"></option>
+                            <option value="安全设置"></option>
+                            <option value="资源设置"></option>
+                            <option value="下载设置"></option>
+                            <option value="订阅设置"></option>
+                            <option value="财务设置"></option>
+                            <option value="通知设置"></option>
+                            <option value="运维设置"></option>
+                        </datalist>
+                        <span asp-validation-for="Group" class="admin-field-validation"></span>
+                    </div>
+                </div>
+
+                <div class="layui-form-item">
+                    <label asp-for="Type" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <select asp-for="Type" asp-items="Html.GetEnumSelectList<NetorDataType>()"></select>
+                        <span asp-validation-for="Type" class="admin-field-validation"></span>
+                    </div>
+                </div>
+
+                <div class="layui-form-item">
+                    <label asp-for="Display" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="Display" class="layui-input" placeholder="说明这个配置影响哪些业务" />
+                        <span asp-validation-for="Display" class="admin-field-validation"></span>
+                    </div>
+                </div>
+
+                <div class="layui-form-item layui-form-text">
+                    <label asp-for="Value" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <textarea asp-for="Value" class="layui-textarea" rows="5" placeholder="设置值"></textarea>
+                        <span asp-validation-for="Value" class="admin-field-validation"></span>
+                    </div>
+                </div>
+
+                <div class="layui-form-item">
+                    <label class="layui-form-label">保护设置</label>
+                    <div class="layui-input-block">
+                        <input asp-for="IsProtection" type="checkbox" lay-skin="switch" lay-text="保护|普通" />
+                    </div>
+                </div>
+
+                <div class="admin-form-actions">
+                    <button class="layui-btn layui-btn-normal" type="submit" lay-submit lay-filter="adminAjaxSubmit">保存设置</button>
+                    @if (isDrawer)
+                    {
+                        <button class="layui-btn layui-btn-primary" type="button" data-drawer-close>取消</button>
+                    }
+                    else
+                    {
+                        <a class="layui-btn layui-btn-primary" asp-action="Index" asp-route-group="@Model.Group">取消</a>
+                    }
+                </div>
+            </form>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

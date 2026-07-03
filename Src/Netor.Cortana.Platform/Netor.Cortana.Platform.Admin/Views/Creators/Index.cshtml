@@ -1,0 +1,251 @@
+@model Netor.Cortana.Platform.Admin.Models.Creators.CreatorIndexViewModel
+@using Netor.Cortana.Platform.Entitys.Enums
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    ViewData["Title"] = "创作者管理";
+    ViewData["WorkspaceTags"] = new[]
+    {
+        new AdminWorkspaceTag("全部创作者", Model.TotalCount.ToString(), Url.Action("Index", "Creators")),
+        new AdminWorkspaceTag("待审核", Model.PendingCount.ToString(), Url.Action("Index", "Creators", new { status = (int)CreatorStatus.Pending })),
+        new AdminWorkspaceTag("已通过", Model.ApprovedCount.ToString(), Url.Action("Index", "Creators", new { status = (int)CreatorStatus.Approved })),
+        new AdminWorkspaceTag("已暂停", Model.SuspendedCount.ToString(), Url.Action("Index", "Creators", new { status = (int)CreatorStatus.Suspended }))
+    };
+}
+
+<section class="admin-card admin-filter-card">
+    <div class="admin-card-body">
+        <form id="creatorFilter" class="layui-form layui-form-pane" lay-filter="creatorFilter">
+            <div class="admin-filter-grid">
+                <div class="layui-form-item admin-filter-span-2">
+                    <label class="layui-form-label">关键词</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="keyword" value="@Model.Keyword" placeholder="创作者/账号/简介" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">显示名</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="displayName" placeholder="创作者名称" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">账号</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="accountKeyword" placeholder="账号关键词" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">状态</label>
+                    <div class="layui-input-block">
+                        <select name="status">
+                            <option value="">全部</option>
+                            @foreach (var option in Enum.GetValues<CreatorStatus>())
+                            {
+                                <option value="@((int)option)" selected="@(Model.Status == option)">@GetCreatorStatusName(option)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">通过自</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="approvedStart" data-laydate placeholder="开始日期" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">通过至</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="approvedEnd" data-laydate placeholder="结束日期" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">资产最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="assetMin" type="number" min="0" placeholder="0" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">资产最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="assetMax" type="number" min="0" placeholder="100" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">待结算最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="pendingSettlementMin" type="number" step="0.01" placeholder="0.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">待结算最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="pendingSettlementMax" type="number" step="0.01" placeholder="9999.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">已结算最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="settledSettlementMin" type="number" step="0.01" placeholder="0.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">已结算最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="settledSettlementMax" type="number" step="0.01" placeholder="9999.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">待审资源</label>
+                    <div class="layui-input-block">
+                        <select name="hasPendingReview">
+                            <option value="">全部</option>
+                            <option value="true">有待审资源</option>
+                            <option value="false">无待审资源</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item admin-filter-submit">
+                    <button class="layui-btn layui-btn-normal" lay-submit lay-filter="creatorSearch">查询</button>
+                    <button class="layui-btn layui-btn-primary" type="button" data-creator-filter-reset>重置</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="admin-card admin-layui-table-card">
+    <div class="admin-card-body">
+        <input name="__RequestVerificationToken" type="hidden" value="@AntiforgeryToken()" />
+        <table id="creatorTable" lay-filter="creatorTable"></table>
+    </div>
+</section>
+
+<script type="text/html" id="creatorNameTpl">
+    <div class="admin-text-strong">{{ d.displayName }}</div>
+    <div class="admin-text-muted">{{ d.bio }}</div>
+</script>
+
+<script type="text/html" id="creatorStatusTpl">
+    <span class="admin-badge {{ d.statusBadgeClass }}">{{ d.statusName }}</span>
+</script>
+
+<script type="text/html" id="creatorAssetsTpl">
+    <div>{{ d.assetCount }} 资源</div>
+    <div class="admin-text-muted">{{ d.pendingReviewCount }} 待审</div>
+</script>
+
+<script type="text/html" id="creatorSettlementTpl">
+    <div>{{ d.pendingSettlementAmount }} 待结算</div>
+    <div class="admin-text-muted">{{ d.settledSettlementAmount }} 已结算</div>
+</script>
+
+<script type="text/html" id="creatorActionsTpl">
+    <div class="layui-btn-group admin-row-actions">
+        <a class="layui-btn layui-btn-xs" lay-event="view">查看</a>
+        <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="assets">资源</a>
+        <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="settlements">结算</a>
+        {{# if (d.status !== 2) { }}
+            <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="approve">通过</a>
+        {{# } }}
+        {{# if (d.status !== 3) { }}
+            <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="suspend">暂停</a>
+        {{# } }}
+    </div>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table", "layer"], function () {
+            const form = layui.form;
+            const table = layui.table;
+            const layer = layui.layer;
+            const filterSelector = "#creatorFilter";
+            const tableId = "creatorTable";
+            const token = () => document.querySelector("input[name='__RequestVerificationToken']").value;
+            const postAction = (url, done) => {
+                const formData = new FormData();
+                formData.append("__RequestVerificationToken", token());
+                fetch(url, { method: "POST", body: formData }).then(() => {
+                    table.reload(tableId);
+                    if (done) {
+                        done();
+                    }
+                });
+            };
+
+            window.adminTable.render({
+                elem: "#creatorTable",
+                id: tableId,
+                url: "@Url.Action("TableData", "Creators")",
+                where: window.adminFilter.collect(filterSelector),
+                cols: [[
+                    { field: "displayName", title: "创作者", minWidth: 240, templet: "#creatorNameTpl", sort: true },
+                    { field: "accountName", title: "账号", minWidth: 160, sort: true },
+                    { field: "status", title: "状态", width: 110, templet: "#creatorStatusTpl", sort: true },
+                    { field: "assetCount", title: "资源", width: 110, templet: "#creatorAssetsTpl", sort: true },
+                    { field: "pendingSettlementAmount", title: "结算", width: 170, templet: "#creatorSettlementTpl", sort: true },
+                    { field: "approvedAtText", title: "通过时间", width: 170, sort: true },
+                    { field: "timeStamp", title: "创建标记", width: 150, sort: true },
+                    { title: "操作", width: 220, fixed: "right", toolbar: "#creatorActionsTpl" }
+                ]]
+            });
+
+            form.on("submit(creatorSearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-creator-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+
+            table.on("tool(creatorTable)", function (obj) {
+                const item = obj.data;
+                if (obj.event === "view") {
+                    window.adminDrawer.openRight({
+                        title: `创作者详情 - ${item.displayName}`,
+                        url: `@Url.Action("Details", "Creators")?id=${encodeURIComponent(item.id)}&mode=drawer`,
+                        width: "760px"
+                    });
+                } else if (obj.event === "assets") {
+                    window.adminDrawer.openBottom({
+                        title: `名下资源 - ${item.displayName}`,
+                        url: `@Url.Action("Assets", "Creators")?id=${encodeURIComponent(item.id)}&mode=drawer`,
+                        height: "76%"
+                    });
+                } else if (obj.event === "settlements") {
+                    window.adminDrawer.openBottom({
+                        title: `结算记录 - ${item.displayName}`,
+                        url: `@Url.Action("Settlements", "Creators")?id=${encodeURIComponent(item.id)}&mode=drawer`,
+                        height: "76%"
+                    });
+                } else if (obj.event === "approve") {
+                    layer.confirm("确定通过该创作者审核吗？", { icon: 3, title: "通过审核" }, function (index) {
+                        postAction(`@Url.Action("Approve", "Creators")?id=${encodeURIComponent(item.id)}`, () => layer.msg("创作者已通过审核。"));
+                        layer.close(index);
+                    });
+                } else if (obj.event === "suspend") {
+                    layer.confirm("确定暂停该创作者吗？", { icon: 3, title: "暂停创作者" }, function (index) {
+                        postAction(`@Url.Action("Suspend", "Creators")?id=${encodeURIComponent(item.id)}`, () => layer.msg("创作者已暂停。"));
+                        layer.close(index);
+                    });
+                }
+            });
+        });
+    </script>
+}
+
+@functions {
+    private static string GetCreatorStatusName(CreatorStatus status) => status switch
+    {
+        CreatorStatus.Pending => "待审核",
+        CreatorStatus.Approved => "已通过",
+        CreatorStatus.Suspended => "已暂停",
+        _ => status.ToString()
+    };
+
+    private string AntiforgeryToken()
+    {
+        return Antiforgery.GetAndStoreTokens(Context).RequestToken ?? string.Empty;
+    }
+}

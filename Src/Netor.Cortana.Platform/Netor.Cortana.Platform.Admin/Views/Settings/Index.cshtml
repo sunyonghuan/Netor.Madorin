@@ -1,0 +1,279 @@
+@model Netor.Cortana.Platform.Admin.Models.Settings.SettingsIndexViewModel
+@using Netor.Database.Abstractions.Enums
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    ViewData["Title"] = "系统设置";
+    ViewData["WorkspaceTags"] = new[]
+    {
+        new AdminWorkspaceTag("全部设置", Model.TotalCount.ToString(), Url.Action("Index", "Settings")),
+        new AdminWorkspaceTag("设置分组", Model.Groups.Count.ToString(), null),
+        new AdminWorkspaceTag("开关配置", Model.BooleanCount.ToString(), Url.Action("Index", "Settings", new { type = (int)NetorDataType.Boolean })),
+        new AdminWorkspaceTag("保护项", Model.ProtectedCount.ToString(), Url.Action("Index", "Settings", new { isProtection = true })),
+        new AdminWorkspaceTag("可编辑项", Model.EditableCount.ToString(), Url.Action("Index", "Settings", new { isProtection = false }))
+    };
+}
+
+<section class="admin-card admin-filter-card">
+    <div class="admin-card-body">
+        <form id="settingFilter" class="layui-form layui-form-pane" lay-filter="settingFilter">
+            <div class="admin-filter-grid">
+                <div class="layui-form-item admin-filter-span-2">
+                    <label class="layui-form-label">关键词</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="keyword" value="@Model.Keyword" placeholder="Key/名称/说明/值" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">Key 前缀</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="keyPrefix" placeholder="platform." />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">分组</label>
+                    <div class="layui-input-block">
+                        <select name="group">
+                            <option value="">全部</option>
+                            @foreach (var group in Model.Groups)
+                            {
+                                <option value="@group.Name" selected="@(Model.Group == group.Name)">@group.Name</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">类型</label>
+                    <div class="layui-input-block">
+                        <select name="type">
+                            <option value="">全部</option>
+                            @foreach (var option in Enum.GetValues<NetorDataType>())
+                            {
+                                <option value="@((int)option)">@GetTypeName(option)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">保护</label>
+                    <div class="layui-input-block">
+                        <select name="isProtection">
+                            <option value="">全部</option>
+                            <option value="true">保护项</option>
+                            <option value="false">可编辑</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">空值</label>
+                    <div class="layui-input-block">
+                        <select name="isEmpty">
+                            <option value="">全部</option>
+                            <option value="true">空值</option>
+                            <option value="false">非空</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">显示名</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="displayKeyword" placeholder="说明关键词" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">配置名</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="nameKeyword" placeholder="名称关键词" />
+                    </div>
+                </div>
+                <div class="layui-form-item admin-filter-submit">
+                    <button class="layui-btn layui-btn-normal" lay-submit lay-filter="settingSearch">查询</button>
+                    <button class="layui-btn layui-btn-primary" type="button" data-setting-filter-reset>重置</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="admin-card admin-layui-table-card">
+    <div class="admin-card-body">
+        <input name="__RequestVerificationToken" type="hidden" value="@AntiforgeryToken()" />
+        <table id="settingTable" lay-filter="settingTable"></table>
+    </div>
+</section>
+
+<script type="text/html" id="settingKeyTpl">
+    <div class="admin-text-strong">{{ d.name }}</div>
+    <div class="admin-text-muted">{{ d.key }}</div>
+    <div class="admin-text-muted">{{ d.display || "-" }}</div>
+</script>
+
+<script type="text/html" id="settingTypeTpl">
+    <span class="admin-badge {{ d.type === 1 ? 'admin-badge-success' : 'admin-badge-muted' }}">{{ d.typeName }}</span>
+    {{# if (d.isProtection) { }}<span class="admin-badge admin-badge-warning">保护</span>{{# } }}
+</script>
+
+<script type="text/html" id="settingValueTpl">
+    {{ d.isProtection ? d.maskedValue : d.value }}
+</script>
+
+<script type="text/html" id="settingActionsTpl">
+    <div class="layui-btn-group admin-row-actions">
+        <a class="layui-btn layui-btn-xs" lay-event="view">查看</a>
+        <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="edit">编辑</a>
+        <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="reset">重置</a>
+        {{# if (!d.isProtection) { }}
+            <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="delete">删除</a>
+        {{# } }}
+    </div>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table", "layer"], function () {
+            const form = layui.form;
+            const table = layui.table;
+            const layer = layui.layer;
+            const filterSelector = "#settingFilter";
+            const tableId = "settingTable";
+            const token = () => document.querySelector("input[name='__RequestVerificationToken']").value;
+            const postAction = (url, values, done) => {
+                const formData = new FormData();
+                Object.keys(values || {}).forEach((key) => formData.append(key, values[key]));
+                formData.append("__RequestVerificationToken", token());
+                fetch(url, { method: "POST", body: formData }).then(() => {
+                    table.reload(tableId);
+                    if (done) {
+                        done();
+                    }
+                });
+            };
+
+            window.adminTable.render({
+                elem: "#settingTable",
+                id: tableId,
+                url: "@Url.Action("TableData", "Settings")",
+                where: window.adminFilter.collect(filterSelector),
+                toolbar: "#settingTableToolbarTpl",
+                cols: [[
+                    { field: "key", title: "配置", minWidth: 280, templet: "#settingKeyTpl", sort: true },
+                    { field: "group", title: "分组", width: 130, sort: true },
+                    { field: "type", title: "类型", width: 130, templet: "#settingTypeTpl", sort: true },
+                    { field: "value", title: "值", minWidth: 260, edit: "textarea", templet: "#settingValueTpl" },
+                    { title: "操作", width: 206, fixed: "right", toolbar: "#settingActionsTpl" }
+                ]]
+            });
+
+            form.on("submit(settingSearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-setting-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+
+            const saveCurrentPage = function () {
+                const rows = (table.cache && table.cache[tableId] ? table.cache[tableId] : []).filter((item) => item && !item.isProtection);
+                if (rows.length === 0) {
+                    layer.msg("当前页没有可保存的配置项。");
+                    return;
+                }
+
+                const formData = new FormData();
+                rows.forEach((item, index) => {
+                    formData.append(`Items[${index}].Id`, item.id);
+                    formData.append(`Items[${index}].Value`, item.value || "");
+                });
+                formData.append("Keyword", "");
+                formData.append("Group", "");
+                formData.append("__RequestVerificationToken", token());
+
+                fetch("@Url.Action("Save", "Settings")", { method: "POST", body: formData }).then(() => {
+                    table.reload(tableId);
+                    layer.msg("当前页配置已保存。");
+                });
+            };
+
+            const testPackageStorage = function () {
+                layer.confirm("确定检测当前包存储配置吗？", { icon: 3, title: "检测包存储" }, function (index) {
+                    postAction("@Url.Action("TestPackageStorage", "Settings")", {}, () => layer.msg("检测已提交。"));
+                    layer.close(index);
+                });
+            };
+
+            table.on("toolbar(settingTable)", function (obj) {
+                if (obj.event === "testStorage") {
+                    testPackageStorage();
+                    return;
+                }
+
+                if (obj.event === "create") {
+                    window.adminDrawer.openRight({
+                        title: "新增系统设置",
+                        url: "@Url.Action("Create", "Settings", new { mode = "drawer" })",
+                        width: "760px"
+                    });
+                    return;
+                }
+
+                if (obj.event === "save") {
+                    saveCurrentPage();
+                }
+            });
+
+            table.on("tool(settingTable)", function (obj) {
+                const item = obj.data;
+                if (obj.event === "view") {
+                    window.adminDrawer.openRight({
+                        title: `设置详情 - ${item.name}`,
+                        url: `@Url.Action("Details", "Settings")?id=${encodeURIComponent(item.id)}&mode=drawer`,
+                        width: "760px"
+                    });
+                } else if (obj.event === "edit") {
+                    window.adminDrawer.openRight({
+                        title: `编辑设置 - ${item.name}`,
+                        url: `@Url.Action("Edit", "Settings")?id=${encodeURIComponent(item.id)}&mode=drawer`,
+                        width: "760px"
+                    });
+                } else if (obj.event === "reset") {
+                    layer.confirm("确定恢复该设置的推荐默认值吗？", { icon: 3, title: "重置设置" }, function (index) {
+                        postAction(`@Url.Action("Reset", "Settings")?id=${encodeURIComponent(item.id)}`, {}, () => layer.msg("设置已重置。"));
+                        layer.close(index);
+                    });
+                } else if (obj.event === "delete") {
+                    layer.confirm("确定删除该设置吗？", { icon: 3, title: "删除设置" }, function (index) {
+                        postAction(`@Url.Action("Delete", "Settings")?id=${encodeURIComponent(item.id)}`, {}, () => layer.msg("删除操作已提交。"));
+                        layer.close(index);
+                    });
+                }
+            });
+        });
+    </script>
+}
+
+<script type="text/html" id="settingTableToolbarTpl">
+    <div class="admin-table-toolbar">
+        <div class="admin-table-toolbar-group">
+            <button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="testStorage">检测包存储</button>
+            <button class="layui-btn layui-btn-sm layui-btn-normal" lay-event="create">新增设置</button>
+            <button class="layui-btn layui-btn-sm layui-btn-normal" lay-event="save">保存当前页</button>
+        </div>
+    </div>
+</script>
+
+@functions {
+    private static string GetTypeName(NetorDataType type)
+    {
+        return type switch
+        {
+            NetorDataType.Text => "文本",
+            NetorDataType.Boolean => "开关",
+            _ => type.ToString()
+        };
+    }
+
+    private string AntiforgeryToken()
+    {
+        return Antiforgery.GetAndStoreTokens(Context).RequestToken ?? string.Empty;
+    }
+}

@@ -1,0 +1,61 @@
+@model Netor.Cortana.Platform.Web.Models.Account.AccountProfileViewModel
+@{
+    ViewData["Title"] = "账号中心";
+}
+
+<div class="page-heading compact">
+    <span class="eyebrow">Account</span>
+    <h1>账号中心</h1>
+    <p>维护桌面端登录使用的账号资料、联系方式和登录密码。</p>
+</div>
+
+<div class="content-panel mx-auto" style="max-width: 760px;">
+    <form method="post">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="text-danger small mb-3"></div>
+        <div class="mb-3">
+            <label asp-for="LoginUserName" class="form-label"></label>
+            <input asp-for="LoginUserName" class="form-control" disabled />
+        </div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="NickName" class="form-label"></label>
+                <input asp-for="NickName" class="form-control" />
+                <span asp-validation-for="NickName" class="text-danger small"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Phone" class="form-label"></label>
+                <input asp-for="Phone" class="form-control" autocomplete="tel" />
+                <span asp-validation-for="Phone" class="text-danger small"></span>
+            </div>
+            <div class="col-12">
+                <label asp-for="Email" class="form-label"></label>
+                <input asp-for="Email" class="form-control" autocomplete="email" />
+                <span asp-validation-for="Email" class="text-danger small"></span>
+            </div>
+        </div>
+        <hr class="my-4" />
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label asp-for="CurrentPassword" class="form-label"></label>
+                <input asp-for="CurrentPassword" class="form-control" autocomplete="current-password" />
+                <span asp-validation-for="CurrentPassword" class="text-danger small"></span>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="NewPassword" class="form-label"></label>
+                <input asp-for="NewPassword" class="form-control" autocomplete="new-password" />
+                <span asp-validation-for="NewPassword" class="text-danger small"></span>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="ConfirmNewPassword" class="form-label"></label>
+                <input asp-for="ConfirmNewPassword" class="form-control" autocomplete="new-password" />
+                <span asp-validation-for="ConfirmNewPassword" class="text-danger small"></span>
+            </div>
+        </div>
+        <button class="btn btn-madorin-primary mt-4" type="submit">保存账号资料</button>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

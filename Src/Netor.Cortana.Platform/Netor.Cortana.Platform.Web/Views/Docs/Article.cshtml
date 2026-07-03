@@ -1,0 +1,22 @@
+@model Netor.Cortana.Platform.Web.Models.Docs.DocsArticleViewModel
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<section class="official-hero slim reveal-on-scroll">
+    <div>
+        <span class="eyebrow">@Model.CategoryName</span>
+        <h1>@Model.Title</h1>
+        <p>@Model.Summary</p>
+    </div>
+</section>
+
+<section class="content-panel docs-detail">
+    <div class="docs-detail-meta">
+        <a asp-controller="Docs" asp-action="Category" asp-route-categorySlug="@Model.CategorySlug">@Model.CategoryName</a>
+        <span>@(Model.PublishedAtUtc?.ToLocalTime().ToString("yyyy-MM-dd") ?? "未记录发布时间")</span>
+    </div>
+    <div class="docs-markdown">
+        @Model.ContentHtml
+    </div>
+</section>

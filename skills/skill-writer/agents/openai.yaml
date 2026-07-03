@@ -1,0 +1,5 @@
+interface:
+  display_name: "Skill Writer"
+  short_description: "Help with Skill Writer workflows"
+  default_prompt: "Use $skill-writer to help with Skill Writer tasks."
+

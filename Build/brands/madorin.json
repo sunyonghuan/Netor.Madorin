@@ -1,0 +1,20 @@
+{
+  "id": "madorin",
+  "englishName": "Madorin",
+  "displayName": "玛得令",
+  "assistantSubtitle": "Madorin AI 助手",
+  "websiteHost": "madorin.netor.me",
+  "desktopAssemblyName": "Madorin",
+  "assemblyTitle": "Madorin",
+  "resourceAssemblyName": "Madorin",
+  "nativeHostAssemblyName": "Madorin.NativeHost",
+  "releaseDirectoryName": "Madorin",
+  "packageName": "Madorin",
+  "applicationIconPath": "Assets\\logo.200.ico",
+  "nativeHostIcon": "logo.200.ico",
+  "logoImageFileName": "logo.200.png",
+  "platformBaseUrlSettingKey": "Platform.BaseUrl",
+  "localPlatformApiBaseUrl": "http://localhost:5190",
+  "productionPlatformApiBaseUrl": "https://platform.netor.me",
+  "platformBaseUrlDescription": "应用商店连接的运营平台 API 地址。本地联调使用 http://localhost:5190；切换后需要重新登录平台账号。"
+}

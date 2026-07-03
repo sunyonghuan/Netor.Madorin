@@ -1,0 +1,98 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Madorin</title>
+    <script type="importmap"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/Netor.Cortana.Platform.Web.styles.css" asp-append-version="true" />
+</head>
+<body class="@(ViewData["BodyClass"] ?? "official-page")">
+    <header>
+        <nav class="navbar navbar-expand-lg sticky-top madorin-nav">
+            <div class="container-fluid nav-frame">
+                <a class="navbar-brand brand-mark" asp-area="" asp-controller="Home" asp-action="Index">
+                    <span class="brand-glyph">M</span>
+                    <span>Madorin</span>
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse d-lg-inline-flex justify-content-between">
+                    <ul class="navbar-nav gap-lg-2">
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Index">首页</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-controller="Market" asp-action="Index">资源中心</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Download">下载</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Help">帮助中心</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="About">关于我们</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Contact">联系我们</a>
+                        </li>
+                    </ul>
+                    <div class="d-flex gap-2 align-items-center">
+                        @if (User.Identity?.IsAuthenticated == true)
+                        {
+                            <a class="btn btn-nav-secondary btn-sm" asp-controller="UserCenter" asp-action="Index">@User.Identity.Name</a>
+                            <form asp-controller="Account" asp-action="Logout" method="post">
+                                @Html.AntiForgeryToken()
+                                <button class="btn btn-nav-ghost btn-sm" type="submit">退出</button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+    @if (TempData["WebToast"] is string toast)
+    {
+        <div class="container mt-3">
+            <div class="alert alert-info mb-0">@toast</div>
+        </div>
+    }
+    <div class="page-shell">
+        <main role="main" class="pb-3">
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="site-footer py-4">
+        <div class="container-fluid nav-frame site-footer-grid">
+            <div>
+                <strong>Madorin</strong>
+                <span>&copy; 2026 Madorin</span>
+            </div>
+            <div class="footer-links">
+                <a asp-controller="Home" asp-action="About">关于我们</a>
+                <a asp-controller="Home" asp-action="Contact">联系我们</a>
+                <a asp-controller="Home" asp-action="Help">帮助中心</a>
+                <a asp-controller="Docs" asp-action="Index">文档中心</a>
+                <a asp-controller="Home" asp-action="Privacy">隐私说明</a>
+                <a asp-controller="Home" asp-action="Terms">服务条款</a>
+            </div>
+        </div>
+        <div class="container-fluid nav-frame footer-beian">
+            <a href="https://beian.mps.gov.cn/#/query/webSearch?code=35021102002653" rel="noreferrer" target="_blank">
+                <img src="~/img/beian.png" alt="" />
+                <span>闽公网安备35021102002653号</span>
+            </a>
+        </div>
+    </footer>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

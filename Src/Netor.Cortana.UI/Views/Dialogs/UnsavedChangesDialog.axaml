@@ -1,0 +1,136 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:dialogs="using:Netor.Cortana.UI.Views.Dialogs"
+        x:Class="Netor.Cortana.UI.Views.Dialogs.UnsavedChangesDialog"
+        x:DataType="dialogs:UnsavedChangesDialog"
+        x:CompileBindings="True"
+        x:Name="root"
+        Title="切换工作模式"
+        Width="440"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource BaseBrush}"
+        ShowInTaskbar="False"
+        ExtendClientAreaToDecorationsHint="True">
+
+	<!-- ════════════════════════════════════════════════════════════════
+	     界面重设计 C2：未保存内容确认对话框（决策 UI-7 D2 + DT-4）
+	     ════════════════════════════════════════════════════════════════
+	     用户在对话模式下输入了未发送的内容，主动切换到工作流/群聊 tab 时触发。
+	     视觉规格详见 Docs/未来版本策划/界面重设计/03-交互细节.md §2。
+
+	     3 个按钮 → UnsavedChoice 枚举：
+	       - 取消 (Cancel)        : 不切走，留在对话模式（按 Esc / Enter 也是这个，决策 DT-4）
+	       - 保留内容 (Save)      : 切走，但通过 ChatDraftService.Save 暂存输入框 + 附件
+	       - 丢弃并切换 (Discard) : 切走，清空输入框 + 附件
+	     ════════════════════════════════════════════════════════════════ -->
+
+	<Border Background="{DynamicResource BaseBrush}"
+	        BorderBrush="{DynamicResource Surface1Brush}"
+	        BorderThickness="1">
+		<DockPanel>
+			<Border DockPanel.Dock="Top"
+			        Height="36"
+			        Background="{DynamicResource BaseBrush}"
+			        PointerPressed="OnTitlePointerPressed">
+				<Grid ColumnDefinitions="*,Auto" Margin="12,0,8,0">
+					<TextBlock Grid.Column="0"
+					           Text="切换工作模式"
+					           Foreground="{DynamicResource TextBrush}"
+					           FontSize="{DynamicResource Font.Body}"
+					           FontWeight="{DynamicResource Weight.SemiBold}"
+					           VerticalAlignment="Center" />
+					<Button Grid.Column="1"
+					        Content="×"
+					        Background="Transparent"
+					        Foreground="{DynamicResource SubtextBrush}"
+					        BorderThickness="0"
+					        CornerRadius="{DynamicResource Radius.Md}"
+					        Padding="8,4"
+					        MinWidth="26"
+					        MinHeight="24"
+					        Cursor="Hand"
+					        Click="OnCancelClick" />
+				</Grid>
+			</Border>
+
+			<StackPanel Spacing="14"
+			            Margin="20"
+			            DockPanel.Dock="Bottom">
+
+			<!-- 主提示 -->
+			<TextBlock Text="当前对话有未发送的内容，是否丢弃？"
+			           FontSize="{DynamicResource Font.Body}"
+			           Foreground="{DynamicResource TextBrush}"
+			           TextWrapping="Wrap" />
+
+			<!-- 文本预览块 -->
+			<Border x:Name="PreviewBorder"
+			        Background="{DynamicResource Surface0Brush}"
+			        CornerRadius="{DynamicResource Radius.Sm}"
+			        BorderBrush="{DynamicResource Surface1Brush}"
+			        BorderThickness="1"
+			        Padding="12,8"
+			        MaxHeight="80"
+			        IsVisible="False">
+				<TextBlock x:Name="PreviewText"
+				           FontSize="{DynamicResource Font.Sm}"
+				           Foreground="{DynamicResource SubtextBrush}"
+				           TextWrapping="Wrap"
+				           FontStyle="Italic" />
+			</Border>
+
+			<!-- 附件数量 -->
+			<TextBlock x:Name="AttachmentCountText"
+			           FontSize="{DynamicResource Font.Sm}"
+			           Foreground="{DynamicResource SubtextBrush}"
+			           IsVisible="False" />
+
+			<!-- 操作按钮 -->
+			<StackPanel Orientation="Horizontal" Spacing="8"
+			            HorizontalAlignment="Right"
+			            Margin="0,4,0,0">
+
+				<Button x:Name="CancelButton"
+				        Content="取消"
+				        Padding="14,6"
+				        FontSize="{DynamicResource Font.Body}"
+				        Background="{DynamicResource Surface1Brush}"
+				        Foreground="{DynamicResource TextBrush}"
+				        CornerRadius="{DynamicResource Radius.Sm}"
+				        BorderThickness="0"
+				        Cursor="Hand"
+				        IsDefault="True"
+				        IsCancel="True"
+				        Click="OnCancelClick" />
+
+				<Button x:Name="SaveButton"
+				        Content="保留内容"
+				        Padding="14,6"
+				        FontSize="{DynamicResource Font.Body}"
+				        Background="{DynamicResource Surface1Brush}"
+				        Foreground="{DynamicResource TextBrush}"
+				        CornerRadius="{DynamicResource Radius.Sm}"
+				        BorderThickness="0"
+				        Cursor="Hand"
+				        Click="OnSaveClick" />
+
+				<Button x:Name="DiscardButton"
+				        Content="丢弃并切换"
+				        Padding="14,6"
+				        FontSize="{DynamicResource Font.Body}"
+				        Background="Transparent"
+				        Foreground="{DynamicResource DangerBrush}"
+				        CornerRadius="{DynamicResource Radius.Sm}"
+				        BorderThickness="1"
+				        BorderBrush="{DynamicResource DangerBrush}"
+				        Cursor="Hand"
+				        Click="OnDiscardClick" />
+
+			</StackPanel>
+			</StackPanel>
+		</DockPanel>
+	</Border>
+
+</Window>

@@ -1,0 +1,665 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:Netor.Cortana.Store.Models"
+        xmlns:viewModels="clr-namespace:Netor.Cortana.Store.ViewModels"
+        x:Class="Netor.Cortana.Store.Views.StoreWindow"
+        x:DataType="viewModels:StoreWindowViewModel"
+        x:CompileBindings="True"
+        Title=""
+        Width="980"
+        Height="740"
+        MinWidth="900"
+        MinHeight="620"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BaseBrush}"
+        ExtendClientAreaToDecorationsHint="True">
+    <Window.Styles>
+        <Style Selector="Button.store-btn">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="{StaticResource Surface1Brush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="RenderTransform" Value="translateY(0)" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.store-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource Surface2Brush}" />
+        </Style>
+        <Style Selector="Button.store-btn:pointerover">
+            <Setter Property="RenderTransform" Value="translateY(-1px)" />
+            <Setter Property="Opacity" Value="0.96" />
+        </Style>
+        <Style Selector="Button.store-btn:pressed">
+            <Setter Property="RenderTransform" Value="translateY(0)" />
+            <Setter Property="Opacity" Value="0.88" />
+        </Style>
+        <Style Selector="Button.store-primary">
+            <Setter Property="Background" Value="{StaticResource PrimaryButtonBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource PrimaryButtonTextBrush}" />
+        </Style>
+        <Style Selector="Button.store-primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource PrimaryButtonHoverBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AccentHoverBrush}" />
+        </Style>
+        <Style Selector="Button.store-primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource PrimaryButtonPressedBrush}" />
+        </Style>
+        <Style Selector="TextBox.store-search">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="MaxHeight" Value="32" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="0,1,0,0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="TextBox.store-search /template/ Border">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="TextBox.store-search:focus /template/ Border">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ComboBox.store-category-filter">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Width" Value="128" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="{StaticResource Surface1Brush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="ComboBox.store-category-filter:pointerover /template/ Border">
+            <Setter Property="Background" Value="{StaticResource Surface2Brush}" />
+        </Style>
+        <Style Selector="ListBoxItem.store-nav">
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="Foreground" Value="{StaticResource SubtextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="ListBoxItem.store-nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource Surface0Brush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        </Style>
+        <Style Selector="ListBoxItem.store-nav:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource Surface0Brush}" />
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+        </Style>
+        <Style Selector="ListBox.store-nav-list">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="Border.table-shell">
+            <Setter Property="Background" Value="{StaticResource Surface0Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Surface1Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+        </Style>
+        <Style Selector="Border.empty-state">
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Background" Value="{StaticResource Surface0Brush}" />
+        </Style>
+        <Style Selector="Border.resource-row">
+            <Setter Property="MinHeight" Value="58" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Background" Value="{StaticResource Surface0Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Surface1Brush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+        </Style>
+        <Style Selector="Border.resource-row:pointerover">
+            <Setter Property="Background" Value="{StaticResource Surface2Brush}" />
+        </Style>
+        <Style Selector="Border.type-pill">
+            <Setter Property="Height" Value="22" />
+            <Setter Property="MinWidth" Value="48" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="Background" Value="{StaticResource MantleBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Foreground" Value="{StaticResource SubtextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style Selector="TextBlock.state">
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.metric-value">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="TextBlock.resource-title">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style Selector="TextBlock.account-text">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style Selector="Button.account-menu">
+            <Setter Property="MaxWidth" Value="190" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="TextBlock.account-name">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="MaxWidth" Value="148" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style Selector="Image.account-arrow">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="Height" Value="6" />
+            <Setter Property="Opacity" Value="0.76" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.status-text">
+            <Setter Property="Foreground" Value="{StaticResource SubtextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+        <Style Selector="WrapPanel.market-card-panel">
+            <Setter Property="Orientation" Value="Horizontal" />
+            <Setter Property="ItemWidth" Value="248" />
+        </Style>
+        <Style Selector="Border.market-card">
+            <Setter Property="MinHeight" Value="214" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Margin" Value="0,0,12,12" />
+            <Setter Property="Background" Value="{StaticResource Surface0Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Surface1Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="Border.market-card:pointerover">
+            <Setter Property="Background" Value="{StaticResource Surface2Brush}" />
+        </Style>
+        <Style Selector="TextBlock.market-summary">
+            <Setter Property="Foreground" Value="{StaticResource Overlay0Brush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="MaxHeight" Value="36" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Grid.meta-grid">
+            <Setter Property="ColumnSpacing" Value="12" />
+        </Style>
+        <Style Selector="StackPanel.meta-cell-left">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="StackPanel.meta-cell-left TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="TextAlignment" Value="Left" />
+        </Style>
+        <Style Selector="StackPanel.meta-cell-right">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="StackPanel.meta-cell-right TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="TextAlignment" Value="Right" />
+        </Style>
+        <Style Selector="TextBlock.meta-value">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+    </Window.Styles>
+
+    <Panel Background="{StaticResource BaseBrush}"
+           PointerPressed="OnTitleBarPointerPressed">
+        <Border Height="36"
+                VerticalAlignment="Top"
+                Background="Transparent"
+                PointerPressed="OnTitleBarPointerPressed" />
+
+        <Grid ColumnDefinitions="190,*" Margin="0,36,0,0">
+            <Border Grid.Column="0"
+                    Margin="0,-36,0,0"
+                    Background="{StaticResource MantleBrush}"
+                    BorderBrush="{StaticResource Surface1Brush}"
+                    BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="应用商店"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Margin="16,14,16,18" />
+
+                    <ListBox x:Name="ViewList"
+                             Classes="store-nav-list"
+                             SelectedIndex="0"
+                             SelectionChanged="OnViewSelectionChanged">
+                        <ListBoxItem Classes="store-nav">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image x:Name="FindIcon" Width="16" Height="16" />
+                                <TextBlock Text="发现" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem Classes="store-nav">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image x:Name="ResourcesIcon" Width="16" Height="16" />
+                                <TextBlock Text="我的资源" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem Classes="store-nav">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image x:Name="UpdateIcon" Width="16" Height="16" />
+                                <TextBlock Text="更新" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                        <ListBoxItem Classes="store-nav">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Image x:Name="InstallIcon" Width="16" Height="16" />
+                                <TextBlock Text="已安装" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ListBoxItem>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto" Margin="18">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,0,0,14">
+                    <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                        <Border Grid.Column="0"
+                                Height="34"
+                                MinHeight="34"
+                                MaxHeight="34"
+                                Padding="12,0"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource Surface0Brush}"
+                                BorderBrush="{StaticResource Surface1Brush}"
+                                BorderThickness="1"
+                                CornerRadius="4">
+                            <TextBox Classes="store-search"
+                                     Text="{Binding SearchText, Mode=TwoWay}"
+                                     PlaceholderText="搜索名称、开发者、能力关键词" />
+                        </Border>
+                        <ComboBox Grid.Column="1"
+                                  Classes="store-category-filter"
+                                  ItemsSource="{Binding CategoryFilterOptions}"
+                                  SelectedItem="{Binding SelectedCategoryFilter, Mode=TwoWay}" />
+                        <Button Grid.Column="2"
+                                Classes="store-btn"
+                                Classes.store-primary="{Binding IsPopularSortActive}"
+                                Content="热门优先"
+                                Click="OnPopularSortClick" />
+                        <Button Grid.Column="3"
+                                Classes="store-btn"
+                                Content="全部资源"
+                                Click="OnShowAllAssetsClick" />
+                        <Button Grid.Column="4"
+                                Classes="store-btn"
+                                Content="刷新"
+                                Click="OnRefreshAssetsClick" />
+                    </Grid>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Classes="store-btn store-primary"
+                                Content="登录"
+                                Click="OnLoginClick"
+                                IsVisible="{Binding IsLoginButtonVisible}" />
+                        <Button Classes="store-btn account-menu"
+                                IsVisible="{Binding IsSignedInActionsVisible}"
+                                ToolTip.Tip="{Binding AccountText}">
+                            <Button.Content>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                    <TextBlock Text="{Binding AccountText}"
+                                               Classes="account-name"
+                                               VerticalAlignment="Center" />
+                                    <Image Grid.Column="1"
+                                           x:Name="AccountArrowIcon"
+                                           Classes="account-arrow"
+                                           >
+                                        <Image.RenderTransform>
+                                            <RotateTransform Angle="180" />
+                                        </Image.RenderTransform>
+                                    </Image>
+                                </Grid>
+                            </Button.Content>
+                            <Button.Flyout>
+                                <MenuFlyout>
+                                    <MenuItem Header="同步资源" Click="OnSyncClick" />
+                                    <MenuItem Header="退出登录" Click="OnLogoutClick" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+            <Grid x:Name="MarketView" Grid.Row="1" RowDefinitions="Auto,*">
+                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                    <TextBlock Text="资源市场"
+                               Classes="section-title" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                        <Button Classes="store-btn"
+                                Classes.store-primary="{Binding IsAllMarketFilterActive}"
+                                Content="全部"
+                                Click="OnAllMarketFilterClick" />
+                        <Button Classes="store-btn"
+                                Classes.store-primary="{Binding IsPluginMarketFilterActive}"
+                                Content="插件"
+                                Click="OnPluginMarketFilterClick" />
+                        <Button Classes="store-btn"
+                                Classes.store-primary="{Binding IsSkillMarketFilterActive}"
+                                Content="技能"
+                                Click="OnSkillMarketFilterClick" />
+                        <Button Classes="store-btn"
+                                Classes.store-primary="{Binding IsAgentMarketFilterActive}"
+                                Content="智能体"
+                                Click="OnAgentMarketFilterClick" />
+                        <Button Classes="store-btn"
+                                Classes.store-primary="{Binding IsSolutionMarketFilterActive}"
+                                Content="方案"
+                                Click="OnSolutionMarketFilterClick" />
+                    </StackPanel>
+                </Grid>
+                <Border Grid.Row="1"
+                        Background="Transparent"
+                        BorderThickness="0">
+                    <Grid RowDefinitions="*">
+                        <Border Grid.Row="1" Classes="empty-state" IsVisible="{Binding IsBusy}">
+                            <TextBlock Text="正在加载应用商店资源..."
+                                       Classes="muted"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <Border Grid.Row="1" Classes="empty-state" IsVisible="{Binding IsMarketEmptyVisible}">
+                            <TextBlock Text="{Binding MarketEmptyText}"
+                                       Classes="muted"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <ScrollViewer x:Name="MarketScrollViewer"
+                                      Grid.Row="0"
+                                      IsVisible="{Binding IsMarketRowsVisible}">
+                            <ItemsControl ItemsSource="{Binding MarketAssetRows}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Classes="market-card-panel" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:StoreMarketAssetRow">
+                                        <Border Classes="market-card" PointerEntered="OnMarketCardPointerEntered">
+                                            <ToolTip.Tip>
+                                                <TextBlock Text="{Binding DetailToolTipText}"
+                                                           Foreground="{StaticResource TextBrush}"
+                                                           TextWrapping="Wrap"
+                                                           MaxWidth="320" />
+                                            </ToolTip.Tip>
+                                            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                                                <Grid RowDefinitions="Auto,Auto" RowSpacing="6">
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                        <TextBlock Text="{Binding Name}" Classes="resource-title" />
+                                                        <Border Grid.Column="1" Classes="type-pill" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                                            <TextBlock Text="{Binding AssetTypeText}" Foreground="{StaticResource AccentBrush}" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        </Border>
+                                                    </Grid>
+                                                    <TextBlock Grid.Row="1" Text="{Binding Summary}" Classes="market-summary" />
+                                                </Grid>
+
+                                                <Grid Grid.Row="1" Classes="meta-grid" ColumnDefinitions="*,*">
+                                                    <StackPanel Classes="meta-cell-left" Spacing="2">
+                                                        <TextBlock Text="当前版本" Classes="muted" />
+                                                        <TextBlock Text="{Binding VersionText}" Classes="meta-value" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Classes="meta-cell-right" Spacing="2">
+                                                        <TextBlock Text="主要功能" Classes="muted" />
+                                                        <TextBlock Text="{Binding AssetTypeText}" Classes="meta-value" />
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <Grid Grid.Row="2" Classes="meta-grid" ColumnDefinitions="*,*">
+                                                    <StackPanel Classes="meta-cell-left" Spacing="2">
+                                                        <TextBlock Text="开发者" Classes="muted" />
+                                                        <TextBlock Text="{Binding DeveloperName}" Classes="meta-value" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Classes="meta-cell-right" Spacing="2">
+                                                        <TextBlock Text="价格" Classes="muted" />
+                                                        <TextBlock Text="{Binding PriceText}" Classes="meta-value" />
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                    <TextBlock Text="安装状态" Classes="muted" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding StateText}" Classes="state" />
+                                                </Grid>
+
+                                                <Button Grid.Row="4"
+                                                        Classes="store-btn store-primary"
+                                                        Content="{Binding ActionText}"
+                                                        IsEnabled="{Binding CanInstall}"
+                                                        HorizontalAlignment="Stretch"
+                                                        Click="OnInstallClick"
+                                                        ToolTip.Tip="{Binding InstallTip}" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid x:Name="MineView" Grid.Row="1" IsVisible="False" RowDefinitions="Auto,*">
+                <TextBlock Text="我的资源"
+                           Classes="section-title"
+                           Margin="0,0,0,10" />
+                <Border Grid.Row="1" Classes="table-shell">
+                    <Grid RowDefinitions="36,*">
+                        <Grid ColumnDefinitions="2*,86,130,90,82,96,100" Margin="12,0" ColumnSpacing="10" VerticalAlignment="Center">
+                            <TextBlock Text="资源" Classes="muted" />
+                            <TextBlock Grid.Column="1" Text="类型" Classes="muted" />
+                            <TextBlock Grid.Column="2" Text="开发者" Classes="muted" />
+                            <TextBlock Grid.Column="3" Text="版本" Classes="muted" />
+                            <TextBlock Grid.Column="4" Text="大小" Classes="muted" />
+                            <TextBlock Grid.Column="5" Text="状态" Classes="muted" />
+                            <TextBlock Grid.Column="6" Text="操作" Classes="muted" HorizontalAlignment="Right" />
+                        </Grid>
+                        <Border Grid.Row="1" Classes="empty-state" IsVisible="{Binding IsBusy}">
+                            <TextBlock Text="正在同步账号资源..."
+                                       Classes="muted"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <Border Grid.Row="1" Classes="empty-state" IsVisible="{Binding IsOwnedEmptyVisible}">
+                            <TextBlock Text="{Binding OwnedEmptyText}"
+                                       Classes="muted"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <ScrollViewer Grid.Row="1" IsVisible="{Binding IsOwnedRowsVisible}">
+                            <ItemsControl ItemsSource="{Binding OwnedAssetRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:StoreInstallAssetRow">
+                                        <Border Classes="resource-row">
+                                            <Grid ColumnDefinitions="2*,86,130,90,82,96,100" ColumnSpacing="10" VerticalAlignment="Center">
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Text="{Binding Name}" Classes="resource-title" />
+                                                    <TextBlock Text="{Binding Description}" Classes="muted" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Classes="type-pill" HorizontalAlignment="Left">
+                                                    <TextBlock Text="{Binding AssetTypeText}" Foreground="{StaticResource AccentBrush}" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                                <TextBlock Grid.Column="2" Text="{Binding DeveloperName}" Classes="muted" />
+                                                <TextBlock Grid.Column="3" Text="{Binding VersionText}" Classes="muted" />
+                                                <TextBlock Grid.Column="4" Text="{Binding SizeText}" Classes="muted" />
+                                                <TextBlock Grid.Column="5" Text="{Binding StateText}" Classes="state" />
+                                                <Button Grid.Column="6" Classes="store-btn store-primary" Content="安装" HorizontalAlignment="Right" Click="OnOwnedInstallClick" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid x:Name="UpdatesView" Grid.Row="1" IsVisible="False" RowDefinitions="Auto,*">
+                <TextBlock Text="更新"
+                           Classes="section-title"
+                           Margin="0,0,0,10" />
+                <Border Grid.Row="1" Classes="table-shell">
+                    <Grid RowDefinitions="36,*">
+                        <Grid ColumnDefinitions="2*,86,130,90,90,82,100" Margin="12,0" ColumnSpacing="10" VerticalAlignment="Center">
+                            <TextBlock Text="资源" Classes="muted" />
+                            <TextBlock Grid.Column="1" Text="类型" Classes="muted" />
+                            <TextBlock Grid.Column="2" Text="开发者" Classes="muted" />
+                            <TextBlock Grid.Column="3" Text="已安装" Classes="muted" />
+                            <TextBlock Grid.Column="4" Text="新版本" Classes="muted" />
+                            <TextBlock Grid.Column="5" Text="大小" Classes="muted" />
+                            <TextBlock Grid.Column="6" Text="操作" Classes="muted" HorizontalAlignment="Right" />
+                        </Grid>
+                        <Border Grid.Row="1" Classes="empty-state" IsVisible="{Binding IsBusy}">
+                            <TextBlock Text="正在检查可用更新..."
+                                       Classes="muted"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <Border Grid.Row="1" Classes="empty-state" IsVisible="{Binding IsUpdateEmptyVisible}">
+                            <TextBlock Text="{Binding UpdateEmptyText}"
+                                       Classes="muted"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <ScrollViewer Grid.Row="1" IsVisible="{Binding IsUpdateRowsVisible}">
+                            <ItemsControl ItemsSource="{Binding UpdateRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:StoreUpdateAssetRow">
+                                        <Border Classes="resource-row">
+                                            <Grid ColumnDefinitions="2*,86,130,90,90,82,100" ColumnSpacing="10" VerticalAlignment="Center">
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Text="{Binding Name}" Classes="resource-title" />
+                                                    <TextBlock Text="{Binding Description}" Classes="muted" />
+                                                </StackPanel>
+                                                <Border Grid.Column="1" Classes="type-pill" HorizontalAlignment="Left">
+                                                    <TextBlock Text="{Binding AssetTypeText}" Foreground="{StaticResource AccentBrush}" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                                <TextBlock Grid.Column="2" Text="{Binding DeveloperName}" Classes="muted" />
+                                                <TextBlock Grid.Column="3" Text="{Binding InstalledVersionText}" Classes="muted" />
+                                                <TextBlock Grid.Column="4" Text="{Binding CurrentVersionText}" Classes="state" />
+                                                <TextBlock Grid.Column="5" Text="{Binding SizeText}" Classes="muted" />
+                                                <Button Grid.Column="6" Classes="store-btn store-primary" Content="更新" HorizontalAlignment="Right" Click="OnUpdateInstallClick" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid x:Name="InstalledView" Grid.Row="1" IsVisible="False" RowDefinitions="Auto,*">
+                <TextBlock Text="已安装"
+                           Classes="section-title"
+                           Margin="0,0,0,10" />
+                <Border Grid.Row="1" Classes="table-shell">
+                    <Grid RowDefinitions="36,*">
+                        <Grid ColumnDefinitions="2*,86,90,82,2*,82,154" Margin="12,0" ColumnSpacing="10" VerticalAlignment="Center">
+                            <TextBlock Text="资源" Classes="muted" />
+                            <TextBlock Grid.Column="1" Text="类型" Classes="muted" />
+                            <TextBlock Grid.Column="2" Text="版本" Classes="muted" />
+                            <TextBlock Grid.Column="3" Text="大小" Classes="muted" />
+                            <TextBlock Grid.Column="4" Text="路径" Classes="muted" />
+                            <TextBlock Grid.Column="5" Text="状态" Classes="muted" />
+                            <TextBlock Grid.Column="6" Text="操作" Classes="muted" HorizontalAlignment="Right" />
+                        </Grid>
+                        <Border Grid.Row="1" Classes="empty-state" IsVisible="{Binding IsBusy}">
+                            <TextBlock Text="正在读取本机安装记录..."
+                                       Classes="muted"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <Border Grid.Row="1" Classes="empty-state" IsVisible="{Binding IsInstalledEmptyVisible}">
+                            <TextBlock Text="{Binding InstalledEmptyText}"
+                                       Classes="muted"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <ScrollViewer Grid.Row="1" IsVisible="{Binding IsInstalledRowsVisible}">
+                            <ItemsControl ItemsSource="{Binding InstalledAssetRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:StoreInstalledAssetRow">
+                                        <Border Classes="resource-row">
+                                            <Grid ColumnDefinitions="2*,86,90,82,2*,82,154" ColumnSpacing="10" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" Classes="resource-title" />
+                                                <Border Grid.Column="1" Classes="type-pill" HorizontalAlignment="Left">
+                                                    <TextBlock Text="{Binding AssetTypeText}" Foreground="{StaticResource AccentBrush}" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                                <TextBlock Grid.Column="2" Text="{Binding VersionText}" Classes="muted" />
+                                                <TextBlock Grid.Column="3" Text="{Binding SizeText}" Classes="muted" />
+                                                <TextBlock Grid.Column="4" Text="{Binding InstalledDirectory}" Classes="muted" />
+                                                <TextBlock Grid.Column="5" Text="{Binding StateText}" Classes="state" />
+                                                <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                                                    <Button Classes="store-btn"
+                                                            Content="打开"
+                                                            Click="OnOpenInstalledDirectoryClick" />
+                                                    <Button Classes="store-btn"
+                                                            Content="卸载"
+                                                            Click="OnUninstallInstalledAssetClick" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Border Grid.Row="2"
+                    Margin="0,12,0,0"
+                    Padding="10"
+                    Background="{StaticResource Surface0Brush}"
+                    CornerRadius="4">
+                <TextBlock Text="{Binding StatusText}"
+                           Classes="status-text"
+                           ToolTip.Tip="{Binding StatusText}" />
+            </Border>
+            </Grid>
+        </Grid>
+    </Panel>
+</Window>

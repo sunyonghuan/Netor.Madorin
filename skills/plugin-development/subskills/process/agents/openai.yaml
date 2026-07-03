@@ -1,0 +1,5 @@
+interface:
+  display_name: "Plugin Development Process"
+  short_description: "Help with Plugin Development Process workflows"
+  default_prompt: "Use $process to help with Plugin Development Process tasks."
+

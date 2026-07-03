@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Netor.Cortana.Platform.Services\Netor.Cortana.Platform.Services.csproj" />
+    <ProjectReference Include="..\Netor.Cortana.Platform.Entitys\Netor.Cortana.Platform.Entitys.csproj" />
+    <ProjectReference Include="..\Netor.Cortana.Platform.Core\Netor.Cortana.Platform.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- 平台项目需要连接 SQL Server，显式关闭 InvariantGlobalization，避免发布配置被误改。 -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- MCP 模块依赖 MVC/Razor、EF Core 动态查询与 SDK 工具 schema 推导，当前不兼容 AOT/Trim；显式声明防止误启用。 -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
+</Project>

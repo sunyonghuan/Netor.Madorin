@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:expert="using:Netor.Cortana.UI.Controls.ExpertMode"
+             x:Class="Netor.Cortana.UI.Controls.Meeting.MeetingView"
+             x:CompileBindings="False"
+             Background="#1e1e1e">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom"
+                Background="#1e1e1e"
+                BorderBrush="#252526"
+                BorderThickness="0,1,0,0"
+                Padding="6">
+            <StackPanel Spacing="4">
+                <TextBlock x:Name="StatusHintBar"
+                           Text="选择参会者并输入会议主题"
+                           Foreground="#7a7a7a"
+                           FontSize="12"
+                           Margin="4,0" />
+
+                <ItemsControl x:Name="MembersStrip"
+                              IsVisible="False"
+                              Margin="4,0">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+
+                <expert:InputAreaView x:Name="MeetingInputArea"
+                                      InputMode="Meeting"
+                                      MarqueeColor="#A06CFF" />
+
+                <ProgressBar x:Name="AiProgressBar"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="0"
+                             Height="1"
+                             Margin="0,2,0,0"
+                             Foreground="#A06CFF"
+                             Background="{DynamicResource Surface1Brush}" />
+            </StackPanel>
+        </Border>
+
+        <Grid>
+            <StackPanel x:Name="WelcomePanel"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Spacing="8">
+                <Image x:Name="WelcomeLogoImage"
+                       Width="160"
+                       Height="160"
+                       Stretch="Uniform"
+                       HorizontalAlignment="Center"
+                       Opacity="0.8" />
+                <TextBlock Text="告诉我会议主题"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="#cccccc"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="我会安排智能体讨论并给出结论"
+                           FontSize="13"
+                           Foreground="#7a7a7a"
+                           HorizontalAlignment="Center" />
+            </StackPanel>
+
+            <ScrollViewer x:Name="MessageScroller"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Background="Transparent"
+                          ScrollChanged="OnScrollChanged">
+                <ItemsControl x:Name="MessageList" Padding="0,12,6,12">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="16" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <Button x:Name="ScrollToBottomBtn"
+                    IsVisible="False"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,16,8"
+                    Background="#252526"
+                    Foreground="#cccccc"
+                    BorderBrush="#3c3c3c"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="10,6"
+                    Cursor="Hand"
+                    FontSize="12"
+                    Click="OnScrollToBottomClick">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="↓" FontSize="13" VerticalAlignment="Center" />
+                    <TextBlock Text="滚动到底" FontSize="12" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </Grid>
+    </DockPanel>
+</UserControl>

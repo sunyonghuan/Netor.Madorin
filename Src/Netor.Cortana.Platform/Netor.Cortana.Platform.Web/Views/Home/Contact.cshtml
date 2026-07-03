@@ -1,0 +1,51 @@
+@inject Netor.Cortana.Platform.Services.Settings.PlatformSiteSettingsService SiteSettings
+@{
+    ViewData["Title"] = "联系我们";
+    var supportEmail = await SiteSettings.CreateEmailAsync("support");
+    var marketEmail = await SiteSettings.CreateEmailAsync("market");
+    var businessEmail = await SiteSettings.CreateEmailAsync("business");
+}
+
+<section class="official-hero reveal-on-scroll">
+    <div>
+        <span class="eyebrow">CONTACT</span>
+        <h1>把你的问题交给我们。</h1>
+        <p>产品咨询、合作、资源中心入驻、账号与订阅问题，都可以通过下面的入口联系 Madorin 团队。</p>
+    </div>
+    <div class="contact-panel animated-contact-panel">
+        <span>工作日响应</span>
+        <strong>选择合适入口</strong>
+        <div class="contact-tags">
+            <i>产品咨询</i>
+            <i>商务合作</i>
+            <i>资源入驻</i>
+        </div>
+        <p>请在邮件中说明你的使用场景、联系方式和需要协助的内容。</p>
+        <div class="contact-pulse" aria-hidden="true">
+            <i></i>
+            <i></i>
+            <i></i>
+        </div>
+    </div>
+</section>
+
+<section class="contact-grid">
+    <article class="content-panel">
+        <span class="policy-index">01</span>
+        <h2>产品与使用咨询</h2>
+        <p>了解 Madorin 的下载、安装、账号、资源中心和使用方式。</p>
+        <a href="mailto:@supportEmail">@supportEmail</a>
+    </article>
+    <article class="content-panel">
+        <span class="policy-index">02</span>
+        <h2>资源中心合作</h2>
+        <p>提交插件、技能、智能体或解决方案，进入 Madorin 资源中心。</p>
+        <a href="mailto:@marketEmail">@marketEmail</a>
+    </article>
+    <article class="content-panel">
+        <span class="policy-index">03</span>
+        <h2>商务合作</h2>
+        <p>企业部署、渠道合作、联合解决方案和定制能力咨询。</p>
+        <a href="mailto:@businessEmail">@businessEmail</a>
+    </article>
+</section>

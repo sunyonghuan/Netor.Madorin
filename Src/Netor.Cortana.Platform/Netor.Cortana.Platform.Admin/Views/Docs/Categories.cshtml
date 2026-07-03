@@ -1,0 +1,306 @@
+@model Netor.Cortana.Platform.Admin.Models.Docs.DocCategoriesViewModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    ViewData["Title"] = "文档分类";
+    ViewData["WorkspaceTags"] = new[]
+    {
+        new AdminWorkspaceTag("全部分类", Model.TotalCount.ToString(), Url.Action("Categories", "Docs"), "layui-icon-list"),
+        new AdminWorkspaceTag("显示分类", Model.VisibleCount.ToString(), Url.Action("Categories", "Docs", new { visible = true }), "layui-icon-ok-circle"),
+        new AdminWorkspaceTag("隐藏分类", (Model.TotalCount - Model.VisibleCount).ToString(), Url.Action("Categories", "Docs", new { visible = false }), "layui-icon-close")
+    };
+}
+
+<section class="admin-card admin-filter-card">
+    <div class="admin-card-body">
+        <form id="docCategoryFilter" class="layui-form layui-form-pane" lay-filter="docCategoryFilter">
+            <div class="admin-filter-grid">
+                <div class="layui-form-item admin-filter-span-2">
+                    <label class="layui-form-label">关键词</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="keyword" value="@Model.Keyword" placeholder="名称/标识/描述" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">Slug</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="slug" placeholder="分类标识" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">显示</label>
+                    <div class="layui-input-block">
+                        <select name="visible">
+                            <option value="">全部</option>
+                            <option value="true" selected="@(Model.Visible == true)">显示</option>
+                            <option value="false" selected="@(Model.Visible == false)">隐藏</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">排序最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="sortMin" type="number" placeholder="0" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">排序最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="sortMax" type="number" placeholder="999" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">文章最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="articleMin" type="number" min="0" placeholder="0" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">文章最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="articleMax" type="number" min="0" placeholder="100" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">发布最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="publishedArticleMin" type="number" min="0" placeholder="0" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">发布最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="publishedArticleMax" type="number" min="0" placeholder="100" />
+                    </div>
+                </div>
+                <div class="layui-form-item admin-filter-submit">
+                    <button class="layui-btn layui-btn-normal" lay-submit lay-filter="docCategorySearch">查询</button>
+                    <button class="layui-btn layui-btn-primary" type="button" data-doc-category-filter-reset>重置</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="admin-card admin-layui-table-card">
+    <div class="admin-card-body">
+        <input name="__RequestVerificationToken" type="hidden" value="@AntiforgeryToken()" />
+        <table id="docCategoryTable" lay-filter="docCategoryTable"></table>
+    </div>
+</section>
+
+<script type="text/html" id="docCategoryNameTpl">
+    <div class="admin-text-strong">{{ d.name }}</div>
+    <div class="admin-text-muted">{{ d.slug }}</div>
+    <div class="admin-text-muted">{{ d.description || "-" }}</div>
+</script>
+
+<script type="text/html" id="docCategoryVisibleTpl">
+    <span class="admin-badge {{ d.visibleBadgeClass }}">{{ d.visibleName }}</span>
+</script>
+
+<script type="text/html" id="docCategoryArticleTpl">
+    <div>{{ d.articleCount }} 篇文章</div>
+    <div class="admin-text-muted">{{ d.publishedArticleCount }} 篇已发布</div>
+</script>
+
+<script type="text/html" id="docCategoryActionsTpl">
+    <div class="layui-btn-group admin-row-actions">
+        <a class="layui-btn layui-btn-xs" lay-event="articles">文章</a>
+        <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="edit">编辑</a>
+        <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="toggle">{{ d.isVisible ? "隐藏" : "显示" }}</a>
+        <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="delete">删除</a>
+    </div>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table", "layer"], function () {
+            const form = layui.form;
+            const table = layui.table;
+            const layer = layui.layer;
+            const filterSelector = "#docCategoryFilter";
+            const tableId = "docCategoryTable";
+            const token = () => document.querySelector("input[name='__RequestVerificationToken']").value;
+            const postAction = async (url, values, done) => {
+                const formData = new FormData();
+                Object.keys(values || {}).forEach((key) => formData.append(key, values[key]));
+                formData.append("__RequestVerificationToken", token());
+                const response = await fetch(url, {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                });
+                const result = await response.json();
+                if (!response.ok || result.success === false) {
+                    if (result?.articleUrl) {
+                        layer.confirm(result.message || "该分类下仍有关联文章。", {
+                            icon: 0,
+                            title: "无法删除",
+                            btn: ["去文章列表", "关闭"]
+                        }, function (redirectIndex) {
+                            window.location.href = result.articleUrl;
+                            layer.close(redirectIndex);
+                        });
+                        return;
+                    }
+
+                    layer.msg(result.message || "操作失败，请稍后重试。", { icon: 2 });
+                    return;
+                }
+
+                table.reload(tableId);
+                if (done) {
+                    done(result);
+                }
+            };
+
+            window.adminTable.render({
+                elem: "#docCategoryTable",
+                id: tableId,
+                url: "@Url.Action("CategoryTableData", "Docs")",
+                where: window.adminFilter.collect(filterSelector),
+                toolbar: "#docCategoryTableToolbarTpl",
+                cols: [[
+                    { type: "checkbox", fixed: "left" },
+                    { field: "name", title: "分类", minWidth: 260, templet: "#docCategoryNameTpl", sort: true },
+                    { field: "sortOrder", title: "排序", width: 90, sort: true },
+                    { field: "isVisible", title: "状态", width: 100, templet: "#docCategoryVisibleTpl", sort: true },
+                    { field: "articleCount", title: "文章", width: 140, templet: "#docCategoryArticleTpl", sort: true },
+                    { field: "timeStamp", title: "创建标记", width: 150, sort: true },
+                    { title: "操作", width: 214, fixed: "right", toolbar: "#docCategoryActionsTpl" }
+                ]]
+            });
+
+            form.on("submit(docCategorySearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-doc-category-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+
+            const submitBatch = function () {
+                const checked = table.checkStatus(tableId).data;
+                if (checked.length === 0) {
+                    layer.msg("请先选择要操作的文档分类。");
+                    return;
+                }
+
+                const operation = document.getElementById("docCategoryBatchOperation").value;
+                const message = operation === "delete"
+                    ? `确定删除选中的 ${checked.length} 个空文档分类吗？存在文章的分类会自动跳过。`
+                    : `确定批量处理 ${checked.length} 个文档分类吗？`;
+
+                layer.confirm(message, { icon: 3, title: "批量操作" }, function (index) {
+                    const formData = new FormData();
+                    checked.forEach((item) => formData.append("ids", item.id));
+                    formData.append("operation", operation);
+                    formData.append("__RequestVerificationToken", token());
+                    fetch("@Url.Action("BatchCategories", "Docs")", {
+                        method: "POST",
+                        body: formData,
+                        headers: {
+                            "Accept": "application/json",
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    })
+                        .then((response) => response.json().then((result) => ({ response, result })))
+                        .then(({ response, result }) => {
+                            if (!response.ok || result.success === false) {
+                                layer.msg(result.message || "批量操作失败，请稍后重试。", { icon: 2 });
+                                return;
+                            }
+
+                            table.reload(tableId);
+                            layer.msg(result.message || "批量操作已完成。", { icon: 1 });
+                        });
+                    layer.close(index);
+                });
+            };
+
+            table.on("toolbar(docCategoryTable)", function (obj) {
+                if (obj.event === "create") {
+                    window.adminDrawer.openRight({
+                        title: "新增文档分类",
+                        url: "@Url.Action("CreateCategory", "Docs", new { mode = "drawer" })",
+                        width: "720px"
+                    });
+                    return;
+                }
+
+                if (obj.event === "articles") {
+                    window.location.href = "@Url.Action("Index", "Docs")";
+                    return;
+                }
+
+                if (obj.event === "batchApply") {
+                    submitBatch();
+                }
+            });
+
+            table.on("tool(docCategoryTable)", function (obj) {
+                const item = obj.data;
+                if (obj.event === "articles") {
+                    window.location.href = `@Url.Action("Index", "Docs")?categoryId=${encodeURIComponent(item.id)}`;
+                } else if (obj.event === "edit") {
+                    window.adminDrawer.openRight({
+                        title: `编辑文档分类 - ${item.name}`,
+                        url: `@Url.Action("EditCategory", "Docs")?id=${encodeURIComponent(item.id)}&mode=drawer`,
+                        width: "720px"
+                    });
+                } else if (obj.event === "toggle") {
+                    const actionText = item.isVisible ? "隐藏" : "显示";
+                    layer.confirm(`确定${actionText}该文档分类吗？`, { icon: 3, title: "显示状态" }, function (index) {
+                        postAction(`@Url.Action("ToggleCategory", "Docs")?id=${encodeURIComponent(item.id)}`, {}, (result) => layer.msg(result.message || "显示状态已更新。", { icon: 1 }));
+                        layer.close(index);
+                    });
+                } else if (obj.event === "delete") {
+                    if (item.articleCount > 0) {
+                        layer.confirm(`分类“${item.name}”下还有 ${item.articleCount} 篇文章，不能直接删除。现在去文章列表处理这些文章吗？`, {
+                            icon: 0,
+                            title: "无法删除",
+                            btn: ["去处理文章", "取消"]
+                        }, function (index) {
+                            window.location.href = `@Url.Action("Index", "Docs")?categoryId=${encodeURIComponent(item.id)}`;
+                            layer.close(index);
+                        });
+                        return;
+                    }
+
+                    layer.confirm(`确定删除文档分类“${item.name}”吗？删除后不可恢复。`, { icon: 3, title: "删除分类" }, function (index) {
+                        postAction(`@Url.Action("DeleteCategory", "Docs")?id=${encodeURIComponent(item.id)}`, {}, (result) => layer.msg(result.message || "文档分类已删除。", { icon: 1 }));
+                        layer.close(index);
+                    });
+                }
+            });
+        });
+    </script>
+}
+
+<script type="text/html" id="docCategoryTableToolbarTpl">
+    <div class="admin-table-toolbar">
+        <div class="admin-table-toolbar-group">
+            <button class="layui-btn layui-btn-sm layui-btn-normal" lay-event="create">新增分类</button>
+            <button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="articles">文档文章</button>
+        </div>
+        <div class="admin-table-toolbar-group">
+            <select id="docCategoryBatchOperation" class="layui-select admin-table-toolbar-select" aria-label="批量操作">
+                <option value="show">批量显示</option>
+                <option value="hide">批量隐藏</option>
+                <option value="delete">批量删除空分类</option>
+            </select>
+            <button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="batchApply">应用</button>
+        </div>
+    </div>
+</script>
+
+@functions {
+    private string AntiforgeryToken()
+    {
+        return Antiforgery.GetAndStoreTokens(Context).RequestToken ?? string.Empty;
+    }
+}

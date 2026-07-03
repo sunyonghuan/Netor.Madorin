@@ -1,0 +1,32 @@
+@model Netor.Cortana.Platform.Web.Models.Docs.DocsCategoryViewModel
+@{
+    ViewData["Title"] = Model.Name;
+}
+
+<section class="official-hero slim reveal-on-scroll">
+    <div>
+        <span class="eyebrow">DOCUMENTATION</span>
+        <h1>@Model.Name</h1>
+        <p>@Model.Description</p>
+    </div>
+</section>
+
+<section class="docs-timeline docs-article-list">
+    @foreach (var article in Model.Articles)
+    {
+        <article class="content-panel">
+            <span class="policy-index">@article.CategoryName</span>
+            <h2>@article.Title</h2>
+            <p>@article.Summary</p>
+            <a class="docs-read-link" asp-controller="Docs" asp-action="Article" asp-route-categorySlug="@article.CategorySlug" asp-route-articleSlug="@article.Slug">查看文档</a>
+        </article>
+    }
+    @if (Model.Articles.Count == 0)
+    {
+        <article class="content-panel">
+            <span class="policy-index">EMPTY</span>
+            <h2>暂无已发布文章</h2>
+            <p>该分类已经创建，后续可在后台文档管理中发布具体内容。</p>
+        </article>
+    }
+</section>

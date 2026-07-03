@@ -1,0 +1,6 @@
+@{
+    var isDrawer = string.Equals(Context.Request.Query["mode"].ToString(), "drawer", StringComparison.OrdinalIgnoreCase)
+        || (Context.Request.HasFormContentType && string.Equals(Context.Request.Form["mode"].ToString(), "drawer", StringComparison.OrdinalIgnoreCase));
+
+    Layout = isDrawer ? "_DrawerLayout" : "_Layout";
+}

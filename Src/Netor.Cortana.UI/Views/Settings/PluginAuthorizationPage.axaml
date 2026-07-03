@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Netor.Cortana.UI.Views.Settings.PluginAuthorizationPage"
+             x:CompileBindings="True">
+
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="16,12,16,8">
+            <TextBlock Text="插件授权" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextBrush}" />
+            <StackPanel Spacing="4">
+                <TextBlock Text="按插件管理系统能力授权。当前阶段先提供“大模型授权”，以后可继续增加文件、网络、后台任务等授权卡片。"
+                           Foreground="{StaticResource SubtextBrush}" FontSize="12" TextWrapping="Wrap" />
+            </StackPanel>
+        </StackPanel>
+
+        <Grid RowDefinitions="Auto,*" Margin="16,0,16,12">
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,10">
+                <TextBox x:Name="TxtSearch" Grid.Column="0" Classes="form-input"
+                         PlaceholderText="搜索插件名称、ID 或简介"
+                         TextChanged="OnSearchTextChanged" />
+                <Button Grid.Column="1" Classes="btn-secondary" Content="刷新" Click="OnRefreshClick" />
+            </Grid>
+
+            <Grid Grid.Row="1" ColumnDefinitions="240,*" ColumnSpacing="12">
+                <Border Grid.Column="0" Background="{StaticResource MantleBrush}"
+                        BorderBrush="{StaticResource Surface1Brush}" BorderThickness="1"
+                        CornerRadius="4" Padding="8">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="PluginListPanel" Spacing="6" />
+                    </ScrollViewer>
+                </Border>
+
+                <Border Grid.Column="1" Background="{StaticResource Surface0Brush}"
+                        BorderBrush="{StaticResource Surface1Brush}" BorderThickness="1"
+                        CornerRadius="4" Padding="14">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,24,0">
+                        <StackPanel x:Name="AuthorizationPanel" Spacing="12" />
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+        </Grid>
+    </DockPanel>
+
+</UserControl>

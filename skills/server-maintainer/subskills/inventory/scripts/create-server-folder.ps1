@@ -1,0 +1,1 @@
+& "$PSScriptRoot\..\..\..\scripts\create-server-folder.ps1" @args

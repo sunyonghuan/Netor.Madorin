@@ -1,0 +1,186 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:viewModels="clr-namespace:Netor.Cortana.Store.ViewModels"
+        x:Class="Netor.Cortana.Store.Views.StoreLoginWindow"
+        x:DataType="viewModels:StoreLoginViewModel"
+        x:CompileBindings="True"
+        Title="登录平台账号"
+        Width="420"
+        Height="352"
+        MinWidth="400"
+        MinHeight="336"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BaseBrush}"
+        ExtendClientAreaToDecorationsHint="True"
+        WindowDecorations="None">
+    <Window.Styles>
+        <Style Selector="Button.login-btn">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="12,5" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="{StaticResource Surface1Brush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="RenderTransform" Value="translateY(0)" />
+            <Setter Property="Transitions">
+                <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" />
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.login-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource Surface2Brush}" />
+        </Style>
+        <Style Selector="Button.login-btn:pointerover">
+            <Setter Property="RenderTransform" Value="translateY(-1px)" />
+            <Setter Property="Opacity" Value="0.96" />
+        </Style>
+        <Style Selector="Button.login-btn:pressed">
+            <Setter Property="RenderTransform" Value="translateY(0)" />
+            <Setter Property="Opacity" Value="0.88" />
+        </Style>
+        <Style Selector="Button.login-primary">
+            <Setter Property="Background" Value="{StaticResource PrimaryButtonBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource PrimaryButtonTextBrush}" />
+        </Style>
+        <Style Selector="Button.login-primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource PrimaryButtonHoverBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AccentHoverBrush}" />
+        </Style>
+        <Style Selector="Button.login-primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource PrimaryButtonPressedBrush}" />
+        </Style>
+        <Style Selector="TextBox.login-input">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="{StaticResource Surface0Brush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="BorderBrush" Value="{StaticResource Surface1Brush}" />
+        </Style>
+        <Style Selector="TextBlock.login-label">
+            <Setter Property="Foreground" Value="{StaticResource SubtextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="TextBlock.login-title">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Border.login-shell">
+            <Setter Property="Background" Value="{StaticResource Surface0Brush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Surface1Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+        <Style Selector="Border.captcha-code">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="82" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Background" Value="{StaticResource MantleBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Surface1Brush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+    </Window.Styles>
+
+    <Panel Background="{StaticResource BaseBrush}">
+        <Border Height="34"
+                VerticalAlignment="Top"
+                Background="{StaticResource MantleBrush}"
+                BorderBrush="{StaticResource Surface1Brush}"
+                BorderThickness="0,0,0,1">
+            <Border Margin="14,0,120,0"
+                    Background="Transparent"
+                    PointerPressed="OnTitleBarPointerPressed">
+                <TextBlock Text="登录平台账号"
+                           Classes="login-title"
+                           VerticalAlignment="Center" />
+            </Border>
+        </Border>
+
+        <Border Classes="login-shell" Margin="16,50,16,16">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                  RowSpacing="10">
+                <Grid RowDefinitions="Auto,Auto" RowSpacing="5">
+                    <TextBlock Text="账号名" Classes="login-label" />
+                    <TextBox Grid.Row="1"
+                             Classes="login-input"
+                             Text="{Binding UserName}"
+                             PlaceholderText="请输入账号名" />
+                </Grid>
+
+                <Grid Grid.Row="1" RowDefinitions="Auto,Auto" RowSpacing="5">
+                    <TextBlock Text="密码" Classes="login-label" />
+                    <TextBox Grid.Row="1"
+                             Classes="login-input"
+                             Text="{Binding Password}"
+                             PasswordChar="*"
+                             PlaceholderText="请输入密码" />
+                </Grid>
+
+                <Grid Grid.Row="2" RowDefinitions="Auto,Auto" RowSpacing="5">
+                    <TextBlock Text="验证码" Classes="login-label" />
+                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                        <TextBox Classes="login-input"
+                                 Text="{Binding CaptchaInput}"
+                                 PlaceholderText="请输入验证码" />
+                        <Border Grid.Column="1" Classes="captcha-code">
+                            <TextBlock Text="{Binding CaptchaCode}"
+                                       Foreground="{StaticResource AccentHoverBrush}"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <Button Grid.Column="2"
+                                Classes="login-btn"
+                                Content="换一张"
+                                Click="OnRefreshCaptchaClick" />
+                    </Grid>
+                </Grid>
+
+                <Grid Grid.Row="3">
+                    <TextBlock Text="{Binding StatusText}"
+                               MinHeight="18"
+                               Foreground="{StaticResource RedBrush}"
+                               FontSize="12"
+                               TextWrapping="Wrap" />
+                </Grid>
+
+                <Grid Grid.Row="4" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="8" Margin="0,2,0,0">
+                    <Button Grid.Column="0"
+                            Classes="login-btn"
+                            Content="注册"
+                            Click="OnRegisterClick" />
+                    <Button Grid.Column="1"
+                            Classes="login-btn"
+                            Content="忘记密码"
+                            HorizontalAlignment="Left"
+                            Click="OnForgotPasswordClick" />
+                    <Button Grid.Column="3"
+                            Classes="login-btn"
+                            Content="测试账号"
+                            IsVisible="{Binding IsLocalTestAccountVisible}"
+                            ToolTip.Tip="{Binding LocalTestAccountText}"
+                            Click="OnUseLocalTestAccountClick" />
+                    <Button Grid.Column="4"
+                            Classes="login-btn"
+                            Content="取消"
+                            Click="OnCancelClick" />
+                    <Button Grid.Column="5"
+                            Classes="login-btn login-primary"
+                            Content="登录"
+                            Click="OnLoginClick" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Panel>
+</Window>

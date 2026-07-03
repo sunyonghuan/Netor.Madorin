@@ -1,0 +1,57 @@
+@model Netor.Cortana.Platform.Admin.Models.Creators.CreatorDetailViewModel
+@{
+    ViewData["Title"] = "创作者详情";
+    var isDrawer = string.Equals(Context.Request.Query["mode"], "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="@(isDrawer ? "admin-drawer-page" : string.Empty)">
+    <section class="admin-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">@Model.DisplayName</h2>
+                <div class="admin-inline-stat">@Model.AccountName</div>
+            </div>
+            @if (isDrawer)
+            {
+                <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" data-drawer-close>关闭</button>
+            }
+            else
+            {
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Index">返回列表</a>
+            }
+        </div>
+        <div class="admin-card-body">
+            <div class="asset-detail-grid">
+                <div>
+                    <div class="detail-label">状态</div>
+                    <span class="admin-badge @Model.StatusBadgeClass">@Model.StatusName</span>
+                </div>
+                <div>
+                    <div class="detail-label">通过时间</div>
+                    <strong>@(Model.ApprovedAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</strong>
+                </div>
+                <div>
+                    <div class="detail-label">名下资源</div>
+                    <strong>@Model.AssetCount</strong>
+                </div>
+                <div>
+                    <div class="detail-label">待审资源</div>
+                    <strong>@Model.PendingReviewCount</strong>
+                </div>
+                <div>
+                    <div class="detail-label">待结算</div>
+                    <strong>@Model.PendingSettlementAmount.ToString("0.00")</strong>
+                </div>
+                <div>
+                    <div class="detail-label">已结算</div>
+                    <strong>@Model.SettledSettlementAmount.ToString("0.00")</strong>
+                </div>
+            </div>
+
+            <hr />
+
+            <h3 class="admin-section-title">创作者简介</h3>
+            <p class="admin-text-muted">@Model.Bio</p>
+        </div>
+    </section>
+</div>

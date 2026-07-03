@@ -1,0 +1,271 @@
+@model Netor.Cortana.Platform.Web.Models.Home.HomeIndexViewModel
+@{
+    ViewData["Title"] = "一人公司的 AI 操作系统";
+    ViewData["BodyClass"] = "marketing-home";
+}
+
+<div class="landing-page">
+    <section class="landing-hero">
+        <div class="hero-shell">
+            <div class="hero-copy reveal-on-scroll">
+                <span class="eyebrow">AI COMPANY OS</span>
+                <h1>
+                    <span>一个人，</span>
+                    <span>就是</span>
+                    <span>一家公司。</span>
+                </h1>
+                <p class="hero-lead">下达目标，AI团队集结。从开会到交付，一路推进。</p>
+                <div class="hero-actions">
+                    <a class="btn btn-madorin-primary btn-lg" asp-controller="Home" asp-action="Download">立即下载</a>
+                    <a class="btn btn-madorin-secondary btn-lg" href="#company">看看它能做什么</a>
+                </div>
+                <div class="hero-proof">
+                    <span>零门槛上手</span>
+                    <span>多角色AI协同</span>
+                    <span>会议直达交付</span>
+                    <span>能力持续生长</span>
+                </div>
+            </div>
+
+            <div class="hero-stage reveal-on-scroll delay-1" aria-label="Madorin 软件截图占位">
+                <div class="screen-placeholder company-screen">
+                    <div class="screen-topbar">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <strong>Madorin 指挥台</strong>
+                    </div>
+                    <div class="screen-body company-body">
+                        <aside class="screen-sidebar">
+                            <b>AI 部门</b>
+                            <span>技术部</span>
+                            <span>市场增长部</span>
+                            <span>客服部</span>
+                            <span>运营管理部</span>
+                            <b>会议议题</b>
+                            <span>产品上线战役</span>
+                            <span>客户增长计划</span>
+                        </aside>
+                        <main class="screen-main company-main">
+                            <div class="meeting-topic">议题：如何用 30 天完成一次产品发布？</div>
+                            <div class="company-vote-grid">
+                                <div><span>技术部</span><strong>排开发、部署、监控任务</strong></div>
+                                <div><span>市场增长部</span><strong>定内容、视频、获客节奏</strong></div>
+                                <div><span>客服部</span><strong>准备问答、话术、反馈入口</strong></div>
+                                <div><span>运营管理部</span><strong>生成里程碑与执行清单</strong></div>
+                            </div>
+                            <div class="screen-response">专家会议已完成表决，正在生成《产品发布作战方案》和执行任务。</div>
+                        </main>
+                    </div>
+                    <div class="shot-note">截图占位 · 可替换为真实界面</div>
+                </div>
+            </div>
+        </div>
+        <div class="scroll-cue" aria-hidden="true"><span></span></div>
+    </section>
+
+    <section class="pain-section" id="company">
+        <div class="wide-section">
+            <div class="section-kicker reveal-on-scroll">WHAT IT CHANGES</div>
+            <h2 class="display-line reveal-on-scroll">创业不缺想法，缺的是替你扛事的人。</h2>
+            <div class="pain-grid">
+                <article class="pain-card reveal-on-scroll">
+                    <span>01</span>
+                    <div class="pain-visual"><i></i><i></i><i></i></div>
+                    <h3>岗位有人接</h3>
+                    <p>技术、营销、客服、运营——不再全压你一个人。</p>
+                </article>
+                <article class="pain-card reveal-on-scroll delay-1">
+                    <span>02</span>
+                    <div class="pain-visual decision"><i></i><i></i><i></i></div>
+                    <h3>决策有人把关</h3>
+                    <p>AI专家从不同角度讨论、质疑、表决，结论经得起推敲。</p>
+                </article>
+                <article class="pain-card reveal-on-scroll delay-2">
+                    <span>03</span>
+                    <div class="pain-visual delivery"><i></i><i></i><i></i></div>
+                    <h3>结果有人推</h3>
+                    <p>会议结论直接变成文档、脚本、清单和下一步行动。</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="scenario-section">
+        <div class="wide-section scenario-layout">
+            <div class="scenario-copy reveal-on-scroll">
+                <span class="eyebrow">MEETING TO DELIVERY</span>
+                <h2>一次AI会议，一份可执行方案。</h2>
+                <p>不是一个AI给建议，而是多个岗位一起决策。讨论结束，结论自动变成文档、任务和工作流。</p>
+            </div>
+            <div class="meeting-visual reveal-on-scroll delay-1" aria-label="会议到交付流程图">
+                <div class="meeting-center">
+                    <span>议题</span>
+                    <strong>新品 30 天上线</strong>
+                </div>
+                <div class="expert-node node-tech"><span>技术</span><b>开发 / 部署</b></div>
+                <div class="expert-node node-growth"><span>市场</span><b>获客 / 内容</b></div>
+                <div class="expert-node node-care"><span>客服</span><b>话术 / 反馈</b></div>
+                <div class="expert-node node-plan"><span>策划</span><b>节奏 / 风险</b></div>
+                <div class="delivery-strip">
+                    <span>会议纪要</span>
+                    <span>执行清单</span>
+                    <span>工作流</span>
+                    <span>交付物</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="showcase-section">
+        <div class="showcase-grid">
+            <div class="showcase-copy reveal-on-scroll">
+                <span class="eyebrow">CEO MODE</span>
+                <h2>你定方向，团队自动运转。</h2>
+                <p>输入业务目标，任务自动分配到对应岗位——调研、方案、风险、执行同步推进。你看到全过程，不只是一个答案。</p>
+            </div>
+            <div class="team-board reveal-on-scroll delay-1">
+                <div class="team-card lead">
+                    <span>你 / CEO</span>
+                    <strong>定目标，审方向，选方案</strong>
+                </div>
+                <div class="team-card"><span>技术部</span><strong>写代码、部署服务、写脚本</strong></div>
+                <div class="team-card"><span>市场增长部</span><strong>找客户、做内容、剪视频、跑投放</strong></div>
+                <div class="team-card"><span>客服部</span><strong>维护客户、整理问题、沉淀话术</strong></div>
+                <div class="team-card"><span>运营管理部</span><strong>拆任务、排优先级、追进度</strong></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="department-section">
+        <div class="wide-section">
+            <div class="section-kicker reveal-on-scroll">AI DEPARTMENTS</div>
+            <h2 class="display-line reveal-on-scroll">六个AI部门，随时就位。</h2>
+            <div class="department-grid">
+                <article class="department-card reveal-on-scroll">
+                    <span>技术部</span>
+                    <div class="department-visual"><i>DEV</i><i>OPS</i><i>AUTO</i></div>
+                    <h3>开发、运维、自动化</h3>
+                    <p>写代码、部署服务、自动化运维。</p>
+                </article>
+                <article class="department-card reveal-on-scroll delay-1">
+                    <span>市场增长部</span>
+                    <div class="department-visual"><i>ADS</i><i>VIDEO</i><i>LEAD</i></div>
+                    <h3>内容、视频、获客</h3>
+                    <p>做内容、剪视频、跑增长。</p>
+                </article>
+                <article class="department-card reveal-on-scroll delay-2">
+                    <span>客服部</span>
+                    <div class="department-visual"><i>FAQ</i><i>CRM</i><i>CARE</i></div>
+                    <h3>客户服务、反馈沉淀</h3>
+                    <p>回答问题、沉淀话术、维护客户关系。</p>
+                </article>
+                <article class="department-card reveal-on-scroll">
+                    <span>产品策划部</span>
+                    <div class="department-visual"><i>IDEA</i><i>PLAN</i><i>RISK</i></div>
+                    <h3>想法变方案</h3>
+                    <p>把想法拆成目标、路径和里程碑。</p>
+                </article>
+                <article class="department-card reveal-on-scroll delay-1">
+                    <span>运营管理部</span>
+                    <div class="department-visual"><i>TASK</i><i>DOC</i><i>NEXT</i></div>
+                    <h3>任务拆解、进度追踪</h3>
+                    <p>拆任务、排优先级、追进度。</p>
+                </article>
+                <article class="department-card reveal-on-scroll delay-2">
+                    <span>能力扩展部</span>
+                    <div class="department-visual"><i>SKILL</i><i>PLUGIN</i><i>API</i></div>
+                    <h3>技能、插件、脚本</h3>
+                    <p>能力不够，插件、脚本、API来补。</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="feature-runway">
+        <div class="wide-section">
+            <div class="section-kicker reveal-on-scroll">WORK MODES</div>
+            <h2 class="display-line reveal-on-scroll">三种模式，覆盖三类场景。</h2>
+            <div class="mode-grid">
+                <article class="mode-card reveal-on-scroll">
+                    <span>专家模式</span>
+                    <div class="mode-visual chat-lines"><i></i><i></i><i></i></div>
+                    <h3>专业判断</h3>
+                    <p>技术、市场、客服、策划，按岗位给出专业意见。</p>
+                </article>
+                <article class="mode-card reveal-on-scroll delay-1">
+                    <span>工作模式</span>
+                    <div class="mode-visual flow-blocks"><i></i><i></i><i></i></div>
+                    <h3>持续执行</h3>
+                    <p>拆任务、调工具、写文档，把方案推进成结果。</p>
+                </article>
+                <article class="mode-card reveal-on-scroll delay-2">
+                    <span>会议模式</span>
+                    <div class="mode-visual meeting-dots"><i></i><i></i><i></i><i></i></div>
+                    <h3>集体决策</h3>
+                    <p>多专家讨论、辩论、表决，输出纪要和方案。</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="advantage-section">
+        <div class="wide-section">
+            <div class="section-kicker reveal-on-scroll">WHY MADORIN</div>
+            <h2 class="display-line reveal-on-scroll">不是聊天工具，是跟你一起长大的组织。</h2>
+            <div class="advantage-grid">
+                <article class="advantage-card reveal-on-scroll">
+                    <h3>零门槛上手</h3>
+                    <p>不学模型，不配插件，打开就用。</p>
+                </article>
+                <article class="advantage-card reveal-on-scroll">
+                    <h3>智能体就是岗位</h3>
+                    <p>每个AI都是一个岗位，像管团队一样管AI。</p>
+                </article>
+                <article class="advantage-card reveal-on-scroll">
+                    <h3>会议直达交付</h3>
+                    <p>讨论、表决、纪要、执行——一次会议，全部搞定。</p>
+                </article>
+                <article class="advantage-card reveal-on-scroll">
+                    <h3>经验变方法</h3>
+                    <p>常做的事自动沉淀为可复用能力。</p>
+                </article>
+                <article class="advantage-card reveal-on-scroll">
+                    <h3>插件补齐能力</h3>
+                    <p>插件、脚本、API——缺什么补什么。</p>
+                </article>
+                <article class="advantage-card reveal-on-scroll">
+                    <h3>多模型兼容</h3>
+                    <p>多模型自由切换，不被任何平台绑死。</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="flow-section">
+        <div class="wide-section flow-layout">
+            <div class="flow-copy reveal-on-scroll">
+                <span class="eyebrow">FROM IDEA TO COMPANY</span>
+                <h2>说出目标，团队自动集结。</h2>
+                <p>创业者、独立开发者、自由职业者——从想法到交付，一个平台搞定。</p>
+            </div>
+            <div class="flow-steps">
+                <div class="flow-step reveal-on-scroll"><span>1</span><strong>说出业务目标</strong><p>例如：上线一个产品、维护客户、发布一轮营销内容。</p></div>
+                <div class="flow-step reveal-on-scroll"><span>2</span><strong>选择 AI 部门</strong><p>技术、营销、客服、策划、管理各司其职。</p></div>
+                <div class="flow-step reveal-on-scroll"><span>3</span><strong>开会并形成方案</strong><p>多专家讨论、表决、补充风险，输出执行文档。</p></div>
+                <div class="flow-step reveal-on-scroll"><span>4</span><strong>进入工作流交付</strong><p>调用插件、脚本和外部工具，把方案变成实际结果。</p></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="final-cta">
+        <div class="wide-section final-cta-inner reveal-on-scroll">
+            <div>
+                <span class="eyebrow">READY</span>
+                <h2>一个人，一家公司。现在就开始。</h2>
+                <p>下载 Madorin，让一整支AI团队为你工作。</p>
+            </div>
+            <a class="btn btn-madorin-primary btn-lg" asp-controller="Home" asp-action="Download">立即下载</a>
+        </div>
+    </section>
+</div>

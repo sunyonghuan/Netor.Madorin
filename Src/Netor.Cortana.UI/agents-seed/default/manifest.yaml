@@ -1,0 +1,10 @@
+name: default
+display_name: "董秘小月"
+description: "默认配置型智能体，负责软件配置、工具接入、软件操作与执行方案说明。"
+kind: builtin/system
+avatar: assets/avatar.png
+enabled: true
+sort_order: 0
+allow_workflow_memory: true
+bound_plugins:
+bound_mcp:

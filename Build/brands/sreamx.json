@@ -1,0 +1,20 @@
+{
+  "id": "sreamx",
+  "englishName": "SreamX",
+  "displayName": "渡海舟",
+  "assistantSubtitle": "SreamX AI 助手",
+  "websiteHost": "streamxbot.com",
+  "desktopAssemblyName": "SreamX",
+  "assemblyTitle": "SreamX",
+  "resourceAssemblyName": "SreamX",
+  "nativeHostAssemblyName": "SreamX.NativeHost",
+  "releaseDirectoryName": "SreamX",
+  "packageName": "SreamX",
+  "applicationIconPath": "Assets\\streamx.ico",
+  "nativeHostIcon": "streamx.ico",
+  "logoImageFileName": "streamx.logo.png",
+  "platformBaseUrlSettingKey": "Platform.BaseUrl",
+  "localPlatformApiBaseUrl": "http://localhost:5190",
+  "productionPlatformApiBaseUrl": "https://platform.netor.me",
+  "platformBaseUrlDescription": "应用商店连接的运营平台 API 地址。本地联调使用 http://localhost:5190；切换后需要重新登录平台账号。"
+}

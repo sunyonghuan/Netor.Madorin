@@ -1,0 +1,21 @@
+@model Netor.Cortana.Platform.Admin.Models.Docs.DocCategoryEditViewModel
+@{
+    ViewData["Title"] = "编辑文档分类";
+}
+
+<section class="admin-card admin-form-card">
+    <div class="admin-card-header">
+        <div>
+            <h2 class="admin-card-title">编辑文档分类</h2>
+            <div class="text-secondary">调整分类展示、排序和说明</div>
+        </div>
+        <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Categories">返回分类</a>
+    </div>
+    <div class="admin-card-body">
+        <partial name="_CategoryForm" model="Model" />
+    </div>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

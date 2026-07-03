@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Netor.Cortana.UI.Controls.Common"
+             x:Class="Netor.Cortana.UI.Controls.WorkMode.UserBubble"
+             x:CompileBindings="True">
+
+    <!--
+      ════════════════════════════════════════════════════════════════
+      用户气泡（UserBubble） - 工作模式专用
+      ─ 视觉规范来源：09-界面交互设计.md §3.2
+      ─ 铺满中间列，不设 MaxWidth（避免窗口缩小时文字被遮挡）
+      ─ 浅色背景 + 边框 + 3px 圆角 + 左右下间距
+      ─ 不显示头像、姓名
+      ────────────────────────────────────────────────────────────────  -->
+
+    <Border x:Name="RootBorder"
+            Background="#4030343B"
+            BorderBrush="{DynamicResource UserBubbleBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="3"
+            Padding="12,8"
+            Margin="16,4,16,0"
+            HorizontalAlignment="Stretch">
+        <controls:MarkdownRenderer x:Name="ContentRenderer"
+                                   TextColor="#d6d6d6" />
+    </Border>
+</UserControl>

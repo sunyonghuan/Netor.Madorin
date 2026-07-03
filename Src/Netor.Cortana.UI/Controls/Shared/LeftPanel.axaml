@@ -1,0 +1,105 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Netor.Cortana.UI.ViewModels.Shared"
+             xmlns:controls="using:Netor.Cortana.UI.Controls.Shared"
+             xmlns:expert="using:Netor.Cortana.UI.Controls.ExpertMode"
+             xmlns:meeting="using:Netor.Cortana.UI.Controls.Meeting"
+             xmlns:wm="using:Netor.Cortana.UI.Controls.WorkMode"
+             x:Class="Netor.Cortana.UI.Controls.Shared.LeftPanel"
+             x:DataType="vm:LeftPanelVm"
+             x:CompileBindings="True"
+             Background="#1e1e1e">
+
+	<!-- ════════════════════════════════════════════════════════════════
+	     界面重设计 C3：左侧面板容器（决策 UI-1 L2 + UI-9 底部 tab）
+	     ════════════════════════════════════════════════════════════════
+	     替代原 WorkspaceExplorer 直接挂载，引入底部 Tab 切换：
+	     - Tab1 文件目录：直接复用现有 WorkspaceExplorer
+	     - Tab2 动态 tab：C3 阶段用 EmptyState 占位（"待 C4 实现"），
+	                      C4 接入真实任务/会话列表
+	     - 底部 TabBar：32px 高，VS 经典风格（active 蓝字 + 加粗）
+
+	     标题栏对齐：本控件 Row 0 显式留 36px（替代原 WorkspaceExplorer
+	                内部的 36px 占位 hack），在 MainWindow 中配合
+	                Margin="0,-36,0,0" 让本控件向上贴顶。
+
+	     详见 Docs/未来版本策划/界面重设计/01-布局规格.md §3。
+	     ════════════════════════════════════════════════════════════════ -->
+
+	<UserControl.Styles>
+		<!-- 底部 Tab 按钮（VS 经典风格） -->
+		<Style Selector="Button.left-tab">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Foreground" Value="{DynamicResource SubtextBrush}" />
+			<Setter Property="FontSize" Value="{DynamicResource Font.Sm}" />
+			<Setter Property="Padding" Value="12,6" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="CornerRadius" Value="0" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="HorizontalContentAlignment" Value="Center" />
+			<Setter Property="HorizontalAlignment" Value="Stretch" />
+			<Setter Property="VerticalAlignment" Value="Stretch" />
+		</Style>
+		<Style Selector="Button.left-tab:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+		</Style>
+		<!-- active 状态：蓝字 + 加粗 + 主背景色（突出"贴出感"） -->
+		<Style Selector="Button.left-tab.left-tab-active">
+			<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+			<Setter Property="FontWeight" Value="{DynamicResource Weight.SemiBold}" />
+			<Setter Property="Background" Value="{DynamicResource BaseBrush}" />
+		</Style>
+		<Style Selector="Button.left-tab.left-tab-active /template/ ContentPresenter#PART_ContentPresenter">
+			<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+			<Setter Property="Background" Value="{DynamicResource BaseBrush}" />
+		</Style>
+	</UserControl.Styles>
+
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="36" />     <!-- 标题栏对齐占位 -->
+			<RowDefinition Height="*" />      <!-- Tab 内容区 -->
+			<RowDefinition Height="32" />     <!-- 底部 Tab 切换栏 -->
+		</Grid.RowDefinitions>
+
+		<!-- Row 0: 标题栏占位（替代原 WorkspaceExplorer 内部 hack） -->
+		<Border Grid.Row="0" />
+
+		<!-- Row 1: Tab 内容（Tab1 / Tab2 互斥可见，由 VM 控制） -->
+		<Panel Grid.Row="1">
+			<!-- Tab1: 文件目录 -->
+			<controls:WorkspaceExplorer x:Name="FileExplorerHost"
+			                            IsVisible="{Binding IsTab1Active}" />
+
+			<!-- Tab2: 历史面板 -->
+			<Panel IsVisible="{Binding IsTab2Active}">
+				<expert:ChatHistoryPanel x:Name="ChatHistoryPanelHost"
+				                         IsVisible="{Binding MainVm.IsChatMode}" />
+				<wm:WorkTaskHistoryPanel x:Name="WorkTaskHistoryPanelHost"
+				                         IsVisible="{Binding MainVm.IsWorkflowMode}" />
+				<meeting:MeetingHistoryPanel x:Name="MeetingHistoryPanelHost"
+				                             IsVisible="{Binding MainVm.IsGroupChatMode}" />
+			</Panel>
+		</Panel>
+
+		<!-- Row 2: 底部 Tab 切换栏（决策 UI-9：VS 经典风格） -->
+		<Border Grid.Row="2"
+		        Background="{DynamicResource Surface0Brush}"
+		        BorderBrush="{DynamicResource Surface1Brush}"
+		        BorderThickness="0,1,0,0">
+			<Grid ColumnDefinitions="*,*">
+				<Button x:Name="Tab1Button"
+				        Grid.Column="0"
+				        Classes="left-tab"
+				        Content="工作目录"
+				        Click="OnTab1Click" />
+				<Button x:Name="Tab2Button"
+				        Grid.Column="1"
+				        Classes="left-tab"
+				        Content="{Binding MainVm.ModeBoundLabel}"
+				        Click="OnTab2Click" />
+			</Grid>
+		</Border>
+	</Grid>
+</UserControl>

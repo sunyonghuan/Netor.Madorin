@@ -1,0 +1,5 @@
+interface:
+  display_name: "Server Maintainer Auth"
+  short_description: "Manage server authentication through SSH plugin tools"
+  default_prompt: "Use $auth for server authentication tasks. Remote validation and key initialization must use SSH plugin tools, not PowerShell-wrapped ssh/scp commands."
+

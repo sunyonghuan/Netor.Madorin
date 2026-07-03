@@ -1,0 +1,271 @@
+@model Netor.Cortana.Platform.Admin.Models.Reviews.ReviewIndexViewModel
+@using Netor.Cortana.Platform.Entitys.Enums
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    ViewData["Title"] = "资源审核";
+    ViewData["WorkspaceTags"] = new[]
+    {
+        new AdminWorkspaceTag("全部审核", Model.TotalCount.ToString(), Url.Action("Index", "Reviews"), "layui-icon-auz"),
+        new AdminWorkspaceTag("待审核", Model.PendingCount.ToString(), Url.Action("Index", "Reviews", new { status = (int)AssetReviewStatus.Pending }), "layui-icon-time"),
+        new AdminWorkspaceTag("已通过", Model.ApprovedCount.ToString(), Url.Action("Index", "Reviews", new { status = (int)AssetReviewStatus.Approved }), "layui-icon-ok"),
+        new AdminWorkspaceTag("已驳回", Model.RejectedCount.ToString(), Url.Action("Index", "Reviews", new { status = (int)AssetReviewStatus.Rejected }), "layui-icon-close")
+    };
+}
+
+<section class="admin-card admin-filter-card">
+    <div class="admin-card-body">
+        <form id="reviewFilter" class="layui-form layui-form-pane" lay-filter="reviewFilter">
+            <div class="admin-filter-grid">
+                <div class="layui-form-item admin-filter-span-2">
+                    <label class="layui-form-label">关键词</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="keyword" value="@Model.Keyword" placeholder="资源/标识/提交人/备注" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">审核状态</label>
+                    <div class="layui-input-block">
+                        <select name="status">
+                            <option value="">全部</option>
+                            @foreach (var option in Enum.GetValues<AssetReviewStatus>())
+                            {
+                                <option value="@((int)option)" selected="@(Model.Status == option)">@GetReviewStatusName(option)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">资源类型</label>
+                    <div class="layui-input-block">
+                        <select name="assetType">
+                            <option value="">全部</option>
+                            @foreach (var option in Enum.GetValues<AssetType>())
+                            {
+                                <option value="@((int)option)">@GetAssetTypeName(option)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">资源状态</label>
+                    <div class="layui-input-block">
+                        <select name="assetStatus">
+                            <option value="">全部</option>
+                            @foreach (var option in Enum.GetValues<AssetStatus>())
+                            {
+                                <option value="@((int)option)">@GetAssetStatusName(option)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">提交人</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="submitter" placeholder="账号关键词" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">审核人</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="reviewer" placeholder="审核人" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">审核开始</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="reviewedStart" data-laydate data-laydate-type="datetime" placeholder="开始时间" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">审核结束</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="reviewedEnd" data-laydate data-laydate-type="datetime" placeholder="结束时间" />
+                    </div>
+                </div>
+                <div class="layui-form-item admin-filter-submit">
+                    <button class="layui-btn layui-btn-normal" lay-submit lay-filter="reviewSearch">查询</button>
+                    <button class="layui-btn layui-btn-primary" type="button" data-review-filter-reset>重置</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="admin-card admin-layui-table-card">
+    <div class="admin-card-body">
+        <input name="__RequestVerificationToken" type="hidden" value="@AntiforgeryToken()" />
+        <table id="reviewTable" lay-filter="reviewTable"></table>
+    </div>
+</section>
+
+<script type="text/html" id="reviewAssetTpl">
+    <div class="admin-text-strong">{{ d.assetName }}</div>
+    <div class="admin-text-muted">{{ d.assetTypeName }} · {{ d.assetSlug }}</div>
+</script>
+
+<script type="text/html" id="reviewStatusTpl">
+    <span class="admin-badge {{ d.statusBadgeClass }}">{{ d.statusName }}</span>
+</script>
+
+<script type="text/html" id="reviewAssetStatusTpl">
+    <span class="admin-badge {{ d.assetStatusBadgeClass }}">{{ d.assetStatusName }}</span>
+</script>
+
+<script type="text/html" id="reviewNotesTpl">
+    <div>{{ d.notes || "-" }}</div>
+    {{# if (d.solutionSummary) { }}
+        <div class="admin-review-risk">
+            {{# if (d.solutionSummary.isValid) { }}
+                <span class="admin-badge admin-badge-muted">方案 {{ d.solutionSummary.countSummary }}</span>
+                <ul class="review-risk-list">
+                {{# layui.each(d.solutionSummary.allAssets || [], function(index, item){ }}
+                    <li>{{ item.typeName }} · {{ item.slug }} · {{ item.path }}</li>
+                {{# }); }}
+                </ul>
+            {{# } else { }}
+                <span class="admin-badge admin-badge-danger">方案清单异常</span>
+                <ul class="review-risk-list"><li>{{ d.solutionSummary.errorMessage || "solution.json 解析失败" }}</li></ul>
+            {{# } }}
+        </div>
+    {{# } }}
+    {{# if (d.riskIssues && d.riskIssues.length > 0) { }}
+        <div class="admin-review-risk">
+            <span class="admin-badge admin-badge-danger">风险 {{ d.riskIssues.length }}</span>
+            <ul class="review-risk-list">
+            {{# layui.each(d.riskIssues, function(index, item){ }}
+                <li>{{ item }}</li>
+            {{# }); }}
+            </ul>
+        </div>
+    {{# } else if (d.status === 1) { }}
+        <span class="admin-badge admin-badge-success">预检通过</span>
+    {{# } }}
+    {{# if (d.assetTypeName === "解决方案" || d.assetTypeName === "插件" || d.assetTypeName === "技能") { }}
+        <div class="admin-text-muted">风控允许插件、技能、解决方案包含运行所需脚本和可执行资源；智能体仍按高风险扩展名严格处理。</div>
+    {{# } }}
+</script>
+
+<script type="text/html" id="reviewActionsTpl">
+    <div class="layui-btn-group admin-row-actions">
+        {{# if (d.status === 1) { }}
+            <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="approve">通过</a>
+            <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="reject">驳回</a>
+        {{# } }}
+        {{# if (d.status === 2) { }}
+            <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="revoke">撤回</a>
+        {{# } }}
+        <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="asset">资源</a>
+    </div>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table", "layer"], function () {
+            const form = layui.form;
+            const table = layui.table;
+            const layer = layui.layer;
+            const filterSelector = "#reviewFilter";
+            const tableId = "reviewTable";
+            const token = () => document.querySelector("input[name='__RequestVerificationToken']").value;
+            const postReview = (url, id, notes, done) => {
+                const formData = new FormData();
+                formData.append("id", id);
+                formData.append("notes", notes);
+                formData.append("__RequestVerificationToken", token());
+                fetch(url, { method: "POST", body: formData }).then(() => {
+                    table.reload(tableId);
+                    if (done) {
+                        done();
+                    }
+                });
+            };
+
+            window.adminTable.render({
+                elem: "#reviewTable",
+                id: tableId,
+                url: "@Url.Action("TableData", "Reviews")",
+                where: window.adminFilter.collect(filterSelector),
+                cols: [[
+                    { field: "assetName", title: "资源", minWidth: 230, templet: "#reviewAssetTpl", sort: true },
+                    { field: "versionName", title: "版本", width: 120 },
+                    { field: "submitterName", title: "提交人", minWidth: 150 },
+                    { field: "assetStatus", title: "资源状态", width: 120, templet: "#reviewAssetStatusTpl" },
+                    { field: "status", title: "审核状态", width: 120, templet: "#reviewStatusTpl", sort: true },
+                    { field: "notes", title: "备注/风险", minWidth: 260, templet: "#reviewNotesTpl" },
+                    { field: "reviewerId", title: "审核人", width: 130 },
+                    { field: "reviewedAtText", title: "审核时间", width: 170, sort: true },
+                    { title: "操作", width: 176, fixed: "right", toolbar: "#reviewActionsTpl" }
+                ]]
+            });
+
+            form.on("submit(reviewSearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-review-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+
+            table.on("tool(reviewTable)", function (obj) {
+                const item = obj.data;
+                if (obj.event === "approve") {
+                    layer.confirm("确定通过该资源审核吗？", { icon: 3, title: "审核通过" }, function (index) {
+                        postReview("@Url.Action("Approve", "Reviews")", item.id, "审核通过", () => layer.msg("审核通过操作已提交。"));
+                        layer.close(index);
+                    });
+                } else if (obj.event === "reject") {
+                    layer.prompt({ title: "请输入驳回原因", formType: 2, value: "审核驳回" }, function (value, index) {
+                        postReview("@Url.Action("Reject", "Reviews")", item.id, value || "审核驳回", () => layer.msg("审核驳回操作已提交。"));
+                        layer.close(index);
+                    });
+                } else if (obj.event === "revoke") {
+                    layer.confirm("确定撤回该审核并下架资源吗？", { icon: 3, title: "审核撤回" }, function (index) {
+                        postReview("@Url.Action("Revoke", "Reviews")", item.id, "审核撤回", () => layer.msg("审核撤回操作已提交。"));
+                        layer.close(index);
+                    });
+                } else if (obj.event === "asset") {
+                    window.adminDrawer.openRight({
+                        title: `资源详情 - ${item.assetName}`,
+                        url: `@Url.Action("Details", "Assets")?id=${encodeURIComponent(item.assetId)}&mode=drawer`,
+                        width: "900px"
+                    });
+                }
+            });
+        });
+    </script>
+}
+
+@functions {
+    private static string GetReviewStatusName(AssetReviewStatus status) => status switch
+    {
+        AssetReviewStatus.Pending => "待审核",
+        AssetReviewStatus.Approved => "已通过",
+        AssetReviewStatus.Rejected => "已驳回",
+        AssetReviewStatus.Revoked => "已撤回",
+        _ => status.ToString()
+    };
+
+    private static string GetAssetTypeName(AssetType type) => type switch
+    {
+        AssetType.Plugin => "插件",
+        AssetType.Skill => "技能",
+        AssetType.Agent => "智能体",
+        AssetType.Solution => "解决方案",
+        _ => type.ToString()
+    };
+
+    private static string GetAssetStatusName(AssetStatus status) => status switch
+    {
+        AssetStatus.Draft => "草稿",
+        AssetStatus.Published => "已发布",
+        AssetStatus.Hidden => "隐藏",
+        AssetStatus.Offline => "下架",
+        _ => status.ToString()
+    };
+
+    private string AntiforgeryToken()
+    {
+        return Antiforgery.GetAndStoreTokens(Context).RequestToken ?? string.Empty;
+    }
+}

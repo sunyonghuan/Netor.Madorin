@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Netor.Cortana.UI.Controls.WorkMode.TaskResumePromptCard"
+             x:CompileBindings="True">
+
+    <UserControl.Styles>
+        <Style Selector="Button.resume-action">
+            <Setter Property="Background" Value="#2F4F4F" />
+            <Setter Property="Foreground" Value="#D8E6E2" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.resume-action:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#3C6060" />
+        </Style>
+        <Style Selector="Button.resume-action.secondary">
+            <Setter Property="Background" Value="#343434" />
+            <Setter Property="Foreground" Value="#C8C8C8" />
+        </Style>
+        <Style Selector="Button.resume-action.secondary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#424242" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Margin="16,8,16,8"
+            Background="#202424"
+            BorderBrush="#3E6660"
+            BorderThickness="1"
+            CornerRadius="3"
+            Padding="14,12">
+        <StackPanel Spacing="8">
+            <TextBlock Text="发现未完成任务"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Foreground="#D8E6E2" />
+            <TextBlock x:Name="TitleBlock"
+                       FontSize="12"
+                       Foreground="#B8C8C4"
+                       TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="*,*"
+                  ColumnSpacing="8"
+                  Margin="0,4,0,0">
+                <Button Grid.Column="0"
+                        Classes="resume-action"
+                        Content="继续执行"
+                        Click="OnResumeClick" />
+                <Button Grid.Column="1"
+                        Classes="resume-action secondary"
+                        Content="放弃任务"
+                        Click="OnCancelClick" />
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

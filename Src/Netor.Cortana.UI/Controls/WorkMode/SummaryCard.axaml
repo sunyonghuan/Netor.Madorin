@@ -1,0 +1,34 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Netor.Cortana.UI.Controls.Common"
+             xmlns:wm="using:Netor.Cortana.UI.Controls.WorkMode"
+             x:Class="Netor.Cortana.UI.Controls.WorkMode.SummaryCard"
+             x:CompileBindings="True">
+
+    <!--
+      ════════════════════════════════════════════════════════════════
+      完成总结卡片（SummaryCard） - 阶段 4
+      ─ 视觉规范来源：09-界面交互设计.md §2.4
+      ─ 默认展开（让用户一眼看到总结）
+      ─ 标题"完成总结"（无 emoji）
+      ─ 内容：Markdown 总结正文 + 主步骤折叠卡片(默认折叠)
+      ────────────────────────────────────────────────────────────────  -->
+
+    <Border x:Name="RootBorder"
+            Margin="16,8,16,8"
+            Background="#16000000"
+            BorderBrush="#26FFFFFF"
+            BorderThickness="1"
+            CornerRadius="3"
+            Padding="14,10">
+        <StackPanel Spacing="8">
+            <TextBlock Text="完成总结"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Foreground="#cccccc" />
+            <controls:MarkdownRenderer x:Name="SummaryRenderer"
+                                       TextColor="#b8b8b8" />
+            <StackPanel x:Name="StepsArchiveHost" Spacing="4" />
+        </StackPanel>
+    </Border>
+</UserControl>

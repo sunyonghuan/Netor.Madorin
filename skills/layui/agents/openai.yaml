@@ -1,0 +1,5 @@
+interface:
+  display_name: "Layui"
+  short_description: "Help with Layui workflows"
+  default_prompt: "Use $layui to help with Layui tasks."
+

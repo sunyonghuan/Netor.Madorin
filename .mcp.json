@@ -1,0 +1,19 @@
+{
+  "inputs": [
+    {
+      "id": "madorin-mcp-token",
+      "type": "promptString",
+      "description": "Madorin Manager MCP Bearer token (mcp_xxx)",
+      "password": true
+    }
+  ],
+  "servers": {
+    "madorin-manager": {
+      "type": "http",
+      "url": "https://manager.madorin.netor.me/mcp",
+      "headers": {
+        "Authorization": "Bearer mcp_H_d10_qbM4_gu-UyJreEGXdJAIldVcfN2x8FcyuYpwI"
+      }
+    }
+  }
+}

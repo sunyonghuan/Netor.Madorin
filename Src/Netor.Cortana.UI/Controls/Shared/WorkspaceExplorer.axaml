@@ -1,0 +1,114 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:Netor.Cortana.UI.Controls.Shared"
+             x:Class="Netor.Cortana.UI.Controls.Shared.WorkspaceExplorer"
+             x:DataType="local:WorkspaceExplorer"
+             x:CompileBindings="True"
+             Background="#1e1e1e">
+
+	<UserControl.Styles>
+		<!-- 右键菜单统一样式 -->
+		<Style Selector="MenuFlyout MenuItem">
+			<Setter Property="Padding" Value="28,6,40,6" />
+			<Setter Property="MinWidth" Value="200" />
+		</Style>
+	</UserControl.Styles>
+
+	<DockPanel>
+		<!-- 界面重设计 C3：标题栏 36px 对齐占位移除（决策 UI-9）。
+		     原占位由 LeftPanel 容器的 Grid.Row[0] 统一管理；
+		     本控件改为纯文件目录 UI，不再耦合 MainWindow 标题栏布局。
+		     详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §3.4 + §3.5。 -->
+
+		<!-- 顶部工具栏 -->
+		<Border DockPanel.Dock="Top" Background="#1e1e1e" Padding="8,6" BorderBrush="#252526" BorderThickness="0,0,0,1">
+			<Grid ColumnDefinitions="*,Auto">
+				<TextBlock Grid.Column="0" Text="{Binding WorkspaceTitle}" Foreground="#cccccc" FontSize="12"
+				           FontWeight="SemiBold" VerticalAlignment="Center" />
+				<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+					<Button Classes="titlebar-btn" ToolTip.Tip="打开文件夹" Click="OnOpenFolderClick">
+						<Image Source="/Assets/open.png" Width="14" Height="14" />
+					</Button>
+					<Button Classes="titlebar-btn" ToolTip.Tip="新建文件" Click="OnNewFileClick">
+						<Image Source="/Assets/add.png" Width="14" Height="14" />
+					</Button>
+					<Button Classes="titlebar-btn" ToolTip.Tip="刷新" Click="OnRefreshClick">
+						<Image Source="/Assets/refresh.png" Width="14" Height="14" />
+					</Button>
+					<Button Classes="titlebar-btn" ToolTip.Tip="全部折叠" Click="OnCollapseAllClick">
+						<Image Source="/Assets/expland.png" Width="14" Height="14" />
+					</Button>
+					<Button Classes="titlebar-btn" ToolTip.Tip="折叠工作台" Click="OnWorkspacePanelCollapseClick">
+						<Image Source="/Assets/up.png"
+						       Width="14"
+						       Height="14"
+						       RenderTransformOrigin="50%,50%">
+							<Image.RenderTransform>
+								<RotateTransform Angle="270" />
+							</Image.RenderTransform>
+						</Image>
+					</Button>
+				</StackPanel>
+			</Grid>
+		</Border>
+
+		<!-- 文件树（支持多选） -->
+		<Grid ClipToBounds="True">
+			<Canvas x:Name="TreeConnectorLayer"
+			        IsHitTestVisible="False"
+			        Opacity="0" />
+			<TreeView x:Name="FileTree"
+			          Background="Transparent"
+			          BorderBrush="Transparent"
+			          BorderThickness="1"
+			          Padding="4"
+			          SelectionMode="Multiple"
+			          DragDrop.AllowDrop="True"
+			          DoubleTapped="OnTreeDoubleTapped">
+				<TreeView.Styles>
+					<Style Selector="TreeViewItem" x:DataType="local:FileTreeNode">
+						<Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+					</Style>
+					<Style Selector="TreeViewItem.drop-target">
+						<Setter Property="BorderBrush" Value="#007ACC" />
+						<Setter Property="BorderThickness" Value="1" />
+						<Setter Property="Background" Value="#1a007ACC" />
+					</Style>
+				</TreeView.Styles>
+				<TreeView.ItemTemplate>
+					<TreeDataTemplate x:DataType="local:FileTreeNode" ItemsSource="{Binding Children}">
+						<StackPanel Orientation="Horizontal" Spacing="6" Margin="2,1">
+							<Image Width="14" Height="14" Source="{Binding Icon}" />
+							<TextBlock Text="{Binding Name}" Foreground="#cccccc" FontSize="12"
+							           VerticalAlignment="Center" />
+						</StackPanel>
+					</TreeDataTemplate>
+				</TreeView.ItemTemplate>
+
+				<!-- 右键菜单 -->
+				<TreeView.ContextMenu>
+					<ContextMenu x:Name="TreeContextMenu" Opening="OnContextMenuOpening">
+						<MenuItem x:Name="MenuOpen"            Header="打开"              Click="OnMenuOpenClick" />
+						<MenuItem x:Name="MenuOpenInExplorer"  Header="在资源管理器中显示" Click="OnMenuOpenInExplorerClick" />
+						<MenuItem x:Name="MenuOpenInTerminal"  Header="在终端中打开"       Click="OnMenuOpenInTerminalClick" />
+						<Separator />
+						<MenuItem x:Name="MenuSendToChat"      Header="发送到聊天附件"     Click="OnMenuSendToChatClick" />
+						<MenuItem x:Name="MenuSendToWorkflow"  Header="发送到工作流附件"   Click="OnMenuSendToWorkflowClick" />
+						<MenuItem x:Name="MenuSendToGroupChat" Header="发送到群聊附件"     Click="OnMenuSendToGroupChatClick" />
+						<Separator />
+						<MenuItem x:Name="MenuNewFile"         Header="新建文件"           Click="OnMenuNewFileClick" />
+						<MenuItem x:Name="MenuNewFolder"       Header="新建文件夹"         Click="OnMenuNewFolderClick" />
+						<!-- <Separator /> -->
+						<MenuItem x:Name="MenuCopy"            Header="复制文件"           Click="OnMenuCopyClick" />
+						<MenuItem x:Name="MenuPaste"           Header="粘贴文件"              Click="OnMenuPasteClick" />
+						<MenuItem x:Name="MenuDelete"          Header="删除文件"              Click="OnMenuDeleteClick" />
+						<MenuItem x:Name="MenuRename"          Header="重命名文件"            Click="OnMenuRenameClick" />
+						<Separator />
+						<MenuItem x:Name="MenuCopyPath"        Header="复制绝对路径"       Click="OnMenuCopyPathClick" />
+						<MenuItem x:Name="MenuCopyRelPath"     Header="复制相对路径"       Click="OnMenuCopyRelPathClick" />
+					</ContextMenu>
+				</TreeView.ContextMenu>
+			</TreeView>
+		</Grid>
+	</DockPanel>
+</UserControl>

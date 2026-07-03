@@ -1,0 +1,235 @@
+@model Netor.Cortana.Platform.Admin.Models.Profile.McpTokenViewModel
+@{
+    ViewData["Title"] = "我的 MCP 令牌";
+    ViewData["AdminSection"] = "个人设置";
+}
+
+<section class="admin-card">
+    <div class="admin-card-header">
+        <h2 class="admin-card-title">MCP 接入信息</h2>
+        @if (Model.Enabled)
+        {
+            <span class="layui-badge layui-bg-green">已启用</span>
+        }
+        else
+        {
+            <span class="layui-badge layui-bg-gray">未启用</span>
+        }
+    </div>
+    <div class="admin-card-body">
+        @if (!Model.Enabled)
+        {
+            <div class="layui-bg-orange" style="padding: 12px 16px; margin-bottom: 12px;">
+                当前 MCP 服务未启用。请由运维设置 <code>Mcp__Enabled=true</code> 后再连接。
+            </div>
+        }
+        <table class="layui-table">
+            <tbody>
+                <tr>
+                    <th style="width: 160px;">协议类型</th>
+                    <td>@Model.ProtocolType</td>
+                </tr>
+                <tr>
+                    <th>连接地址</th>
+                    <td>
+                        <code id="mcpEndpointUrl">@Model.EndpointUrl</code>
+                        <button class="layui-btn layui-btn-primary layui-btn-xs" type="button" data-copy-target="mcpEndpointUrl">
+                            <i class="layui-icon layui-icon-template"></i>
+                            复制
+                        </button>
+                    </td>
+                </tr>
+                <tr>
+                    <th>健康检查</th>
+                    <td>
+                        <code id="mcpHealthUrl">@Model.HealthUrl</code>
+                        <button class="layui-btn layui-btn-primary layui-btn-xs" type="button" data-copy-target="mcpHealthUrl">
+                            <i class="layui-icon layui-icon-template"></i>
+                            复制
+                        </button>
+                    </td>
+                </tr>
+                <tr>
+                    <th>鉴权方式</th>
+                    <td>
+                        <code id="mcpAuthHeader">@Model.AuthHeaderExample</code>
+                        <button class="layui-btn layui-btn-primary layui-btn-xs" type="button" data-copy-target="mcpAuthHeader">
+                            <i class="layui-icon layui-icon-template"></i>
+                            复制
+                        </button>
+                    </td>
+                </tr>
+                <tr>
+                    <th>连接流程</th>
+                    <td>生成令牌后，在 AI 客户端选择 MCP HTTP / Streamable HTTP，填入连接地址，并把令牌作为 Bearer Token 使用。</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(Model.PlainToken))
+{
+    <section class="admin-card" data-mcp-plain-token>
+        <div class="admin-card-header">
+            <h2 class="admin-card-title">新令牌已生成</h2>
+            <span class="layui-badge layui-bg-red">仅显示一次</span>
+        </div>
+        <div class="admin-card-body">
+            <div class="layui-bg-red" style="padding: 12px 16px; margin-bottom: 12px;">
+                页面刷新或离开后明文立即销毁，丢失只能吊销后重新生成。
+            </div>
+            <div class="layui-form-item">
+                <label class="layui-form-label">备注</label>
+                <div class="layui-input-block">
+                    <input class="layui-input" value="@Model.PlainTokenNote" readonly />
+                </div>
+            </div>
+            <pre id="mcpPlainToken" style="white-space: pre-wrap; word-break: break-all; font-size: 18px; line-height: 1.6; padding: 16px; border: 1px solid #e6e6e6; background: #fafafa;">@Model.PlainToken</pre>
+            <div class="layui-btn-container">
+                <button class="layui-btn" type="button" data-copy-mcp-token>
+                    <i class="layui-icon layui-icon-template"></i>
+                    复制到剪贴板
+                </button>
+                <input id="mcpSavedConfirm" type="checkbox" title="我已妥善保存" />
+            </div>
+        </div>
+    </section>
+}
+
+<section class="admin-card">
+    <div class="admin-card-header">
+        <h2 class="admin-card-title">生成新令牌</h2>
+        <span class="admin-inline-stat">令牌用于智能体以管理员身份调用后台 MCP 服务</span>
+    </div>
+    <div class="admin-card-body">
+        <form class="layui-form layui-form-pane" asp-action="Generate" method="post">
+            @Html.AntiForgeryToken()
+            <div class="layui-form-item">
+                <label class="layui-form-label">备注</label>
+                <div class="layui-input-inline" style="width: 360px;">
+                    <input class="layui-input" name="note" maxlength="64" placeholder="例如 Claude Desktop / 内部调试" />
+                </div>
+                <button class="layui-btn" type="submit">
+                    <i class="layui-icon layui-icon-add-1"></i>
+                    生成令牌
+                </button>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="admin-card">
+    <div class="admin-card-header">
+        <h2 class="admin-card-title">令牌列表</h2>
+        <span class="admin-inline-stat">共 @Model.Tokens.Count 枚</span>
+    </div>
+    <div class="admin-card-body">
+        <table class="layui-table">
+            <thead>
+                <tr>
+                    <th>前缀</th>
+                    <th>备注</th>
+                    <th>状态</th>
+                    <th>创建时间</th>
+                    <th>最近使用</th>
+                    <th>最近 IP / UA</th>
+                    <th style="width: 180px;">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Tokens.Count == 0)
+            {
+                <tr>
+                    <td colspan="7" class="layui-text">暂无 MCP 令牌。</td>
+                </tr>
+            }
+            else
+            {
+                foreach (var token in Model.Tokens)
+                {
+                    <tr>
+                        <td><code>@token.Prefix...</code></td>
+                        <td>@token.Note</td>
+                        <td>
+                            @if (token.Enabled)
+                            {
+                                <span class="layui-badge layui-bg-green">启用</span>
+                            }
+                            else
+                            {
+                                <span class="layui-badge layui-bg-gray">停用</span>
+                            }
+                        </td>
+                        <td>@token.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@(token.LastUsedUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "从未使用")</td>
+                        <td>
+                            <div>@(token.LastUsedIp ?? "-")</div>
+                            <small title="@token.LastUsedUa">@(string.IsNullOrWhiteSpace(token.LastUsedUa) ? "-" : token.LastUsedUa)</small>
+                        </td>
+                        <td>
+                            <form asp-action="Toggle" method="post" style="display: inline;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@token.Id" />
+                                <input type="hidden" name="enabled" value="@(!token.Enabled)" />
+                                <button class="layui-btn layui-btn-xs @(token.Enabled ? "layui-btn-warm" : "layui-btn-normal")" type="submit">
+                                    @(token.Enabled ? "停用" : "启用")
+                                </button>
+                            </form>
+                            <form asp-action="Revoke" method="post" style="display: inline;" data-admin-confirm-submit="确定吊销该 MCP 令牌吗？">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@token.Id" />
+                                <button class="layui-btn layui-btn-danger layui-btn-xs" type="submit">吊销</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        (function () {
+            const plainToken = document.getElementById('mcpPlainToken');
+            const copyButton = document.querySelector('[data-copy-mcp-token]');
+            const confirm = document.getElementById('mcpSavedConfirm');
+            if (!plainToken || !copyButton || !confirm) {
+                return;
+            }
+
+            copyButton.addEventListener('click', async function () {
+                await navigator.clipboard.writeText(plainToken.textContent.trim());
+                if (window.layui && layui.layer) {
+                    layui.layer.msg('已复制 MCP 令牌');
+                }
+            });
+
+            window.addEventListener('beforeunload', function (event) {
+                if (!confirm.checked) {
+                    event.preventDefault();
+                    event.returnValue = '';
+                }
+            });
+        })();
+
+        (function () {
+            const copyButtons = document.querySelectorAll('[data-copy-target]');
+            copyButtons.forEach(function (button) {
+                button.addEventListener('click', async function () {
+                    const target = document.getElementById(button.getAttribute('data-copy-target'));
+                    if (!target) {
+                        return;
+                    }
+
+                    await navigator.clipboard.writeText(target.textContent.trim());
+                    if (window.layui && layui.layer) {
+                        layui.layer.msg('已复制');
+                    }
+                });
+            });
+        })();
+    </script>
+}

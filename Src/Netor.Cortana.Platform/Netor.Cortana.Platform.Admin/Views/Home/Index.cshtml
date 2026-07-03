@@ -1,0 +1,389 @@
+@model Netor.Cortana.Platform.Admin.Models.Dashboard.DashboardViewModel
+@{
+    ViewData["Title"] = "运营总览";
+}
+
+<section class="layui-row layui-col-space16 dashboard-kpi-row" aria-label="业务统计">
+    @foreach (var metric in Model.Metrics)
+    {
+        <div class="layui-col-xs12 layui-col-sm6 layui-col-md4 layui-col-lg3">
+            <article class="layui-card dashboard-kpi-card">
+                <div class="dashboard-kpi-icon" style="background:@metric.Color"><i class="layui-icon @metric.Icon"></i></div>
+                <div class="dashboard-kpi-copy">
+                    <span>@metric.Title</span>
+                    <strong>@metric.Value</strong>
+                    <small>@metric.Description</small>
+                </div>
+            </article>
+        </div>
+    }
+</section>
+
+<section class="layui-row layui-col-space16">
+    <div class="layui-col-xs12 layui-col-lg8">
+        <article class="layui-card admin-card dashboard-chart-card">
+            <div class="admin-card-header">
+                <div>
+                    <h2 class="admin-card-title">订单收入趋势</h2>
+                    <div class="admin-inline-stat">最近 7 天已支付订单与收入</div>
+                </div>
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-controller="Orders" asp-action="Index">订单交易</a>
+            </div>
+            <div class="admin-card-body">
+                <canvas id="orderTrendChart" class="dashboard-chart-canvas" height="260"></canvas>
+            </div>
+        </article>
+    </div>
+    <div class="layui-col-xs12 layui-col-lg4">
+        <article class="layui-card admin-card dashboard-chart-card">
+            <div class="admin-card-header">
+                <div>
+                    <h2 class="admin-card-title">资源状态结构</h2>
+                    <div class="admin-inline-stat">按资源当前状态统计</div>
+                </div>
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-controller="Assets" asp-action="Index">资源管理</a>
+            </div>
+            <div class="admin-card-body">
+                <canvas id="assetStatusChart" class="dashboard-chart-canvas" height="260"></canvas>
+                <div class="dashboard-chart-legend">
+                    @foreach (var item in Model.AssetStatusSegments)
+                    {
+                        <span><i style="background:@item.Color"></i>@item.Label @item.Value.ToString("0")</span>
+                    }
+                </div>
+            </div>
+        </article>
+    </div>
+</section>
+
+<section class="layui-row layui-col-space16">
+    <div class="layui-col-xs12 layui-col-lg8">
+        <article class="layui-card admin-card dashboard-chart-card">
+            <div class="admin-card-header">
+                <div>
+                    <h2 class="admin-card-title">热门资源下载</h2>
+                    <div class="admin-inline-stat">下载量最高的前 6 个资源</div>
+                </div>
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-controller="Assets" asp-action="Index">查看列表</a>
+            </div>
+            <div class="admin-card-body">
+                <canvas id="hotAssetChart" class="dashboard-chart-canvas" height="260"></canvas>
+            </div>
+        </article>
+    </div>
+    <div class="layui-col-xs12 layui-col-lg4">
+        <article class="layui-card admin-card">
+            <div class="admin-card-header">
+                <h2 class="admin-card-title">服务器运行信息</h2>
+                <span class="admin-inline-stat">当前 Admin 进程</span>
+            </div>
+            <div class="admin-card-body">
+                <div class="dashboard-runtime-list">
+                    @foreach (var item in Model.RuntimeInfos)
+                    {
+                        <div class="dashboard-runtime-item">
+                            <span class="dashboard-runtime-icon"><i class="layui-icon @item.Icon"></i></span>
+                            <span class="dashboard-runtime-copy">
+                                <strong>@item.Value</strong>
+                                <small>@item.Label · @item.Description</small>
+                            </span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </article>
+    </div>
+</section>
+
+<section class="layui-card admin-card">
+    <div class="admin-card-header">
+        <h2 class="admin-card-title">快捷功能入口</h2>
+        <span class="admin-inline-stat">进入高频运营模块</span>
+    </div>
+    <div class="admin-card-body">
+        <div class="layui-btn-container dashboard-action-grid">
+            @foreach (var link in Model.QuickLinks)
+            {
+                <a class="layui-btn layui-btn-primary layui-border-green dashboard-action-link" asp-controller="@link.Controller" asp-action="@link.Action">
+                    <i class="layui-icon @link.Icon"></i>
+                    <span>@link.Title</span>
+                </a>
+            }
+        </div>
+    </div>
+</section>
+
+<section class="layui-row layui-col-space16">
+    <div class="layui-col-xs12 layui-col-lg6">
+        <article class="layui-card admin-card">
+            <div class="admin-card-header">
+                <h2 class="admin-card-title">最新订单</h2>
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-controller="Orders" asp-action="Index">订单交易</a>
+            </div>
+            <div class="admin-card-body">
+                <table class="layui-table admin-table">
+                    <thead>
+                        <tr>
+                            <th>订单</th>
+                            <th>用户</th>
+                            <th>金额</th>
+                            <th>支付</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.LatestOrders.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="4" class="admin-empty-cell">暂无订单数据。</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var item in Model.LatestOrders)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="admin-text-strong">@item.Title</div>
+                                        <div class="admin-text-muted">@item.No</div>
+                                    </td>
+                                    <td>@item.AccountName</td>
+                                    <td>@item.Money.ToString("0.00")</td>
+                                    <td>
+                                        <div>@item.PayStatusName</div>
+                                        <div class="admin-text-muted">@item.PayTimeText</div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </div>
+    <div class="layui-col-xs12 layui-col-lg6">
+        <article class="layui-card admin-card">
+            <div class="admin-card-header">
+                <h2 class="admin-card-title">审核队列</h2>
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-controller="Reviews" asp-action="Index">审核管理</a>
+            </div>
+            <div class="admin-card-body">
+                <table class="layui-table admin-table">
+                    <thead>
+                        <tr>
+                            <th>资源</th>
+                            <th>提交人</th>
+                            <th>状态</th>
+                            <th>提交标记</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.ReviewQueue.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="4" class="admin-empty-cell">暂无待审核记录。</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var item in Model.ReviewQueue)
+                            {
+                                <tr>
+                                    <td>@item.AssetName</td>
+                                    <td>@item.SubmitterName</td>
+                                    <td><span class="admin-badge admin-badge-warning">@item.StatusName</span></td>
+                                    <td>@item.SubmittedAtText</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        (() => {
+            const trend = @Json.Serialize(Model.OrderTrend);
+            const assetStatus = @Json.Serialize(Model.AssetStatusSegments);
+            const hotAssets = @Json.Serialize(Model.HotAssetDownloadSegments);
+
+            const setupCanvas = (canvas) => {
+                const ratio = window.devicePixelRatio || 1;
+                const logicalHeight = Number(canvas.dataset.chartHeight || canvas.getAttribute("height") || 260);
+                canvas.dataset.chartHeight = String(logicalHeight);
+                canvas.style.height = `${logicalHeight}px`;
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = Math.max(1, Math.floor(rect.width * ratio));
+                canvas.height = Math.max(1, Math.floor(logicalHeight * ratio));
+                const context = canvas.getContext("2d");
+                context.setTransform(ratio, 0, 0, ratio, 0, 0);
+                return { context, width: rect.width, height: logicalHeight };
+            };
+
+            const drawEmpty = (context, width, height, text) => {
+                context.fillStyle = "#9aa7a3";
+                context.font = "14px sans-serif";
+                context.textAlign = "center";
+                context.fillText(text, width / 2, height / 2);
+            };
+
+            const drawTrend = () => {
+                const canvas = document.getElementById("orderTrendChart");
+                if (!canvas) {
+                    return;
+                }
+
+                const { context, width, height } = setupCanvas(canvas);
+                const padding = { top: 20, right: 24, bottom: 36, left: 42 };
+                const maxOrders = Math.max(1, ...trend.map((item) => item.orderCount || 0));
+                const maxIncome = Math.max(1, ...trend.map((item) => item.incomeAmount || 0));
+                const plotWidth = width - padding.left - padding.right;
+                const plotHeight = height - padding.top - padding.bottom;
+
+                context.clearRect(0, 0, width, height);
+                context.strokeStyle = "#e7eeeb";
+                context.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                    const y = padding.top + plotHeight * (i / 4);
+                    context.beginPath();
+                    context.moveTo(padding.left, y);
+                    context.lineTo(width - padding.right, y);
+                    context.stroke();
+                }
+
+                if (!trend.length) {
+                    drawEmpty(context, width, height, "暂无趋势数据");
+                    return;
+                }
+
+                const step = trend.length > 1 ? plotWidth / (trend.length - 1) : plotWidth;
+                trend.forEach((item, index) => {
+                    const barHeight = plotHeight * ((item.orderCount || 0) / maxOrders);
+                    const x = padding.left + index * step - 8;
+                    const y = padding.top + plotHeight - barHeight;
+                    context.fillStyle = "#16a085";
+                    context.fillRect(x, y, 16, barHeight);
+                    context.fillStyle = "#60736d";
+                    context.font = "12px sans-serif";
+                    context.textAlign = "center";
+                    context.fillText(item.label, padding.left + index * step, height - 12);
+                });
+
+                context.beginPath();
+                trend.forEach((item, index) => {
+                    const x = padding.left + index * step;
+                    const y = padding.top + plotHeight - plotHeight * ((item.incomeAmount || 0) / maxIncome);
+                    if (index === 0) {
+                        context.moveTo(x, y);
+                    } else {
+                        context.lineTo(x, y);
+                    }
+                });
+                context.strokeStyle = "#3867d6";
+                context.lineWidth = 3;
+                context.stroke();
+            };
+
+            const drawPie = () => {
+                const canvas = document.getElementById("assetStatusChart");
+                if (!canvas) {
+                    return;
+                }
+
+                const { context, width, height } = setupCanvas(canvas);
+                const total = assetStatus.reduce((sum, item) => sum + Number(item.value || 0), 0);
+                context.clearRect(0, 0, width, height);
+                if (!total) {
+                    drawEmpty(context, width, height, "暂无资源状态数据");
+                    return;
+                }
+
+                let start = -Math.PI / 2;
+                const radius = Math.min(width, height) * 0.34;
+                const centerX = width / 2;
+                const centerY = height / 2;
+                assetStatus.forEach((item) => {
+                    const angle = (Number(item.value || 0) / total) * Math.PI * 2;
+                    context.beginPath();
+                    context.moveTo(centerX, centerY);
+                    context.arc(centerX, centerY, radius, start, start + angle);
+                    context.closePath();
+                    context.fillStyle = item.color;
+                    context.fill();
+                    start += angle;
+                });
+                context.fillStyle = "#ffffff";
+                context.beginPath();
+                context.arc(centerX, centerY, radius * 0.54, 0, Math.PI * 2);
+                context.fill();
+                context.fillStyle = "#1f2d2a";
+                context.font = "700 22px sans-serif";
+                context.textAlign = "center";
+                context.fillText(total.toString(), centerX, centerY + 7);
+            };
+
+            const drawBars = () => {
+                const canvas = document.getElementById("hotAssetChart");
+                if (!canvas) {
+                    return;
+                }
+
+                const { context, width, height } = setupCanvas(canvas);
+                const padding = { top: 18, right: 24, bottom: 54, left: 42 };
+                const totalValue = hotAssets.reduce((sum, item) => sum + Number(item.value || 0), 0);
+                const maxValue = Math.max(1, ...hotAssets.map((item) => Number(item.value || 0)));
+                const plotWidth = width - padding.left - padding.right;
+                const plotHeight = height - padding.top - padding.bottom;
+                context.clearRect(0, 0, width, height);
+                if (!hotAssets.length) {
+                    drawEmpty(context, width, height, "暂无热门资源数据");
+                    return;
+                }
+
+                context.strokeStyle = "#e7eeeb";
+                context.lineWidth = 1;
+                context.beginPath();
+                context.moveTo(padding.left, padding.top + plotHeight);
+                context.lineTo(width - padding.right, padding.top + plotHeight);
+                context.stroke();
+
+                if (!totalValue) {
+                    drawEmpty(context, width, height, "暂无下载数据");
+                }
+
+                const gap = 16;
+                const barWidth = Math.max(18, (plotWidth - gap * (hotAssets.length - 1)) / hotAssets.length);
+                hotAssets.forEach((item, index) => {
+                    const value = Number(item.value || 0);
+                    const barHeight = plotHeight * (value / maxValue);
+                    const x = padding.left + index * (barWidth + gap);
+                    const y = padding.top + plotHeight - barHeight;
+                    context.fillStyle = item.color;
+                    context.fillRect(x, y, barWidth, barHeight);
+                    context.fillStyle = "#263633";
+                    context.font = "700 12px sans-serif";
+                    context.textAlign = "center";
+                    context.fillText(value.toString(), x + barWidth / 2, y - 6);
+                    context.save();
+                    context.translate(x + barWidth / 2, height - 14);
+                    context.rotate(-Math.PI / 6);
+                    context.fillStyle = "#60736d";
+                    context.font = "12px sans-serif";
+                    context.fillText(String(item.label || "").slice(0, 8), 0, 0);
+                    context.restore();
+                });
+            };
+
+            const renderCharts = () => {
+                drawTrend();
+                drawPie();
+                drawBars();
+            };
+
+            window.addEventListener("resize", renderCharts);
+            renderCharts();
+        })();
+    </script>
+}

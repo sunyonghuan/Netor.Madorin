@@ -1,0 +1,48 @@
+@model Netor.Cortana.Platform.Admin.Models.Settings.SettingsDetailViewModel
+@{
+    ViewData["Title"] = "设置详情";
+    var isDrawer = string.Equals(Context.Request.Query["mode"], "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="@(isDrawer ? "admin-drawer-page" : string.Empty)">
+    <section class="admin-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">@Model.Name</h2>
+                <div class="admin-inline-stat">@Model.Key</div>
+            </div>
+            @if (isDrawer)
+            {
+                <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" data-drawer-close>关闭</button>
+            }
+            else
+            {
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Index" asp-route-group="@Model.Group">返回设置</a>
+            }
+        </div>
+        <div class="admin-card-body">
+            <div class="asset-detail-grid">
+                <div>
+                    <div class="detail-label">分组</div>
+                    <strong>@Model.Group</strong>
+                </div>
+                <div>
+                    <div class="detail-label">类型</div>
+                    <strong>@Model.TypeName</strong>
+                </div>
+                <div>
+                    <div class="detail-label">保护</div>
+                    <span class="admin-badge @(Model.IsProtection ? "admin-badge-warning" : "admin-badge-success")">@(Model.IsProtection ? "保护" : "可编辑")</span>
+                </div>
+            </div>
+
+            <hr />
+
+            <h3 class="admin-section-title">说明</h3>
+            <p class="admin-text-muted">@Model.Display</p>
+
+            <h3 class="admin-section-title">当前值</h3>
+            <pre class="layui-code">@Model.Value</pre>
+        </div>
+    </section>
+</div>

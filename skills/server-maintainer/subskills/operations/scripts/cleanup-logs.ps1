@@ -1,0 +1,1 @@
+& "$PSScriptRoot\..\..\..\scripts\cleanup-logs.ps1" @args

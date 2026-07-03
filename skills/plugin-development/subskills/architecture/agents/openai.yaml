@@ -1,0 +1,5 @@
+interface:
+  display_name: "Plugin Development Architecture"
+  short_description: "Help with Plugin Development Architecture workflows"
+  default_prompt: "Use $architecture to help with Plugin Development Architecture tasks."
+

@@ -1,0 +1,1 @@
+& "$PSScriptRoot\..\..\..\scripts\fix-key-permission.ps1" @args

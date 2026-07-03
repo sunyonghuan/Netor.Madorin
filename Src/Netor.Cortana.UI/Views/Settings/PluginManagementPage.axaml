@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Netor.Cortana.UI.Views.Settings.PluginManagementPage"
+             x:CompileBindings="True">
+
+    <Grid x:Name="PageRoot">
+        <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="16,12,16,8">
+                <TextBlock Text="插件管理" FontSize="18" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextBrush}" />
+                <TextBlock Text="管理本地插件、全局插件，以及插件和智能体绑定"
+                           Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+            </StackPanel>
+
+            <Grid RowDefinitions="Auto,*" Margin="16,0,16,12">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8" Margin="0,0,0,10">
+                    <TextBox x:Name="TxtSearch" Grid.Column="0" Classes="form-input"
+                             PlaceholderText="搜索插件名称、ID 或简介"
+                             TextChanged="OnSearchTextChanged" />
+                    <Button Grid.Column="1" Classes="btn-secondary" Content="刷新" Click="OnRefreshClick" />
+                    <Button Grid.Column="2" Classes="btn-secondary" Content="应用商店" Click="OnOpenStoreClick" />
+                    <Button Grid.Column="3" Classes="btn-secondary" Content="打开目录" Click="OnOpenGlobalDirectoryClick" />
+                </Grid>
+
+                <Grid Grid.Row="1" ColumnDefinitions="210,*" ColumnSpacing="12">
+                    <Border Grid.Column="0" Background="{StaticResource MantleBrush}"
+                            BorderBrush="{StaticResource Surface1Brush}" BorderThickness="1"
+                            CornerRadius="4" Padding="8">
+                        <DockPanel>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="PluginListPanel" Spacing="6" />
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Background="{StaticResource Surface0Brush}"
+                            BorderBrush="{StaticResource Surface1Brush}" BorderThickness="1"
+                            CornerRadius="4" Padding="0">
+                        <Grid x:Name="DetailPanel">
+                            <TextBlock Text="请选择一个插件"
+                                       Foreground="{StaticResource SubtextBrush}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+        </DockPanel>
+
+        <Border x:Name="ToastBorder"
+                IsVisible="False"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Bottom"
+                Margin="0,0,0,24"
+                Padding="16,10"
+                CornerRadius="4"
+                Background="{StaticResource Surface1Brush}"
+                BorderBrush="{StaticResource AccentBrush}"
+                BorderThickness="1"
+                BoxShadow="0 6 18 0 #66000000">
+            <TextBlock x:Name="ToastText"
+                       Foreground="{StaticResource TextBrush}"
+                       FontSize="13"
+                       TextWrapping="Wrap"
+                       MaxWidth="520" />
+        </Border>
+    </Grid>
+
+</UserControl>

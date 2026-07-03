@@ -1,0 +1,69 @@
+@model IReadOnlyList<Netor.Cortana.Platform.Web.Models.Market.MarketAssetCardViewModel>
+
+@if (Model.Count == 0)
+{
+    <div class="empty-state">
+        <h2>这里会展示可用能力</h2>
+        <p>资源发布后，用户可以在这里搜索、订阅并加载到 Madorin。</p>
+    </div>
+}
+else
+{
+    <div class="row g-3 asset-grid">
+        @foreach (var item in Model)
+        {
+            <div class="col-md-6 col-xl-4">
+                <a class="asset-card compact-asset-card" asp-controller="Market" asp-action="Details" asp-route-slug="@item.Slug">
+                    <div class="asset-card-head">
+                        @if (!string.IsNullOrWhiteSpace(item.CoverUrl))
+                        {
+                            <img class="asset-thumb" src="@item.CoverUrl" alt="@item.Name" />
+                        }
+                        else
+                        {
+                            <div class="asset-signal" aria-hidden="true">
+                                <i></i>
+                                <i></i>
+                                <i></i>
+                            </div>
+                        }
+                        <div>
+                            <span class="asset-badge">@item.TypeName</span>
+                            <h3>@item.Name</h3>
+                        </div>
+                    </div>
+                    <div class="asset-body">
+                        <div class="asset-badges">
+                            @if (item.HasFreePlan)
+                            {
+                                <span class="asset-badge success">免费</span>
+                            }
+                            else if (item.LowestPrice is not null)
+                            {
+                                <span class="asset-badge price">¥@item.LowestPrice</span>
+                            }
+                        </div>
+                        <p>@item.ShortDescription</p>
+                        @if (item.SolutionSummary is not null)
+                        {
+                            <div class="asset-badges">
+                                @if (item.SolutionSummary.IsValid)
+                                {
+                                    <span class="asset-badge">@item.SolutionSummary.CountSummary</span>
+                                }
+                                else
+                                {
+                                    <span class="asset-badge price">方案清单异常</span>
+                                }
+                            </div>
+                        }
+                        <div class="asset-meta">
+                            <span>@item.DeveloperName</span>
+                            <span>@item.DownloadCount 次下载</span>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        }
+    </div>
+}

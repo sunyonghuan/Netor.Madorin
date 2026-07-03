@@ -1,0 +1,350 @@
+@model Netor.Cortana.Platform.Admin.Models.Assets.AssetDetailViewModel
+@{
+    ViewData["Title"] = "资源详情";
+    var isDrawer = string.Equals(Context.Request.Query["mode"].ToString(), "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="admin-drawer-page asset-detail-page">
+    <section class="asset-detail-shell">
+        <div class="asset-detail-hero">
+            <div class="asset-detail-hero-main">
+                <div class="asset-detail-badges">
+                    <span class="admin-badge @Model.StatusBadgeClass">@Model.StatusName</span>
+                    <span class="admin-badge admin-badge-muted">@Model.TypeName</span>
+                    @if (Model.IsFeatured)
+                    {
+                        <span class="admin-badge admin-badge-warning">推荐资源</span>
+                    }
+                </div>
+                <div class="asset-detail-hero-copy">
+                    <h2>@Model.Name</h2>
+                    <div class="asset-detail-slug">@Model.Slug</div>
+                    <p>@(string.IsNullOrWhiteSpace(Model.ShortDescription) ? "暂无简要说明。" : Model.ShortDescription)</p>
+                </div>
+            </div>
+            <div class="asset-detail-hero-actions">
+                <div class="layui-btn-group">
+                    <a class="layui-btn layui-btn-normal layui-btn-sm" asp-action="UploadVersion" asp-route-id="@Model.Id" asp-route-mode="drawer" data-admin-drawer="right" data-title="上新" data-width="920px">上新</a>
+                    @if (isDrawer)
+                    {
+                        <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" data-drawer-close>关闭</button>
+                    }
+                    else
+                    {
+                        <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Index">返回列表</a>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <section class="asset-detail-kpis">
+            <article class="asset-detail-kpi">
+                <span>当前版本</span>
+                <strong>@Model.CurrentVersionName</strong>
+                <small>@Model.VersionCount 个版本</small>
+            </article>
+            <article class="asset-detail-kpi">
+                <span>订阅情况</span>
+                <strong>@Model.TotalSubscriptionCount</strong>
+                <small>@Model.ActiveSubscriptionCount 个有效订阅</small>
+            </article>
+            <article class="asset-detail-kpi">
+                <span>使用用户</span>
+                <strong>@Model.SubscriberUserCount</strong>
+                <small>已有用户开通使用</small>
+            </article>
+            <article class="asset-detail-kpi">
+                <span>下载次数</span>
+                <strong>@Model.DownloadCount</strong>
+                <small>@Model.PricingPlanCount 个定价方案</small>
+            </article>
+        </section>
+
+        <div class="asset-detail-layout">
+            <section class="admin-card asset-detail-panel">
+                <div class="admin-card-header">
+                    <h3 class="admin-card-title">资源信息</h3>
+                </div>
+                <div class="admin-card-body">
+                    <div class="asset-detail-info-grid">
+                        <div class="asset-detail-info-item">
+                            <span class="detail-label">资源分类</span>
+                            <strong>@(Model.CategoryName ?? "未分类")</strong>
+                        </div>
+                        <div class="asset-detail-info-item">
+                            <span class="detail-label">开发者</span>
+                            <strong>@Model.DeveloperName</strong>
+                        </div>
+                        <div class="asset-detail-info-item">
+                            <span class="detail-label">归属账号</span>
+                            <strong>@(Model.OwnerAccountName ?? "未绑定")</strong>
+                        </div>
+                        <div class="asset-detail-info-item">
+                            <span class="detail-label">发布时间</span>
+                            <strong>@(Model.PublishedAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</strong>
+                        </div>
+                    </div>
+
+                    <div class="asset-detail-description">
+                        <div class="detail-label">资源说明</div>
+                        <p>@(string.IsNullOrWhiteSpace(Model.Description) ? "暂无详细说明。" : Model.Description)</p>
+                    </div>
+
+                    <div class="asset-detail-tags">
+                        <span class="detail-label">标签</span>
+                        <div>@(string.IsNullOrWhiteSpace(Model.Tags) ? "-" : Model.Tags)</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="admin-card asset-detail-panel">
+                <div class="admin-card-header">
+                    <h3 class="admin-card-title">使用情况</h3>
+                </div>
+                <div class="admin-card-body asset-detail-usage-body">
+                    <div class="asset-detail-mini-metrics">
+                        <div>
+                            <span class="detail-label">总订阅</span>
+                            <strong>@Model.TotalSubscriptionCount</strong>
+                        </div>
+                        <div>
+                            <span class="detail-label">有效订阅</span>
+                            <strong>@Model.ActiveSubscriptionCount</strong>
+                        </div>
+                        <div>
+                            <span class="detail-label">使用用户</span>
+                            <strong>@Model.SubscriberUserCount</strong>
+                        </div>
+                    </div>
+
+                    <div class="asset-detail-list-block">
+                        <div class="asset-detail-list-head">
+                            <h4>最近订阅用户</h4>
+                            <span>@Model.RecentSubscribers.Count 条</span>
+                        </div>
+                        @if (Model.RecentSubscribers.Count == 0)
+                        {
+                            <div class="asset-detail-empty">还没有用户订阅这个资源。</div>
+                        }
+                        else
+                        {
+                            <div class="asset-detail-user-list">
+                                @foreach (var subscriber in Model.RecentSubscribers)
+                                {
+                                    <article class="asset-detail-user-item">
+                                        <div>
+                                            <strong>@subscriber.AccountName</strong>
+                                            <div class="admin-text-muted">@subscriber.PricingPlanName</div>
+                                        </div>
+                                        <div class="asset-detail-user-meta">
+                                            <span class="admin-badge @subscriber.StatusBadgeClass">@subscriber.StatusName</span>
+                                            <small>下载 @subscriber.DownloadCount 次</small>
+                                            <small>到期 @subscriber.ExpiresAtUtc.ToLocalTime().ToString("yyyy-MM-dd")</small>
+                                        </div>
+                                    </article>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <div class="asset-detail-list-block">
+                        <div class="asset-detail-list-head">
+                            <h4>最近下载用户</h4>
+                            <span>@Model.RecentDownloads.Count 条</span>
+                        </div>
+                        @if (Model.RecentDownloads.Count == 0)
+                        {
+                            <div class="asset-detail-empty">还没有下载记录。</div>
+                        }
+                        else
+                        {
+                            <div class="asset-detail-download-list">
+                                @foreach (var download in Model.RecentDownloads)
+                                {
+                                    <article class="asset-detail-download-item">
+                                        <div>
+                                            <strong>@download.AccountName</strong>
+                                            <div class="admin-text-muted">版本 @download.VersionName</div>
+                                        </div>
+                                        <div class="asset-detail-user-meta">
+                                            <small>@(string.IsNullOrWhiteSpace(download.IpAddress) ? "IP 未记录" : download.IpAddress)</small>
+                                            <small>@download.DownloadedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</small>
+                                        </div>
+                                    </article>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        @if (Model.SolutionSummary is not null)
+        {
+            <section class="admin-card asset-detail-panel">
+                <div class="admin-card-header">
+                    <h3 class="admin-card-title">方案内容</h3>
+                </div>
+                <div class="admin-card-body">
+                    @if (!Model.SolutionSummary.IsValid)
+                    {
+                        <div class="layui-elem-quote layui-quote-nm">方案清单解析失败：@(Model.SolutionSummary.ErrorMessage ?? "未知错误")</div>
+                    }
+                    else
+                    {
+                        <div class="asset-detail-list-head">
+                            <h4>@Model.SolutionSummary.Name</h4>
+                            <span>@Model.SolutionSummary.CountSummary</span>
+                        </div>
+                        <div class="asset-detail-download-list">
+                            @foreach (var item in Model.SolutionSummary.AllAssets)
+                            {
+                                <article class="asset-detail-download-item">
+                                    <div>
+                                        <strong>@item.TypeName · @item.Slug</strong>
+                                        <div class="admin-text-muted">@((string.IsNullOrWhiteSpace(item.Version) ? "-" : item.Version) + " · " + item.Path)</div>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(item.ErrorMessage))
+                                    {
+                                        <span class="admin-badge admin-badge-danger">@item.ErrorMessage</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="admin-badge admin-badge-success">已声明</span>
+                                    }
+                                </article>
+                            }
+                        </div>
+                    }
+                    <div class="admin-text-muted" style="margin-top:12px;">
+                        解决方案是插件、技能、智能体的组合包。桌面端安装时会把外层 ZIP 内声明的子资源分别解压到对应目录，并在解决方案安装目录保留安装记录。
+                    </div>
+                </div>
+            </section>
+        }
+
+        <section class="admin-card asset-detail-panel">
+            <div class="admin-card-header">
+                <h3 class="admin-card-title">版本信息</h3>
+            </div>
+            <div class="admin-card-body">
+                <div class="table-responsive asset-detail-table-wrap">
+                    <table class="layui-table admin-table asset-detail-table">
+                        <thead>
+                            <tr>
+                                <th>版本</th>
+                                <th>发布说明</th>
+                                <th>方案摘要</th>
+                                <th>包大小</th>
+                                <th>文件路径</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Versions.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="5" class="asset-detail-table-empty">暂无版本记录</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var version in Model.Versions)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="asset-detail-table-title">
+                                                <span>@version.VersionName</span>
+                                                @if (version.IsCurrent)
+                                                {
+                                                    <span class="admin-badge admin-badge-success">当前版本</span>
+                                                }
+                                            </div>
+                                        </td>
+                                    <td>@(string.IsNullOrWhiteSpace(version.ReleaseNotes) ? "-" : version.ReleaseNotes)</td>
+                                    <td>
+                                        @if (version.SolutionSummary is null)
+                                        {
+                                            @:-
+                                        }
+                                        else if (version.SolutionSummary.IsValid)
+                                        {
+                                            <span class="admin-badge admin-badge-muted">@version.SolutionSummary.CountSummary</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="admin-badge admin-badge-danger">@version.SolutionSummary.ErrorMessage</span>
+                                        }
+                                    </td>
+                                    <td>@FormatSize(version.PackageSize)</td>
+                                    <td><code>@version.FilePath</code></td>
+                                </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="admin-card asset-detail-panel">
+            <div class="admin-card-header">
+                <h3 class="admin-card-title">定价方案</h3>
+            </div>
+            <div class="admin-card-body">
+                <div class="table-responsive asset-detail-table-wrap">
+                    <table class="layui-table admin-table asset-detail-table">
+                        <thead>
+                            <tr>
+                                <th>名称</th>
+                                <th>类型</th>
+                                <th>价格</th>
+                                <th>有效期</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.PricingPlans.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="5" class="asset-detail-table-empty">暂无定价方案</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var plan in Model.PricingPlans)
+                                {
+                                    <tr>
+                                        <td>@plan.Name</td>
+                                        <td>@plan.PlanTypeName</td>
+                                        <td>@plan.Price.ToString("0.00") @plan.Currency</td>
+                                        <td>@(plan.DurationDays == 0 ? "永久" : $"{plan.DurationDays} 天")</td>
+                                        <td>
+                                            <span class="admin-badge @(plan.IsActive ? "admin-badge-success" : "admin-badge-muted")">
+                                                @(plan.IsActive ? "启用" : "停用")
+                                            </span>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </section>
+</div>
+
+@functions {
+    private static string FormatSize(long size)
+    {
+        if (size <= 0)
+        {
+            return "-";
+        }
+
+        return size < 1024 * 1024
+            ? $"{size / 1024.0:0.##} KB"
+            : $"{size / 1024.0 / 1024.0:0.##} MB";
+    }
+
+}

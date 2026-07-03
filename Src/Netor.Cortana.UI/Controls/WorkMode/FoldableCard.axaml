@@ -1,0 +1,92 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Netor.Cortana.UI.Controls.WorkMode.FoldableCard"
+             x:CompileBindings="True">
+
+    <!--
+      ════════════════════════════════════════════════════════════════
+      工作模式通用折叠卡片（FoldableCard）
+      ─ 视觉规范来源：09-界面交互设计.md §3.4
+      ─ 箭头在标题左边，使用 right.png + RotateTransform
+      ─ 折叠态: Angle=0  (箭头朝右)
+      ─ 展开态: Angle=90 (箭头朝下)
+      ─ 不使用 Binding，由 code-behind 直接更新 UI 字段，AOT 安全
+      ════════════════════════════════════════════════════════════════ -->
+
+    <UserControl.Styles>
+        <Style Selector="Button.foldable-header">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="RenderTransform" Value="none" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style Selector="Button.foldable-header /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="CornerRadius" Value="3" />
+        </Style>
+        <Style Selector="Button.foldable-header:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.foldable-header:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="RenderTransform" Value="none" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border x:Name="RootBorder"
+            Background="#16000000"
+            BorderBrush="#26FFFFFF"
+            BorderThickness="1"
+            CornerRadius="3"
+            Padding="6,5"
+            Margin="0">
+        <StackPanel Spacing="4">
+
+            <!-- Header（整行可点击） -->
+            <Button x:Name="HeaderButton"
+                    Classes="foldable-header"
+                    Click="OnHeaderClick">
+                <DockPanel LastChildFill="True">
+                    <!-- 左：箭头图片 -->
+                    <Image x:Name="ArrowImage"
+                           DockPanel.Dock="Left"
+                           Source="/Assets/right.png"
+                           Width="12" Height="12"
+                           Opacity="0.6"
+                           Margin="0,0,8,0"
+                           VerticalAlignment="Center"
+                           RenderTransformOrigin="50%,50%">
+                        <Image.RenderTransform>
+                            <RotateTransform Angle="0" />
+                        </Image.RenderTransform>
+                    </Image>
+
+                    <!-- 右：状态文字 -->
+                    <TextBlock x:Name="StatusBlock"
+                               DockPanel.Dock="Right"
+                               FontSize="11"
+                               Opacity="0.65"
+                               Foreground="#7A7A7A"
+                               VerticalAlignment="Center"
+                               IsVisible="False" />
+
+                    <!-- 中：标题（占满剩余空间） -->
+                    <TextBlock x:Name="TitleBlock"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#9A9A9A"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+            </Button>
+
+            <!-- 内容区（展开时显示） -->
+            <ContentControl x:Name="ContentArea"
+                            Margin="20,2,0,0"
+                            IsVisible="True" />
+
+        </StackPanel>
+    </Border>
+</UserControl>

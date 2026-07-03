@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wm="using:Netor.Cortana.UI.Controls.WorkMode"
+             x:Class="Netor.Cortana.UI.Controls.WorkMode.TimelineBlock"
+             x:CompileBindings="True">
+
+    <!--
+      ════════════════════════════════════════════════════════════════
+      时间线（TimelineBlock）
+      ─ 视觉规范来源：09-界面交互设计.md §3.6
+      ─ 作为单一控件插入 MessageList,执行完成后整块"凝固"为历史
+      ─ 每个主步骤一行：左列圆点+竖线，右列主步骤折叠卡片
+      ─ 圆点统一灰色,不用颜色区分状态(状态靠折叠卡片右侧文字传达)
+      ─ 子步骤卡片串行展示在主步骤折叠卡片内容区
+      ────────────────────────────────────────────────────────────────  -->
+
+    <StackPanel x:Name="StepsHost"
+                Margin="16,8,16,8"
+                Spacing="0"
+                HorizontalAlignment="Stretch" />
+</UserControl>

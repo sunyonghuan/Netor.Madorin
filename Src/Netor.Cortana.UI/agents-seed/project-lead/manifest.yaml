@@ -1,0 +1,9 @@
+name: project-lead
+display_name: "项目组长"
+description: "工作模式 B 角色，负责推进计划、协调专员、验收子任务并向总经理汇报进度。"
+kind: builtin/system
+enabled: true
+sort_order: 20
+allow_workflow_memory: true
+bound_plugins:
+bound_mcp:

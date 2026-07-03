@@ -1,0 +1,22 @@
+@model Netor.Cortana.Platform.Web.Models.Orders.OrderResultViewModel
+@{
+    ViewData["Title"] = "支付结果";
+}
+
+<div class="content-panel mx-auto" style="max-width: 720px;">
+    <span class="eyebrow">Result</span>
+    <h1>支付结果</h1>
+    <p class="text-secondary">@Model.Title</p>
+    @if (Model.IsPaid)
+    {
+        <div class="alert alert-success">支付成功，订阅已生效。</div>
+    }
+    else
+    {
+        <div class="alert alert-warning">订单尚未支付。</div>
+    }
+    <div class="d-flex gap-2">
+        <a class="btn btn-primary" asp-controller="UserCenter" asp-action="Orders">查看我的订单</a>
+        <a class="btn btn-outline-primary" asp-controller="UserCenter" asp-action="Subscriptions">查看我的订阅</a>
+    </div>
+</div>

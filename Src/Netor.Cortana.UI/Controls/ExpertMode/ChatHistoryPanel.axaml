@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:Netor.Cortana.UI.Controls.ExpertMode"
+             x:Class="Netor.Cortana.UI.Controls.ExpertMode.ChatHistoryPanel"
+             x:DataType="local:ChatHistoryPanel"
+             x:CompileBindings="True"
+             Background="#1e1e1e">
+
+	<UserControl.Styles>
+		<!-- 自定义复选框样式：与暗色主题一致 -->
+		<Style Selector="CheckBox.history-check">
+			<Setter Property="Foreground" Value="#cccccc" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="Padding" Value="0" />
+			<Setter Property="MinWidth" Value="16" />
+			<Setter Property="MinHeight" Value="16" />
+		</Style>
+		<Style Selector="CheckBox.history-check /template/ Border#NormalRectangle">
+			<Setter Property="BorderBrush" Value="#5a5a5a" />
+			<Setter Property="Background" Value="#252526" />
+			<Setter Property="CornerRadius" Value="3" />
+			<Setter Property="Width" Value="16" />
+			<Setter Property="Height" Value="16" />
+		</Style>
+		<Style Selector="CheckBox.history-check:checked /template/ Border#NormalRectangle">
+			<Setter Property="BorderBrush" Value="#007acc" />
+			<Setter Property="Background" Value="#007acc" />
+		</Style>
+		<Style Selector="CheckBox.history-check:pointerover /template/ Border#NormalRectangle">
+			<Setter Property="BorderBrush" Value="#007acc" />
+		</Style>
+
+		<!-- 列表项悬停效果 -->
+		<Style Selector="Border.history-item">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="CornerRadius" Value="4" />
+			<Setter Property="Padding" Value="8,6" />
+			<Setter Property="Cursor" Value="Hand" />
+		</Style>
+		<Style Selector="Border.history-item:pointerover">
+			<Setter Property="Background" Value="#252526" />
+		</Style>
+	</UserControl.Styles>
+
+	<DockPanel>
+		<!-- 界面重设计 C5：标题栏 36px 对齐占位移除（对齐 C3 决策，由 LeftPanel 容器统一管理）。
+		     原占位由 LeftPanel.Tab2 的 36px 顶部占位 + 父级 Margin='0,-36,0,0' 上移贴顶处理；
+		     本控件改为纯历史列表 UI，不再耦合 MainWindow 标题栏布局。
+		     详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §5.3 + §3.4（C3 同款策略）。 -->
+
+		<!-- 顶部工具栏 -->
+		<Border DockPanel.Dock="Top" Background="#1e1e1e" Padding="8,6"
+		        BorderBrush="#252526" BorderThickness="0,0,0,1">
+			<Grid ColumnDefinitions="Auto,*,Auto">
+				<CheckBox x:Name="SelectAllCheckBox" Grid.Column="0"
+				          Classes="history-check"
+				          VerticalAlignment="Center"
+				          Margin="0,0,8,0"
+				          Click="OnSelectAllClick" />
+				<TextBlock Grid.Column="1" Text="" Foreground="#cccccc" FontSize="12"
+				           FontWeight="SemiBold" VerticalAlignment="Center" />
+				<StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
+					<Button Classes="titlebar-btn" ToolTip.Tip="刷新"
+					        Click="OnRefreshClick">
+						<Image Source="/Assets/refresh.png" Width="14" Height="14" />
+					</Button>
+					<Button Classes="titlebar-btn" ToolTip.Tip="删除选中"
+					        Click="OnDeleteSelectedClick">
+						<Image Source="/Assets/delete.png" Width="14" Height="14" />
+					</Button>
+				</StackPanel>
+			</Grid>
+		</Border>
+
+		<!-- 阶段 6 Phase 3：搜索框（按标题过滤）。
+		     决策 6-3-A：标题前缀 / 子串 LIKE 匹配；不引入 FTS5（推到阶段 7+）。
+		     输入后 200ms 防抖再触发 SQL，避免逐字符 hammering DB。
+		     详见 docs/未来版本策划/多智能体编排模式策划/04-实施阶段.md §阶段 6 #3。 -->
+		<Border DockPanel.Dock="Top" Background="#1e1e1e" Padding="8,4"
+		        BorderBrush="#252526" BorderThickness="0,0,0,1">
+			<TextBox x:Name="SearchBox"
+			         PlaceholderText="搜索会话标题..."
+			         Background="#252526" Foreground="#cccccc" BorderBrush="#3c3c3c"
+			         BorderThickness="1" CornerRadius="3" Padding="8,4" FontSize="12"
+			         TextChanged="OnSearchTextChanged" />
+		</Border>
+
+		<!-- 历史记录列表 -->
+		<ScrollViewer x:Name="HistoryScroller"
+		              VerticalScrollBarVisibility="Auto"
+		              HorizontalScrollBarVisibility="Disabled"
+                      
+		              Background="Transparent">
+			<ItemsControl x:Name="HistoryItems" Padding="4">
+				<ItemsControl.ItemsPanel>
+					<ItemsPanelTemplate>
+						<StackPanel Spacing="2" />
+					</ItemsPanelTemplate>
+				</ItemsControl.ItemsPanel>
+			</ItemsControl>
+		</ScrollViewer>
+	</DockPanel>
+</UserControl>

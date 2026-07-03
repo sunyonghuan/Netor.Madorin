@@ -1,0 +1,178 @@
+@model Netor.Cortana.Platform.Admin.Models.Orders.OrderDetailViewModel
+@{
+    ViewData["Title"] = "订单详情";
+    var isDrawer = string.Equals(Context.Request.Query["mode"], "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="@(isDrawer ? "admin-drawer-page" : string.Empty)">
+<section class="admin-card">
+    <div class="admin-card-header">
+        <div>
+            <h2 class="admin-card-title">@Model.Title</h2>
+            <div class="detail-label">@Model.No</div>
+        </div>
+        <div class="admin-toolbar-actions">
+            <button id="orderTransactionsDrawer" class="layui-btn layui-btn-normal layui-btn-sm" type="button">查看全部流水</button>
+            @if (isDrawer)
+            {
+                <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" data-drawer-close>关闭</button>
+            }
+            else
+            {
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Index">返回订单</a>
+            }
+        </div>
+    </div>
+    <div class="admin-card-body">
+        <div class="asset-detail-grid">
+            <div>
+                <div class="detail-label">用户</div>
+                <strong>@Model.AccountName</strong>
+            </div>
+            <div>
+                <div class="detail-label">资源</div>
+                <strong>@Model.AssetName</strong>
+            </div>
+            <div>
+                <div class="detail-label">定价方案</div>
+                <strong>@Model.PricingPlanName</strong>
+            </div>
+            <div>
+                <div class="detail-label">订单金额</div>
+                <strong>@Model.Money.ToString("0.00")</strong>
+            </div>
+            <div>
+                <div class="detail-label">购买数量</div>
+                <strong>@Model.Numbers</strong>
+            </div>
+            <div>
+                <div class="detail-label">支付时间</div>
+                <strong>@(Model.PayTime?.ToString("yyyy-MM-dd HH:mm") ?? "-")</strong>
+            </div>
+            <div>
+                <div class="detail-label">支付状态</div>
+                <span class="admin-badge @GetPayBadgeClass(Model.PayStatus)">@GetPayStatusName(Model.PayStatus)</span>
+            </div>
+            <div>
+                <div class="detail-label">订单状态</div>
+                <span class="admin-badge @GetStatusBadgeClass(Model.Status)">@GetOrderStatusName(Model.Status)</span>
+            </div>
+            <div>
+                <div class="detail-label">支付方式</div>
+                <strong>@GetPayMethodName(Model.PayMethod)</strong>
+            </div>
+        </div>
+
+        <hr />
+
+        <h3 class="admin-section-title">订单内容</h3>
+        <p class="detail-label">@(string.IsNullOrWhiteSpace(Model.Content) ? "-" : Model.Content)</p>
+    </div>
+</section>
+
+<section class="admin-card">
+    <div class="admin-card-header">
+        <h2 class="admin-card-title">交易流水</h2>
+        <span class="detail-label">共 @Model.Transactions.Count 条</span>
+    </div>
+    <div class="admin-card-body">
+        <table class="layui-table admin-table">
+            <thead>
+                <tr>
+                    <th>流水</th>
+                    <th>三方单号</th>
+                    <th>金额</th>
+                    <th>实际金额</th>
+                    <th>支付</th>
+                    <th>支付时间</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Transactions.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" class="admin-empty-cell">暂无交易流水。</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var item in Model.Transactions)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@item.No</strong>
+                                <div class="detail-label">@item.Title</div>
+                            </td>
+                            <td>@item.ThirdNo</td>
+                            <td>@item.Money.ToString("0.00")</td>
+                            <td>@item.RealMoney.ToString("0.00")</td>
+                            <td><span class="admin-badge @GetPayBadgeClass(item.PayStatus)">@GetPayStatusName(item.PayStatus)</span></td>
+                            <td>@(item.PayTime?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+</div>
+
+@section Scripts {
+    <script>
+        layui.use(["layer"], function () {
+            document.getElementById("orderTransactionsDrawer")?.addEventListener("click", function () {
+                const drawerHost = parent && parent.adminDrawer ? parent.adminDrawer : window.adminDrawer;
+                drawerHost.openBottom({
+                    title: "交易流水 - @Model.No",
+                    url: "@Url.Action("Transactions", "Orders", new { orderId = Model.Id, orderNo = Model.No, mode = "drawer" })",
+                    height: "76%"
+                });
+            });
+        });
+    </script>
+}
+
+@functions {
+    private static string GetPayStatusName(byte status) => status switch
+    {
+        1 => "待支付",
+        2 => "已支付",
+        3 => "已取消",
+        4 => "支付失败",
+        _ => $"状态 {status}"
+    };
+
+    private static string GetOrderStatusName(byte status) => status switch
+    {
+        1 => "待处理",
+        2 => "已完成",
+        3 => "已取消",
+        4 => "已失败",
+        _ => $"状态 {status}"
+    };
+
+    private static string GetPayMethodName(byte method) => method switch
+    {
+        1 => "余额",
+        2 => "微信",
+        3 => "支付宝",
+        4 => "银行卡",
+        _ => method == 0 ? "未指定" : $"方式 {method}"
+    };
+
+    private static string GetPayBadgeClass(byte status) => status switch
+    {
+        2 => "admin-badge-success",
+        3 => "admin-badge-muted",
+        4 => "admin-badge-danger",
+        _ => "admin-badge-warning"
+    };
+
+    private static string GetStatusBadgeClass(byte status) => status switch
+    {
+        2 => "admin-badge-success",
+        3 => "admin-badge-muted",
+        4 => "admin-badge-danger",
+        _ => "admin-badge-warning"
+    };
+}

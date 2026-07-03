@@ -1,0 +1,66 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+	<!-- ══════ 全局深色主题配色 ══════ -->
+
+	<!-- 背景层 -->
+	<SolidColorBrush x:Key="BaseBrush"    Color="#1e1e1e" />
+	<SolidColorBrush x:Key="MantleBrush"  Color="#181818" />
+	<SolidColorBrush x:Key="CrustBrush"   Color="#111111" />
+
+	<!-- 表面层 -->
+	<SolidColorBrush x:Key="Surface0Brush" Color="#252526" />
+	<SolidColorBrush x:Key="Surface1Brush" Color="#3c3c3c" />
+	<SolidColorBrush x:Key="Surface2Brush" Color="#4a4a4a" />
+
+	<!-- 文字 -->
+	<SolidColorBrush x:Key="TextBrush"     Color="#cccccc" />
+	<SolidColorBrush x:Key="SubtextBrush"  Color="#858585" />
+	<SolidColorBrush x:Key="Overlay0Brush" Color="#6a6a6a" />
+
+	<!-- 强调色 -->
+	<SolidColorBrush x:Key="BlueBrush"     Color="#007acc" />
+	<SolidColorBrush x:Key="TealBrush"     Color="#3794ff" />
+	<SolidColorBrush x:Key="GreenBrush"    Color="#4ec9b0" />
+	<SolidColorBrush x:Key="RedBrush"      Color="#f14c4c" />
+
+	<!-- ════════════════════════════════════════════════════════════════
+	     界面重设计 C1：语义色别名
+	     ════════════════════════════════════════════════════════════════
+	     新代码请优先用语义别名（Accent/Success/Warning/Danger/Info），
+	     不再用具体色名（BlueBrush/RedBrush）。具体色名仅作为底层映射保留。
+	     详见 Docs/未来版本策划/界面重设计/01-布局规格.md §6.5。
+	     ════════════════════════════════════════════════════════════════ -->
+
+	<!-- 主色 / 链接 / 激活态 -->
+	<SolidColorBrush x:Key="AccentBrush"        Color="#335242" />
+	<SolidColorBrush x:Key="AccentHoverBrush"   Color="#426955" />
+	<SolidColorBrush x:Key="AccentPressedBrush" Color="#2B4538" />
+
+	<!-- 主按钮 -->
+	<SolidColorBrush x:Key="PrimaryButtonBrush"        Color="#335242" />
+	<SolidColorBrush x:Key="PrimaryButtonHoverBrush"   Color="#426955" />
+	<SolidColorBrush x:Key="PrimaryButtonPressedBrush" Color="#2B4538" />
+	<SolidColorBrush x:Key="PrimaryButtonTextBrush"    Color="#D8EFE0" />
+
+	<!-- 状态色 -->
+	<SolidColorBrush x:Key="SuccessBrush" Color="#0e7c3c" />
+	<SolidColorBrush x:Key="WarningBrush" Color="#e0c074" />
+	<SolidColorBrush x:Key="DangerBrush"  Color="#f14c4c" />
+	<SolidColorBrush x:Key="InfoBrush"    Color="#3794ff" />
+
+	<!-- 状态色 hover 变体（pressed 状态可由控件自身用 :pressed 透明度处理） -->
+	<SolidColorBrush x:Key="SuccessHoverBrush" Color="#0e9c4c" />
+	<SolidColorBrush x:Key="DangerHoverBrush"  Color="#d83a3a" />
+
+	<!-- 聊天气泡：用户侧石墨蓝方案 -->
+	<SolidColorBrush x:Key="UserAvatarBrush"       Color="#00CCCCCC" />
+	<SolidColorBrush x:Key="UserAvatarBorderBrush" Color="#0FFFFFFF" />
+	<SolidColorBrush x:Key="UserAvatarGlyphBrush"  Color="#D7E2F0" />
+	<SolidColorBrush x:Key="UserBubbleBrush"       Color="#30343B" />
+	<SolidColorBrush x:Key="UserBubbleBorderBrush" Color="#3A4452" />
+	<SolidColorBrush x:Key="AiBubbleBrush"         Color="#252526" />
+	<SolidColorBrush x:Key="AiBubbleBorderBrush"   Color="#3c3c3c" />
+	<SolidColorBrush x:Key="AiAvatarBorderBrush"   Color="#08FFFFFF" />
+
+</ResourceDictionary>

@@ -1,0 +1,57 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Netor.Cortana.UI.Views.BubbleWindow"
+        x:CompileBindings="True"
+        Width="200" Height="56"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Topmost="True"
+        WindowDecorations="None"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        WindowStartupLocation="Manual">
+
+    <!-- 气泡容器：胶囊形（CornerRadius = 高度一半），随文字宽度自适应 -->
+    <Border x:Name="BubbleContainer"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            MinWidth="60"
+            MaxWidth="184"
+            Height="40"
+            CornerRadius="20"
+            Padding="14,0"
+            Margin="8,0">
+        <Border.Background>
+            <SolidColorBrush Color="#1a1a2e" Opacity="0.92" />
+        </Border.Background>
+        <Border.BorderBrush>
+            <SolidColorBrush Color="#569CDE" Opacity="0.3" />
+        </Border.BorderBrush>
+        <Border.BorderThickness>1</Border.BorderThickness>
+
+        <DockPanel LastChildFill="True">
+            <!-- 状态指示点 -->
+            <Ellipse x:Name="StatusDot"
+                     DockPanel.Dock="Left"
+                     Width="8" Height="8"
+                     Fill="#569CDE"
+                     Margin="0,0,10,0"
+                     VerticalAlignment="Center" />
+
+            <!-- 文字内容：单行 + 横向裁剪 + 始终显示右端 -->
+            <ScrollViewer x:Name="SubtitleScroll"
+                          HorizontalScrollBarVisibility="Hidden"
+                          VerticalScrollBarVisibility="Disabled"
+                          VerticalAlignment="Center"
+                          Padding="0">
+                <TextBlock x:Name="SubtitleText"
+                           Text="正在聆听..."
+                           TextWrapping="NoWrap"
+                           Foreground="#DDFFFFFF"
+                           FontSize="14"
+                           VerticalAlignment="Center" />
+            </ScrollViewer>
+        </DockPanel>
+    </Border>
+
+</Window>

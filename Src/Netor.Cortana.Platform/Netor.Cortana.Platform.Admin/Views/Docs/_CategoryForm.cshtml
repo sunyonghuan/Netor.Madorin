@@ -1,0 +1,65 @@
+@model Netor.Cortana.Platform.Admin.Models.Docs.DocCategoryEditViewModel
+@{
+    var isDrawer = string.Equals(Context.Request.Query["mode"], "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<form method="post" class="admin-edit-form layui-form layui-form-pane" data-admin-ajax-form="@isDrawer.ToString().ToLowerInvariant()" data-admin-table-id="docCategoryTable" data-admin-success-message="文档分类已保存。">
+    @Html.AntiForgeryToken()
+    <input asp-for="Id" type="hidden" />
+    @if (isDrawer)
+    {
+        <input type="hidden" name="mode" value="drawer" />
+    }
+    <div asp-validation-summary="ModelOnly" class="admin-validation-summary"></div>
+
+    <div class="layui-form-item">
+        <label asp-for="Name" class="layui-form-label"></label>
+        <div class="layui-input-block">
+            <input asp-for="Name" class="layui-input" placeholder="例如：快速开始" />
+            <span asp-validation-for="Name" class="admin-field-validation"></span>
+        </div>
+    </div>
+
+    <div class="layui-form-item">
+        <label asp-for="Slug" class="layui-form-label"></label>
+        <div class="layui-input-block">
+            <input asp-for="Slug" class="layui-input" placeholder="例如：getting-started" />
+            <span asp-validation-for="Slug" class="admin-field-validation"></span>
+        </div>
+    </div>
+
+    <div class="layui-form-item">
+        <label asp-for="SortOrder" class="layui-form-label"></label>
+        <div class="layui-input-block">
+            <input asp-for="SortOrder" class="layui-input" type="number" />
+            <span asp-validation-for="SortOrder" class="admin-field-validation"></span>
+        </div>
+    </div>
+
+    <div class="layui-form-item">
+        <label class="layui-form-label">前台显示</label>
+        <div class="layui-input-block">
+            <input asp-for="IsVisible" type="checkbox" lay-skin="switch" lay-text="显示|隐藏" />
+        </div>
+    </div>
+
+    <div class="layui-form-item layui-form-text">
+        <label asp-for="Description" class="layui-form-label"></label>
+        <div class="layui-input-block">
+            <textarea asp-for="Description" class="layui-textarea" rows="5" placeholder="说明该分类覆盖的文档范围"></textarea>
+            <span asp-validation-for="Description" class="admin-field-validation"></span>
+        </div>
+    </div>
+
+    <div class="admin-form-actions">
+        <button class="layui-btn layui-btn-normal" type="submit" lay-submit lay-filter="adminAjaxSubmit">保存分类</button>
+        @if (isDrawer)
+        {
+            <button class="layui-btn layui-btn-primary" type="button" data-drawer-close>取消</button>
+        }
+        else
+        {
+            <a class="layui-btn layui-btn-primary" asp-action="Categories">取消</a>
+        }
+    </div>
+</form>

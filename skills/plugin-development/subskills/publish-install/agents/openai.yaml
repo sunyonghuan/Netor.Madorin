@@ -1,0 +1,5 @@
+interface:
+  display_name: "Plugin Development Publish Install"
+  short_description: "Help with Plugin Development Publish Install workflows"
+  default_prompt: "Use $publish-install to help with Plugin Development Publish Install tasks."
+

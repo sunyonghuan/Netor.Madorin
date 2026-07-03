@@ -1,0 +1,35 @@
+@model Netor.Cortana.Platform.Web.Models.Docs.DocsIndexViewModel
+@{
+    ViewData["Title"] = "文档中心";
+}
+
+<section class="official-hero slim reveal-on-scroll">
+    <div>
+        <span class="eyebrow">DOCUMENTATION</span>
+        <h1>文档中心</h1>
+        <p>这里整理 Madorin 的核心操作路径。文档内容来自后台文档管理，发布后会同步显示在官网。</p>
+    </div>
+</section>
+
+<section class="docs-category-grid">
+    @foreach (var category in Model.Categories)
+    {
+        <a class="content-panel help-card" asp-controller="Docs" asp-action="Category" asp-route-categorySlug="@category.Slug">
+            <span class="policy-index">@category.ArticleCount</span>
+            <h2>@category.Name</h2>
+            <p>@category.Description</p>
+        </a>
+    }
+</section>
+
+<section class="docs-timeline docs-article-list">
+    @foreach (var article in Model.Articles)
+    {
+        <article class="content-panel">
+            <span class="policy-index">@article.CategoryName</span>
+            <h2>@article.Title</h2>
+            <p>@article.Summary</p>
+            <a class="docs-read-link" asp-controller="Docs" asp-action="Article" asp-route-categorySlug="@article.CategorySlug" asp-route-articleSlug="@article.Slug">查看文档</a>
+        </article>
+    }
+</section>

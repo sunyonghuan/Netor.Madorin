@@ -1,0 +1,292 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vmi="using:Netor.Cortana.UI.ViewModels.Common"
+             x:Class="Netor.Cortana.UI.Controls.ExpertMode.InputAreaView"
+             x:DataType="vmi:IInputVm"
+             x:CompileBindings="True">
+
+	<!--
+	  ════════════════════════════════════════════════════════════════
+	  三模式共享输入区控件
+	  ════════════════════════════════════════════════════════════════
+	  DataContext = IInputVm（由父控件在 code-behind 设置）
+	  InputMode AvaloniaProperty（Chat / Workflow / GroupChat）
+	  MarqueeColor AvaloniaProperty（Color，走马灯颜色）
+
+	  三种模式差异（由 OnInputModeChanged 在 code-behind 批量控制 IsVisible）：
+	  ┌────────────────┬───────┬──────────┬───────────┐
+	  │ 元素           │ Chat  │ Workflow │ GroupChat │
+	  ├────────────────┼───────┼──────────┼───────────┤
+	  │ 条件行（上方） │ @智能 │ 子模式+数量│ 无        │
+	  │ 厂商/模型按钮  │  ✓    │   ✓      │   ✗       │
+	  │ 工具屏蔽按钮   │  ✗    │   ✓      │   ✓       │
+	  │ 走马灯颜色     │ 蓝    │  橙      │  紫        │
+	  └────────────────┴───────┴──────────┴───────────┘
+
+	  重要：所有 Popup 必须放在 Panel（叠加层）而非 StackPanel 中，
+	  否则 Popup 即使 IsOpen=False 也会在 StackPanel 里占据高度。
+	  ════════════════════════════════════════════════════════════════ -->
+
+	<!-- 外层 Panel：让 Popup 叠加在布局内容上，不撑开高度 -->
+	<Panel>
+
+		<!-- ════ 实际布局内容（StackPanel，垂直排列） ════ -->
+		<StackPanel x:Name="RootPanel" Spacing="4">
+
+			<!-- ════ 校验错误提示 ════ -->
+			<TextBlock x:Name="ValidationErrorText"
+			           Text="{Binding ValidationError}"
+			           Foreground="#f48771" FontSize="11"
+			           IsVisible="False"
+			           Margin="4,0" />
+
+			<!-- 条件行（已清理，待重构） -->
+			<StackPanel x:Name="ChatSubmitModePanel"
+			            Orientation="Horizontal"
+			            Spacing="4"
+			            Margin="4,0"
+			            IsVisible="False">
+				<Button x:Name="ChatModeButton"
+				        Classes="selector-item-active"
+				        Padding="8,3"
+				        Click="OnChatModeClick">
+					<TextBlock Text="对话" FontSize="12" />
+				</Button>
+				<Button x:Name="ImageModeButton"
+				        Classes="selector-item"
+				        Padding="8,3"
+				        Click="OnImageModeClick">
+					<TextBlock Text="图片" FontSize="12" />
+				</Button>
+				<Button x:Name="VideoModeButton"
+				        Classes="selector-item"
+				        Padding="8,3"
+				        Click="OnVideoModeClick">
+					<TextBlock Text="视频" FontSize="12" />
+				</Button>
+			</StackPanel>
+
+			<!-- ════ 附件预览区 ════ -->
+			<ItemsControl x:Name="AttachmentList" Margin="4,0">
+				<ItemsControl.ItemsPanel>
+					<ItemsPanelTemplate>
+						<WrapPanel Orientation="Horizontal" />
+					</ItemsPanelTemplate>
+				</ItemsControl.ItemsPanel>
+			</ItemsControl>
+
+			<!-- ════ 输入框容器 ════ -->
+			<Panel x:Name="InputBorderHost" ClipToBounds="True">
+				<Border x:Name="InputBorder" Background="#252526" CornerRadius="3"
+				        BorderBrush="#3c3c3c" BorderThickness="1"
+				        Padding="12"
+				        DragDrop.AllowDrop="True">
+					<Grid ColumnDefinitions="*,Auto">
+						<TextBox x:Name="InputBox" Grid.Column="0"
+						         Classes="chat-input"
+						         PlaceholderText="{Binding InputPlaceholderText}"
+						         TextWrapping="Wrap"
+						         AcceptsReturn="True"
+						         IsReadOnly="False"
+						         MinHeight="80" MaxHeight="400" />
+						<Panel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
+							<!-- 发送按钮（空闲时显示） -->
+							<Button x:Name="SendButton" Classes="titlebar-btn"
+							        ToolTip.Tip="发送" IsVisible="True"
+							        IsEnabled="False"
+							        Click="OnSendClick">
+								<Image Source="/Assets/send.png" Width="14" Height="14" />
+							</Button>
+							<!-- 旋转停止按钮（运行中显示） -->
+							<Button x:Name="StopButton" Classes="titlebar-btn titlebar-btn-warn"
+							        ToolTip.Tip="停止当前任务" IsVisible="False"
+							        Click="OnStopClick">
+								<Image x:Name="SpinnerIcon"
+								       Source="/Assets/refresh.png"
+								       Width="14" Height="14"
+								       RenderTransformOrigin="50%,50%">
+									<Image.RenderTransform>
+										<RotateTransform Angle="0" />
+									</Image.RenderTransform>
+								</Image>
+							</Button>
+						</Panel>
+					</Grid>
+				</Border>
+
+				<!-- 走马灯霓虹边动画 -->
+				<Border x:Name="InputMarqueeBorder" IsVisible="False" IsHitTestVisible="False"
+				        CornerRadius="3" ClipToBounds="True"
+				        HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+					<Canvas x:Name="InputMarqueeCanvas"
+					        HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+						<Rectangle x:Name="InputMarqueeTop" Width="120" Height="2"
+						           HorizontalAlignment="Left" VerticalAlignment="Top" RadiusX="1" RadiusY="1" />
+						<Rectangle x:Name="InputMarqueeRight" Width="2" Height="120"
+						           HorizontalAlignment="Right" VerticalAlignment="Top" RadiusX="1" RadiusY="1" />
+						<Rectangle x:Name="InputMarqueeBottom" Width="120" Height="2"
+						           HorizontalAlignment="Right" VerticalAlignment="Bottom" RadiusX="1" RadiusY="1" />
+						<Rectangle x:Name="InputMarqueeLeft" Width="2" Height="120"
+						           HorizontalAlignment="Left" VerticalAlignment="Bottom" RadiusX="1" RadiusY="1" />
+					</Canvas>
+				</Border>
+
+				<!-- # 文件补全弹出列表 -->
+				<Popup x:Name="FilePopup" Placement="TopEdgeAlignedLeft"
+				       PlacementTarget="{Binding #InputBorder}"
+				       IsLightDismissEnabled="True">
+					<Border Background="#181818" CornerRadius="6"
+					        BorderBrush="#3c3c3c" BorderThickness="1"
+					        Padding="4" MinWidth="300" MaxHeight="260">
+						<ScrollViewer VerticalScrollBarVisibility="Auto">
+							<ItemsControl x:Name="FileList">
+								<ItemsControl.ItemsPanel>
+									<ItemsPanelTemplate>
+										<StackPanel Spacing="1" />
+									</ItemsPanelTemplate>
+								</ItemsControl.ItemsPanel>
+							</ItemsControl>
+						</ScrollViewer>
+					</Border>
+				</Popup>
+
+				<!-- @ 智能体补全弹出列表（仅 Chat 模式） -->
+				<Popup x:Name="AgentPopup" Placement="TopEdgeAlignedLeft"
+				       PlacementTarget="{Binding #InputBorder}"
+				       IsLightDismissEnabled="True">
+					<Border Background="#181818" CornerRadius="6"
+					        BorderBrush="#3c3c3c" BorderThickness="1"
+					        Padding="4" MinWidth="300" MaxHeight="260">
+						<ScrollViewer VerticalScrollBarVisibility="Auto">
+							<ItemsControl x:Name="AgentList">
+								<ItemsControl.ItemsPanel>
+									<ItemsPanelTemplate>
+										<StackPanel Spacing="1" />
+									</ItemsPanelTemplate>
+								</ItemsControl.ItemsPanel>
+							</ItemsControl>
+						</ScrollViewer>
+					</Border>
+				</Popup>
+			</Panel>
+
+			<!-- ════ 底部工具栏 ════ -->
+			<StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0">
+				<!-- 附件按钮（三种模式都有） -->
+				<Button x:Name="AttachButton" Classes="titlebar-btn" Padding="6,3"
+				        ToolTip.Tip="添加附件" Click="OnAttachClick"
+				        IsEnabled="{Binding IsIdle}">
+					<StackPanel Orientation="Horizontal" Spacing="4">
+						<Image Source="/Assets/attachment.png" Width="14" Height="14" />
+						<TextBlock Text="附件" Foreground="#a0a0a0" FontSize="12" />
+					</StackPanel>
+				</Button>
+
+				<!-- 智能体按钮（三种模式都有，GroupChat 为多选，其他为单选） -->
+				<Button x:Name="AgentSelectorBtn" Classes="titlebar-btn" Padding="6,3"
+				        Click="OnAgentSelectorClick"
+				        IsEnabled="{Binding IsIdle}">
+					<StackPanel Orientation="Horizontal" Spacing="4">
+						<Image Source="/Assets/agent.png" Width="14" Height="14" />
+						<TextBlock x:Name="ToolbarAgentLabel" Text="智能体"
+						           Foreground="#a0a0a0" FontSize="12" />
+						<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
+					</StackPanel>
+				</Button>
+
+				<!-- 厂商按钮（Chat / Workflow 模式） -->
+				<Button x:Name="ProviderSelectorBtn" Classes="titlebar-btn" Padding="6,3"
+				        Click="OnProviderSelectorClick"
+				        IsEnabled="{Binding IsIdle}"
+				        IsVisible="False">
+					<StackPanel Orientation="Horizontal" Spacing="4">
+						<Image Source="/Assets/provider.png" Width="14" Height="14" />
+						<TextBlock x:Name="ToolbarProviderLabel" Text="厂商"
+						           Foreground="#a0a0a0" FontSize="12" />
+						<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
+					</StackPanel>
+				</Button>
+
+				<!-- 模型按钮（Chat / Workflow 模式） -->
+				<Button x:Name="ModelSelectorBtn" Classes="titlebar-btn" Padding="6,3"
+				        Click="OnModelSelectorClick"
+				        IsEnabled="{Binding IsIdle}"
+				        IsVisible="False">
+					<StackPanel Orientation="Horizontal" Spacing="4">
+						<Image Source="/Assets/model.png" Width="14" Height="14" />
+						<TextBlock x:Name="ToolbarModelLabel" Text="模型"
+						           Foreground="#a0a0a0" FontSize="12" />
+						<TextBlock Text="▲" Foreground="#6a6a6a" FontSize="9" VerticalAlignment="Center" />
+					</StackPanel>
+				</Button>
+
+				<!-- 工具按钮（已移除，待重构） -->
+				<Button x:Name="ToolButton" Classes="titlebar-btn" Padding="6,3"
+				        IsVisible="False">
+					<TextBlock Text="工具" Foreground="#a0a0a0" FontSize="12" />
+				</Button>
+			</StackPanel>
+
+		</StackPanel>
+
+		<!-- ════ Popup 集 ════ -->
+
+		<!-- 智能体单选 Popup -->
+		<Popup x:Name="AgentSelectorPopup" Placement="TopEdgeAlignedLeft"
+		       PlacementTarget="{Binding #AgentSelectorBtn}"
+		       IsLightDismissEnabled="True">
+			<Border Background="#181818" CornerRadius="6"
+			        BorderBrush="#3c3c3c" BorderThickness="1"
+			        Padding="4" MinWidth="200" MaxHeight="300">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<ItemsControl x:Name="AgentSelectorList">
+						<ItemsControl.ItemsPanel>
+							<ItemsPanelTemplate>
+								<StackPanel Spacing="2" />
+							</ItemsPanelTemplate>
+						</ItemsControl.ItemsPanel>
+					</ItemsControl>
+				</ScrollViewer>
+			</Border>
+		</Popup>
+
+		<!-- 厂商 Popup -->
+		<Popup x:Name="ProviderPopup" Placement="TopEdgeAlignedLeft"
+		       PlacementTarget="{Binding #ProviderSelectorBtn}"
+		       IsLightDismissEnabled="True">
+			<Border Background="#181818" CornerRadius="6"
+			        BorderBrush="#3c3c3c" BorderThickness="1"
+			        Padding="4" MinWidth="200" MaxHeight="300">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<ItemsControl x:Name="ProviderList">
+						<ItemsControl.ItemsPanel>
+							<ItemsPanelTemplate>
+								<StackPanel Spacing="2" />
+							</ItemsPanelTemplate>
+						</ItemsControl.ItemsPanel>
+					</ItemsControl>
+				</ScrollViewer>
+			</Border>
+		</Popup>
+
+		<!-- 模型 Popup -->
+		<Popup x:Name="ModelPopup" Placement="TopEdgeAlignedLeft"
+		       PlacementTarget="{Binding #ModelSelectorBtn}"
+		       IsLightDismissEnabled="True">
+			<Border Background="#181818" CornerRadius="6"
+			        BorderBrush="#3c3c3c" BorderThickness="1"
+			        Padding="4" MinWidth="220" MaxHeight="360">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<ItemsControl x:Name="ModelList">
+						<ItemsControl.ItemsPanel>
+							<ItemsPanelTemplate>
+								<StackPanel Spacing="2" />
+							</ItemsPanelTemplate>
+						</ItemsControl.ItemsPanel>
+					</ItemsControl>
+				</ScrollViewer>
+			</Border>
+		</Popup>
+
+	</Panel>
+</UserControl>

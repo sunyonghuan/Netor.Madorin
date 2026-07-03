@@ -1,0 +1,181 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Netor.Cortana.UI.Controls.Shared"
+        xmlns:expert="using:Netor.Cortana.UI.Controls.ExpertMode"
+        xmlns:meeting="using:Netor.Cortana.UI.Controls.Meeting"
+        xmlns:wm="using:Netor.Cortana.UI.Controls.WorkMode"
+        x:Class="Netor.Cortana.UI.Views.MainWindow"
+        x:CompileBindings="True"
+        Title=""
+        Width="710" Height="1080"
+        MinWidth="400" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Background="#1e1e1e"
+        ExtendClientAreaToDecorationsHint="True">
+
+	<!-- 配色资源已迁移至 Styles/ThemeResources.axaml，全局可用 -->
+
+	<Panel Background="#1e1e1e">
+
+		<!-- ══════ 系统标题栏拖动区域（顶部 36px） ══════ -->
+		<!-- ExtendClientAreaToDecorationsHint 下，系统标题栏被融入客户区。
+		     此 Border 覆盖顶部 36px 空白区域以恢复拖动能力。
+		     Z 序在 WorkspaceGrid 之下，按钮等控件优先接收事件。 -->
+		<Border x:Name="TitleBarDragRegion"
+		        Height="36" VerticalAlignment="Top"
+		        Background="Transparent"
+		        PointerPressed="OnTitleBarPointerPressed" />
+
+		<!-- ══════ 主布局 ══════ -->
+		<Grid x:Name="WorkspaceGrid" Margin="0,36,0,0">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="230" MinWidth="180" MaxWidth="600" />
+				<ColumnDefinition Width="Auto" />
+				<ColumnDefinition Width="*" MinWidth="200" />
+			</Grid.ColumnDefinitions>
+
+			<!-- Col 0: 左侧面板 -->
+			<Border x:Name="WorkspacePanelBorder"
+			        Grid.Column="0" Margin="0,-36,0,0"
+			        BorderBrush="#3c3c3c" BorderThickness="0,0,1,0"
+			        Background="#1e1e1e">
+				<controls:LeftPanel x:Name="LeftPanelHost" />
+			</Border>
+
+			<!-- Col 1: 拖拽分隔条 -->
+			<GridSplitter x:Name="WorkspaceSplitter" Grid.Column="1"
+			              Margin="0,-36,0,0"
+			              Width="8" IsVisible="True" />
+
+			<!-- Col 2: 主内容区 -->
+			<DockPanel Grid.Column="2">
+
+				<!-- ── 顶部标题栏 (36px) ── -->
+				<Border DockPanel.Dock="Top" Height="36" Background="#1e1e1e">
+					<Grid ColumnDefinitions="Auto,*,Auto" Margin="10,0">
+						<!-- 左：工作台折叠后，在主面板左侧恢复展开按钮 -->
+						<Button x:Name="WorkspaceExpandButton"
+						        Grid.Column="0"
+						        Classes="titlebar-btn"
+						        Width="30"
+						        Height="28"
+						        IsVisible="False"
+						        VerticalAlignment="Center"
+						        ToolTip.Tip="展开工作台"
+						        Click="OnWorkspaceToggleClick">
+							<Image Source="/Assets/up.png"
+							       Width="14"
+							       Height="14"
+							       RenderTransformOrigin="50%,50%">
+								<Image.RenderTransform>
+									<RotateTransform Angle="90" />
+								</Image.RenderTransform>
+							</Image>
+						</Button>
+						<!-- 中：Tab 切换 -->
+						<StackPanel Grid.Column="1" Orientation="Horizontal"
+									HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
+							<Button x:Name="ChatTabButton"
+									Classes="tab-btn tab-btn-active"
+									Tag="chat"
+									Click="OnTabSwitchClick">
+								<TextBlock Text="专家" />
+							</Button>
+							<Button x:Name="WorkflowTabButton"
+									Classes="tab-btn"
+									Tag="workflow"
+									Click="OnTabSwitchClick">
+								<TextBlock Text="工作" />
+							</Button>
+							<Button x:Name="GroupChatTabButton"
+									Classes="tab-btn"
+									Tag="groupchat"
+									Click="OnTabSwitchClick">
+								<TextBlock Text="会议" />
+							</Button>
+						</StackPanel>
+						<!-- 右：操作按钮组 -->
+						<StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2"
+									VerticalAlignment="Center">
+							<Button x:Name="NewItemButton"
+							        Classes="titlebar-btn"
+							        ToolTip.Tip="新建会话"
+							        Click="OnNewSessionClick">
+								<Image Source="/Assets/add.png" Width="14" Height="14" />
+							</Button>
+							<Button Classes="titlebar-btn" ToolTip.Tip="清空页面消息" Click="OnClearMessagesClick">
+								<Image Source="/Assets/clear.png" Width="14" Height="14" />
+							</Button>
+							<Button Classes="titlebar-btn" ToolTip.Tip="设置" Click="OnSettingsClick">
+								<Image Source="/Assets/setting.png" Width="14" Height="14" />
+							</Button>
+						</StackPanel>
+					</Grid>
+				</Border>
+
+				<!-- ── Tab 切换容器 ── -->
+				<Panel x:Name="ContentRoot">
+					<!-- 专家模式：ChatView 包含消息列表 + 输入区 -->
+					<expert:ChatView x:Name="ChatTabContent" IsVisible="True" />
+					<!-- 工作流模式 -->
+					<wm:WorkModeView x:Name="WorkflowTabContent" IsVisible="False" />
+					<!-- 会议模式 -->
+					<meeting:MeetingView x:Name="MeetingTabContent" IsVisible="False" />
+				</Panel>
+
+			</DockPanel>
+		</Grid>
+
+		<!-- ══════ 标题栏菜单（真实标题栏区域，置顶显示） ══════ -->
+		<Menu Classes="title-menu"
+		      HorizontalAlignment="Left"
+		      VerticalAlignment="Top"
+		      Margin="82,0,0,0">
+			<MenuItem Header="工作">
+				<MenuItem Header="新对话"
+				          InputGesture="Ctrl+N"
+				          Click="OnNewSessionClick" />
+				<MenuItem x:Name="WorkspaceMenuItem"
+				          Header="工作台"
+				          InputGesture="Ctrl+B"
+				          Click="OnWorkspaceMenuClick" />
+				<MenuItem Header="工作目录..."
+				          InputGesture="Ctrl+Shift+O"
+				          Click="OnWorkspaceDirectoryMenuClick" />
+				<Separator />
+				<MenuItem Header="清空对话"
+				          InputGesture="Ctrl+Shift+Back"
+				          Click="OnClearMessagesClick" />
+			</MenuItem>
+			<MenuItem Header="设置">
+				<MenuItem Header="系统设置..."
+				          InputGesture="Ctrl+OemComma"
+				          Click="OnSettingsClick" />
+				<MenuItem Header="应用商店..."
+				          Click="OnStoreMenuClick" />
+				<MenuItem Header="代理设置..."
+				          InputGesture="Ctrl+Alt+P"
+				          Click="OnProxySettingsMenuClick" />
+				<Separator />
+				<MenuItem Header="日志目录"
+				          InputGesture="Ctrl+Alt+L"
+				          Click="OnLogDirectoryMenuClick" />
+				<MenuItem Header="插件目录"
+				          InputGesture="Ctrl+Alt+D"
+				          Click="OnPluginDirectoryMenuClick" />
+				<MenuItem Header="全局技能"
+				          Click="OnGlobalSkillsDirectoryMenuClick" />
+				<MenuItem Header="工作技能"
+				          Click="OnWorkspaceSkillsDirectoryMenuClick" />
+				<Separator />
+				<MenuItem Header="退出软件"
+				          InputGesture="Ctrl+Q"
+				          Click="OnExitMenuClick" />
+			</MenuItem>
+			<MenuItem Header="帮助">
+				<MenuItem Header="关于软件"
+				          Click="OnAboutMenuClick" />
+			</MenuItem>
+		</Menu>
+	</Panel>
+</Window>

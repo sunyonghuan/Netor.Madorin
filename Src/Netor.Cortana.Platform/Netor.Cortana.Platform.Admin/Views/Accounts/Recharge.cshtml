@@ -1,0 +1,68 @@
+@model Netor.Cortana.Platform.Admin.Models.Accounts.AccountRechargeViewModel
+@{
+    ViewData["Title"] = "钱包充值";
+    var mode = Context.Request.Query["mode"].ToString();
+    var isDrawer = string.Equals(mode, "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="admin-drawer-page">
+    <section class="admin-card admin-form-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">钱包充值</h2>
+                <div class="admin-inline-stat">@Model.LoginUserName · 当前余额 @Model.CurrentBalance.ToString("0.00")</div>
+            </div>
+            @if (isDrawer)
+            {
+                <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" data-drawer-close>关闭</button>
+            }
+            else
+            {
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Details" asp-route-id="@Model.Id" asp-route-mode="drawer" data-admin-drawer="right" data-title="用户详情" data-width="820px">返回详情</a>
+            }
+        </div>
+        <div class="admin-card-body">
+            <form method="post" class="layui-form layui-form-pane" data-admin-confirm-submit="确定为该用户充值吗？" data-admin-ajax-form="@isDrawer.ToString().ToLowerInvariant()" data-admin-table-id="accountTable" data-admin-success-message="充值已完成。">
+                @Html.AntiForgeryToken()
+                <input asp-for="Id" type="hidden" />
+                <input asp-for="LoginUserName" type="hidden" />
+                <input asp-for="CurrentBalance" type="hidden" />
+                <input asp-for="RequestId" type="hidden" />
+                <input name="mode" type="hidden" value="@mode" />
+                <div asp-validation-summary="ModelOnly" class="layui-elem-quote layui-quote-nm"></div>
+
+                <div class="layui-form-item">
+                    <label asp-for="Amount" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <input asp-for="Amount" class="layui-input" type="number" min="0.01" step="0.01" placeholder="例如：100.00" lay-verify="required" />
+                        <span asp-validation-for="Amount" class="field-validation-error"></span>
+                    </div>
+                </div>
+
+                <div class="layui-form-item layui-form-text">
+                    <label asp-for="Reason" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <textarea asp-for="Reason" class="layui-textarea" maxlength="512" placeholder="例如：后台充值"></textarea>
+                        <span asp-validation-for="Reason" class="field-validation-error"></span>
+                    </div>
+                </div>
+
+                <div class="admin-drawer-footer">
+                    <button class="layui-btn layui-btn-normal" type="submit" lay-submit lay-filter="adminAjaxSubmit">确认充值</button>
+                    @if (isDrawer)
+                    {
+                        <button class="layui-btn layui-btn-primary" type="button" data-drawer-close>取消</button>
+                    }
+                    else
+                    {
+                        <a class="layui-btn layui-btn-primary" asp-action="Details" asp-route-id="@Model.Id" asp-route-mode="drawer" data-admin-drawer="right" data-title="用户详情" data-width="820px">取消</a>
+                    }
+                </div>
+            </form>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

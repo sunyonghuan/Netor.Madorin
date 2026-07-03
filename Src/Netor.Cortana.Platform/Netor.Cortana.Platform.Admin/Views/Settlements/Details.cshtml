@@ -1,0 +1,57 @@
+@model Netor.Cortana.Platform.Admin.Models.Settlements.SettlementDetailViewModel
+@{
+    ViewData["Title"] = "结算详情";
+    var isDrawer = string.Equals(Context.Request.Query["mode"], "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="@(isDrawer ? "admin-drawer-page" : string.Empty)">
+    <section class="admin-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">@Model.AssetName</h2>
+                <div class="admin-inline-stat">@Model.OrderNo</div>
+            </div>
+            @if (isDrawer)
+            {
+                <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" data-drawer-close>关闭</button>
+            }
+            else
+            {
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Index">返回列表</a>
+            }
+        </div>
+        <div class="admin-card-body">
+            <div class="asset-detail-grid">
+                <div>
+                    <div class="detail-label">创作者</div>
+                    <strong>@Model.CreatorAccountName</strong>
+                </div>
+                <div>
+                    <div class="detail-label">状态</div>
+                    <span class="admin-badge @Model.StatusBadgeClass">@Model.StatusName</span>
+                </div>
+                <div>
+                    <div class="detail-label">订单总额</div>
+                    <strong>@Model.GrossAmount.ToString("0.00") @Model.Currency</strong>
+                </div>
+                <div>
+                    <div class="detail-label">平台服务费</div>
+                    <strong>@Model.PlatformFeeAmount.ToString("0.00")</strong>
+                </div>
+                <div>
+                    <div class="detail-label">创作者净收益</div>
+                    <strong>@Model.NetAmount.ToString("0.00")</strong>
+                </div>
+                <div>
+                    <div class="detail-label">结算时间</div>
+                    <strong>@(Model.SettledAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</strong>
+                </div>
+            </div>
+
+            <hr />
+
+            <h3 class="admin-section-title">备注</h3>
+            <p class="admin-text-muted">@Model.Notes</p>
+        </div>
+    </section>
+</div>

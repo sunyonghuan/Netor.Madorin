@@ -1,0 +1,114 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Netor.Cortana.UI.Views.FloatWindow"
+        x:CompileBindings="True"
+        Title="小娜宝贝"
+        Width="140" Height="140"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Topmost="True"
+        WindowDecorations="None"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        WindowStartupLocation="Manual">
+
+    <Window.Styles>
+        <!-- ===== 内层光晕（Border + BoxShadow，真模糊） ===== -->
+        <!-- Idle：慢呼吸（Opacity 缓慢起伏） -->
+        <Style Selector="Panel.float-root > Border.glow">
+            <Style.Animations>
+                <Animation Duration="0:0:4"
+                           IterationCount="INFINITE"
+                           PlaybackDirection="Alternate"
+                           Easing="SineEaseInOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0.45" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="0.85" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- Active：快脉冲（更高 opacity） -->
+        <Style Selector="Panel.float-root.active > Border.glow">
+            <Style.Animations>
+                <Animation Duration="0:0:1.1"
+                           IterationCount="INFINITE"
+                           PlaybackDirection="Alternate"
+                           Easing="SineEaseInOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0.7" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1.0" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- ===== 外层涟漪（Border + 更大 BoxShadow，仅 Active） ===== -->
+        <Style Selector="Panel.float-root > Border.ripple">
+            <Setter Property="Opacity" Value="0" />
+        </Style>
+
+        <Style Selector="Panel.float-root.active > Border.ripple">
+            <Style.Animations>
+                <Animation Duration="0:0:1.6"
+                           IterationCount="INFINITE"
+                           Easing="CubicEaseOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0.7" />
+                        <Setter Property="Width" Value="58" />
+                        <Setter Property="Height" Value="58" />
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="0" />
+                        <Setter Property="Width" Value="78" />
+                        <Setter Property="Height" Value="78" />
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+    </Window.Styles>
+
+    <!-- 悬浮球：80x80 窗口 → 居中 58px 容器 -->
+    <Panel x:Name="FloatRoot" Classes="float-root" Width="140" Height="140">
+
+        <!-- 内层暖金光晕：BoxShadow 多重叠加，模拟 box-shadow blur -->
+        <Border Classes="glow"
+                Width="58" Height="58"
+                CornerRadius="29"
+                Background="Transparent"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                IsHitTestVisible="False"
+                BoxShadow="0 0 12 2 #99FFD180,
+                           0 0 22 5 #66E8A23B,
+                           0 0 36 10 #33C68B2A" />
+
+        <!-- 外层涟漪：Active 时由小放大 + 淡出 -->
+        <Border Classes="ripple"
+                Width="58" Height="58"
+                CornerRadius="29"
+                Background="Transparent"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                IsHitTestVisible="False"
+                BoxShadow="0 0 16 6 #AAFFD180,
+                           0 0 30 10 #55E8A23B" />
+
+        <!-- 头像（56px，圆形裁剪，无白边） -->
+        <Border Width="56" Height="56"
+                CornerRadius="28"
+                ClipToBounds="True"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                IsHitTestVisible="False">
+            <Image x:Name="FloatLogoImage"
+                   Stretch="UniformToFill" />
+        </Border>
+    </Panel>
+
+</Window>

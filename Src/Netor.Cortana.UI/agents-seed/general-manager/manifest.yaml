@@ -1,0 +1,9 @@
+name: general-manager
+display_name: "总经理"
+description: "工作模式 A 角色，负责理解用户意图、制定计划、协调执行并向用户交付结果。"
+kind: builtin/system
+enabled: true
+sort_order: 10
+allow_workflow_memory: true
+bound_plugins:
+bound_mcp:

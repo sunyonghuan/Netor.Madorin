@@ -1,0 +1,284 @@
+@model Netor.Cortana.Platform.Admin.Models.Docs.DocIndexViewModel
+@using Netor.Cortana.Platform.Entitys.Enums
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    ViewData["Title"] = "文档文章";
+    ViewData["WorkspaceTags"] = new[]
+    {
+        new AdminWorkspaceTag("全部文章", Model.TotalCount.ToString(), Url.Action("Index", "Docs"), "layui-icon-read"),
+        new AdminWorkspaceTag("已发布", Model.PublishedCount.ToString(), Url.Action("Index", "Docs", new { status = (int)DocArticleStatus.Published }), "layui-icon-ok"),
+        new AdminWorkspaceTag("草稿", Model.DraftCount.ToString(), Url.Action("Index", "Docs", new { status = (int)DocArticleStatus.Draft }), "layui-icon-edit")
+    };
+}
+
+<section class="admin-card admin-filter-card">
+    <div class="admin-card-body">
+        <form id="docArticleFilter" class="layui-form layui-form-pane" lay-filter="docArticleFilter">
+            <div class="admin-filter-grid">
+                <div class="layui-form-item admin-filter-span-2">
+                    <label class="layui-form-label">关键词</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="keyword" value="@Model.Keyword" placeholder="标题/标识/摘要/关键词/正文" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">分类</label>
+                    <div class="layui-input-block">
+                        <select name="categoryId">
+                            <option value="">全部</option>
+                            @foreach (var category in Model.Categories)
+                            {
+                                <option value="@category.Id" selected="@(Model.CategoryId == category.Id)">@category.Name</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">状态</label>
+                    <div class="layui-input-block">
+                        <select name="status">
+                            <option value="">全部</option>
+                            <option value="@((int)DocArticleStatus.Draft)" selected="@(Model.Status == DocArticleStatus.Draft)">草稿</option>
+                            <option value="@((int)DocArticleStatus.Published)" selected="@(Model.Status == DocArticleStatus.Published)">已发布</option>
+                            <option value="@((int)DocArticleStatus.Offline)" selected="@(Model.Status == DocArticleStatus.Offline)">下架</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">排序最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="sortMin" type="number" placeholder="0" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">排序最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="sortMax" type="number" placeholder="999" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">字数最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="contentMin" type="number" min="0" placeholder="0" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">字数最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="contentMax" type="number" min="0" placeholder="10000" />
+                    </div>
+                </div>
+                <div class="layui-form-item admin-filter-submit">
+                    <button class="layui-btn layui-btn-normal" lay-submit lay-filter="docArticleSearch">查询</button>
+                    <button class="layui-btn layui-btn-primary" type="button" data-doc-article-filter-reset>重置</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="admin-card admin-layui-table-card">
+    <div class="admin-card-body">
+        <input name="__RequestVerificationToken" type="hidden" value="@AntiforgeryToken()" />
+        <table id="docArticleTable" lay-filter="docArticleTable"></table>
+    </div>
+</section>
+
+<script type="text/html" id="docArticleTitleTpl">
+    <div class="admin-text-strong">{{ d.title }}</div>
+    <div class="admin-text-muted">{{ d.slug }}</div>
+    <div class="admin-text-muted">{{ d.summary || "-" }}</div>
+</script>
+
+<script type="text/html" id="docArticleStatusTpl">
+    <span class="admin-badge {{ d.statusBadgeClass }}">{{ d.statusName }}</span>
+</script>
+
+<script type="text/html" id="docArticleMetricTpl">
+    <div>{{ d.contentLength }} 字</div>
+    <div class="admin-text-muted">排序 {{ d.sortOrder }}</div>
+</script>
+
+<script type="text/html" id="docArticleActionsTpl">
+    <div class="layui-btn-group admin-row-actions">
+        <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="edit">编辑</a>
+        {{# if (d.status === 2) { }}
+            <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="offline">下架</a>
+        {{# } else { }}
+            <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="publish">发布</a>
+        {{# } }}
+        <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="delete">删除</a>
+    </div>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table", "layer"], function () {
+            const form = layui.form;
+            const table = layui.table;
+            const layer = layui.layer;
+            const filterSelector = "#docArticleFilter";
+            const tableId = "docArticleTable";
+            const token = () => document.querySelector("input[name='__RequestVerificationToken']").value;
+            const postAction = async (url, values, done) => {
+                const formData = new FormData();
+                Object.keys(values || {}).forEach((key) => formData.append(key, values[key]));
+                formData.append("__RequestVerificationToken", token());
+                const response = await fetch(url, {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                });
+                const result = await response.json();
+                if (!response.ok || result.success === false) {
+                    layer.msg(result.message || "操作失败，请稍后重试。", { icon: 2 });
+                    return;
+                }
+
+                table.reload(tableId);
+                if (done) {
+                    done(result);
+                }
+            };
+
+            window.adminTable.render({
+                elem: "#docArticleTable",
+                id: tableId,
+                url: "@Url.Action("TableData", "Docs")",
+                where: window.adminFilter.collect(filterSelector),
+                toolbar: "#docArticleTableToolbarTpl",
+                cols: [[
+                    { type: "checkbox", fixed: "left" },
+                    { field: "title", title: "文章", minWidth: 300, templet: "#docArticleTitleTpl", sort: true },
+                    { field: "categoryName", title: "分类", width: 140, sort: true },
+                    { field: "status", title: "状态", width: 110, templet: "#docArticleStatusTpl", sort: true },
+                    { field: "contentLength", title: "内容", width: 120, templet: "#docArticleMetricTpl", sort: true },
+                    { field: "keywords", title: "关键词", minWidth: 180 },
+                    { field: "publishedAtText", title: "发布时间", width: 170, sort: true },
+                    { field: "timeStamp", title: "创建标记", width: 150, sort: true },
+                    { title: "操作", width: 176, fixed: "right", toolbar: "#docArticleActionsTpl" }
+                ]]
+            });
+
+            form.on("submit(docArticleSearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-doc-article-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+
+            const submitBatch = function () {
+                const checked = table.checkStatus(tableId).data;
+                if (checked.length === 0) {
+                    layer.msg("请先选择要操作的文档文章。");
+                    return;
+                }
+
+                const operation = document.getElementById("docArticleBatchOperation").value;
+                const operationNameMap = {
+                    publish: "批量发布",
+                    offline: "批量下架",
+                    draft: "批量草稿",
+                    delete: "批量删除"
+                };
+                const message = operation === "delete"
+                    ? `确定删除选中的 ${checked.length} 篇文档文章吗？删除后不可恢复。`
+                    : `确定对 ${checked.length} 篇文档文章执行“${operationNameMap[operation] || "批量操作"}”吗？`;
+
+                layer.confirm(message, { icon: 3, title: "批量操作" }, function (index) {
+                    const formData = new FormData();
+                    checked.forEach((item) => formData.append("ids", item.id));
+                    formData.append("operation", operation);
+                    formData.append("__RequestVerificationToken", token());
+                    fetch("@Url.Action("BatchArticles", "Docs")", {
+                        method: "POST",
+                        body: formData,
+                        headers: {
+                            "Accept": "application/json",
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    })
+                        .then((response) => response.json().then((result) => ({ response, result })))
+                        .then(({ response, result }) => {
+                            if (!response.ok || result.success === false) {
+                                layer.msg(result.message || "批量操作失败，请稍后重试。", { icon: 2 });
+                                return;
+                            }
+
+                            table.reload(tableId);
+                            layer.msg(result.message || "批量操作已完成。", { icon: 1 });
+                        });
+                    layer.close(index);
+                });
+            };
+
+            table.on("toolbar(docArticleTable)", function (obj) {
+                if (obj.event === "create") {
+                    window.location.href = "@Url.Action("CreateArticle", "Docs")";
+                    return;
+                }
+
+                if (obj.event === "categories") {
+                    window.location.href = "@Url.Action("Categories", "Docs")";
+                    return;
+                }
+
+                if (obj.event === "batchApply") {
+                    submitBatch();
+                }
+            });
+
+            table.on("tool(docArticleTable)", function (obj) {
+                const item = obj.data;
+                if (obj.event === "edit") {
+                    window.location.href = `@Url.Action("EditArticle", "Docs")?id=${encodeURIComponent(item.id)}`;
+                } else if (obj.event === "publish") {
+                    layer.confirm("确定发布该文档文章吗？", { icon: 3, title: "发布文章" }, function (index) {
+                        postAction(`@Url.Action("PublishArticle", "Docs")?id=${encodeURIComponent(item.id)}`, {}, (result) => layer.msg(result.message || "发布操作已完成。", { icon: 1 }));
+                        layer.close(index);
+                    });
+                } else if (obj.event === "offline") {
+                    layer.confirm("确定下架该文档文章吗？", { icon: 3, title: "下架文章" }, function (index) {
+                        postAction(`@Url.Action("OfflineArticle", "Docs")?id=${encodeURIComponent(item.id)}`, {}, (result) => layer.msg(result.message || "下架操作已完成。", { icon: 1 }));
+                        layer.close(index);
+                    });
+                } else if (obj.event === "delete") {
+                    layer.confirm(`确定删除文档文章“${item.title}”吗？删除后不可恢复。`, { icon: 3, title: "删除文章" }, function (index) {
+                        postAction(`@Url.Action("DeleteArticle", "Docs")?id=${encodeURIComponent(item.id)}`, {}, (result) => layer.msg(result.message || "文档文章已删除。", { icon: 1 }));
+                        layer.close(index);
+                    });
+                }
+            });
+        });
+    </script>
+}
+
+<script type="text/html" id="docArticleTableToolbarTpl">
+    <div class="admin-table-toolbar">
+        <div class="admin-table-toolbar-group">
+            <button class="layui-btn layui-btn-sm layui-btn-normal" lay-event="create">新增文章</button>
+            <button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="categories">文档分类</button>
+        </div>
+        <div class="admin-table-toolbar-group">
+            <select id="docArticleBatchOperation" class="layui-select admin-table-toolbar-select" aria-label="批量操作">
+                <option value="publish">批量发布</option>
+                <option value="offline">批量下架</option>
+                <option value="draft">批量草稿</option>
+                <option value="delete">批量删除</option>
+            </select>
+            <button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="batchApply">应用</button>
+        </div>
+    </div>
+</script>
+
+@functions {
+    private string AntiforgeryToken()
+    {
+        return Antiforgery.GetAndStoreTokens(Context).RequestToken ?? string.Empty;
+    }
+}

@@ -1,0 +1,134 @@
+@model Netor.Cortana.Platform.Admin.Models.Creators.CreatorRelatedViewModel
+@using Netor.Cortana.Platform.Entitys.Enums
+@{
+    ViewData["Title"] = "创作者资源";
+}
+
+<div class="admin-drawer-page">
+    <section class="admin-card admin-filter-card">
+        <div class="admin-card-body">
+            <form id="creatorAssetFilter" class="layui-form layui-form-pane" lay-filter="creatorAssetFilter">
+                <input type="hidden" name="accountId" value="@Model.AccountId" />
+                <div class="admin-filter-grid">
+                    <div class="layui-form-item admin-filter-span-2">
+                        <label class="layui-form-label">关键词</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="keyword" placeholder="名称/标识/简介" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">类型</label>
+                        <div class="layui-input-block">
+                            <select name="type">
+                                <option value="">全部</option>
+                                @foreach (var option in Enum.GetValues<AssetType>())
+                                {
+                                    <option value="@((int)option)">@GetAssetTypeName(option)</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">状态</label>
+                        <div class="layui-input-block">
+                            <select name="status">
+                                <option value="">全部</option>
+                                @foreach (var option in Enum.GetValues<AssetStatus>())
+                                {
+                                    <option value="@((int)option)">@GetAssetStatusName(option)</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">下载最小</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="downloadMin" type="number" min="0" placeholder="0" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">下载最大</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="downloadMax" type="number" min="0" placeholder="1000" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item admin-filter-submit">
+                        <button class="layui-btn layui-btn-normal" lay-submit lay-filter="creatorAssetSearch">查询</button>
+                        <button class="layui-btn layui-btn-primary" type="button" data-creator-asset-filter-reset>重置</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="admin-card admin-layui-table-card">
+        <div class="admin-card-body">
+            <table id="creatorAssetTable" lay-filter="creatorAssetTable"></table>
+        </div>
+    </section>
+</div>
+
+<script type="text/html" id="creatorAssetNameTpl">
+    <div>{{ d.name }}</div>
+    <div class="admin-text-muted">{{ d.slug }}</div>
+</script>
+
+<script type="text/html" id="creatorAssetVersionTpl">
+    <div>{{ d.versionCount }} 版本</div>
+    <div class="admin-text-muted">{{ d.pricingPlanCount }} 价格</div>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form"], function () {
+            const form = layui.form;
+            const filterSelector = "#creatorAssetFilter";
+            const tableId = "creatorAssetTable";
+
+            window.adminTable.render({
+                elem: "#creatorAssetTable",
+                id: tableId,
+                url: "@Url.Action("AssetsTableData", "Creators")",
+                where: window.adminFilter.collect(filterSelector),
+                cols: [[
+                    { field: "name", title: "资源", minWidth: 220, templet: "#creatorAssetNameTpl", sort: true },
+                    { field: "typeName", title: "类型", width: 100, sort: true },
+                    { field: "statusName", title: "状态", width: 110, sort: true },
+                    { field: "categoryName", title: "分类", width: 130 },
+                    { field: "downloadCount", title: "下载", width: 90, sort: true },
+                    { title: "版本/定价", width: 120, templet: "#creatorAssetVersionTpl" },
+                    { field: "publishedAtText", title: "发布时间", width: 170, sort: true }
+                ]]
+            });
+
+            form.on("submit(creatorAssetSearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-creator-asset-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+        });
+    </script>
+}
+
+@functions {
+    private static string GetAssetTypeName(AssetType type) => type switch
+    {
+        AssetType.Plugin => "插件",
+        AssetType.Skill => "技能",
+        AssetType.Agent => "智能体",
+        AssetType.Solution => "解决方案",
+        _ => type.ToString()
+    };
+
+    private static string GetAssetStatusName(AssetStatus status) => status switch
+    {
+        AssetStatus.Draft => "草稿",
+        AssetStatus.Published => "已发布",
+        AssetStatus.Hidden => "隐藏",
+        AssetStatus.Offline => "下架",
+        _ => status.ToString()
+    };
+}

@@ -1,0 +1,1 @@
+& "$PSScriptRoot\..\..\..\scripts\install-baota.ps1" @args

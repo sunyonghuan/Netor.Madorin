@@ -1,0 +1,324 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+	<!-- ════════════════════════════════════════════════════════════════
+	     界面重设计 C1：通用控件样式
+	     ════════════════════════════════════════════════════════════════
+	     本文件按 Docs/未来版本策划/界面重设计/01-布局规格.md §7 定义新增的
+	     通用控件样式（按钮族 / 列表项 / 卡片 / 徽章）。
+
+	     C1 阶段：仅放 EmptyState 控件需要的 btn-link / btn-link-secondary。
+	     现有 axaml 内联定义的样式（titlebar-btn / tab-btn / btn-primary 等）
+	     留到 C5 收尾时统一迁移到此文件。
+
+	     使用方式：
+	         <Button Classes="btn-link" Content="新建工作流任务" />
+	         <Button Classes="btn-link-secondary" Content="清空搜索" />
+
+	     ⚠️ 重要：本文件中所有资源引用必须用 {DynamicResource}，
+	     不能用 {StaticResource}。因为 Application.Styles 加载时
+	     Application.Resources 还未完全填充，StaticResource 立即查找会失败
+	     （AOT 发布场景会抛 KeyNotFoundException 启动崩溃）。
+	     ════════════════════════════════════════════════════════════════ -->
+
+	<!-- ══════ 工具栏图标按钮（标题栏 / 输入框 / 工作区工具按钮） ══════ -->
+	<Style Selector="Button.titlebar-btn">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="#858585" />
+		<Setter Property="FontSize" Value="14" />
+		<Setter Property="Padding" Value="8,4" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="MinWidth" Value="26" />
+		<Setter Property="MinHeight" Value="24" />
+		<Setter Property="BorderThickness" Value="0" />
+	</Style>
+	<Style Selector="Button.titlebar-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="Foreground" Value="#cccccc" />
+	</Style>
+	<Style Selector="Button.titlebar-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="#2d2d30" />
+		<Setter Property="Foreground" Value="#ffffff" />
+	</Style>
+	<Style Selector="Button.titlebar-btn:disabled /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="#555555" />
+		<Setter Property="Opacity" Value="0.55" />
+	</Style>
+	<Style Selector="Button.titlebar-btn-warn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="#3a1f1f" />
+		<Setter Property="Foreground" Value="#d85050" />
+	</Style>
+	<Style Selector="Button.titlebar-btn-warn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="#4a2424" />
+		<Setter Property="Foreground" Value="#ff7070" />
+	</Style>
+
+	<!-- ══════ 标题栏菜单 ══════ -->
+	<Style Selector="Menu.title-menu">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="#cccccc" />
+		<Setter Property="Padding" Value="0" />
+	</Style>
+	<Style Selector="Menu.title-menu MenuItem">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="#cccccc" />
+		<Setter Property="FontSize" Value="12" />
+		<Setter Property="Padding" Value="10,6" />
+		<Setter Property="MinHeight" Value="28" />
+		<Setter Property="Cursor" Value="Hand" />
+	</Style>
+	<Style Selector="Menu.title-menu > MenuItem">
+		<Setter Property="MinWidth" Value="44" />
+	</Style>
+	<Style Selector="Menu.title-menu MenuItem:pointerover">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="Foreground" Value="#ffffff" />
+	</Style>
+	<Style Selector="Menu.title-menu MenuItem:pressed">
+		<Setter Property="Background" Value="#2d2d30" />
+	</Style>
+	<Style Selector="Menu.title-menu MenuItem.voice-enabled">
+		<Setter Property="Background" Value="#2A8FAF9A" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+		<Setter Property="FontWeight" Value="SemiBold" />
+	</Style>
+	<Style Selector="Menu.title-menu MenuItem.voice-enabled:pointerover">
+		<Setter Property="Background" Value="#3A8FAF9A" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentHoverBrush}" />
+	</Style>
+
+	<!-- ══════ 输入框样式 ══════ -->
+	<Style Selector="TextBox.chat-input">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="#cccccc" />
+		<Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="FontSize" Value="13" />
+		<Setter Property="Padding" Value="0" />
+	</Style>
+	<Style Selector="TextBox.chat-input:focus /template/ Border">
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Background" Value="Transparent" />
+	</Style>
+	<Style Selector="TextBox.chat-input:pointerover /template/ Border">
+		<Setter Property="Background" Value="Transparent" />
+	</Style>
+
+	<!-- ══════ 拖拽分隔条 ══════ -->
+	<Style Selector="GridSplitter">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Template">
+			<ControlTemplate>
+				<Grid Background="Transparent">
+					<Border Width="1"
+					        HorizontalAlignment="Left"
+					        VerticalAlignment="Stretch"
+					        Background="{TemplateBinding Background}" />
+				</Grid>
+			</ControlTemplate>
+		</Setter>
+	</Style>
+	<Style Selector="GridSplitter:pointerover">
+		<Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+	</Style>
+
+	<!-- ══════ Popup 选择器项 ══════ -->
+	<Style Selector="Button.selector-item">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="#cccccc" />
+		<Setter Property="HorizontalAlignment" Value="Stretch" />
+		<Setter Property="HorizontalContentAlignment" Value="Left" />
+		<Setter Property="Padding" Value="10,6" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+	</Style>
+	<Style Selector="Button.selector-item:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#252526" />
+	</Style>
+	<Style Selector="Button.selector-item-active">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+		<Setter Property="HorizontalAlignment" Value="Stretch" />
+		<Setter Property="HorizontalContentAlignment" Value="Left" />
+		<Setter Property="Padding" Value="10,6" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+	</Style>
+	<Style Selector="Button.selector-item-active /template/ ContentPresenter">
+		<Setter Property="Background" Value="#252526" />
+	</Style>
+
+	<!-- ══════ 顶部模式切换 Tab 按钮 ══════ -->
+	<Style Selector="Button.tab-btn">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="#858585" />
+		<Setter Property="FontSize" Value="13" />
+		<Setter Property="FontWeight" Value="SemiBold" />
+		<Setter Property="Padding" Value="12,4" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+	</Style>
+	<Style Selector="Button.tab-btn:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="Foreground" Value="#cccccc" />
+	</Style>
+	<Style Selector="Button.tab-btn-active">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+	</Style>
+	<Style Selector="Button.tab-btn-active /template/ ContentPresenter">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+	</Style>
+
+	<!-- ══════ 附件 chip 标签 ══════ -->
+	<Style Selector="Border.attachment-tag">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Padding" Value="8,4" />
+		<Setter Property="Margin" Value="0,0,4,4" />
+		<Setter Property="BorderBrush" Value="#3c3c3c" />
+		<Setter Property="BorderThickness" Value="1" />
+	</Style>
+
+	<!-- ══════ 详情区操作按钮 ══════ -->
+	<Style Selector="Button.detail-action-btn">
+		<Setter Property="Background" Value="#3a3d41" />
+		<Setter Property="Foreground" Value="#cccccc" />
+		<Setter Property="Padding" Value="12,6" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="FontSize" Value="12" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Margin" Value="0,0,8,0" />
+	</Style>
+	<Style Selector="Button.detail-action-btn:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#4a4d51" />
+	</Style>
+	<Style Selector="Button.detail-action-btn-cancel">
+		<Setter Property="Background" Value="#6e2828" />
+	</Style>
+	<Style Selector="Button.detail-action-btn-cancel:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#7a3030" />
+	</Style>
+
+	<!-- ══════ HITL 批准卡片 ══════ -->
+	<Style Selector="Border.approval-card">
+		<Setter Property="Background" Value="#3a1f1f" />
+		<Setter Property="BorderBrush" Value="#a04848" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="6" />
+		<Setter Property="Padding" Value="16,12" />
+	</Style>
+	<Style Selector="Border.approval-plan">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="BorderBrush" Value="#3c3c3c" />
+		<Setter Property="BorderThickness" Value="1" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Padding" Value="12,10" />
+	</Style>
+
+	<!-- ══════ HITL 批准按钮 ══════ -->
+	<Style Selector="Button.approval-btn-primary">
+		<Setter Property="Background" Value="{DynamicResource PrimaryButtonBrush}" />
+		<Setter Property="Foreground" Value="{DynamicResource PrimaryButtonTextBrush}" />
+		<Setter Property="Padding" Value="14,8" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="FontSize" Value="13" />
+		<Setter Property="FontWeight" Value="SemiBold" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Margin" Value="0,0,8,0" />
+	</Style>
+	<Style Selector="Button.approval-btn-primary:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="{DynamicResource PrimaryButtonHoverBrush}" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentHoverBrush}" />
+	</Style>
+	<Style Selector="Button.approval-btn-secondary">
+		<Setter Property="Background" Value="#3a3d41" />
+		<Setter Property="Foreground" Value="#cccccc" />
+		<Setter Property="Padding" Value="14,8" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="FontSize" Value="13" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Margin" Value="0,0,8,0" />
+	</Style>
+	<Style Selector="Button.approval-btn-secondary:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#4a4d51" />
+	</Style>
+	<Style Selector="Button.approval-btn-danger">
+		<Setter Property="Background" Value="#6e2828" />
+		<Setter Property="Foreground" Value="#ffffff" />
+		<Setter Property="Padding" Value="14,8" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="FontSize" Value="13" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="BorderThickness" Value="0" />
+	</Style>
+	<Style Selector="Button.approval-btn-danger:pointerover /template/ ContentPresenter">
+		<Setter Property="Background" Value="#8a3838" />
+	</Style>
+
+	<!-- ══════ GroupChat 步骤项 ══════ -->
+	<Style Selector="Border.step-item">
+		<Setter Property="Background" Value="#252526" />
+		<Setter Property="CornerRadius" Value="4" />
+		<Setter Property="Padding" Value="10,8" />
+		<Setter Property="Margin" Value="0,2" />
+		<Setter Property="BorderBrush" Value="#3c3c3c" />
+		<Setter Property="BorderThickness" Value="1" />
+	</Style>
+
+	<!-- ══════ 超链接：主链接（用于空状态主操作 / 引导链接） ══════ -->
+	<Style Selector="Button.btn-link">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+		<Setter Property="FontSize" Value="{DynamicResource Font.Md}" />
+		<Setter Property="FontWeight" Value="{DynamicResource Weight.SemiBold}" />
+		<Setter Property="Padding" Value="4,6" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="HorizontalContentAlignment" Value="Center" />
+	</Style>
+	<Style Selector="Button.btn-link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentHoverBrush}" />
+		<Setter Property="TextBlock.TextDecorations" Value="Underline" />
+	</Style>
+	<Style Selector="Button.btn-link:pressed /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource AccentPressedBrush}" />
+	</Style>
+	<Style Selector="Button.btn-link:disabled /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource Overlay0Brush}" />
+	</Style>
+
+	<!-- ══════ 超链接：次链接（用于空状态次操作 / 辅助链接） ══════ -->
+	<Style Selector="Button.btn-link-secondary">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource SubtextBrush}" />
+		<Setter Property="FontSize" Value="{DynamicResource Font.Body}" />
+		<Setter Property="FontWeight" Value="{DynamicResource Weight.Regular}" />
+		<Setter Property="Padding" Value="4,4" />
+		<Setter Property="BorderThickness" Value="0" />
+		<Setter Property="Cursor" Value="Hand" />
+		<Setter Property="HorizontalContentAlignment" Value="Center" />
+	</Style>
+	<Style Selector="Button.btn-link-secondary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+		<Setter Property="TextBlock.TextDecorations" Value="Underline" />
+	</Style>
+	<Style Selector="Button.btn-link-secondary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+		<Setter Property="Background" Value="Transparent" />
+		<Setter Property="Foreground" Value="{DynamicResource SubtextBrush}" />
+	</Style>
+
+</Styles>

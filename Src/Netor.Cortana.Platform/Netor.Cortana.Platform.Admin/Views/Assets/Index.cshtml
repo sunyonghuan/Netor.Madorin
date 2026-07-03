@@ -1,0 +1,445 @@
+@model Netor.Cortana.Platform.Admin.Models.Assets.AssetIndexViewModel
+@using Netor.Cortana.Platform.Entitys.Enums
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    ViewData["Title"] = "资源管理";
+    ViewData["WorkspaceTags"] = new[]
+    {
+        new AdminWorkspaceTag("全部资源", Model.TotalCount.ToString(), Url.Action("Index", "Assets"), "layui-icon-template-1"),
+        new AdminWorkspaceTag("已发布", Model.PublishedCount.ToString(), Url.Action("Index", "Assets", new { status = (int)AssetStatus.Published }), "layui-icon-ok"),
+        new AdminWorkspaceTag("推荐资源", Model.FeaturedCount.ToString(), Url.Action("Index", "Assets", new { featured = true }), "layui-icon-rate"),
+        new AdminWorkspaceTag("当前页下载", Model.Items.Sum(x => x.DownloadCount).ToString(), null, "layui-icon-download-circle")
+    };
+}
+
+<section class="admin-card admin-filter-card">
+    <div class="admin-card-body">
+        <form id="assetFilter" class="layui-form layui-form-pane" lay-filter="assetFilter">
+            <div class="admin-filter-grid">
+                <div class="layui-form-item admin-filter-span-2">
+                    <label class="layui-form-label">关键词</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="keyword" value="@Model.Keyword" placeholder="名称/标识/开发者/简介/标签" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">类型</label>
+                    <div class="layui-input-block">
+                        <select name="type">
+                            <option value="">全部</option>
+                            @foreach (var option in Enum.GetValues<AssetType>())
+                            {
+                                <option value="@((int)option)" selected="@(Model.Type == option)">@GetAssetTypeName(option)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">状态</label>
+                    <div class="layui-input-block">
+                        <select name="status">
+                            <option value="">全部</option>
+                            @foreach (var option in Enum.GetValues<AssetStatus>())
+                            {
+                                <option value="@((int)option)" selected="@(Model.Status == option)">@GetAssetStatusName(option)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">分类</label>
+                    <div class="layui-input-block">
+                        <select name="categoryId">
+                            <option value="">全部</option>
+                            @foreach (var category in Model.Categories)
+                            {
+                                <option value="@category.Id" selected="@(Model.CategoryId == category.Id)">@category.Name</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">推荐</label>
+                    <div class="layui-input-block">
+                        <select name="featured">
+                            <option value="">全部</option>
+                            <option value="true" selected="@(Model.Featured == true)">仅推荐</option>
+                            <option value="false" selected="@(Model.Featured == false)">非推荐</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">拥有者</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="ownerKeyword" placeholder="账号关键词" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">开发者</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="developerName" placeholder="开发者名称" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">价格类型</label>
+                    <div class="layui-input-block">
+                        <select name="pricingPlanType">
+                            <option value="">全部</option>
+                            @foreach (var option in Enum.GetValues<PricingPlanType>())
+                            {
+                                <option value="@((int)option)">@GetPricingPlanTypeName(option)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">审核状态</label>
+                    <div class="layui-input-block">
+                        <select name="reviewStatus">
+                            <option value="">全部</option>
+                            @foreach (var option in Enum.GetValues<AssetReviewStatus>())
+                            {
+                                <option value="@((int)option)">@GetReviewStatusName(option)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">下载最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="downloadMin" type="number" min="0" placeholder="0" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">下载最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="downloadMax" type="number" min="0" placeholder="1000" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">版本最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="versionCountMin" type="number" min="0" placeholder="0" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">价格最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="priceMin" type="number" step="0.01" placeholder="0.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">价格最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="priceMax" type="number" step="0.01" placeholder="9999.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">资源包</label>
+                    <div class="layui-input-block">
+                        <select name="hasPackage">
+                            <option value="">全部</option>
+                            <option value="true">有包文件</option>
+                            <option value="false">缺少包</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">存储</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="storageProvider" placeholder="Local / S3" />
+                    </div>
+                </div>
+                <div class="layui-form-item admin-filter-submit">
+                    <button class="layui-btn layui-btn-normal" lay-submit lay-filter="assetSearch">查询</button>
+                    <button class="layui-btn layui-btn-primary" type="button" data-asset-filter-reset>重置</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="admin-card admin-layui-table-card">
+    <div class="admin-card-body">
+        <input name="__RequestVerificationToken" type="hidden" value="@AntiforgeryToken()" />
+        <table id="assetTable" lay-filter="assetTable"></table>
+    </div>
+</section>
+
+<script type="text/html" id="assetNameTpl">
+    <div class="admin-text-strong">{{ d.name }}</div>
+    <div class="admin-text-muted">{{ d.slug }}</div>
+    <div class="admin-text-muted">{{ d.shortDescription || "-" }}</div>
+</script>
+
+<script type="text/html" id="assetStatusTpl">
+    <span class="admin-badge {{ d.statusBadgeClass }}">{{ d.statusName }}</span>
+    {{# if (d.isFeatured) { }}<span class="admin-badge admin-badge-warning">推荐</span>{{# } }}
+</script>
+
+<script type="text/html" id="assetVersionTpl">
+    <div>{{ d.currentVersionName }}</div>
+    <div class="admin-text-muted">{{ d.versionCount }} 版本 / {{ d.pricingPlanCount }} 价格</div>
+</script>
+
+<script type="text/html" id="assetActionsTpl">
+    <div class="layui-btn-group admin-row-actions">
+        <a class="layui-btn layui-btn-xs" lay-event="view">查看</a>
+        <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="edit">编辑</a>
+        <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="version">上新</a>
+        <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="feature">{{ d.isFeatured ? "取消推荐" : "推荐" }}</a>
+        {{# if (d.status === 2) { }}
+            <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="offline">下架</a>
+        {{# } else { }}
+            <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="publish">发布</a>
+        {{# } }}
+    </div>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table", "layer"], function () {
+            const form = layui.form;
+            const table = layui.table;
+            const layer = layui.layer;
+            const filterSelector = "#assetFilter";
+            const tableId = "assetTable";
+            const token = () => document.querySelector("input[name='__RequestVerificationToken']").value;
+            const postAction = async (url, values, done) => {
+                const formData = new FormData();
+                Object.keys(values || {}).forEach((key) => formData.append(key, values[key]));
+                formData.append("__RequestVerificationToken", token());
+                const response = await fetch(url, {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                });
+                const result = await response.json();
+                if (!response.ok || result.success === false) {
+                    layer.msg(result.message || "操作失败，请稍后重试。", { icon: 2 });
+                    return;
+                }
+
+                table.reload(tableId);
+                if (done) {
+                    done(result);
+                }
+            };
+
+            window.adminTable.render({
+                elem: "#assetTable",
+                id: tableId,
+                url: "@Url.Action("TableData", "Assets")",
+                where: window.adminFilter.collect(filterSelector),
+                toolbar: "#assetTableToolbarTpl",
+                cols: [[
+                    { type: "checkbox", fixed: "left" },
+                    { field: "name", title: "资源", minWidth: 260, templet: "#assetNameTpl", sort: true },
+                    { field: "typeName", title: "类型", width: 110, sort: true },
+                    { field: "categoryName", title: "分类", width: 130 },
+                    { field: "status", title: "状态", width: 140, templet: "#assetStatusTpl", sort: true },
+                    { field: "developerName", title: "开发者", width: 150 },
+                    { field: "ownerAccountName", title: "归属账号", minWidth: 160 },
+                    { title: "版本/定价", width: 160, templet: "#assetVersionTpl" },
+                    { field: "pricingSummary", title: "价格", width: 150 },
+                    { field: "reviewStatusName", title: "审核", width: 110 },
+                    { field: "downloadCount", title: "下载", width: 90, sort: true },
+                    { field: "publishedAtText", title: "发布时间", width: 170, sort: true },
+                    { title: "操作", width: 272, fixed: "right", toolbar: "#assetActionsTpl" }
+                ]]
+            });
+
+            form.on("submit(assetSearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-asset-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+
+            const submitBatchOperation = (operation, title, label, extraValues) => {
+                const checked = table.checkStatus(tableId).data;
+                if (checked.length === 0) {
+                    layer.msg("请先选择要操作的资源。");
+                    return;
+                }
+
+                const message = operation === "delete"
+                    ? `确定批量删除选中的 ${checked.length} 个资源吗？只有已下架且没有关联订阅、下载、结算、审核记录的资源会被删除，其余会自动跳过。`
+                    : `确定对 ${checked.length} 个资源执行“${label}”吗？`;
+
+                layer.confirm(message, { icon: 3, title }, function (index) {
+                    const values = Object.assign({ operation }, extraValues || {});
+                    checked.forEach((item, itemIndex) => {
+                        values[`ids[${itemIndex}]`] = item.id;
+                    });
+
+                    postAction("@Url.Action("Batch", "Assets")", values, (result) => {
+                        layer.msg(result.message || `${label}已完成。`, { icon: 1 });
+                    });
+                    layer.close(index);
+                });
+            };
+
+            table.on("toolbar(assetTable)", function (obj) {
+                if (obj.event === "create") {
+                    window.adminDrawer.openRight({
+                        title: "上传资源",
+                        url: "@Url.Action("Create", "Assets", new { mode = "drawer" })",
+                        width: "980px"
+                    });
+                    return;
+                }
+
+                if (obj.event === "batchFeature") {
+                    submitBatchOperation("feature", "批量推荐", "批量推荐");
+                    return;
+                }
+
+                if (obj.event === "batchUnfeature") {
+                    submitBatchOperation("unfeature", "批量取消推荐", "批量取消推荐");
+                    return;
+                }
+
+                if (obj.event === "batchCategory") {
+                    const categoryId = document.getElementById("assetBatchCategory")?.value ?? "";
+                    submitBatchOperation("category", "批量修改分类", categoryId ? "批量修改分类" : "批量清空分类", { categoryId });
+                    return;
+                }
+
+                if (obj.event !== "batchApply") {
+                    return;
+                }
+
+                const operation = document.getElementById("assetBatchOperation")?.value || "publish";
+                const operationNameMap = {
+                    publish: "批量发布",
+                    offline: "批量下架",
+                    delete: "批量删除下架资源",
+                    hidden: "批量隐藏",
+                    draft: "批量设为草稿",
+                    feature: "批量推荐",
+                    unfeature: "批量取消推荐"
+                };
+
+                submitBatchOperation(operation, "批量操作", operationNameMap[operation] || "批量操作");
+            });
+
+            table.on("tool(assetTable)", function (obj) {
+                const item = obj.data;
+                if (obj.event === "view") {
+                    window.adminDrawer.openRight({
+                        title: `资源详情 - ${item.name}`,
+                        url: `@Url.Action("Details", "Assets")?id=${encodeURIComponent(item.id)}&mode=drawer`,
+                        width: "900px"
+                    });
+                } else if (obj.event === "edit") {
+                    window.adminDrawer.openRight({
+                        title: `编辑资源 - ${item.name}`,
+                        url: `@Url.Action("Edit", "Assets")?id=${encodeURIComponent(item.id)}&mode=drawer`,
+                        width: "980px"
+                    });
+                } else if (obj.event === "version") {
+                    window.adminDrawer.openRight({
+                        title: `上新 - ${item.name}`,
+                        url: `@Url.Action("UploadVersion", "Assets")?id=${encodeURIComponent(item.id)}&mode=drawer`,
+                        width: "920px"
+                    });
+                } else if (obj.event === "feature") {
+                    layer.confirm("确定切换推荐状态吗？", { icon: 3, title: "推荐资源" }, function (index) {
+                        postAction(`@Url.Action("ToggleFeatured", "Assets")?id=${encodeURIComponent(item.id)}`, {}, (result) => layer.msg(result.message || "推荐状态已更新。", { icon: 1 }));
+                        layer.close(index);
+                    });
+                } else if (obj.event === "publish") {
+                    layer.confirm("确定发布该资源吗？发布前会执行现有校验。", { icon: 3, title: "发布资源" }, function (index) {
+                        postAction(`@Url.Action("Publish", "Assets")?id=${encodeURIComponent(item.id)}`, {}, (result) => layer.msg(result.message || "发布操作已完成。", { icon: 1 }));
+                        layer.close(index);
+                    });
+                } else if (obj.event === "offline") {
+                    layer.confirm("确定下架该资源吗？", { icon: 3, title: "下架资源" }, function (index) {
+                        postAction(`@Url.Action("Offline", "Assets")?id=${encodeURIComponent(item.id)}`, {}, (result) => layer.msg(result.message || "下架操作已完成。", { icon: 1 }));
+                        layer.close(index);
+                    });
+                }
+            });
+        });
+    </script>
+}
+
+<script type="text/html" id="assetTableToolbarTpl">
+    <div class="admin-table-toolbar">
+        <div class="admin-table-toolbar-group">
+            <button class="layui-btn layui-btn-sm layui-btn-normal" lay-event="create">上传资源</button>
+            <button class="layui-btn layui-btn-sm" lay-event="batchFeature">批量推荐</button>
+            <button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="batchUnfeature">批量取消推荐</button>
+        </div>
+        <div class="admin-table-toolbar-group">
+            <select id="assetBatchCategory" class="layui-select admin-table-toolbar-select" aria-label="批量分类">
+                <option value="">清空分类</option>
+                @foreach (var category in Model.Categories)
+                {
+                    <option value="@category.Id">@category.Name</option>
+                }
+            </select>
+            <button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="batchCategory">批量改分类</button>
+        </div>
+        <div class="admin-table-toolbar-group">
+            <select id="assetBatchOperation" class="layui-select admin-table-toolbar-select" aria-label="批量操作">
+                <option value="publish">批量发布</option>
+                <option value="offline">批量下架</option>
+                <option value="delete">批量删除下架资源</option>
+                <option value="hidden">批量隐藏</option>
+                <option value="draft">批量草稿</option>
+                <option value="feature">批量推荐</option>
+                <option value="unfeature">取消推荐</option>
+            </select>
+            <button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="batchApply">应用</button>
+        </div>
+    </div>
+</script>
+
+@functions {
+    private static string GetAssetTypeName(AssetType type) => type switch
+    {
+        AssetType.Plugin => "插件",
+        AssetType.Skill => "技能",
+        AssetType.Agent => "智能体",
+        AssetType.Solution => "解决方案",
+        _ => type.ToString()
+    };
+
+    private static string GetAssetStatusName(AssetStatus status) => status switch
+    {
+        AssetStatus.Draft => "草稿",
+        AssetStatus.Published => "已发布",
+        AssetStatus.Hidden => "隐藏",
+        AssetStatus.Offline => "下架",
+        _ => status.ToString()
+    };
+
+    private static string GetPricingPlanTypeName(PricingPlanType type) => type switch
+    {
+        PricingPlanType.Free => "免费",
+        PricingPlanType.Monthly => "月度订阅",
+        PricingPlanType.Yearly => "年度订阅",
+        _ => type.ToString()
+    };
+
+    private static string GetReviewStatusName(AssetReviewStatus status) => status switch
+    {
+        AssetReviewStatus.Pending => "待审核",
+        AssetReviewStatus.Approved => "已通过",
+        AssetReviewStatus.Rejected => "已驳回",
+        AssetReviewStatus.Revoked => "已撤回",
+        _ => status.ToString()
+    };
+
+    private string AntiforgeryToken()
+    {
+        return Antiforgery.GetAndStoreTokens(Context).RequestToken ?? string.Empty;
+    }
+}

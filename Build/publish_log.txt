@@ -1,0 +1,10 @@
+﻿  姝ｅ湪纭畾瑕佽繕鍘熺殑椤圭洰鈥?
+  鎵€鏈夐」鐩潎鏄渶鏂扮殑锛屾棤娉曡繕鍘熴€?
+  Netor.Cortana.Entitys -> E:\Netor.me\Cortana\Src\Netor.Cortana.Entitys\bin\Release\net10.0\Netor.Cortana.Entitys.dll
+  Netor.Cortana.Plugin -> E:\Netor.me\Cortana\Src\Netor.Cortana.Plugin\bin\Release\net10.0\Netor.Cortana.Plugin.dll
+  Netor.Cortana.Voice -> E:\Netor.me\Cortana\Src\Netor.Cortana.Voice\bin\Release\net10.0\Netor.Cortana.Voice.dll
+  Netor.Cortana.AI -> E:\Netor.me\Cortana\Src\Netor.Cortana.AI\bin\Release\net10.0\Netor.Cortana.AI.dll
+  Netor.Cortana.Networks -> E:\Netor.me\Cortana\Src\Netor.Cortana.Networks\bin\Release\net10.0\Netor.Cortana.Networks.dll
+  Netor.Cortana.UI -> E:\Netor.me\Cortana\Src\Netor.Cortana.UI\bin\Release\net10.0\win-x64\Cortana.dll
+  Netor.Cortana.UI -> E:\Netor.me\Cortana\Realases\Cortana\
+  宸叉竻鐞嗗彂甯冪洰褰曚腑鐨?PDB/XML 鏂囦欢锛? 涓?

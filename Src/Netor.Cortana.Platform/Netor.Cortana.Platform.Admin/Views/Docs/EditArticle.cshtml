@@ -1,0 +1,20 @@
+@model Netor.Cortana.Platform.Admin.Models.Docs.DocArticleEditViewModel
+@{
+    ViewData["Title"] = "编辑文档文章";
+}
+
+<div class="doc-editor-page">
+    <div class="admin-page-header">
+        <div>
+            <h1>编辑文档文章</h1>
+            <p>维护文章元信息、正文内容和发布状态。</p>
+        </div>
+        <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Index">返回列表</a>
+    </div>
+
+    <partial name="_ArticleForm" model="Model" />
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

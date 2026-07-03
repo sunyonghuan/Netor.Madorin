@@ -1,0 +1,98 @@
+@model Netor.Cortana.Platform.Admin.Models.Auth.LoginViewModel
+@inject Netor.Cortana.Platform.Admin.Services.AdminBrandingService BrandingService
+@{
+    ViewData["Title"] = "后台登录";
+    Layout = null;
+    var adminTitle = await BrandingService.GetAdminTitleAsync();
+    var platformName = await BrandingService.GetPlatformNameAsync();
+    var systemCode = await BrandingService.GetSystemCodeAsync();
+    var logoText = platformName.Length > 0 ? platformName[..1] : "N";
+}
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>后台登录 - @adminTitle</title>
+    <link rel="stylesheet" href="~/lib/layui/css/layui.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
+</head>
+<body class="admin-login-body">
+    <main class="admin-login-wrapper">
+        <section class="admin-login-slogan" aria-label="平台介绍">
+            <span class="system-name">@systemCode</span>
+            <h1>@platformName</h1>
+            <p>统一管理资源、订阅、订单与平台配置，面向运营交付、内容审核和商业化流程提供稳定的后台支撑。</p>
+        </section>
+
+        <section class="admin-login-box" aria-label="后台登录">
+            <div class="login-heading">
+                <span class="login-logo">@logoText</span>
+                <div>
+                    <h2>后台登录</h2>
+                    <div class="login-subtitle">请使用已授权的管理员账号登录</div>
+                </div>
+            </div>
+
+            <form asp-action="Login" method="post" class="admin-login-form" data-login-form>
+                @Html.AntiForgeryToken()
+                <input asp-for="ReturnUrl" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="login-validation"></div>
+
+                <div class="layui-form-item">
+                    <span class="login-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+                            <path d="M4 20a8 8 0 0 1 16 0" />
+                        </svg>
+                    </span>
+                    <input asp-for="UserName" class="layui-input" autocomplete="username" autofocus placeholder="管理员账号" />
+                    <span asp-validation-for="UserName" class="login-field-error"></span>
+                </div>
+
+                <div class="layui-form-item">
+                    <span class="login-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false">
+                            <rect x="5" y="10" width="14" height="10" rx="2" />
+                            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                        </svg>
+                    </span>
+                    <input asp-for="Password" class="layui-input" autocomplete="current-password" placeholder="登录密码" />
+                    <button class="password-toggle" type="button" data-toggle-password aria-label="显示或隐藏密码">
+                        <svg class="eye-open" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                            <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        <svg class="eye-closed" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                            <path d="M3 3l18 18" />
+                            <path d="M10.6 5.2A10.7 10.7 0 0 1 12 5c6 0 9.5 7 9.5 7a16.3 16.3 0 0 1-2.4 3.1" />
+                            <path d="M6.2 6.8C3.8 8.5 2.5 12 2.5 12s3.5 7 9.5 7a9.8 9.8 0 0 0 4.1-.9" />
+                        </svg>
+                    </button>
+                    <span asp-validation-for="Password" class="login-field-error"></span>
+                </div>
+
+                <div class="remember-row">
+                    <label class="remember-check">
+                        <input asp-for="RememberMe" />
+                        <span>记住登录</span>
+                    </label>
+                    <span>Cookie 安全登录</span>
+                </div>
+
+                <button class="login-button" type="submit" data-login-submit>
+                    登录后台
+                </button>
+                <p class="login-tips">仅限平台运营与管理人员访问。</p>
+            </form>
+        </section>
+    </main>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/layui/layui.js" asp-append-version="true"></script>
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/dist/jquery.validate.unobtrusive.min.js"></script>
+    <script src="~/js/login.js" asp-append-version="true"></script>
+</body>
+</html>

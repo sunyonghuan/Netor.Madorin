@@ -1,0 +1,1 @@
+& "$PSScriptRoot\..\..\..\scripts\setup-server-key.ps1" @args

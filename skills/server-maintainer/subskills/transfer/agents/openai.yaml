@@ -1,0 +1,5 @@
+interface:
+  display_name: "Server Maintainer Transfer"
+  short_description: "Transfer server files through SSH SFTP tools"
+  default_prompt: "Use $transfer for server file transfer. Uploads and downloads must use SSH plugin SFTP tools, not PowerShell-wrapped scp/ssh commands."
+

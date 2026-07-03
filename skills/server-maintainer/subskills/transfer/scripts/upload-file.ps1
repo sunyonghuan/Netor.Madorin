@@ -1,0 +1,1 @@
+& "$PSScriptRoot\..\..\..\scripts\upload-file.ps1" @args

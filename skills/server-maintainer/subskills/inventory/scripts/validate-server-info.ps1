@@ -1,0 +1,1 @@
+& "$PSScriptRoot\..\..\..\scripts\validate-server-info.ps1" @args

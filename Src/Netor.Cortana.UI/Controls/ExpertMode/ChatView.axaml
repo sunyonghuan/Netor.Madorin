@@ -1,0 +1,293 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Netor.Cortana.UI.Controls.Common"
+             xmlns:expert="using:Netor.Cortana.UI.Controls.ExpertMode"
+             xmlns:vm="using:Netor.Cortana.UI.ViewModels.ExpertMode"
+             x:Class="Netor.Cortana.UI.Controls.ExpertMode.ChatView"
+             x:DataType="vm:ChatInputVm"
+             x:CompileBindings="True"
+			 Margin="0"
+             Background="#1e1e1e">
+
+	<!--
+	  ════════════════════════════════════════════════════════════════
+	  ChatView — 专家（Chat）模式视图
+	  结构：DockPanel
+	    Dock=Bottom：Border → InputAreaView（InputMode=Chat）
+	    Fill：Grid → WelcomePanel + MessageScroller + ScrollToBottomBtn
+	  ════════════════════════════════════════════════════════════════ -->
+
+	<DockPanel>
+
+		<!-- ════ 底部输入区 ════ -->
+		<Border DockPanel.Dock="Bottom" Background="#1e1e1e"
+		        BorderBrush="#252526" BorderThickness="0,1,0,0"
+		        Padding="0,6,8,6">
+			<StackPanel Spacing="4">
+
+				<!-- Chat→Workflow 启发式建议 Banner（默认隐藏） -->
+				<Border x:Name="WorkflowSuggestionBanner"
+				        Background="#1f3a4d"
+				        BorderBrush="#0e7c8c"
+				        BorderThickness="1"
+				        CornerRadius="4"
+				        Padding="10,8"
+				        Margin="4,0,4,0"
+				        IsVisible="False">
+					<Grid ColumnDefinitions="Auto,*,Auto,Auto">
+						<TextBlock Grid.Column="0" Text="💡"
+						           FontSize="14"
+						           VerticalAlignment="Center"
+						           Margin="0,0,8,0" />
+						<StackPanel Grid.Column="1" Orientation="Vertical" Spacing="2"
+						            VerticalAlignment="Center">
+							<TextBlock x:Name="WorkflowSuggestionReason"
+							           Text="这看起来是一个复杂任务，是否切到工作模式？"
+							           Foreground="#cccccc" FontSize="12"
+							           TextWrapping="Wrap" />
+							<TextBlock x:Name="WorkflowSuggestionInputPreview"
+							           Foreground="#858585" FontSize="11"
+							           FontStyle="Italic"
+							           TextTrimming="CharacterEllipsis" />
+						</StackPanel>
+						<Button Grid.Column="2"
+						        Background="{DynamicResource PrimaryButtonBrush}" Foreground="{DynamicResource PrimaryButtonTextBrush}"
+						        Padding="10,4" CornerRadius="3"
+						        FontSize="12" Cursor="Hand"
+						        BorderThickness="0"
+						        Margin="8,0,4,0"
+						        Content="切到工作模式"
+						        Click="OnWorkflowSuggestionAcceptClick" />
+						<Button Grid.Column="3"
+						        Background="Transparent" Foreground="#858585"
+						        Padding="6,4" CornerRadius="3"
+						        FontSize="12" Cursor="Hand"
+						        BorderThickness="0"
+						        Content="✕"
+						        ToolTip.Tip="忽略本次建议"
+						        Click="OnWorkflowSuggestionDismissClick" />
+					</Grid>
+				</Border>
+
+				<Border x:Name="OrchestrationDiagnosticsPanel"
+				        IsVisible="False"
+				        Background="#20262e"
+				        BorderBrush="#39414b"
+				        BorderThickness="1"
+				        CornerRadius="4"
+				        Padding="10,6"
+				        Margin="4,0,4,0">
+					<StackPanel Spacing="6">
+						<Grid ColumnDefinitions="*,Auto,Auto">
+							<TextBlock Grid.Column="0"
+							           Text="{Binding OrchestrationDiagnosticsText}"
+							           Foreground="#aeb6bf"
+							           FontSize="11"
+							           TextWrapping="Wrap"
+							           VerticalAlignment="Center" />
+							<Button Grid.Column="1"
+							        Background="Transparent"
+							        Foreground="#9aa4af"
+							        BorderThickness="0"
+							        Padding="6,2"
+							        Margin="8,0,0,0"
+							        FontSize="11"
+							        Cursor="Hand"
+							        Content="{Binding OrchestrationDiagnosticsToggleText}"
+							        Click="OnOrchestrationDiagnosticsToggleClick" />
+							<Button Grid.Column="2"
+							        Background="Transparent"
+							        Foreground="#9aa4af"
+							        BorderThickness="0"
+							        Padding="6,2"
+							        Margin="4,0,0,0"
+							        FontSize="11"
+							        Cursor="Hand"
+							        Content="复制"
+							        Click="OnCopyOrchestrationDiagnosticsClick" />
+						</Grid>
+						<StackPanel Orientation="Horizontal"
+						            Spacing="4"
+						            IsVisible="{Binding IsOrchestrationDiagnosticsExpanded}">
+							<TextBlock Text="筛选"
+							           Foreground="#6f7a86"
+							           FontSize="10"
+							           VerticalAlignment="Center"
+							           Margin="0,0,4,0" />
+							<Button Background="#1b2128"
+							        Foreground="#9aa4af"
+							        BorderBrush="#2f3842"
+							        BorderThickness="1"
+							        Padding="8,2"
+							        FontSize="10"
+							        Cursor="Hand"
+							        IsEnabled="{Binding CanSwitchToAllOrchestrationDiagnosticsFilter}"
+							        Content="{Binding AllOrchestrationDiagnosticsFilterText}"
+							        Click="OnAllOrchestrationDiagnosticsFilterClick" />
+							<Button Background="#1b2128"
+							        Foreground="#c9a35c"
+							        BorderBrush="#4a3c23"
+							        BorderThickness="1"
+							        Padding="8,2"
+							        FontSize="10"
+							        Cursor="Hand"
+							        IsEnabled="{Binding CanSwitchToWarningOrchestrationDiagnosticsFilter}"
+							        Content="{Binding WarningOrchestrationDiagnosticsFilterText}"
+							        Click="OnWarningOrchestrationDiagnosticsFilterClick" />
+							<Button Background="#1b2128"
+							        Foreground="#d98989"
+							        BorderBrush="#513030"
+							        BorderThickness="1"
+							        Padding="8,2"
+							        FontSize="10"
+							        Cursor="Hand"
+							        IsEnabled="{Binding CanSwitchToFailedOrchestrationDiagnosticsFilter}"
+							        Content="{Binding FailedOrchestrationDiagnosticsFilterText}"
+							        Click="OnFailedOrchestrationDiagnosticsFilterClick" />
+						</StackPanel>
+						<TextBlock Text="{Binding OrchestrationDiagnosticsFilterSummaryText}"
+						           Foreground="#6f7a86"
+						           FontSize="10"
+						           TextWrapping="Wrap"
+						           IsVisible="{Binding IsOrchestrationDiagnosticsExpanded}" />
+						<Border Background="#171c22"
+						        BorderBrush="#2b333c"
+						        BorderThickness="1"
+						        CornerRadius="3"
+						        Padding="8,6"
+						        IsVisible="{Binding ShowOrchestrationDiagnosticsEmptyState}">
+							<TextBlock Text="{Binding OrchestrationDiagnosticsEmptyText}"
+							           Foreground="#7f8995"
+							           FontSize="10"
+							           TextWrapping="Wrap" />
+						</Border>
+						<ItemsControl ItemsSource="{Binding RecentTurnDiagnostics}"
+						              IsVisible="{Binding IsOrchestrationDiagnosticsExpanded}">
+							<ItemsControl.ItemsPanel>
+								<ItemsPanelTemplate>
+									<StackPanel Spacing="4" />
+								</ItemsPanelTemplate>
+							</ItemsControl.ItemsPanel>
+							<ItemsControl.ItemTemplate>
+								<DataTemplate x:DataType="vm:ChatTurnDiagnosticsItemVm">
+									<Border Background="#181d24"
+									        BorderBrush="#2f3842"
+									        BorderThickness="1"
+									        CornerRadius="3"
+									        Padding="8,6">
+										<StackPanel Spacing="2">
+											<Grid ColumnDefinitions="*,Auto">
+												<TextBlock Grid.Column="0"
+												           Text="{Binding SummaryText}"
+												           Foreground="#d7dce2"
+												           FontSize="11"
+												           FontWeight="SemiBold"
+												           VerticalAlignment="Center" />
+												<Button Grid.Column="1"
+												        Background="Transparent"
+												        Foreground="#7fa7d6"
+												        BorderThickness="0"
+												        Padding="4,0"
+												        Margin="8,0,0,0"
+												        FontSize="10"
+												        Cursor="Hand"
+												        Content="复制本条"
+												        Click="OnCopyTurnDiagnosticsClick" />
+											</Grid>
+											<TextBlock Text="{Binding AgentText}"
+											           Foreground="#9aa4af"
+											           FontSize="10"
+											           TextWrapping="Wrap" />
+											<TextBlock Text="{Binding WarningText}"
+											           Foreground="#e6b45c"
+											           FontSize="10"
+											           TextWrapping="Wrap"
+											           IsVisible="{Binding HasWarnings}" />
+											<StackPanel Orientation="Horizontal" Spacing="8">
+												<TextBlock Text="{Binding TurnIdShortText}"
+												           Foreground="#6f7a86"
+												           FontSize="10"
+												           ToolTip.Tip="{Binding TurnIdTooltipText}" />
+												<TextBlock Text="{Binding TimeText}"
+												           Foreground="#6f7a86"
+												           FontSize="10" />
+											</StackPanel>
+										</StackPanel>
+									</Border>
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</StackPanel>
+				</Border>
+
+				<!-- 共享输入区（Chat 模式：蓝色走马灯，显示厂商/模型，无工具按钮） -->
+				<expert:InputAreaView x:Name="ChatInputArea"
+				                        InputMode="Chat"
+				                        MarqueeColor="#8FAF9A" />
+
+				<!-- Token 使用量进度条（高度 1px，贴紧输入区底部） -->
+				<ProgressBar x:Name="AiProgressBar"
+				             Minimum="0" Maximum="100" Value="0"
+				             Height="1" Margin="0,2,0,0"
+				             Tag="0%  0k/ 0k"
+				             ToolTip.Placement="Top"
+				             Foreground="{DynamicResource AccentBrush}"
+				             Background="{DynamicResource Surface1Brush}" />
+
+			</StackPanel>
+		</Border>
+
+		<!-- ════ 消息区 ════ -->
+		<Grid>
+
+			<!-- 欢迎面板（无消息时显示） -->
+			<StackPanel x:Name="WelcomePanel"
+			            VerticalAlignment="Center" HorizontalAlignment="Center"
+			            Spacing="8">
+				<Image x:Name="WelcomeLogoImage"
+				       Width="180" Height="180"
+				       Stretch="Uniform"
+				       HorizontalAlignment="Center" />
+				<TextBlock Text="你好，有什么可以帮你的？"
+				           FontSize="18" FontWeight="SemiBold"
+				           Foreground="#cccccc" HorizontalAlignment="Center" />
+				<TextBlock Text="输入消息开始对话"
+				           FontSize="13" Foreground="#6a6a6a"
+				           HorizontalAlignment="Center" />
+			</StackPanel>
+
+			<!-- 消息滚动区域 -->
+			<ScrollViewer x:Name="MessageScroller"
+			              VerticalScrollBarVisibility="Auto"
+			              HorizontalScrollBarVisibility="Disabled"
+			              Background="Transparent">
+				<ItemsControl x:Name="MessageList" Padding="0,10,8,10">
+					<ItemsControl.ItemsPanel>
+						<ItemsPanelTemplate>
+							<StackPanel Spacing="20" />
+						</ItemsPanelTemplate>
+					</ItemsControl.ItemsPanel>
+				</ItemsControl>
+			</ScrollViewer>
+
+			<!-- 滚动到底部按钮 -->
+			<Button x:Name="ScrollToBottomBtn"
+			        IsVisible="False"
+			        HorizontalAlignment="Right" VerticalAlignment="Bottom"
+			        Margin="0,0,8,8"
+			        Background="#252526" Foreground="#cccccc"
+			        BorderBrush="#3c3c3c" BorderThickness="1"
+			        CornerRadius="4" Padding="10,6"
+			        Cursor="Hand" FontSize="12"
+			        Click="OnScrollToBottomClick">
+				<StackPanel Orientation="Horizontal" Spacing="4">
+					<TextBlock Text="↓" FontSize="13" VerticalAlignment="Center" />
+					<TextBlock Text="滚动到底" FontSize="12" VerticalAlignment="Center" />
+				</StackPanel>
+			</Button>
+
+		</Grid>
+
+	</DockPanel>
+
+</UserControl>

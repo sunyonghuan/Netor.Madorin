@@ -1,0 +1,98 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Netor.Cortana.UI.Views.Settings.AgentSettingsPage"
+             x:CompileBindings="True">
+
+    <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
+            <TextBlock Text="智能体管理" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="btn-primary" Content="+ 添加智能体" Click="OnAddClick" />
+        </Grid>
+
+        <Panel>
+            <ScrollViewer x:Name="ListView" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="AgentListPanel" Spacing="1" Margin="8,0" />
+            </ScrollViewer>
+
+            <ScrollViewer x:Name="FormView" IsVisible="False" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="12" MaxWidth="620" Margin="16,0">
+                    <TextBlock x:Name="FormTitle" Text="添加智能体" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextBrush}" />
+
+                    <TextBlock x:Name="ValidationText" IsVisible="False" TextWrapping="Wrap"
+                               Foreground="#FF6B6B" FontSize="12" />
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="标识 name *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                        <TextBox x:Name="TxtName" Classes="form-input" PlaceholderText="如：novel-writer"
+                                 MaxLength="64" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="显示名称 display_name *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                        <TextBox x:Name="TxtDisplayName" Classes="form-input" PlaceholderText="如：小说作家"
+                                 MaxLength="64" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="描述 description *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                        <TextBox x:Name="TxtDesc" Classes="form-input" PlaceholderText="智能体用途描述"
+                                 AcceptsReturn="True" TextWrapping="Wrap" Height="56" MaxLength="1024" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="头像 avatar" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Border x:Name="AvatarPreview" Width="48" Height="48" CornerRadius="24"
+                                    ClipToBounds="True" Background="{StaticResource Surface1Brush}"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" />
+                            <Button Classes="btn-secondary" Content="选择图片" Click="OnPickAvatarClick"
+                                    VerticalAlignment="Center" />
+                            <Button Classes="btn-secondary" Content="清除" Click="OnClearAvatarClick"
+                                    VerticalAlignment="Center" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="系统指令 prompt.md" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                        <TextBox x:Name="TxtInstructions" Classes="form-input"
+                                 PlaceholderText="定义智能体的角色、行为规范和输出格式..."
+                                 AcceptsReturn="True" TextWrapping="Wrap" Height="180" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="24">
+                        <CheckBox x:Name="ChkEnabled" Content="启用" IsChecked="True"
+                                  Foreground="{StaticResource TextBrush}" />
+                        <CheckBox x:Name="ChkDefault" Content="设为默认"
+                                  Foreground="{StaticResource TextBrush}" />
+                        <CheckBox x:Name="ChkAllowWorkflowMemory"
+                                  Content="允许 Workflow 长期记忆"
+                                  IsChecked="True"
+                                  Foreground="{StaticResource TextBrush}"
+                                  ToolTip.Tip="该智能体作为 Workflow 任务 Manager 完成时，是否把 FinalReport 写入长期记忆。" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="绑定插件 bound_plugins" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextBrush}" />
+                        <StackPanel x:Name="PluginBindingsPanel" Spacing="4" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="绑定 MCP bound_mcp" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextBrush}" />
+                        <StackPanel x:Name="McpBindingsPanel" Spacing="4" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                        <Button Classes="btn-secondary" Content="取消" Click="OnCancelClick" />
+                        <Button Classes="btn-primary" Content="保存" Click="OnSaveClick" />
+                        <Button x:Name="BtnDelete" Classes="btn-danger" Content="删除" Click="OnDeleteClick" IsVisible="False" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Panel>
+    </DockPanel>
+</UserControl>

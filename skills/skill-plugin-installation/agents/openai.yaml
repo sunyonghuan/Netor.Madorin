@@ -1,0 +1,5 @@
+interface:
+  display_name: "Skill Plugin Installation"
+  short_description: "Help with Skill Plugin Installation workflows"
+  default_prompt: "Use $skill-plugin-installation to help with Skill Plugin Installation tasks."
+

@@ -1,0 +1,52 @@
+@model Netor.Cortana.Platform.Web.Models.UserCenter.UserCenterIndexViewModel
+@{
+    ViewData["Title"] = "个人中心";
+}
+
+<div class="page-heading compact">
+    <span class="eyebrow">User Center</span>
+    <h1>个人中心</h1>
+    <p>@Model.DisplayName，管理你的订阅、下载和订单。</p>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="metric-card"><span>订阅</span><strong>@Model.SubscriptionCount</strong></div></div>
+    <div class="col-md-4"><div class="metric-card"><span>下载</span><strong>@Model.DownloadCount</strong></div></div>
+    <div class="col-md-4"><div class="metric-card"><span>订单</span><strong>@Model.OrderCount</strong></div></div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-3"><a class="feature-card" asp-action="Profile"><h3>个人资料</h3><p>维护昵称、邮箱、手机号等基础资料。</p></a></div>
+    <div class="col-md-3"><a class="feature-card" asp-action="Subscriptions"><h3>我的订阅</h3><p>查看有效、过期和取消的订阅。</p></a></div>
+    <div class="col-md-3"><a class="feature-card" asp-action="Downloads"><h3>我的下载</h3><p>查看资源包下载记录。</p></a></div>
+    <div class="col-md-3"><a class="feature-card" asp-action="Orders"><h3>我的订单</h3><p>查看订阅订单和支付状态。</p></a></div>
+</div>
+
+<div class="content-panel mt-4">
+    <h2>即将到期</h2>
+    @if (Model.ExpiringSubscriptions.Count == 0)
+    {
+        <p class="text-secondary mb-0">暂无 7 天内到期或已过期的订阅。</p>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead><tr><th>资源</th><th>类型</th><th>方案</th><th>状态</th><th>到期时间</th><th>剩余</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.ExpiringSubscriptions)
+                {
+                    <tr>
+                        <td>@item.AssetName</td>
+                        <td>@item.AssetTypeName</td>
+                        <td>@item.PricingPlanName / @item.PlanTypeName</td>
+                        <td>@item.StatusName</td>
+                        <td>@item.ExpiresAtUtc.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                        <td>@(item.IsExpired ? "已到期" : $"{item.RemainingDays} 天")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

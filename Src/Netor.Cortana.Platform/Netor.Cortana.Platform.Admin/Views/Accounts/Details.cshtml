@@ -1,0 +1,238 @@
+@model Netor.Cortana.Platform.Admin.Models.Accounts.AccountDetailViewModel
+@{
+    ViewData["Title"] = "用户详情";
+    var mode = Context.Request.Query["mode"].ToString();
+    var isDrawer = string.Equals(mode, "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="admin-drawer-page">
+<section class="admin-card">
+    <div class="admin-card-header">
+        <div>
+            <h2 class="admin-card-title">@Model.LoginUserName</h2>
+            <div class="admin-text-muted">编号 @Model.No · @Model.NickName</div>
+        </div>
+        <div class="admin-row-actions">
+            <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Edit" asp-route-id="@Model.Id" asp-route-mode="drawer" data-admin-drawer="right" data-title="编辑用户" data-width="760px">编辑资料</a>
+            <a class="layui-btn layui-btn-warm layui-btn-sm" asp-action="Status" asp-route-id="@Model.Id" asp-route-mode="drawer" data-admin-drawer="right" data-title="更改用户状态" data-width="620px">更改状态</a>
+            <a class="layui-btn layui-btn-normal layui-btn-sm" asp-action="Recharge" asp-route-id="@Model.Id" asp-route-mode="drawer" data-admin-drawer="right" data-title="钱包充值" data-width="620px">钱包充值</a>
+            <a class="layui-btn layui-btn-danger layui-btn-sm" asp-action="Password" asp-route-id="@Model.Id" asp-route-mode="drawer" data-admin-drawer="right" data-title="重置用户密码" data-width="620px">重置密码</a>
+            @if (isDrawer)
+            {
+                <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" data-drawer-close>关闭</button>
+            }
+            else
+            {
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Index">返回用户</a>
+            }
+        </div>
+    </div>
+    @if (TempData["AdminToast"] is string message)
+    {
+        <div class="layui-elem-quote layui-quote-nm">@message</div>
+    }
+    <div class="admin-card-body">
+        <div class="asset-detail-grid">
+            <div>
+                <div class="detail-label">真实姓名</div>
+                <strong>@Model.RealName</strong>
+            </div>
+            <div>
+                <div class="detail-label">手机号码</div>
+                <strong>@Model.Phone</strong>
+                <span class="admin-badge @(Model.PhoneConfirmed ? "admin-badge-success" : "admin-badge-muted")">@(Model.PhoneConfirmed ? "已验证" : "未验证")</span>
+            </div>
+            <div>
+                <div class="detail-label">电子邮箱</div>
+                <strong>@Model.Email</strong>
+                <span class="admin-badge @(Model.EmailConfirmed ? "admin-badge-success" : "admin-badge-muted")">@(Model.EmailConfirmed ? "已验证" : "未验证")</span>
+            </div>
+            <div>
+                <div class="detail-label">账户状态</div>
+                <span class="admin-badge @GetStatusBadgeClass(Model.Status)">@GetStatusName(Model.Status)</span>
+            </div>
+            <div>
+                <div class="detail-label">账户类型</div>
+                <strong>@GetAccountTypeName(Model.AccountType)</strong>
+            </div>
+            <div>
+                <div class="detail-label">登录次数</div>
+                <strong>@Model.LoginTimes</strong>
+            </div>
+            <div>
+                <div class="detail-label">最后登录</div>
+                <strong>@FormatDate(Model.LastLoginTime)</strong>
+            </div>
+            <div>
+                <div class="detail-label">登录 IP</div>
+                <strong>@Model.LoginIP</strong>
+            </div>
+            <div>
+                <div class="detail-label">业务数据</div>
+                <strong>@Model.SubscriptionCount 订阅 / @Model.OrderCount 订单 / @Model.DownloadCount 下载</strong>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="admin-card">
+    <div class="admin-card-header">
+        <h2 class="admin-card-title">钱包信息</h2>
+        <span class="admin-text-muted">共 @Model.Wallets.Count 个钱包</span>
+    </div>
+    <div class="admin-card-body">
+        <table class="layui-table admin-table">
+            <thead>
+                <tr>
+                    <th>名称</th>
+                    <th>余额</th>
+                    <th>类型</th>
+                    <th>状态</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Wallets.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" class="admin-empty-cell">暂无钱包信息。</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var wallet in Model.Wallets)
+                    {
+                        <tr>
+                            <td>@wallet.Name</td>
+                            <td><strong>@wallet.Money.ToString("0.00")</strong></td>
+                            <td>@GetWalletTypeName(wallet.Type)</td>
+                            <td><span class="admin-badge @GetWalletStatusBadgeClass(wallet.Status)">@GetWalletStatusName(wallet.Status)</span></td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="admin-card">
+    <div class="admin-card-header">
+        <h2 class="admin-card-title">角色信息</h2>
+    </div>
+    <div class="admin-card-body">
+        <table class="layui-table admin-table">
+            <thead>
+                <tr>
+                    <th>角色</th>
+                    <th>权限值</th>
+                    <th>状态</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Roles.Count == 0)
+                {
+                    <tr>
+                        <td colspan="3" class="admin-empty-cell">暂无角色信息。</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var role in Model.Roles)
+                    {
+                        <tr>
+                            <td>@role.Name</td>
+                            <td>@role.Power</td>
+                            <td><span class="admin-badge @(role.Enabled ? "admin-badge-success" : "admin-badge-muted")">@(role.Enabled ? "启用" : "停用")</span></td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="admin-card">
+    <div class="admin-card-header">
+        <h2 class="admin-card-title">扩展属性</h2>
+    </div>
+    <div class="admin-card-body">
+        <table class="layui-table admin-table">
+            <thead>
+                <tr>
+                    <th>键</th>
+                    <th>值</th>
+                    <th>说明</th>
+                    <th>分组</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Properties.Count == 0)
+                {
+                    <tr>
+                        <td colspan="4" class="admin-empty-cell">暂无扩展属性。</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var property in Model.Properties)
+                    {
+                        <tr>
+                            <td><code>@property.Key</code></td>
+                            <td>@property.Value</td>
+                            <td>@property.Display</td>
+                            <td>@(property.Group ?? "-")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+</div>
+
+@functions {
+    private static string GetStatusName(byte status) => status switch
+    {
+        0 => "正常",
+        1 => "禁用",
+        2 => "冻结",
+        _ => $"状态 {status}"
+    };
+
+    private static string GetStatusBadgeClass(byte status) => status switch
+    {
+        0 => "admin-badge-success",
+        1 => "admin-badge-muted",
+        2 => "admin-badge-danger",
+        _ => "admin-badge-warning"
+    };
+
+    private static string GetAccountTypeName(byte type) => type switch
+    {
+        0 => "普通用户",
+        1 => "个人用户",
+        2 => "企业用户",
+        _ => $"类型 {type}"
+    };
+
+    private static string GetWalletTypeName(byte type) => type switch
+    {
+        0 => "默认钱包",
+        1 => "余额钱包",
+        2 => "赠送钱包",
+        _ => $"类型 {type}"
+    };
+
+    private static string GetWalletStatusName(byte status) => status switch
+    {
+        0 => "正常",
+        1 => "冻结",
+        _ => $"状态 {status}"
+    };
+
+    private static string GetWalletStatusBadgeClass(byte status) => status == 0 ? "admin-badge-success" : "admin-badge-danger";
+
+    private static string FormatDate(DateTime value)
+    {
+        return value == default ? "-" : value.ToString("yyyy-MM-dd HH:mm");
+    }
+}

@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Netor.Cortana.UI.Views.Settings.McpServerSettingsPage"
+             x:CompileBindings="True">
+
+    <DockPanel>
+        <!-- 顶部标题栏 -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="16,12,16,8">
+            <TextBlock Text="MCP 服务管理" FontSize="18" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="btn-primary" Content="+ 添加 MCP 服务" Click="OnAddClick" />
+        </Grid>
+
+        <!-- 列表/表单切换区 -->
+        <Panel>
+            <ScrollViewer x:Name="ListView" VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="McpListPanel" Spacing="1" Margin="8,0" />
+            </ScrollViewer>
+
+            <!-- 编辑表单 (默认隐藏) -->
+            <ScrollViewer x:Name="FormView" IsVisible="False" VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="12" MaxWidth="500" Margin="16,0">
+                <TextBlock x:Name="FormTitle" Text="添加 MCP 服务" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextBrush}" />
+
+                <!-- 名称 -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="名称 *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                    <TextBox x:Name="TxtName" Classes="form-input" PlaceholderText="如：GitHub MCP、文件系统 MCP" MaxLength="64" />
+                </StackPanel>
+
+                <!-- 传输类型 -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="传输类型 *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                    <ComboBox x:Name="CboTransport" Classes="form-combo" SelectedIndex="0"
+                              SelectionChanged="OnTransportChanged">
+                        <ComboBoxItem Content="stdio（本地进程）" Tag="stdio" />
+                        <ComboBoxItem Content="SSE（Server-Sent Events）" Tag="sse" />
+                        <ComboBoxItem Content="Streamable HTTP" Tag="streamable-http" />
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- ── stdio 字段组 ── -->
+                <StackPanel x:Name="StdioFields" Spacing="12">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="启动命令 *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                        <TextBox x:Name="TxtCommand" Classes="form-input" PlaceholderText="如：npx、python、uvx" MaxLength="512" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="启动参数" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                        <TextBox x:Name="TxtArguments" Classes="form-input"
+                                 PlaceholderText="逗号分隔，如：-y,@modelcontextprotocol/server-github" />
+                        <TextBlock Text="多个参数用英文逗号分隔" Foreground="{StaticResource Overlay0Brush}" FontSize="11" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="环境变量" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                        <TextBox x:Name="TxtEnvVars" Classes="form-input"
+                                 PlaceholderText="每行一个 KEY=VALUE"
+                                 AcceptsReturn="True" TextWrapping="Wrap" Height="70" />
+                        <TextBlock Text="每行一个 KEY=VALUE 键值对" Foreground="{StaticResource Overlay0Brush}" FontSize="11" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- ── HTTP 字段组 (默认隐藏) ── -->
+                <StackPanel x:Name="HttpFields" Spacing="12" IsVisible="False">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="服务器地址 *" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                        <TextBox x:Name="TxtUrl" Classes="form-input" PlaceholderText="如：http://localhost:3000/sse" MaxLength="512" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="API 密钥" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                        <TextBox x:Name="TxtApiKey" Classes="form-input" PlaceholderText="Bearer Token（可选）" MaxLength="256" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 描述 -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="描述" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
+                    <TextBox x:Name="TxtDesc" Classes="form-input" PlaceholderText="MCP 服务描述（可选）"
+                             AcceptsReturn="True" TextWrapping="Wrap" Height="60" MaxLength="1024" />
+                </StackPanel>
+
+                <!-- 启用 -->
+                <CheckBox x:Name="ChkEnabled" Content="启用" IsChecked="True"
+                          Foreground="{StaticResource TextBrush}" />
+
+                <!-- 操作按钮 -->
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                    <Button Classes="btn-secondary" Content="测试连接" Click="OnTestClick" />
+                    <Button Classes="btn-secondary" Content="取消" Click="OnCancelClick" />
+                    <Button Classes="btn-primary" Content="保存" Click="OnSaveClick" />
+                    <Button x:Name="BtnDelete" Classes="btn-danger" Content="删除" Click="OnDeleteClick" IsVisible="False" />
+                </StackPanel>
+
+                <!-- 测试结果 -->
+                <TextBlock x:Name="LblTestResult" Text="" FontSize="12" TextWrapping="Wrap" />
+            </StackPanel>
+        </ScrollViewer>
+        </Panel>
+    </DockPanel>
+
+</UserControl>

@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Netor.Cortana.Plugin.Native.Debugger</RootNamespace>
+
+    <!-- NuGet 包元数据 -->
+    <PackageId>Netor.Cortana.Plugin.Native.Debugger</PackageId>
+    <Company>Netor.me</Company>
+    <Description>
+		Netor Cortana 原生插件调试器模块。提供插件运行时调试、日志追踪、性能诊断等开发者工具支持，基于 Microsoft.Extensions.Logging 构建结构化日志系统。
+	</Description>
+    <PackageTags>cortana;plugin;debugger;diagnostics;logging;dotnet</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageProjectUrl>https://github.com/Netor-me/Netor.Cortana</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Netor-me/Netor.Cortana.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <Copyright>Copyright © Netor Team 2025</Copyright>
+
+    <!-- 包生成配置 -->
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Netor.Cortana.Plugin.Native\Netor.Cortana.Plugin.Native.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

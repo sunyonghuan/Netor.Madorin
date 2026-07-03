@@ -1,0 +1,5 @@
+interface:
+  display_name: "CSharp Scripts"
+  short_description: "Help with CSharp Scripts workflows"
+  default_prompt: "Use $csharp-scripts to help with CSharp Scripts tasks."
+

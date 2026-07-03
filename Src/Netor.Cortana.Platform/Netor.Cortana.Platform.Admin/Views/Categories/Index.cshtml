@@ -1,0 +1,322 @@
+@model Netor.Cortana.Platform.Admin.Models.Categories.CategoryIndexViewModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    ViewData["Title"] = "分类管理";
+    ViewData["WorkspaceTags"] = new[]
+    {
+        new AdminWorkspaceTag("全部分类", Model.TotalCount.ToString(), Url.Action("Index", "Categories"), "layui-icon-app"),
+        new AdminWorkspaceTag("显示分类", Model.VisibleCount.ToString(), Url.Action("Index", "Categories", new { visible = true }), "layui-icon-ok-circle"),
+        new AdminWorkspaceTag("隐藏分类", Model.HiddenCount.ToString(), Url.Action("Index", "Categories", new { visible = false }), "layui-icon-close"),
+        new AdminWorkspaceTag("当前页资源", Model.Items.Sum(x => x.AssetCount).ToString(), null, "layui-icon-template-1")
+    };
+}
+
+<section class="admin-card admin-filter-card">
+    <div class="admin-card-body">
+        <form id="categoryFilter" class="layui-form layui-form-pane" lay-filter="categoryFilter">
+            <div class="admin-filter-grid">
+                <div class="layui-form-item admin-filter-span-2">
+                    <label class="layui-form-label">关键词</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="keyword" value="@Model.Keyword" placeholder="名称/标识/描述" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">Slug</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="slug" placeholder="分类标识" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">显示</label>
+                    <div class="layui-input-block">
+                        <select name="visible">
+                            <option value="">全部</option>
+                            <option value="true" selected="@(Model.Visible == true)">显示</option>
+                            <option value="false" selected="@(Model.Visible == false)">隐藏</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">排序最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="sortMin" type="number" placeholder="0" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">排序最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="sortMax" type="number" placeholder="999" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">资源最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="assetMin" type="number" min="0" placeholder="0" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">资源最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="assetMax" type="number" min="0" placeholder="100" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">发布最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="publishedAssetMin" type="number" min="0" placeholder="0" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">发布最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="publishedAssetMax" type="number" min="0" placeholder="100" />
+                    </div>
+                </div>
+                <div class="layui-form-item admin-filter-submit">
+                    <button class="layui-btn layui-btn-normal" lay-submit lay-filter="categorySearch">查询</button>
+                    <button class="layui-btn layui-btn-primary" type="button" data-category-filter-reset>重置</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="admin-card admin-layui-table-card">
+    <div class="admin-card-body">
+        <input name="__RequestVerificationToken" type="hidden" value="@AntiforgeryToken()" />
+        <table id="categoryTable" lay-filter="categoryTable"></table>
+    </div>
+</section>
+
+<script type="text/html" id="categoryNameTpl">
+    <div class="admin-text-strong">{{ d.name }}</div>
+    <div class="admin-text-muted">{{ d.description }}</div>
+</script>
+
+<script type="text/html" id="categoryVisibleTpl">
+    <span class="admin-badge {{ d.visibleBadgeClass }}">{{ d.visibleName }}</span>
+</script>
+
+<script type="text/html" id="categoryAssetTpl">
+    <div>{{ d.assetCount }} 个资源</div>
+    <div class="admin-text-muted">{{ d.publishedAssetCount }} 个已发布</div>
+</script>
+
+<script type="text/html" id="categoryActionsTpl">
+    <div class="layui-btn-group admin-row-actions">
+        <a class="layui-btn layui-btn-xs" lay-event="view">查看</a>
+        <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="edit">编辑</a>
+        <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="toggle">{{ d.isVisible ? "隐藏" : "显示" }}</a>
+        <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="delete">删除</a>
+    </div>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table", "layer"], function () {
+            const form = layui.form;
+            const table = layui.table;
+            const layer = layui.layer;
+            const filterSelector = "#categoryFilter";
+            const tableId = "categoryTable";
+            const token = () => document.querySelector("input[name='__RequestVerificationToken']").value;
+            const postAction = async (url, values, done) => {
+                const formData = new FormData();
+                Object.keys(values || {}).forEach((key) => formData.append(key, values[key]));
+                formData.append("__RequestVerificationToken", token());
+                const response = await fetch(url, {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "Accept": "application/json",
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                });
+                const result = await response.json();
+                if (!response.ok || result.success === false) {
+                    if (done) {
+                        done(result, false);
+                    }
+
+                    layer.msg(result.message || "操作失败，请稍后重试。", { icon: 2 });
+                    return;
+                }
+
+                table.reload(tableId);
+                if (done) {
+                    done(result, true);
+                }
+            };
+
+            const openAssetsForCategory = (item) => {
+                const categoryId = encodeURIComponent(item.id);
+                window.location.href = `@Url.Action("Index", "Assets")?categoryId=${categoryId}`;
+            };
+
+            window.adminTable.render({
+                elem: "#categoryTable",
+                id: tableId,
+                url: "@Url.Action("TableData", "Categories")",
+                where: window.adminFilter.collect(filterSelector),
+                toolbar: "#categoryTableToolbarTpl",
+                cols: [[
+                    { type: "checkbox", fixed: "left" },
+                    { field: "name", title: "分类", minWidth: 220, templet: "#categoryNameTpl", sort: true },
+                    { field: "slug", title: "Slug", minWidth: 160, sort: true },
+                    { field: "sortOrder", title: "排序", width: 90, sort: true },
+                    { field: "assetCount", title: "资源", width: 130, templet: "#categoryAssetTpl", sort: true },
+                    { field: "isVisible", title: "状态", width: 100, templet: "#categoryVisibleTpl", sort: true },
+                    { field: "timeStamp", title: "创建标记", width: 150, sort: true },
+                    { title: "操作", width: 176, fixed: "right", toolbar: "#categoryActionsTpl" }
+                ]]
+            });
+
+            form.on("submit(categorySearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-category-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+
+            const submitBatch = function () {
+                const checked = table.checkStatus(tableId).data;
+                if (checked.length === 0) {
+                    layer.msg("请先选择要操作的分类。");
+                    return;
+                }
+
+                const operation = document.getElementById("categoryBatchOperation").value;
+                const message = operation === "delete"
+                    ? `确定删除选中的 ${checked.length} 个空分类吗？存在资源的分类会自动跳过。`
+                    : `确定批量处理 ${checked.length} 个分类吗？`;
+
+                layer.confirm(message, { icon: 3, title: "批量操作" }, function (index) {
+                    const formData = new FormData();
+                    checked.forEach((item) => formData.append("ids", item.id));
+                    formData.append("operation", operation);
+                    formData.append("__RequestVerificationToken", token());
+                    fetch("@Url.Action("Batch", "Categories")", {
+                        method: "POST",
+                        body: formData,
+                        headers: {
+                            "Accept": "application/json",
+                            "X-Requested-With": "XMLHttpRequest"
+                        }
+                    })
+                        .then((response) => response.json().then((result) => ({ response, result })))
+                        .then(({ response, result }) => {
+                            if (!response.ok || result.success === false) {
+                                layer.msg(result.message || "批量操作失败，请稍后重试。", { icon: 2 });
+                                return;
+                            }
+
+                            table.reload(tableId);
+                            layer.msg(result.message || "批量操作已完成。", { icon: 1 });
+                        });
+                    layer.close(index);
+                });
+            };
+
+            table.on("toolbar(categoryTable)", function (obj) {
+                if (obj.event === "create") {
+                    window.adminDrawer.openRight({
+                        title: "新增分类",
+                        url: "@Url.Action("Create", "Categories", new { mode = "drawer" })",
+                        width: "720px"
+                    });
+                    return;
+                }
+
+                if (obj.event === "batchApply") {
+                    submitBatch();
+                }
+            });
+
+            table.on("tool(categoryTable)", function (obj) {
+                const item = obj.data;
+                if (obj.event === "view") {
+                    window.adminDrawer.openRight({
+                        title: `分类详情 - ${item.name}`,
+                        url: `@Url.Action("Details", "Categories")?id=${encodeURIComponent(item.id)}&mode=drawer`,
+                        width: "760px"
+                    });
+                } else if (obj.event === "edit") {
+                    window.adminDrawer.openRight({
+                        title: `编辑分类 - ${item.name}`,
+                        url: `@Url.Action("Edit", "Categories")?id=${encodeURIComponent(item.id)}&mode=drawer`,
+                        width: "720px"
+                    });
+                } else if (obj.event === "toggle") {
+                    const actionText = item.isVisible ? "隐藏" : "显示";
+                    layer.confirm(`确定${actionText}该分类吗？`, { icon: 3, title: "显示状态" }, function (index) {
+                        postAction(`@Url.Action("ToggleVisible", "Categories")?id=${encodeURIComponent(item.id)}`, {}, (result, success) => {
+                            if (success) {
+                                layer.msg(result.message || "显示状态已更新。", { icon: 1 });
+                            }
+                        });
+                        layer.close(index);
+                    });
+                } else if (obj.event === "delete") {
+                    if (item.assetCount > 0) {
+                        layer.confirm(`分类“${item.name}”下还有 ${item.assetCount} 个资源，不能直接删除。现在去资源管理处理这些资源吗？`, {
+                            icon: 0,
+                            title: "无法删除",
+                            btn: ["去处理资源", "取消"]
+                        }, function (index) {
+                            openAssetsForCategory(item);
+                            layer.close(index);
+                        });
+                        return;
+                    }
+
+                    layer.confirm(`确定删除分类“${item.name}”吗？删除后不可恢复。`, { icon: 3, title: "删除分类" }, function (index) {
+                        postAction(`@Url.Action("Delete", "Categories")?id=${encodeURIComponent(item.id)}`, {}, (result, success) => {
+                            if (success) {
+                                layer.msg(result.message || "分类已删除。", { icon: 1 });
+                                return;
+                            }
+
+                            if (result?.assetUrl) {
+                                layer.confirm(result.message || "该分类下仍有关联资源。", {
+                                    icon: 0,
+                                    title: "无法删除",
+                                    btn: ["去资源管理", "关闭"]
+                                }, function (redirectIndex) {
+                                    window.location.href = result.assetUrl;
+                                    layer.close(redirectIndex);
+                                });
+                            }
+                        });
+                        layer.close(index);
+                    });
+                }
+            });
+        });
+    </script>
+}
+
+<script type="text/html" id="categoryTableToolbarTpl">
+    <div class="admin-table-toolbar">
+        <div class="admin-table-toolbar-group">
+            <button class="layui-btn layui-btn-sm layui-btn-normal" lay-event="create">新增分类</button>
+        </div>
+        <div class="admin-table-toolbar-group">
+            <select id="categoryBatchOperation" class="layui-select admin-table-toolbar-select" aria-label="批量操作">
+                <option value="show">批量显示</option>
+                <option value="hide">批量隐藏</option>
+                <option value="delete">批量删除空分类</option>
+            </select>
+            <button class="layui-btn layui-btn-sm layui-btn-primary" lay-event="batchApply">应用</button>
+        </div>
+    </div>
+</script>
+
+@functions {
+    private string AntiforgeryToken()
+    {
+        return Antiforgery.GetAndStoreTokens(Context).RequestToken ?? string.Empty;
+    }
+}

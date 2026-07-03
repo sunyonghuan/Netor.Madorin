@@ -1,0 +1,1 @@
+& "$PSScriptRoot\..\..\..\scripts\generate-monitor-report.ps1" @args

@@ -1,0 +1,586 @@
+using Microsoft.Data.Sqlite;
+
+using Netor.Cortana.Entitys;
+
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+
+namespace Netor.Cortana.Entitys.Services
+{
+    /// <summary>
+    /// 系统设置服务，提供对 SystemSettings 表的读写操作。
+    /// 支持泛型类型转换，并在首次启动时自动写入种子数据。
+    /// </summary>
+    public sealed class SystemSettingsService
+    {
+        private readonly CortanaDbContext _db;
+
+        /// <summary>
+        /// 初始化系统设置服务。
+        /// </summary>
+        /// <param name="db">数据库上下文</param>
+        public SystemSettingsService(CortanaDbContext db)
+        {
+            _db = db ?? throw new ArgumentNullException(nameof(db));
+        }
+
+        /// <summary>
+        /// 获取指定键的设置值，不存在时返回 null。
+        /// </summary>
+        /// <param name="key">设置键名，格式如 "SherpaOnnx.KeywordsThreshold"</param>
+        public string? GetValue(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentException("Key cannot be null or empty.", nameof(key));
+
+            return _db.ExecuteScalar<string>(
+                "SELECT Value FROM SystemSettings WHERE Id = @Id",
+                cmd => cmd.Parameters.AddWithValue("@Id", key));
+        }
+
+        /// <summary>
+        /// 获取指定键的设置值，不存在时返回指定默认值。
+        /// </summary>
+        /// <param name="key">设置键名</param>
+        /// <param name="defaultValue">默认值</param>
+        public string GetValue(string key, string defaultValue)
+        {
+            return GetValue(key) ?? defaultValue;
+        }
+
+        /// <summary>
+        /// 获取指定键的强类型设置值，转换失败或不存在时返回默认值。
+        /// 支持 float、double、int、long、bool、string 类型。
+        /// </summary>
+        /// <typeparam name="T">目标类型</typeparam>
+        /// <param name="key">设置键名</param>
+        /// <param name="defaultValue">默认值</param>
+        public T GetValue<T>(string key, T defaultValue)
+        {
+            var raw = GetValue(key);
+            if (raw is null)
+                return defaultValue;
+
+            try
+            {
+                if (typeof(T) == typeof(string)) return (T)(object)raw;
+                if (typeof(T) == typeof(int) && int.TryParse(raw, CultureInfo.InvariantCulture, out var i)) return (T)(object)i;
+                if (typeof(T) == typeof(long) && long.TryParse(raw, CultureInfo.InvariantCulture, out var l)) return (T)(object)l;
+                if (typeof(T) == typeof(float) && float.TryParse(raw, CultureInfo.InvariantCulture, out var f)) return (T)(object)f;
+                if (typeof(T) == typeof(double) && double.TryParse(raw, CultureInfo.InvariantCulture, out var d)) return (T)(object)d;
+                if (typeof(T) == typeof(bool) && bool.TryParse(raw, out var b)) return (T)(object)b;
+                return defaultValue;
+            }
+            catch
+            {
+                return defaultValue;
+            }
+        }
+
+        /// <summary>
+        /// 设置指定键的值，键不存在时自动插入，存在时更新。
+        /// </summary>
+        /// <param name="key">设置键名</param>
+        /// <param name="value">设置值</param>
+        public void SetValue(string key, string value)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+                throw new ArgumentException("Key cannot be null or empty.", nameof(key));
+
+            var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+
+            var existing = _db.QueryFirstOrDefault(
+                "SELECT Id FROM SystemSettings WHERE Id = @Id",
+                r => r.GetString(r.GetOrdinal("Id")),
+                cmd => cmd.Parameters.AddWithValue("@Id", key));
+
+            if (existing is not null)
+            {
+                _db.Execute(
+                    "UPDATE SystemSettings SET Value = @Value, UpdatedTimestamp = @Now WHERE Id = @Id",
+                    cmd =>
+                    {
+                        cmd.Parameters.AddWithValue("@Value", value);
+                        cmd.Parameters.AddWithValue("@Now", now);
+                        cmd.Parameters.AddWithValue("@Id", key);
+                    });
+            }
+            else
+            {
+                _db.Execute(
+                    """
+                    INSERT INTO SystemSettings (Id, CreatedTimestamp, UpdatedTimestamp, [Group], DisplayName, Description, Value, DefaultValue, ValueType, SortOrder)
+                    VALUES (@Id, @Now, @Now, '', '', '', @Value, @Value, 'string', 0)
+                    """,
+                    cmd =>
+                    {
+                        cmd.Parameters.AddWithValue("@Id", key);
+                        cmd.Parameters.AddWithValue("@Now", now);
+                        cmd.Parameters.AddWithValue("@Value", value);
+                    });
+            }
+        }
+
+        /// <summary>
+        /// 按分组获取该组内所有设置，按 SortOrder 升序排列。
+        /// </summary>
+        /// <param name="group">分组名称</param>
+        public List<SystemSettingsEntity> GetByGroup(string group)
+        {
+            return _db.Query(
+                "SELECT * FROM SystemSettings WHERE [Group] = @Group ORDER BY SortOrder",
+                ReadEntity,
+                cmd => cmd.Parameters.AddWithValue("@Group", group));
+        }
+
+        /// <summary>
+        /// 获取全部设置，按分组和 SortOrder 排列。
+        /// </summary>
+        public List<SystemSettingsEntity> GetAll()
+        {
+            return _db.Query(
+                "SELECT * FROM SystemSettings ORDER BY [Group], SortOrder",
+                ReadEntity);
+        }
+
+        /// <summary>
+        /// 批量保存设置（前端提交用），仅更新 Value 字段，保留其他元数据不变。
+        /// </summary>
+        /// <param name="updates">键值更新列表</param>
+        public void SaveBatch(IEnumerable<(string Key, string Value)> updates)
+        {
+            ArgumentNullException.ThrowIfNull(updates);
+
+            var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+
+            _db.ExecuteInTransaction(conn =>
+            {
+                foreach (var (key, value) in updates)
+                {
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = "UPDATE SystemSettings SET Value = @Value, UpdatedTimestamp = @Now WHERE Id = @Id";
+                    cmd.Parameters.AddWithValue("@Value", value);
+                    cmd.Parameters.AddWithValue("@Now", now);
+                    cmd.Parameters.AddWithValue("@Id", key);
+                    cmd.ExecuteNonQuery();
+                }
+            });
+        }
+
+        /// <summary>
+        /// 将指定键的值重置为其默认值。
+        /// </summary>
+        /// <param name="key">设置键名</param>
+        public void ResetToDefault(string key)
+        {
+            var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+
+            _db.Execute(
+                "UPDATE SystemSettings SET Value = DefaultValue, UpdatedTimestamp = @Now WHERE Id = @Id",
+                cmd =>
+                {
+                    cmd.Parameters.AddWithValue("@Now", now);
+                    cmd.Parameters.AddWithValue("@Id", key);
+                });
+        }
+
+        /// <summary>
+        /// 将所有设置重置为默认值。
+        /// </summary>
+        public void ResetAllToDefault()
+        {
+            var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+
+            _db.Execute(
+                "UPDATE SystemSettings SET Value = DefaultValue, UpdatedTimestamp = @Now",
+                cmd => cmd.Parameters.AddWithValue("@Now", now));
+        }
+
+        /// <summary>
+        /// 首次启动时写入种子数据。
+        /// 若数据库中 SystemSettings 表非空则跳过，保证幂等性。
+        /// </summary>
+        /// <param name="sherpaOnnx">SherpaOnnx 默认配置（来自嵌入的 appsettings.json）</param>
+        /// <param name="ttsSpeed">TTS 语速默认值</param>
+        /// <param name="workspaceDirectory">工作目录默认值</param>
+        public void EnsureSeedData(
+            SherpaOnnxSeedValues sherpaOnnx,
+            float ttsSpeed,
+            string workspaceDirectory)
+        {
+            var count = _db.ExecuteScalar<long>("SELECT COUNT(1) FROM SystemSettings");
+            if (count > 0)
+                return;
+
+            var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+
+            var seeds = new List<SystemSettingsEntity>
+            {
+                // ── 系统 ──────────────────────────────
+                Seed("System.WorkspaceDirectory",
+                    group: "系统", displayName: "当前工作目录",
+                    description: "应用数据和模型文件的存储目录，保存后立即生效。",
+                    value: workspaceDirectory, valueType: "string", sortOrder: 0),
+
+                // ── 语音唤醒 (KWS) ────────────────────
+                Seed("Voice.WakeWordEnabled",
+                    group: "语音唤醒", displayName: "语音唤醒开关",
+                    description: "旧版内置语音唤醒开关。语音能力已拆为可选插件，默认软件不再启动内置语音控制。",
+                    value: "false", valueType: "bool", sortOrder: 0),
+
+                Seed("Voice.Kws.Enabled",
+                    group: "语音服务", displayName: "使用插件关键词唤醒",
+                    description: "开启后使用已安装的 voice.kws 插件提供关键词唤醒；未安装或关闭时默认软件不提供语音唤醒。",
+                    value: "false", valueType: "bool", sortOrder: 0),
+
+                Seed("Voice.Kws.PluginId",
+                    group: "语音服务", displayName: "关键词唤醒插件",
+                    description: "选择当前使用的 KWS 插件，留空表示自动选择。修改后重启软件生效。",
+                    value: "", valueType: "voicePlugin:kws", sortOrder: 1),
+
+                Seed("Voice.Stt.Enabled",
+                    group: "语音服务", displayName: "使用插件语音识别",
+                    description: "开启后使用已安装的 voice.stt 插件提供语音识别；未安装或关闭时默认软件不提供语音输入。",
+                    value: "false", valueType: "bool", sortOrder: 2),
+
+                Seed("Voice.Stt.PluginId",
+                    group: "语音服务", displayName: "语音识别插件",
+                    description: "选择当前使用的 STT 插件，留空表示自动选择。修改后重启软件生效。",
+                    value: "", valueType: "voicePlugin:stt", sortOrder: 3),
+
+                Seed("Voice.Tts.Enabled",
+                    group: "语音服务", displayName: "使用插件语音合成",
+                    description: "开启后使用已安装的 voice.tts 插件提供语音合成；未安装或关闭时默认软件不朗读 AI 回复。",
+                    value: "false", valueType: "bool", sortOrder: 4),
+
+                Seed("Voice.Tts.PluginId",
+                    group: "语音服务", displayName: "语音合成插件",
+                    description: "选择当前使用的 TTS 插件，留空表示自动选择。修改后重启软件生效。",
+                    value: "", valueType: "voicePlugin:tts", sortOrder: 5),
+
+                Seed("SherpaOnnx.KeywordsThreshold",
+                    group: "语音唤醒", displayName: "唤醒词灵敏度阈值",
+                    description: "值越小越灵敏，建议范围 0.01~0.5。",
+                    value: sherpaOnnx.KeywordsThreshold.ToString(CultureInfo.InvariantCulture),
+                    valueType: "float", sortOrder: 1),
+
+                Seed("SherpaOnnx.KeywordsScore",
+                    group: "语音唤醒", displayName: "唤醒词增强分数",
+                    description: "值越大越容易触发唤醒，建议范围 1.0~20.0。",
+                    value: sherpaOnnx.KeywordsScore.ToString(CultureInfo.InvariantCulture),
+                    valueType: "float", sortOrder: 2),
+
+                Seed("SherpaOnnx.NumTrailingBlanks",
+                    group: "语音唤醒", displayName: "尾部空白帧数",
+                    description: "唤醒确认所需的静默帧数，值越小响应越快。",
+                    value: sherpaOnnx.NumTrailingBlanks.ToString(CultureInfo.InvariantCulture),
+                    valueType: "int", sortOrder: 3),
+
+                // ── 语音识别 (STT) ────────────────────
+                Seed("SherpaOnnx.Rule1MinTrailingSilence",
+                    group: "语音识别", displayName: "无语音静音超时(秒)",
+                    description: "未检测到任何语音时的静音超时，超过后视为端点。",
+                    value: sherpaOnnx.Rule1MinTrailingSilence.ToString(CultureInfo.InvariantCulture),
+                    valueType: "float", sortOrder: 0),
+
+                Seed("SherpaOnnx.Rule2MinTrailingSilence",
+                    group: "语音识别", displayName: "说话停顿超时(秒)",
+                    description: "检测到语音后的停顿超时，超过后视为一句话结束。",
+                    value: sherpaOnnx.Rule2MinTrailingSilence.ToString(CultureInfo.InvariantCulture),
+                    valueType: "float", sortOrder: 1),
+
+                Seed("SherpaOnnx.Rule3MinUtteranceLength",
+                    group: "语音识别", displayName: "单次语音最大时长(秒)",
+                    description: "单次语音的最大录音时长，超过后强制结束识别。",
+                    value: sherpaOnnx.Rule3MinUtteranceLength.ToString(CultureInfo.InvariantCulture),
+                    valueType: "float", sortOrder: 2),
+
+                Seed("SherpaOnnx.RecognitionTimeoutSeconds",
+                    group: "语音识别", displayName: "识别空闲超时(秒)",
+                    description: "识别启动后等待说话的超时时间，超过后自动停止识别。",
+                    value: sherpaOnnx.RecognitionTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
+                    valueType: "float", sortOrder: 3),
+
+                // ── 语音合成 (TTS) ────────────────────
+                Seed("Tts.Speed",
+                    group: "语音合成", displayName: "语速倍率",
+                    description: "1.0 为正常速度，支持实时调整无需重启。",
+                    value: ttsSpeed.ToString(CultureInfo.InvariantCulture),
+                    valueType: "float", sortOrder: 0),
+
+                Seed("Tts.WelcomeGreeting",
+                    group: "语音合成", displayName: "唤醒欢迎语",
+                    description: "AI 被唤醒时播放的欢迎语，修改后需要重启应用才能生效。",
+                    value: "主人，我在!", valueType: "string", sortOrder: 1),
+
+                // ── 对话历史 ──────────────────────────
+                Seed("Compaction.ModelId",
+                    group: "对话历史", displayName: "缩略专用模型",
+                    description: "用于会话压缩摘要的模型，留空则跟随当前对话模型。",
+                    value: "", valueType: "model", sortOrder: 0),
+
+                Seed("Compaction.SegmentSize",
+                    group: "对话历史", displayName: "压缩段落大小",
+                    description: "每多少条消息生成一个压缩摘要段落（建议 20-50）。",
+                    value: "30", valueType: "int", sortOrder: 1),
+
+                Seed("Compaction.RawTailSize",
+                    group: "对话历史", displayName: "尾部原始消息数",
+                    description: "保留最近多少条原始消息不压缩，确保 AI 看到完整的近期对话细节。",
+                    value: "20", valueType: "int", sortOrder: 2),
+
+                Seed("Compaction.MaxDisplaySegments",
+                    group: "对话历史", displayName: "最大显示段落数",
+                    description: "加载历史时最多携带多少个摘要段落，超出的旧段落不再加载（但不删除）。",
+                    value: "15", valueType: "int", sortOrder: 3),
+
+                Seed("Meeting.Compaction.SegmentSize",
+                    group: "会议模式", displayName: "会议压缩段落大小",
+                    description: "会议模式每多少条完整消息生成一个压缩摘要段落。",
+                    value: "30", valueType: "int", sortOrder: 0),
+
+                Seed("Meeting.Compaction.RawTailSize",
+                    group: "会议模式", displayName: "会议尾部原始消息数",
+                    description: "会议模式保留最近多少条原始消息不压缩，确保主持人看到完整近期上下文。",
+                    value: "20", valueType: "int", sortOrder: 1),
+
+                Seed("Meeting.Compaction.MaxDisplaySegments",
+                    group: "会议模式", displayName: "会议最大摘要段数",
+                    description: "会议 LLM 上下文最多携带多少个摘要段，超出的旧段落不再加载但不删除。",
+                    value: "10", valueType: "int", sortOrder: 2),
+
+                // ── 记忆体系 ──────────────────────────
+                Seed("Memory.ModelId",
+                    group: "记忆体系", displayName: "记忆加工模型",
+                    description: "插件申请 LLM 用于记忆提取/更新/检索时所使用的模型。留空则回退到当前对话模型。",
+                    value: "", valueType: "model", sortOrder: 0),
+
+                // ── 日志 ──────────────────────────────
+                Seed("Logging.File.MinimumLevel",
+                    group: "日志", displayName: "文件日志最小级别",
+                    description: "写入 app 日志文件的最小日志级别。选择 Warning 时会记录 Warning、Error、Critical；选择 Information 时会额外记录普通运行信息。修改后重启应用生效。",
+                    value: "Warning", valueType: "logLevel", sortOrder: 0),
+
+                Seed(AppBranding.PlatformBaseUrlSettingKey,
+                    group: "应用商店", displayName: "平台 API 地址",
+                    description: AppBranding.PlatformBaseUrlDescription,
+                    value: AppBranding.LocalPlatformApiBaseUrl, valueType: "string", sortOrder: 0),
+
+                // ── 网络 ──────────────────────────────
+                Seed("WebSocket.Port",
+                    group: "网络", displayName: "服务端口",
+                    description: "统一 WebSocket 服务监听端口。聊天、插件总线、记忆和模型能力均通过同一端口的 /internal 端点按协议字段区分。修改后重启软件生效。",
+                    value: "12841", valueType: "int", sortOrder: 0),
+            };
+
+            _db.ExecuteInTransaction(conn =>
+            {
+                foreach (var entity in seeds)
+                {
+                    entity.CreatedTimestamp = now;
+                    entity.UpdatedTimestamp = now;
+
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = InsertSql;
+                    BindEntity(cmd, entity);
+                    cmd.ExecuteNonQuery();
+                }
+            });
+        }
+
+        // ── 私有辅助 ──────────────────────────────────
+
+        /// <summary>
+        /// 确保指定设置项存在，不存在时按完整元数据插入。
+        /// 用于版本升级时补充新增的设置项（EnsureSeedData 仅在空表时执行）。
+        /// </summary>
+        public void EnsureSetting(
+            string key,
+            string group,
+            string displayName,
+            string description,
+            string defaultValue,
+            string valueType,
+            int sortOrder)
+        {
+            if (GetValue(key) is not null) return;
+
+            var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            var entity = Seed(key, group, displayName, description, defaultValue, valueType, sortOrder);
+            entity.CreatedTimestamp = now;
+            entity.UpdatedTimestamp = now;
+
+            _db.Execute(InsertSql, cmd => BindEntity(cmd, entity));
+        }
+
+        /// <summary>
+        /// 确保 Ollama 兼容代理设置项存在。
+        /// 这些配置只供 Proxy 小窗口和代理服务使用，不进入系统设置通用页面。
+        /// </summary>
+        public void EnsureOllamaProxySettings()
+        {
+            EnsureSetting("Proxy.Ollama.Enabled", string.Empty, string.Empty, string.Empty, "false", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.Host", string.Empty, string.Empty, string.Empty, "localhost", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.Port", string.Empty, string.Empty, string.Empty, "11434", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.Mode", string.Empty, string.Empty, string.Empty, "ModelOnly", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.ProviderId", string.Empty, string.Empty, string.Empty, "", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.ModelId", string.Empty, string.Empty, string.Empty, "", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.AgentId", string.Empty, string.Empty, string.Empty, "", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.ExposeDefaultModel", string.Empty, string.Empty, string.Empty, "true", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.AllowLan", string.Empty, string.Empty, string.Empty, "false", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.RequireApiKey", string.Empty, string.Empty, string.Empty, "false", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.ApiKey", string.Empty, string.Empty, string.Empty, "", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.MaxConcurrentRequests", string.Empty, string.Empty, string.Empty, "2", "hidden", 0);
+            EnsureSetting("Proxy.Ollama.Version", string.Empty, string.Empty, string.Empty, "0.21.2", "hidden", 0);
+        }
+
+        public void EnsurePlatformSettings()
+        {
+            EnsureSetting(
+                AppBranding.PlatformBaseUrlSettingKey,
+                "应用商店",
+                "平台 API 地址",
+                AppBranding.PlatformBaseUrlDescription,
+                AppBranding.LocalPlatformApiBaseUrl,
+                "string",
+                0);
+
+            _db.Execute(
+                """
+                UPDATE SystemSettings
+                SET [Group] = @Group,
+                    DisplayName = @DisplayName,
+                    Description = @Description,
+                    DefaultValue = @DefaultValue,
+                    ValueType = @ValueType,
+                    SortOrder = @SortOrder,
+                    UpdatedTimestamp = @Now
+                WHERE Id = @Id
+                  AND ([Group] <> @Group OR DisplayName <> @DisplayName OR Description <> @Description OR DefaultValue <> @DefaultValue OR ValueType <> @ValueType OR SortOrder <> @SortOrder)
+                """,
+                cmd =>
+                {
+                    cmd.Parameters.AddWithValue("@Id", AppBranding.PlatformBaseUrlSettingKey);
+                    cmd.Parameters.AddWithValue("@Group", "应用商店");
+                    cmd.Parameters.AddWithValue("@DisplayName", "平台 API 地址");
+                    cmd.Parameters.AddWithValue("@Description", AppBranding.PlatformBaseUrlDescription);
+                    cmd.Parameters.AddWithValue("@DefaultValue", AppBranding.LocalPlatformApiBaseUrl);
+                    cmd.Parameters.AddWithValue("@ValueType", "string");
+                    cmd.Parameters.AddWithValue("@SortOrder", 0);
+                    cmd.Parameters.AddWithValue("@Now", DateTimeOffset.Now.ToUnixTimeMilliseconds());
+                });
+
+            _db.Execute(
+                """
+                UPDATE SystemSettings
+                SET Value = @LocalDefault,
+                    UpdatedTimestamp = @Now
+                WHERE Id = @Id
+                  AND Value = @OldDefault
+                """,
+                cmd =>
+                {
+                    cmd.Parameters.AddWithValue("@Id", AppBranding.PlatformBaseUrlSettingKey);
+                    cmd.Parameters.AddWithValue("@LocalDefault", AppBranding.LocalPlatformApiBaseUrl);
+                    cmd.Parameters.AddWithValue("@OldDefault", AppBranding.LegacyProductionPlatformApiBaseUrl);
+                    cmd.Parameters.AddWithValue("@Now", DateTimeOffset.Now.ToUnixTimeMilliseconds());
+                });
+        }
+
+        /// <summary>
+        /// 获取 AI 调试日志是否开启。
+        /// 环境变量优先，其次读取系统设置，最后回退到默认值。
+        /// </summary>
+        public bool IsAiTraceEnabled(bool defaultValue = false)
+        {
+            var env = Environment.GetEnvironmentVariable("CORTANA_AI_TRACE_ENABLED");
+            if (bool.TryParse(env, out var envEnabled))
+            {
+                return envEnabled;
+            }
+
+            return GetValue("AI.Trace.Enabled", defaultValue);
+        }
+
+        /// <summary>
+        /// 删除指定键的设置项（用于版本升级时移除废弃配置）。
+        /// </summary>
+        public void DeleteSetting(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key)) return;
+            _db.Execute("DELETE FROM SystemSettings WHERE Id = @Id",
+                cmd => cmd.Parameters.AddWithValue("@Id", key));
+        }
+
+        private static SystemSettingsEntity Seed(
+            string key,
+            string group,
+            string displayName,
+            string description,
+            string value,
+            string valueType,
+            int sortOrder)
+        {
+            return new SystemSettingsEntity
+            {
+                Id = key,
+                Group = group,
+                DisplayName = displayName,
+                Description = description,
+                Value = value,
+                DefaultValue = value,
+                ValueType = valueType,
+                SortOrder = sortOrder
+            };
+        }
+
+        private const string InsertSql = """
+            INSERT INTO SystemSettings (Id, CreatedTimestamp, UpdatedTimestamp, [Group], DisplayName, Description, Value, DefaultValue, ValueType, SortOrder)
+            VALUES (@Id, @CreatedTimestamp, @UpdatedTimestamp, @Group, @DisplayName, @Description, @Value, @DefaultValue, @ValueType, @SortOrder)
+            """;
+
+        private static SystemSettingsEntity ReadEntity(SqliteDataReader r) => new()
+        {
+            Id = r.GetString(r.GetOrdinal("Id")),
+            CreatedTimestamp = r.GetInt64(r.GetOrdinal("CreatedTimestamp")),
+            UpdatedTimestamp = r.GetInt64(r.GetOrdinal("UpdatedTimestamp")),
+            Group = r.GetString(r.GetOrdinal("Group")),
+            DisplayName = r.GetString(r.GetOrdinal("DisplayName")),
+            Description = r.GetString(r.GetOrdinal("Description")),
+            Value = r.GetString(r.GetOrdinal("Value")),
+            DefaultValue = r.GetString(r.GetOrdinal("DefaultValue")),
+            ValueType = r.GetString(r.GetOrdinal("ValueType")),
+            SortOrder = r.GetInt32(r.GetOrdinal("SortOrder"))
+        };
+
+        private static void BindEntity(SqliteCommand cmd, SystemSettingsEntity e)
+        {
+            cmd.Parameters.AddWithValue("@Id", e.Id);
+            cmd.Parameters.AddWithValue("@CreatedTimestamp", e.CreatedTimestamp);
+            cmd.Parameters.AddWithValue("@UpdatedTimestamp", e.UpdatedTimestamp);
+            cmd.Parameters.AddWithValue("@Group", e.Group);
+            cmd.Parameters.AddWithValue("@DisplayName", e.DisplayName);
+            cmd.Parameters.AddWithValue("@Description", e.Description);
+            cmd.Parameters.AddWithValue("@Value", e.Value);
+            cmd.Parameters.AddWithValue("@DefaultValue", e.DefaultValue);
+            cmd.Parameters.AddWithValue("@ValueType", e.ValueType);
+            cmd.Parameters.AddWithValue("@SortOrder", e.SortOrder);
+        }
+    }
+
+    /// <summary>
+    /// EnsureSeedData 所需的 SherpaOnnx 默认配置值载体。
+    /// 由调用方从 AppSettings 中提取后传入，避免 Entitys 项目直接依赖 AppSettings。
+    /// </summary>
+    public sealed class SherpaOnnxSeedValues
+    {
+        public float KeywordsThreshold { get; set; }
+        public float KeywordsScore { get; set; }
+        public int NumTrailingBlanks { get; set; }
+        public float Rule1MinTrailingSilence { get; set; }
+        public float Rule2MinTrailingSilence { get; set; }
+        public float Rule3MinUtteranceLength { get; set; }
+        public float RecognitionTimeoutSeconds { get; set; }
+    }
+}

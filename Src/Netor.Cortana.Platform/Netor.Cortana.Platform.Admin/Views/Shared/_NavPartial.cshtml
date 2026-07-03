@@ -1,0 +1,165 @@
+@inject Netor.Cortana.Platform.Admin.Services.AdminShellMetricsService ShellMetricsService
+@{
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString();
+    var action = ViewContext.RouteData.Values["action"]?.ToString();
+    var query = Context.Request.Query;
+    var metrics = await ShellMetricsService.GetMetricsAsync();
+
+    bool IsController(params string[] values)
+    {
+        return values.Any(x => string.Equals(controller, x, StringComparison.OrdinalIgnoreCase));
+    }
+
+    bool IsAction(string value)
+    {
+        return string.Equals(action, value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    bool QueryEquals(string key, string value)
+    {
+        return query.TryGetValue(key, out var values) && values.Any(x => string.Equals(x, value, StringComparison.OrdinalIgnoreCase));
+    }
+
+    bool HasQuery(params string[] keys)
+    {
+        return keys.Any(query.ContainsKey);
+    }
+
+    string ActiveWhen(bool value)
+    {
+        return value ? "layui-this" : string.Empty;
+    }
+
+    string OpenWhen(bool value)
+    {
+        return value ? "layui-nav-itemed" : string.Empty;
+    }
+
+    string CountClass(int value)
+    {
+        return value > 0 ? "layui-badge" : "layui-badge layui-bg-gray";
+    }
+
+    var isAssetReviewQueue = IsController("Assets") && QueryEquals("reviewStatus", "1");
+    var isCreatorTodo = IsController("Creators") && QueryEquals("status", "1");
+    var isSettlementTodo = IsController("Settlements") && QueryEquals("status", "1");
+    var isTodoArea = IsController("Reviews") || isAssetReviewQueue || isCreatorTodo || isSettlementTodo;
+    var isResourceArea = (IsController("Assets") && !isAssetReviewQueue) || IsController("Categories");
+    var isCreatorArea = (IsController("Creators") && !isCreatorTodo) || (IsController("Settlements") && !isSettlementTodo);
+    var isDocsArea = IsController("Docs");
+}
+
+<ul class="layui-nav layui-nav-tree layui-nav-side admin-nav" lay-filter="admin-nav">
+    <li class="layui-nav-item admin-nav-direct @ActiveWhen(IsController("Home"))">
+        <a asp-controller="Home" asp-action="Index">
+            <i class="layui-icon layui-icon-console"></i>
+            <cite>运营总览</cite>
+        </a>
+    </li>
+
+    <li class="layui-nav-item @OpenWhen(isTodoArea)">
+        <a href="javascript:;">
+            <i class="layui-icon layui-icon-notice"></i>
+            <cite>审核与结算待办</cite>
+        </a>
+        <dl class="layui-nav-child">
+            <dd class="@ActiveWhen(IsController("Reviews"))"><a asp-controller="Reviews" asp-action="Index" asp-route-status="1">资源待审核<span class="@CountClass(metrics.PendingReviews)">@metrics.PendingReviews</span></a></dd>
+            <dd class="@ActiveWhen(isAssetReviewQueue)"><a asp-controller="Assets" asp-action="Index" asp-route-reviewStatus="1">资源最新审核<span class="@CountClass(metrics.PendingReviews)">@metrics.PendingReviews</span></a></dd>
+            <dd class="@ActiveWhen(isCreatorTodo)"><a asp-controller="Creators" asp-action="Index" asp-route-status="1">创作者待审核<span class="@CountClass(metrics.PendingCreators)">@metrics.PendingCreators</span></a></dd>
+            <dd class="@ActiveWhen(isSettlementTodo)"><a asp-controller="Settlements" asp-action="Index" asp-route-status="1">待结算收益<span class="@CountClass(metrics.PendingSettlements)">@metrics.PendingSettlements</span></a></dd>
+        </dl>
+    </li>
+
+    <li class="layui-nav-item @OpenWhen(IsController("Accounts"))">
+        <a href="javascript:;">
+            <i class="layui-icon layui-icon-username"></i>
+            <cite>账户运营</cite>
+        </a>
+        <dl class="layui-nav-child">
+            <dd class="@ActiveWhen(IsController("Accounts") && !HasQuery("walletMin", "hasCreator", "status"))"><a asp-controller="Accounts" asp-action="Index">用户列表</a></dd>
+            <dd class="@ActiveWhen(QueryEquals("walletMin", "1"))"><a asp-controller="Accounts" asp-action="Index" asp-route-walletMin="1">有余额用户</a></dd>
+            <dd class="@ActiveWhen(QueryEquals("hasCreator", "true"))"><a asp-controller="Accounts" asp-action="Index" asp-route-hasCreator="true">创作者账户</a></dd>
+            <dd class="@ActiveWhen(QueryEquals("status", "1"))"><a asp-controller="Accounts" asp-action="Index" asp-route-status="1">异常/停用账户</a></dd>
+        </dl>
+    </li>
+
+    <li class="layui-nav-item @OpenWhen(isResourceArea)">
+        <a href="javascript:;">
+            <i class="layui-icon layui-icon-template-1"></i>
+            <cite>资源与分类</cite>
+        </a>
+        <dl class="layui-nav-child">
+            <dd class="@ActiveWhen(IsController("Assets") && !HasQuery("reviewStatus", "status", "featured"))"><a asp-controller="Assets" asp-action="Index">资源库</a></dd>
+            <dd class="@ActiveWhen(QueryEquals("status", "2"))"><a asp-controller="Assets" asp-action="Index" asp-route-status="2">已发布资源<span class="@CountClass(metrics.PublishedAssets)">@metrics.PublishedAssets</span></a></dd>
+            <dd class="@ActiveWhen(QueryEquals("featured", "true"))"><a asp-controller="Assets" asp-action="Index" asp-route-featured="true">推荐资源<span class="@CountClass(metrics.FeaturedAssets)">@metrics.FeaturedAssets</span></a></dd>
+            <dd><a asp-controller="Assets" asp-action="Create" asp-route-mode="drawer" data-admin-drawer="right" data-title="新增资源" data-width="920px">新增资源</a></dd>
+            <dd class="@ActiveWhen(IsController("Categories"))"><a asp-controller="Categories" asp-action="Index">分类配置</a></dd>
+            <dd><a asp-controller="Categories" asp-action="Create" asp-route-mode="drawer" data-admin-drawer="right" data-title="新增分类" data-width="720px">新增分类</a></dd>
+        </dl>
+    </li>
+
+    <li class="layui-nav-item @OpenWhen(isDocsArea)">
+        <a href="javascript:;">
+            <i class="layui-icon layui-icon-read"></i>
+            <cite>文档中心</cite>
+        </a>
+        <dl class="layui-nav-child">
+            <dd class="@ActiveWhen(IsController("Docs") && IsAction("Index"))"><a asp-controller="Docs" asp-action="Index">文档文章</a></dd>
+            <dd><a asp-controller="Docs" asp-action="CreateArticle">新增文章</a></dd>
+            <dd class="@ActiveWhen(IsController("Docs") && IsAction("Categories"))"><a asp-controller="Docs" asp-action="Categories">文档分类</a></dd>
+            <dd><a asp-controller="Docs" asp-action="CreateCategory">新增分类</a></dd>
+        </dl>
+    </li>
+
+    <li class="layui-nav-item @OpenWhen(IsController("Orders", "Subscriptions"))">
+        <a href="javascript:;">
+            <i class="layui-icon layui-icon-rmb"></i>
+            <cite>交易订阅</cite>
+        </a>
+        <dl class="layui-nav-child">
+            <dd class="@ActiveWhen(IsController("Orders") && IsAction("Index") && !HasQuery("payStatus"))"><a asp-controller="Orders" asp-action="Index">订单列表</a></dd>
+            <dd class="@ActiveWhen(IsController("Orders") && IsAction("Index") && QueryEquals("payStatus", "1"))"><a asp-controller="Orders" asp-action="Index" asp-route-payStatus="1">待支付订单<span class="@CountClass(metrics.PendingOrders)">@metrics.PendingOrders</span></a></dd>
+            <dd class="@ActiveWhen(IsController("Orders") && IsAction("Transactions") && !HasQuery("payStatus"))"><a asp-controller="Orders" asp-action="Transactions">支付流水</a></dd>
+            <dd class="@ActiveWhen(IsController("Orders") && IsAction("Transactions") && QueryEquals("payStatus", "1"))"><a asp-controller="Orders" asp-action="Transactions" asp-route-payStatus="1">待确认流水</a></dd>
+            <dd class="@ActiveWhen(IsController("Subscriptions") && IsAction("Index") && !HasQuery("status"))"><a asp-controller="Subscriptions" asp-action="Index">订阅权益</a></dd>
+            <dd class="@ActiveWhen(IsController("Subscriptions") && IsAction("Index") && QueryEquals("status", "1"))"><a asp-controller="Subscriptions" asp-action="Index" asp-route-status="1">有效订阅<span class="@CountClass(metrics.ActiveSubscriptions)">@metrics.ActiveSubscriptions</span></a></dd>
+            <dd class="@ActiveWhen(IsController("Subscriptions") && IsAction("Downloads"))"><a asp-controller="Subscriptions" asp-action="Downloads">下载记录</a></dd>
+        </dl>
+    </li>
+
+    <li class="layui-nav-item @OpenWhen(isCreatorArea)">
+        <a href="javascript:;">
+            <i class="layui-icon layui-icon-group"></i>
+            <cite>创作者与收益</cite>
+        </a>
+        <dl class="layui-nav-child">
+            <dd class="@ActiveWhen(IsController("Creators") && !HasQuery("status", "hasPendingReviewAssets"))"><a asp-controller="Creators" asp-action="Index">创作者档案</a></dd>
+            <dd class="@ActiveWhen(QueryEquals("hasPendingReviewAssets", "true"))"><a asp-controller="Creators" asp-action="Index" asp-route-hasPendingReviewAssets="true">有待审资源</a></dd>
+            <dd class="@ActiveWhen(IsController("Settlements") && !HasQuery("status", "hasNotes"))"><a asp-controller="Settlements" asp-action="Index">收益结算</a></dd>
+            <dd class="@ActiveWhen(QueryEquals("hasNotes", "true"))"><a asp-controller="Settlements" asp-action="Index" asp-route-hasNotes="true">有备注结算</a></dd>
+        </dl>
+    </li>
+
+    <li class="layui-nav-item @OpenWhen(IsController("Settings"))">
+        <a href="javascript:;">
+            <i class="layui-icon layui-icon-set"></i>
+            <cite>平台设置</cite>
+        </a>
+        <dl class="layui-nav-child">
+            <dd class="@ActiveWhen(IsController("Settings") && !HasQuery("group", "keyPrefix"))"><a asp-controller="Settings" asp-action="Index">设置中心</a></dd>
+            <dd class="@ActiveWhen(QueryEquals("group", "包存储"))"><a asp-controller="Settings" asp-action="Index" asp-route-group="包存储">包存储配置</a></dd>
+            <dd class="@ActiveWhen(QueryEquals("keyPrefix", "Risk"))"><a asp-controller="Settings" asp-action="Index" asp-route-keyPrefix="Risk">风控配置</a></dd>
+            <dd><a asp-controller="Settings" asp-action="Create" asp-route-mode="drawer" data-admin-drawer="right" data-title="新增设置" data-width="760px">新增设置</a></dd>
+        </dl>
+    </li>
+
+    <li class="layui-nav-item @OpenWhen(IsController("Profile"))">
+        <a href="javascript:;">
+            <i class="layui-icon layui-icon-username"></i>
+            <cite>我的</cite>
+        </a>
+        <dl class="layui-nav-child">
+            <dd class="@ActiveWhen(IsController("Profile") && IsAction("Mcp"))"><a asp-controller="Profile" asp-action="Mcp">我的 MCP 令牌</a></dd>
+        </dl>
+    </li>
+</ul>

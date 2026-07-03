@@ -1,0 +1,168 @@
+@model string
+@inject Netor.Cortana.Platform.Admin.Services.AdminShellMetricsService ShellMetricsService
+@{
+    var title = string.IsNullOrWhiteSpace(Model) ? "运营总览" : Model;
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString();
+    var metrics = await ShellMetricsService.GetMetricsAsync();
+    var workspaceTags = ViewData["WorkspaceTags"] as IEnumerable<Netor.Cortana.Platform.Admin.Models.AdminWorkspaceTag>;
+
+    bool Is(params string[] values)
+    {
+        return values.Any(x => string.Equals(controller, x, StringComparison.OrdinalIgnoreCase));
+    }
+
+    string CountClass(int value)
+    {
+        return value > 0 ? "admin-action-count" : "admin-action-count is-zero";
+    }
+}
+
+<section class="admin-workspace" aria-label="运营快捷入口">
+    <div class="admin-workspace-main">
+        <span class="admin-workspace-kicker">当前工作区</span>
+        <strong>@title</strong>
+        <small>Madorin 资源市场后台</small>
+    </div>
+    <div class="admin-workspace-actions">
+        @if (workspaceTags?.Any() == true)
+        {
+            <div class="admin-workspace-metrics" aria-label="页面统计">
+                @foreach (var tag in workspaceTags)
+                {
+                    if (!string.IsNullOrWhiteSpace(tag.Href))
+                    {
+                        <a class="admin-workspace-metric" href="@tag.Href">
+                            @if (!string.IsNullOrWhiteSpace(tag.IconClass))
+                            {
+                                <i class="layui-icon @tag.IconClass"></i>
+                            }
+                            <strong>@tag.Value</strong>
+                            <span>@tag.Label</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="admin-workspace-metric">
+                            @if (!string.IsNullOrWhiteSpace(tag.IconClass))
+                            {
+                                <i class="layui-icon @tag.IconClass"></i>
+                            }
+                            <strong>@tag.Value</strong>
+                            <span>@tag.Label</span>
+                        </span>
+                    }
+                }
+            </div>
+        }
+        <div class="admin-workspace-shortcuts">
+            @if (Is("Assets", "Reviews", "Categories"))
+            {
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Reviews" asp-action="Index" asp-route-status="1">
+                    <i class="layui-icon layui-icon-auz"></i>
+                    待审核
+                    <span class="@CountClass(metrics.PendingReviews)">@metrics.PendingReviews</span>
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Assets" asp-action="Index" asp-route-status="2">
+                    <i class="layui-icon layui-icon-ok"></i>
+                    已发布
+                    <span class="@CountClass(metrics.PublishedAssets)">@metrics.PublishedAssets</span>
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-normal" asp-controller="Assets" asp-action="Create" asp-route-mode="drawer" data-admin-drawer="right" data-title="新增资源" data-width="920px">
+                    <i class="layui-icon layui-icon-add-1"></i>
+                    新增资源
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Categories" asp-action="Create" asp-route-mode="drawer" data-admin-drawer="right" data-title="新增分类" data-width="720px">
+                    <i class="layui-icon layui-icon-tabs"></i>
+                    新增分类
+                </a>
+            }
+            else if (Is("Orders", "Subscriptions"))
+            {
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Orders" asp-action="Index" asp-route-payStatus="1">
+                    <i class="layui-icon layui-icon-time"></i>
+                    待支付
+                    <span class="@CountClass(metrics.PendingOrders)">@metrics.PendingOrders</span>
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Orders" asp-action="Transactions">
+                    <i class="layui-icon layui-icon-list"></i>
+                    支付流水
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Subscriptions" asp-action="Index" asp-route-status="1">
+                    <i class="layui-icon layui-icon-date"></i>
+                    有效订阅
+                    <span class="@CountClass(metrics.ActiveSubscriptions)">@metrics.ActiveSubscriptions</span>
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Subscriptions" asp-action="Downloads">
+                    <i class="layui-icon layui-icon-download-circle"></i>
+                    下载记录
+                </a>
+            }
+            else if (Is("Creators", "Settlements"))
+            {
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Creators" asp-action="Index" asp-route-status="1">
+                    <i class="layui-icon layui-icon-group"></i>
+                    创作者待审
+                    <span class="@CountClass(metrics.PendingCreators)">@metrics.PendingCreators</span>
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Settlements" asp-action="Index" asp-route-status="1">
+                    <i class="layui-icon layui-icon-rmb"></i>
+                    待结算
+                    <span class="@CountClass(metrics.PendingSettlements)">@metrics.PendingSettlements</span>
+                </a>
+                <span class="admin-workspace-money">待结算金额 @metrics.PendingSettlementAmount.ToString("0.00")</span>
+            }
+            else if (Is("Accounts"))
+            {
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Accounts" asp-action="Index" asp-route-walletMin="1">
+                    <i class="layui-icon layui-icon-rmb"></i>
+                    有余额用户
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Accounts" asp-action="Index" asp-route-hasCreator="true">
+                    <i class="layui-icon layui-icon-user"></i>
+                    创作者账户
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Orders" asp-action="Transactions">
+                    <i class="layui-icon layui-icon-list"></i>
+                    交易流水
+                </a>
+            }
+            else if (Is("Settings"))
+            {
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Settings" asp-action="Index" asp-route-group="包存储">
+                    <i class="layui-icon layui-icon-component"></i>
+                    存储配置
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Settings" asp-action="Index" asp-route-keyPrefix="Risk">
+                    <i class="layui-icon layui-icon-vercode"></i>
+                    风控配置
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-normal" asp-controller="Settings" asp-action="Create" asp-route-mode="drawer" data-admin-drawer="right" data-title="新增设置" data-width="760px">
+                    <i class="layui-icon layui-icon-add-1"></i>
+                    新增设置
+                </a>
+            }
+            else
+            {
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Reviews" asp-action="Index" asp-route-status="1">
+                    <i class="layui-icon layui-icon-auz"></i>
+                    待审核
+                    <span class="@CountClass(metrics.PendingReviews)">@metrics.PendingReviews</span>
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Orders" asp-action="Index" asp-route-payStatus="1">
+                    <i class="layui-icon layui-icon-time"></i>
+                    待支付
+                    <span class="@CountClass(metrics.PendingOrders)">@metrics.PendingOrders</span>
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-primary" asp-controller="Settlements" asp-action="Index" asp-route-status="1">
+                    <i class="layui-icon layui-icon-rmb"></i>
+                    待结算
+                    <span class="@CountClass(metrics.PendingSettlements)">@metrics.PendingSettlements</span>
+                </a>
+                <a class="layui-btn layui-btn-sm layui-btn-normal" asp-controller="Assets" asp-action="Create" asp-route-mode="drawer" data-admin-drawer="right" data-title="新增资源" data-width="920px">
+                    <i class="layui-icon layui-icon-add-1"></i>
+                    新增资源
+                </a>
+            }
+        </div>
+    </div>
+</section>

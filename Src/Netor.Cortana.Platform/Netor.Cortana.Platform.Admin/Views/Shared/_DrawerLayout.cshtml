@@ -1,0 +1,27 @@
+@{
+    var title = ViewData["Title"] as string ?? "操作";
+    var drawerPosition = Context.Request.Query["drawerPosition"].ToString();
+    var drawerClass = string.Equals(drawerPosition, "right", StringComparison.OrdinalIgnoreCase)
+        ? "admin-drawer-body drawer-right"
+        : string.Equals(drawerPosition, "bottom", StringComparison.OrdinalIgnoreCase)
+            ? "admin-drawer-body drawer-bottom"
+            : "admin-drawer-body";
+}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@title</title>
+    <link rel="stylesheet" href="~/lib/layui/css/layui.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="@drawerClass">
+    @RenderBody()
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/layui/layui.js" asp-append-version="true"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

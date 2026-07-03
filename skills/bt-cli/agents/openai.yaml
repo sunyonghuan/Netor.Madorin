@@ -1,0 +1,4 @@
+interface:
+  display_name: "BT CLI"
+  short_description: "Operate Baota panels with bundled AOT CLI"
+  default_prompt: "Use $bt-cli to inspect a Baota server or orchestrate a confirmed multi-server operation."

@@ -1,0 +1,5 @@
+interface:
+  display_name: "Server Maintainer Inventory"
+  short_description: "Maintain server inventory and validate with SSH plugin tools"
+  default_prompt: "Use $inventory for server inventory tasks. If remote validation is needed, use SSH plugin tools rather than PowerShell-wrapped ssh commands."
+

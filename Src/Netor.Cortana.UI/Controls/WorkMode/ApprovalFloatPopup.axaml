@@ -1,0 +1,145 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Netor.Cortana.UI.Controls.WorkMode.ApprovalFloatPopup"
+             x:CompileBindings="True"
+             IsVisible="False">
+
+    <!--
+      ════════════════════════════════════════════════════════════════
+      工具/沙盒授权浮窗（ApprovalFloatPopup）
+      ─ 视觉规范来源：09-界面交互设计.md §3.8
+      ─ 显示在输入框上方,从下往上滑入
+      ─ 全局唯一的交互按钮区(对话流程其他位置禁止按钮)
+      ─ 4 个按钮：确认授权 / 本次会话全部允许 / 永远允许 / 拒绝
+      ─ 第 5 项是建议输入框，按 Enter 提交
+      ════════════════════════════════════════════════════════════════ -->
+
+    <UserControl.Styles>
+        <!-- 工作模式按钮样式（橙色主题色） -->
+        <Style Selector="Button.work-approval-btn">
+            <Setter Property="Background" Value="#FF8C00" />
+            <Setter Property="Foreground" Value="#1a1a1a" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.work-approval-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#FFA033" />
+        </Style>
+        <Style Selector="Button.work-approval-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#E07A00" />
+        </Style>
+        <Style Selector="Button.work-approval-btn-secondary">
+            <Setter Property="Background" Value="#3c3c3c" />
+            <Setter Property="Foreground" Value="#cccccc" />
+        </Style>
+        <Style Selector="Button.work-approval-btn-secondary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#4a4a4a" />
+        </Style>
+        <Style Selector="Button.work-approval-btn-danger">
+            <Setter Property="Background" Value="#3c2828" />
+            <Setter Property="Foreground" Value="#f48771" />
+        </Style>
+        <Style Selector="Button.work-approval-btn-danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#5c3030" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- 滑入动画：从下方藏起来,显示时 Y:30→0 + Opacity:0→1 -->
+    <Border x:Name="RootBorder"
+            Background="#2D2D30"
+            BorderBrush="#FF8C00"
+            BorderThickness="1"
+            CornerRadius="3"
+            Padding="14,12"
+            Margin="0"
+            Opacity="0"
+            BoxShadow="0 10 28 0 #99000000"
+            HorizontalAlignment="Stretch"
+            RenderTransformOrigin="50%,100%">
+        <Border.RenderTransform>
+            <TranslateTransform Y="30" />
+        </Border.RenderTransform>
+        <Border.Transitions>
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.22" />
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.22" />
+            </Transitions>
+        </Border.Transitions>
+
+        <StackPanel Spacing="8">
+
+            <!-- 标题 -->
+            <TextBlock Text="工具授权"
+                       FontSize="12"
+                       FontWeight="SemiBold"
+                       Foreground="#FF8C00" />
+
+            <!-- 详情：工具名 + 参数 + 风险 -->
+            <StackPanel Spacing="4">
+                <TextBlock x:Name="ToolNameBlock"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="#cccccc"
+                           TextWrapping="Wrap" />
+                <TextBlock x:Name="ParamsBlock"
+                           FontSize="11"
+                           Foreground="#9a9a9a"
+                           TextWrapping="Wrap"
+                           FontFamily="Consolas, 'Cascadia Code', monospace" />
+                <TextBlock x:Name="RiskBlock"
+                           FontSize="11"
+                           Foreground="#e0c074"
+                           TextWrapping="Wrap"
+                           IsVisible="False" />
+            </StackPanel>
+
+            <!-- 4 按钮竖向排列，使用单列 Grid 保证宽度一致 -->
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+                  ColumnDefinitions="*"
+                  Margin="0,4,0,0"
+                  RowSpacing="6"
+                  HorizontalAlignment="Stretch">
+                <Button Grid.Row="0"
+                        Grid.Column="0"
+                        Classes="work-approval-btn"
+                        Content="确认授权"
+                        Click="OnApproveOnceClick" />
+                <Button Grid.Row="1"
+                        Grid.Column="0"
+                        Classes="work-approval-btn work-approval-btn-secondary"
+                        Content="本次会话全部允许"
+                        Click="OnApproveSessionClick" />
+                <Button Grid.Row="2"
+                        Grid.Column="0"
+                        Classes="work-approval-btn work-approval-btn-secondary"
+                        Content="永远允许"
+                        Click="OnApproveAlwaysClick" />
+                <Button Grid.Row="3"
+                        Grid.Column="0"
+                        Classes="work-approval-btn work-approval-btn-danger"
+                        Content="拒绝"
+                        Click="OnRejectClick" />
+            </Grid>
+
+            <TextBox x:Name="AlternativeInput"
+                     PlaceholderText="输入其他建议，按 Enter 确定"
+                     FontSize="12"
+                     MinHeight="32"
+                     BorderThickness="1"
+                     CornerRadius="3"
+                     Padding="10,6"
+                     Background="#252526"
+                     BorderBrush="#3c3c3c"
+                     Foreground="#cccccc"
+                     HorizontalAlignment="Stretch"
+                     KeyDown="OnAlternativeInputKeyDown" />
+        </StackPanel>
+    </Border>
+</UserControl>

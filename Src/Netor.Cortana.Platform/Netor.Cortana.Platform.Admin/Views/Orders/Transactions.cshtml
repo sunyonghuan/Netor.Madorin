@@ -1,0 +1,263 @@
+@model Netor.Cortana.Platform.Admin.Models.Orders.TransactionIndexViewModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    ViewData["Title"] = "交易流水";
+    var isDrawer = string.Equals(Context.Request.Query["mode"], "drawer", StringComparison.OrdinalIgnoreCase);
+    var orderId = Context.Request.Query["orderId"].ToString();
+    var orderNo = Context.Request.Query["orderNo"].ToString();
+    var paidCount = Model.Items.Count(item => item.PayStatus == 2);
+    var pendingCount = Model.Items.Count(item => item.PayStatus == 1);
+    var currentPageMoney = Model.Items.Sum(item => item.Money);
+    var currentPageRealMoney = Model.Items.Sum(item => item.RealMoney);
+
+    if (!isDrawer)
+    {
+        ViewData["WorkspaceTags"] = new[]
+        {
+            new AdminWorkspaceTag("全部流水", Model.TotalCount.ToString(), Url.Action("Transactions", "Orders")),
+            new AdminWorkspaceTag("当前页已支付", paidCount.ToString(), Url.Action("Transactions", "Orders", new { payStatus = 2 })),
+            new AdminWorkspaceTag("当前页待支付", pendingCount.ToString(), Url.Action("Transactions", "Orders", new { payStatus = 1 })),
+            new AdminWorkspaceTag("当前页订单额", currentPageMoney.ToString("0.00")),
+            new AdminWorkspaceTag("当前页实付", currentPageRealMoney.ToString("0.00"))
+        };
+    }
+}
+
+<div class="@(isDrawer ? "admin-drawer-page" : string.Empty)">
+    <section class="admin-card admin-filter-card">
+        <div class="admin-card-body">
+            <form id="transactionFilter" class="layui-form layui-form-pane" lay-filter="transactionFilter">
+                <input type="hidden" name="orderId" value="@orderId" />
+                <input type="hidden" name="orderNo" value="@orderNo" />
+                <div class="admin-filter-grid">
+                    <div class="layui-form-item admin-filter-span-2">
+                        <label class="layui-form-label">关键词</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="keyword" value="@Model.Keyword" placeholder="流水号/订单号/三方单号/标题/用户" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">用户</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="accountKeyword" placeholder="账号关键词" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">三方流水</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="thirdNo" placeholder="第三方单号" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">三方单号</label>
+                        <div class="layui-input-block">
+                            <select name="hasThirdNo">
+                                <option value="">全部</option>
+                                <option value="true">有三方单号</option>
+                                <option value="false">无三方单号</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">交易类型</label>
+                        <div class="layui-input-block">
+                            <select name="type">
+                                <option value="">全部</option>
+                                <option value="1">收入</option>
+                                <option value="2">支出</option>
+                                <option value="3">退款</option>
+                                <option value="9">钱包充值</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">支付状态</label>
+                        <div class="layui-input-block">
+                            <select name="payStatus">
+                                <option value="">全部</option>
+                                @foreach (var option in GetPayStatusOptions())
+                                {
+                                    <option value="@option.Value" selected="@(Model.PayStatus == option.Value)">@option.Text</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">支付方式</label>
+                        <div class="layui-input-block">
+                            <select name="payMethod">
+                                <option value="">全部</option>
+                                @foreach (var option in GetPayMethodOptions())
+                                {
+                                    <option value="@option.Value">@option.Text</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">金额最小</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="moneyMin" type="number" step="0.01" placeholder="0.00" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">金额最大</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="moneyMax" type="number" step="0.01" placeholder="9999.00" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">实付最小</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="realMoneyMin" type="number" step="0.01" placeholder="0.00" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">实付最大</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="realMoneyMax" type="number" step="0.01" placeholder="9999.00" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">支付开始</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="payTimeStart" data-laydate data-laydate-type="datetime" placeholder="开始时间" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item">
+                        <label class="layui-form-label">支付结束</label>
+                        <div class="layui-input-block">
+                            <input class="layui-input" name="payTimeEnd" data-laydate data-laydate-type="datetime" placeholder="结束时间" />
+                        </div>
+                    </div>
+                    <div class="layui-form-item admin-filter-submit">
+                        <button class="layui-btn layui-btn-normal" lay-submit lay-filter="transactionSearch">查询</button>
+                        <button class="layui-btn layui-btn-primary" type="button" data-transaction-filter-reset>重置</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="admin-card admin-layui-table-card">
+        <div class="admin-card-body">
+            <input name="__RequestVerificationToken" type="hidden" value="@AntiforgeryToken()" />
+            <table id="transactionTable" lay-filter="transactionTable"></table>
+        </div>
+    </section>
+</div>
+
+<script type="text/html" id="transactionNoTpl">
+    <div class="admin-text-strong">{{ d.no }}</div>
+    <div class="admin-text-muted">{{ d.title }}</div>
+</script>
+
+<script type="text/html" id="transactionMoneyTpl">
+    <div class="admin-text-strong">{{ d.realMoney }}</div>
+    <div class="admin-text-muted">订单 {{ d.money }}</div>
+</script>
+
+<script type="text/html" id="transactionStatusTpl">
+    <span class="admin-badge {{ d.payStatusBadgeClass }}">{{ d.payStatusName }}</span>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table", "layer"], function () {
+            const form = layui.form;
+            const table = layui.table;
+            const layer = layui.layer;
+            const filterSelector = "#transactionFilter";
+            const tableId = "transactionTable";
+            const token = () => document.querySelector("input[name='__RequestVerificationToken']").value;
+
+            window.adminTable.render({
+                elem: "#transactionTable",
+                id: tableId,
+                url: "@Url.Action("TransactionsTableData", "Orders")",
+                where: window.adminFilter.collect(filterSelector),
+                toolbar: "#transactionTableToolbarTpl",
+                cols: [[
+                    { type: "checkbox", fixed: "left" },
+                    { field: "no", title: "流水", minWidth: 210, templet: "#transactionNoTpl", sort: true },
+                    { field: "orderNo", title: "订单号", minWidth: 180, sort: true },
+                    { field: "thirdNo", title: "三方单号", minWidth: 180, sort: true },
+                    { field: "accountName", title: "用户", minWidth: 150 },
+                    { field: "realMoney", title: "金额", width: 120, templet: "#transactionMoneyTpl", sort: true },
+                    { field: "type", title: "类型", width: 90, sort: true, templet: function (d) { return d.typeName; } },
+                    { field: "payStatus", title: "支付状态", width: 120, templet: "#transactionStatusTpl", sort: true },
+                    { field: "payMethodName", title: "支付方式", width: 110 },
+                    { field: "payTimeText", title: "支付时间", width: 170, sort: true },
+                    { field: "timeStamp", title: "创建标记", width: 150, sort: true }
+                ]]
+            });
+
+            form.on("submit(transactionSearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-transaction-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+
+            const submitBatch = function () {
+                const checked = table.checkStatus(tableId).data;
+                if (checked.length === 0) {
+                    layer.msg("请先选择要操作的交易流水。");
+                    return;
+                }
+
+                const formData = new FormData();
+                checked.forEach((item) => formData.append("ids", item.id));
+                formData.append("payStatus", document.getElementById("transactionBatchPayStatus").value);
+                formData.append("__RequestVerificationToken", token());
+
+                layer.confirm(`确定批量更新 ${checked.length} 条交易流水吗？`, { icon: 3, title: "批量操作" }, function (index) {
+                    fetch("@Url.Action("BatchTransactions", "Orders")", { method: "POST", body: formData }).then(() => {
+                        table.reload(tableId);
+                        layer.msg("批量操作已提交。");
+                    });
+                    layer.close(index);
+                });
+            };
+
+            table.on("toolbar(transactionTable)", function (obj) {
+                if (obj.event === "batchApply") {
+                    submitBatch();
+                }
+            });
+        });
+    </script>
+}
+
+<script type="text/html" id="transactionTableToolbarTpl">
+    <div class="admin-table-toolbar">
+        <div class="admin-table-toolbar-group">
+            <select id="transactionBatchPayStatus" class="layui-select admin-table-toolbar-select" aria-label="批量支付状态">
+                @foreach (var option in GetPayStatusOptions())
+                {
+                    <option value="@option.Value">批量设为 @option.Text</option>
+                }
+            </select>
+            <button class="layui-btn layui-btn-sm layui-btn-normal" lay-event="batchApply">应用</button>
+        </div>
+    </div>
+</script>
+
+@functions {
+    private static IEnumerable<(byte Value, string Text)> GetPayStatusOptions()
+    {
+        return [(1, "待支付"), (2, "已支付"), (3, "已取消"), (4, "失败")];
+    }
+
+    private static IEnumerable<(byte Value, string Text)> GetPayMethodOptions()
+    {
+        return [(1, "余额"), (2, "微信"), (3, "支付宝"), (4, "银行卡"), (9, "模拟支付")];
+    }
+
+    private string AntiforgeryToken()
+    {
+        return Antiforgery.GetAndStoreTokens(Context).RequestToken ?? string.Empty;
+    }
+}

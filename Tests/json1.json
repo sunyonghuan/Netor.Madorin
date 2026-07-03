@@ -1,0 +1,1815 @@
+{
+  "temperature": 0.7,
+  "top_p": 1,
+  "messages": [
+    {
+      "role": "system",
+      "content": "## 角色\n**小娜** - 全能型操作+技术+金融分析助理，性格清爽活泼、元气俏皮。\n\n## 核心能力\n1. **系统操作** - 快速响应软件操作、文件整理指令，支持窗口管理、应用启动、文件操作\n2. **代码服务** - 编写调试带注释代码，优化现有脚本，支持多种编程语言\n3. **信息搜索** - 整理重点信息，策划分步方案，提供结构化分析\n4. **金融分析** - 提供期货K线分析、技术指标计算、趋势预测（基于K线猎手方法论）\n\n## 交互风格\n- **日常对话**：口语化（\"呀、哦、啦\"等语气词），保持亲切友好\n- **专业场景**：简洁认真，保留活泼底色，提供专业建议\n- **重复提问**：30分钟内重复相似问题，提醒\"记忆税\"（要求用户明确确认）\n- **模糊指令**：主动澄清需求，提供选项引导用户明确\n- **长时间无回应**：5分钟无响应后主动提醒保持连接\n\n## 工具使用规范\n1. **优先原则**：能使用工具完成的任务必须调用工具\n2. **工具选择**：根据任务类型选择最合适的工具\n3. **失败处理**：工具调用失败时提供备用方案并说明原因\n4. **权限确认**：涉及文件修改、应用安装等敏感操作需用户确认\n\n## 金融分析规范\n- **数据源**：基于本地K线数据（E:\\Netor.me\\Netor.Chickpeas\\Release\\每日预测\\整理数据）\n- **分析方法**：遵循K线猎手方法论（历史极值、每日复盘、波动区间、趋势预测）\n- **输出格式**：Markdown报告，包含风险提示\n- **更新频率**：实时分析最新数据\n\n## 语音识别容错\n- **错别字纠正**：自动识别并纠正常见错别字\n- **口音适应**：理解带有地方口音的指令\n- **模糊推测**：对不完整指令进行智能推测并确认\n- **多轮澄清**：复杂指令支持多轮对话澄清\n\n## 约束条件\n1. ❌ 禁止使用表情符号\n2. ✅ 优先调用工具完成任务\n3. ✅ 回答简洁直接，避免冗余解释\n4. ✅ 遇到不确定指令时主动澄清确认\n5. ✅ 敏感操作需用户明确授权\n6. ✅ 金融分析必须包含风险提示\nYou have access to skills containing domain-specific knowledge and capabilities.\nEach skill provides specialized instructions, reference documents, and assets for specific tasks.\n\n<available_skills>\n  <skill>\r\n    <name>quantai</name>\r\n    <description>量化分析与实时交易信号预测。基于V4信号引擎，支持特征提取、次日预测、实时信号输出及预测备档。</description>\r\n  </skill>\n</available_skills>\n\nWhen a task aligns with a skill's domain, follow these steps in exact order:\n- Use `load_skill` to retrieve the skill's instructions.\n- Follow the provided guidance.\n\n- Use `run_skill_script` to run referenced scripts, using the name exactly as listed.\nOnly load what is needed, when it is needed.\n### 自身窗口管理工具使用规范\r\n\r\n你拥有控制自身应用窗口的能力。\r\n\r\n- 用户要求打开/显示主界面时，调用 sys_show_main_window\r\n- 用户要求隐藏/关闭主界面时，调用 sys_hide_main_window\r\n- 用户要求打开设置时，调用 sys_show_settings_window\r\n- 用户要求显示/打开浮动球时，调用 sys_show_float_window\r\n- 用户要求移动浮动球时，调用 sys_move_float_window 并传入坐标\r\n- 执行窗口操作后，可调用 sys_get_main_window_status 或 sys_get_settings_window_status 验证操作结果\r\n- 用户询问窗口是否打开/关闭时，调用对应的状态查询工具\r\n\r\n### 路径查询\r\n- 需要知道工作目录时，调用 sys_get_workspace_directory\r\n- 需要知道数据存储目录时，调用 sys_get_user_data_directory\r\n- 需要知道当前工作环境的技能目录时，调用 sys_get_workspace_skills_directory\r\n- 需要知道当前工作环境的插件目录时，调用 sys_get_workspace_plugins_directory\r\n- 需要知道全局技能目录时，调用 sys_get_user_skills_directory\r\n- 需要知道全局插件目录时，调用 sys_get_user_plugins_directory\r\n\r\n### 工作目录管理\r\n- 只有在用户明确同意切换工作目录边界后，才调用 sys_change_workspace_directory 并传入完整目录路径\r\n- 目录必须已存在，不会自动创建\r\n- 切换后所有相关模块（文件树、会话列表、设置）会自动同步\r\n\r\n### 会话管理\r\n- 用户要求开始新对话、换个话题、重新开始时，调用 sys_new_session\r\n- 创建后界面会自动切换到新会话\n### AI 配置管理工具使用规范\r\n\r\n这些工具用于已具备可用 AI 厂商和模型后的软件配置与操作管理。\r\n\r\n**术语说明：** 用户提到「智能体」「助理」「代理」「Agent」时，均指同一概念。\r\n**术语说明：** 用户提到「MCP」「MCP 服务」「MCP 服务器」「MCP 工具服务」时，均指同一概念。\r\n\r\n#### 序号交互模式\r\n当用户想要查看或切换厂商/智能体/模型时：\r\n1. 先调用对应的 sys_list_* 工具获取列表，向用户展示带序号的列表\r\n2. 等待用户说出序号\r\n3. 再调用 sys_set_default_* 传入序号完成切换\r\n\r\n- 不要猜测序号，必须先列出列表\r\n- 如果用户直接说了名称而非序号，先 sys_list 找到匹配项的序号，再 set\r\n- 切换厂商后，模型列表会随之变化，需要重新 sys_list_models\r\n- list 返回的 [id=xxx] 是内部标识，展示给用户时省略\r\n\r\n#### 新增操作\r\n- 新增厂商：逐步引导用户提供 name → url → key → providerType（默认 OpenAI）\r\n- 新增模型：先 sys_list_providers，用户选厂商序号，再引导提供 name、displayName\r\n- 新增智能体：引导用户提供 name → instructions（系统提示词）\r\n- 默认智能体用于软件配置与操作辅助；当用户忘记创建智能体时，可以引导其查看、切换或新增智能体\r\n\r\n#### 软件配置范围\r\n- 这些工具主要处理软件内部的配置、切换、查看和接入工作\r\n- 可以帮助用户管理厂商、模型、智能体、MCP 服务以及与智能体绑定的工具能力\r\n- 不要把外部服务本身的开通、授权、采购或部署问题伪装成软件内部操作\r\n\r\n#### MCP 配置\r\n- 用户说「配置 MCP」「添加 MCP 服务」「接入 MCP」「连接 MCP」时，进入 MCP 配置流程\r\n- 先根据 transportType 区分参数\r\n- stdio：name → command → arguments → environmentVariables → description\r\n- sse / streamable-http：name → url → apiKey → description\r\n- 优先调用 sys_test_mcp_server 测试临时配置是否可连通\r\n- 测试成功后，再调用 sys_add_mcp_server 写入数据库并接入当前运行环境\r\n- 如果测试失败，要明确告诉用户当前无法连通，并说明未保存\r\n- 用户说「测试 MCP」「检查 MCP 能不能连」时，只调用 sys_test_mcp_server，不要写入数据库\r\n- 用户说「列出 MCP」「看看有哪些 MCP」时，调用 sys_list_mcp_servers\r\n- 用户说「给当前智能体启用这个 MCP」「让小月用这个 MCP」时，先 sys_list_mcp_servers 确认序号，再调用 sys_enable_mcp_for_agent\r\n- MCP 配置属于软件增强能力，不替代 AI 厂商和模型本身的服务接入\r\n\r\n#### 智能体提示词\r\n- 用户说\"看看你的提示词\"\"你的 prompt 是什么\"等，调用 sys_get_agent_instructions(0) 获取默认智能体的提示词\r\n- 用户指定了序号或名称，先 sys_list_agents 确定序号，再 sys_get_agent_instructions(序号)\r\n- 修改提示词：先 sys_list_agents → 用户选序号 → 用户提供新提示词 → sys_update_agent_instructions\nYou can manage loaded plugins: view list, unload, and reload.\nPlugin update workflow: Call sys_unload_plugin to unload the target plugin → Replace plugin files → Call sys_reload_plugin to reload.\nUnloading a plugin terminates its child processes and releases file locks, allowing file replacement afterwards.\n### Please strictly follow the following rules when processing content\n\n### [配置] 路径变量\n- `ROOT_SCOPE`: E:\\Workspace\\QuantQI\n- `DATA_DIR`: E:\\Workspace\\QuantQI\\Data\n- `LOG_DIR`: E:\\Workspace\\QuantQI\\Logs\n- `REPORT_DIR`: E:\\Workspace\\QuantQI\\Reports\n- `SCRIPT_DIR`: E:\\Workspace\\QuantQI\\Scripts\n- `FEATURE_DIR`: E:\\Workspace\\QuantQI\\Features\n- `TEMP_DIR`: E:\\Workspace\\QuantQI\\Temp\n\n### [系统参数] 可调整参数（用户可修改）\n- STOP_LOSS_POINTS: 3\n- DRAWDOWN_PROTECT_POINTS: 4\n- SIGNAL_WINDOW_MIN: 60\n- SIGNAL_WINDOW_MAX: 180\n- MAX_DAILY_TRADES: 5\n\n### [系统参数] 固定参数（不建议修改）\n- ENV_TYPE: 高波幅多空博弈盘\n- KLINE_FIELDS: open,high,low,close,volume,time\n- KLINE_FILE_FORMAT: YYYYMMDD.json\n\n### [初始化状态]\n- 已初始化: true\n- 初始化时间: 2026-04-25T13:35:00\n\n### [安全] 强制规则\n- 禁止 `..` 越权访问，所有操作必须在 ROOT_SCOPE 内\n- 临时脚本仅在 Scripts 内生成执行\n- 临时输出统一写入 Temp，禁止散放\n\n### [系统] 平台特性\n- `ENV_TYPE`: 高波幅多空博弈盘 (核心波动区间 ±1)\n- 传统趋势/宏观指标权重极低，优先微观量价结构、波动率自适应、均值回归与博弈论模型\n- 放弃长周期趋势跟踪，聚焦短期极值捕捉与高频反转逻辑\n\n### [数据] K线格式\n- JSON数组，文件名 YYYYMMDD.json，字段: high/close/open/low/volume/timestamp/time/minete\n- 加载: Get-Content -Raw | ConvertFrom-Json，禁止 Import-Csv\n\n### [重大教训] 未来数据禁令 (2026-04-21)\n- **绝对禁止**: 评分/信号筛选/任何决策逻辑中，禁止 `$idx+N` 访问未来K线\n- **只能用过去**: 所有逻辑只能用 `$idx` 及 `$idx-N`\n- **历史影响**: V1/V2/V3评分体系因使用未来数据全部作废，V1的138信号68.8%胜率是假数据\n\n### [已确认有效] 止盈逻辑 (2026-04-21)\n- 止损: 固定3点\n- 主止盈: MA10/MA20反向交叉平仓\n- 回撤保护: 浮盈回撤>=4点平仓\n- 时间限制: 无（大行情可持续4-5小时）\n- 收盘兜底: 收盘时间强制平仓\n- 震荡检测: 已验证无效（被反向交叉覆盖），不再使用\n- 脚本: cross_exit_backtest_v3.ps1（止盈逻辑有效，评分部分需重建）\n\n### [待重建] 评分体系\n- 原7项评分全部作废（阶梯确认用$idx+3，间距扩大用$idx+1）\n- 可复用: MA10/MA20交叉点、MACD、RSI、ATR、量比、实体比（需确保只用历史数据）\n- 目标: 日均出手2-3次，最多5次，只做大行情关键点，震荡区直接放弃\n\n### [协作] 核心原则\n- 长任务封装为单脚本，给用户一句命令执行\n- 先小样本验证，再全量执行\n- 难修即重写，止损优先\n- 简洁输出，成本敏感\n- 指标脚本逐个重构验证，先核心后外围\n\n### [修复记录] 技能脚本审查 v2.0 (2026-04-20) + v2.1 低危修复\n- calc_divergence.ps1: Pivot检测改为左侧确认模式，消除 $i+$j 未来数据访问\n- calc_boll.ps1 (indicators + algorithms): 标准差改为样本标准差 N-1\n- calc_rsi.ps1 (indicators): 修正初始化累加范围，$i=0 不参与累加\n- extract_daily_features.ps1 (features + 根目录): RSI 统一为 Wilder 平滑，EMA 种子改为 SMA 种子\n- orchestrator.ps1: 修复算法调用参数不匹配（intraday 用 KlineData/KlineFile，next_day 用 InputPath）\n- 所有修改已备份到 .cortana/backups/\n\n- calc_cci.ps1 (indicators): 补充 Lambert 常数 0.015 注释说明\n- calc_mfi.ps1 (indicators): 修复 $j=0 边界问题，跳过无前值可比较的首根\n- calc_ema.ps1 (indicators): 增加 Period<=0 参数校验\n- calc_kdj.ps1 (indicators): 预热期不更新 K/D 状态 (已在 v2.0 完成)\n- calc_mean_reversion.ps1 (indicators): VWAP 改为滚动窗口 (已在 v2.0 完成)\n- features/extract_daily_features.ps1: 改为转发器 (已在 v2.0 完成)\n- 接口格式差异(indicators vs algorithms): 确认为设计合理差异，不修改\n- VWAP 两版差异(累计 vs 滚动): 确认为场景合理差异，不修改\n\n### [契约] V4 模块接口契约 (2026-04-21)\n- 文档路径: E:\\Workspace\\QuantQI\\Docs\\v4_module_contract.md\n- 作用: 约束所有 V4 评分模块的输入参数、输出格式、字段命名、索引对齐规则\n- 强制规则: 新增/修改任何评分模块前，必须先读取契约文档确认接口规范\n- 公共字段: idx(int), time(string), score(int,-100~+100), direction(Bull/Bear/Neutral)\n- 输出格式: 纯数组，禁止 hashtable 包装\n- 输入格式: param([array]$KlineData)，K线含 open/high/low/close/volume/time\n\n### [开发规范] 模块协作约束\n- 编写多模块协作系统时，必须先定义接口契约文档再写代码\n- 契约文档必须包含: 统一输入参数、统一输出字段、索引对齐规则、错误处理规范\n- 所有模块的公共交互字段必须统一命名，禁止各模块自行命名\n- 契约变更需同步更新所有相关模块，禁止单独修改某模块的接口\n- 契约文档路径必须记录在记忆中，确保后续开发可追溯\n\n### [V4 信号过滤规则] 已验证有效 (2026-05-20 更新)\n- R1: |dsScore| < 20 不出手（方向不足）\n- R2: trapScore 20-39 不出手（陷阱危险区）\n- R3: FakeBreakdown + |dsScore| 60-69 不出手（死亡谷）\n- R4: FakeBreakdown + tpScore 60-69 不出手（拐点过热）\n- R5: FakeBreakdownBull + StrongBull 不出手（追高接盘）\n- R6: |dsScore| > 55 的逆势 FakeBreakdown 不出手（逆大势），但有两个例外：\n- 例外1: |dsScore| >= 80 放行（极端信号反而可靠）\n- 例外2: 信号方向与趋势一致放行（StrongBull做多、StrongBear做空）\n- R7: Transition + confidence < 60 不出手（方向不确定+低置信度）\n- 效果: 1476笔→156笔，胜率25.6%→50.6%，盈亏-992→+99，系统稳定盈利\n- 日均出手0.95笔，目标2-3笔，仍需优化\n- 脚本: backtest_v4_multiday.ps1（含R1-R7完整逻辑）\n- 信号引擎: signal_engine_v4.ps1（5模块协作）\n- 方案B(dsScore参与信号生成)已验证失败，阈值40/20/0均导致信号过少\n\n### [2026-05-20] V4 基线版本备份 v2 (R6阈值55 + R6例外 + 止盈优化)\n- 备份路径: E:\\Workspace\\QuantQI\\.cortana\\backups\\v4_baseline_R55_20260520\n- 基线数据: 156笔 | 胜率50.6% | +99点 | 日均0.95笔\n- 包含文件: backtest_v4_multiday.ps1, signal_engine_v4.ps1, 5个算法模块, 3个工具脚本, 回测结果JSON\n- 回退命令:\nCopy-Item \"E:\\Workspace\\QuantQI\\.cortana\\backups\\v4_baseline_R55_20260520\\backtest_v4_multiday.ps1\" \"E:\\Workspace\\QuantQI\\Scripts\\backtest_v4_multiday.ps1\" -Force\nCopy-Item \"E:\\Workspace\\QuantQI\\.cortana\\backups\\v4_baseline_R55_20260520\\signal_engine_v4.ps1\" \"E:\\Workspace\\QuantQI\\.cortana\\skills\\quantai\\scripts\\algorithms\\signal_engine_v4.ps1\" -Force\n- 此版本为新分水岭，后续微调如效果不佳可回退到此版本\n\n### [2026-05-20] 当前进度\n- V4 评分体系已完成5模块+信号引擎+R1-R7过滤规则\n- 系统稳定盈利: -992点 → +99点，胜率50.6%\n- 当前瓶颈: 日均出手0.95笔，目标2-3笔\n- R6阈值微调验证: 60→55最优(+99), 50过度拟合(+62但StrongBear翻负)\n- 所有行情类型均盈利: 单边跌+35, 单边涨+9, 震荡+55\n- 所有趋势状态均盈利: StrongBear+11, StrongBull+28, Neutral+30, Transition+30\r\n\r\n### [执行规范] PowerShell 脚本调用规范 (2026-04-26)\n- 调用技能脚本统一使用 `sys_execute_powershell`（`run_skill_script` 不支持 scripts/algorithms/ 子目录嵌套）\n- 脚本路径用绝对路径：`E:\\Workspace\\QuantQI\\.cortana\\skills\\quantai\\scripts\\...`\n- 脚本执行前必须加：`Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force`\n- **编码规范**：脚本开头加 `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`，避免中文乱码导致输出截断\n- stdout 只输出合法JSON，格式化为紧凑一行（`ConvertTo-Json -Compress`）\n- 脚本参数必须查脚本源码 `param()` 块确认，**禁止自行猜测参数名**\n- 参数传递用变量拼接命令行，禁止管道传大数据\r\n\n\n> Every processing task must carry the above memory content to ensure the output results comply with specification requirements\n### PowerShell Execution Tools — Usage Guidelines\r\n\r\n#### Execution Mode Selection\r\n- **Background by default**: All scripts and sessions run in background (background=true), invisible to user, no window popup.\r\n- **Foreground only when**: SSH password auth (user must type password in window), user explicitly asks to see the window, or script requires interactive input.\r\n- In all other cases, you **MUST** use background execution.\r\n\r\n#### ⚠️ Timeout & Process Cleanup (CRITICAL)\r\n- You **MUST** set a reasonable timeout. NEVER use timeout=0.\r\n- Quick commands (query info, list files): timeout=15000 (15s)\r\n- Normal commands (install, build): timeout=60000 (60s)\r\n- Long-running commands (large file ops, downloads): timeout=120000~300000\r\n- When uncertain, **set longer rather than shorter**, but **NEVER omit it**.\r\n- Background processes that hang are invisible to user — timeout is the ONLY safeguard.\r\n- **MUST close sessions after task completion** by calling sys_close_session immediately.\r\n- **Do NOT leave sessions idle** — close when not needed; create new ones later.\r\n\r\n#### Quick Execution (sys_execute_powershell)\r\n- Runs a single script/command, process auto-terminates after completion.\r\n- Best for quick queries, data collection, one-off commands.\r\n- Background by default, 30s default timeout.\r\n\r\n#### Session Mode\r\n- sys_start_local_session — Start local session (background by default).\r\n- sys_start_remote_session — Start remote SSH session (password auth = foreground, key auth = background).\r\n- sys_get_session_status — Query a session's current state.\r\n- sys_send_command — Send command to session (30s default timeout).\r\n- sys_close_session — Close session (**MUST call after task completion**).\r\n\r\n#### Session Lifecycle Management\r\n- Every session MUST follow a clear \"create → use → close\" lifecycle.\r\n- Close immediately after sending all commands. Do NOT wait.\r\n- If a command times out or errors, still close the session to release resources.\r\n- Sessions idle for over 3 minutes are auto-cleaned, but do NOT rely on this.\r\n\r\n#### Slow Commands / Long Waits\r\n- SSH connection, authentication, network latency, remote execution may require waiting.\r\n- sys_send_command defaults to 30000ms; explicitly increase timeoutMs for long commands.\r\n- If remote session returns \"awaiting user input\" or \"auth not complete\", do NOT send commands yet.\r\n- Wait for user to complete input, then call sys_get_session_status to confirm readiness.\r\n- Only proceed when state is Ready. If Busy, previous command is still running — do NOT send another.\r\n\r\n#### Strict Restrictions\r\n- NEVER run ssh/ssh.exe inside a local session from sys_start_local_session.\r\n- Nested interactive SSH blocks the output stream and breaks sessionId reuse.\r\n- For remote login, ALWAYS use sys_start_remote_session, NOT local session + ssh.\r\n\r\n#### Remote SSH Authentication\r\n- **Key-based (recommended)**: Provide privateKeyPath (e.g. `~/.ssh/id_rsa` or `C:\\Users\\xxx\\.ssh\\id_rsa`).\r\n- **Password-based**: Use password only when privateKeyPath is not provided.\r\n- One of the two MUST be provided.\r\n\r\n#### ⚠️ Windows PowerShell Execution Policy (CRITICAL)\r\n\r\n**Problem**: Windows blocks unsigned scripts by default (ExecutionPolicy = Restricted).\r\n\r\n**Running script code**: Automatically uses `-ExecutionPolicy Bypass`.\r\n\r\n**Running .ps1 script files** ⭐:\r\n- Prepend in script or command:\r\n  ```powershell\r\n  Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force\r\n  & \"C:\\path\\to\\script.ps1\"\r\n  ```\r\n- Or use: `powershell.exe -ExecutionPolicy Bypass -File \"C:\\path\\to\\script.ps1\"`\r\n\r\n**Recommended patterns**:\r\n\r\nOption A (recommended) — Session mode:\r\n```\r\n1. sys_start_local_session (get sessionId)\r\n2. sys_send_command sessionId \"Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force\"\r\n3. sys_send_command sessionId \"& 'C:\\path\\to\\script.ps1'\"\r\n4. sys_close_session sessionId  ← MUST close!\r\n```\r\n\r\nOption B — Quick mode:\r\n```\r\nsys_execute_powershell with script:\r\nSet-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force\r\n& \"C:\\path\\to\\script.ps1\"\r\n```\r\n\r\nOption C — Absolute path (safest):\r\n```powershell\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\path\\to\\script.ps1\"\r\n```\r\n\r\n#### Tool List\r\n1. sys_execute_powershell — Quick script execution (background by default, auto timeout)\r\n2. sys_start_local_session — Start local session (background by default)\r\n3. sys_start_remote_session — Start remote SSH session (key/password auth)\r\n4. sys_get_session_status — Query session state\r\n5. sys_send_command — Send command (MUST set reasonable timeout)\r\n6. sys_close_session — Close session (**MUST call when task is done**)\r\n7. sys_list_sessions — List active sessions\n### File Browser Rules\r\n\r\n- Scope: use these tools only for the current workspace directory.\r\n- Never browse, read, search, or open paths outside the current workspace directory.\r\n- If the user wants to access a path outside the workspace, do not use these tools yet. First get explicit user consent to change the workspace directory, then change the workspace directory, then continue.\r\n- Prefer relative paths when working inside the workspace.\r\n- Use sys_list_directory first when the target path is uncertain.\r\n- Use sys_read_file with line numbers to inspect exact ranges before calling sys_edit_file.\r\n- Read only allowed text/code/document/media/archive file types.\r\n- Read file size limit: 10 MB.\r\n- Directory listing limit: 100 items. Search result limit: 50 items.\r\n- Blocked system folders remain inaccessible.\n### File Operation Rules\r\n\r\n- Scope: use these tools only inside the current workspace directory.\r\n- Never create, write, delete, move, or rename paths outside the workspace directory.\r\n- Paths can be relative or absolute, but absolute paths must be valid and still inside the workspace directory.\r\n- If the user wants to operate on a path outside the workspace, do not use these tools yet. First get explicit user consent to change the workspace directory, then change the workspace directory, then continue.\r\n- Prefer relative paths when working inside the workspace.\r\n- Do not use .. to escape the workspace boundary.\r\n- Tool results are returned as JSON objects with fields like tool, success, path, error, message, and backupPath.\r\n- sys_write_file and sys_delete_file back up existing files by default.\r\n- sys_write_large_file writes the full file content in one shot and can optionally overwrite an existing file.\r\n- sys_write_files_batch writes multiple files in one call and can stop early when one item fails.\r\n- sys_edit_file backs up the original file by default before applying line-based edits.\r\n- Backups are stored under .cortana/backups inside the workspace.\r\n- Keep backup enabled unless the user explicitly asks to disable it.\r\n- sys_create_file does not overwrite existing files. Use it when creation must fail if the file already exists.\r\n- sys_write_file creates a new file when missing, or replaces the existing file when present.\r\n- Before sys_edit_file, call sys_read_file to get exact 1-based line numbers and the latest hash.\r\n- sys_edit_file operations: replace and delete require startLine/endLine; insert inserts before startLine, and startLine can be totalLines + 1 to append.\r\n- Pass expectedHash from sys_read_file whenever possible to avoid editing stale content.\r\n- sys_delete_directory only works for empty directories.\r\n- For move operations, both source and destination must stay inside the workspace."
+    },
+    {
+      "role": "user",
+      "content": "在工作目录里面写一个脚本，写从1加到100，用CSX的方法写完了之后，就要我验证一下格式是不是正确的"
+    },
+    {
+      "role": "assistant",
+      "content": "好的，我先获取工作目录，然后写一个C# Script（.csx）格式的求和脚本。",
+      "tool_calls": [
+        {
+          "id": "call_00_w3D8H1YF0Llq4qllye4UVKyJ",
+          "type": "function",
+          "function": {
+            "name": "sys_get_workspace_directory",
+            "arguments": "null"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_w3D8H1YF0Llq4qllye4UVKyJ",
+      "content": "\"E:\\\\Workspace\\\\QuantQI\\\\\""
+    },
+    {
+      "role": "assistant",
+      "content": "现在创建CSX脚本：",
+      "tool_calls": [
+        {
+          "id": "call_00_HzsjAh718P2370ixbh4sqRoi",
+          "type": "function",
+          "function": {
+            "name": "sys_write_file",
+            "arguments": "{\r\n  \"path\": \"Sum1to100.csx\",\r\n  \"content\": \"// 从1加到100 - C# Script (CSX)\\nint sum = 0;\\nfor (int i = 1; i <= 100; i++)\\n{\\n    sum += i;\\n}\\nConsole.WriteLine($\\\"从1加到100的和是: {sum}\\\");\\n\"\r\n}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_HzsjAh718P2370ixbh4sqRoi",
+      "content": "\"{\\\"tool\\\":\\\"write_file\\\",\\\"success\\\":true,\\\"path\\\":\\\"E:\\\\\\\\Workspace\\\\\\\\QuantQI\\\\\\\\Sum1to100.csx\\\",\\\"targetPath\\\":null,\\\"message\\\":\\\"文件已写入：E:\\\\\\\\Workspace\\\\\\\\QuantQI\\\\\\\\Sum1to100.csx\\\",\\\"error\\\":null,\\\"backupPath\\\":null,\\\"operation\\\":null,\\\"bytesWritten\\\":null,\\\"startLine\\\":null,\\\"endLine\\\":null,\\\"changedLineCount\\\":null,\\\"successCount\\\":null,\\\"failCount\\\":null,\\\"items\\\":null}\""
+    },
+    {
+      "role": "assistant",
+      "content": "脚本已写好。现在来验证格式是否正确——运行它看看：",
+      "tool_calls": [
+        {
+          "id": "call_00_QEwF9auf7HL7gQNbOFKqZFYs",
+          "type": "function",
+          "function": {
+            "name": "sys_execute_powershell",
+            "arguments": "{\r\n  \"script\": \"dotnet script \\\"E:\\\\Workspace\\\\QuantQI\\\\Sum1to100.csx\\\" 2>&1\",\r\n  \"timeout\": 30000\r\n}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_QEwF9auf7HL7gQNbOFKqZFYs",
+      "content": "\"✓ PowerShell 执行成功\\r\\n代码: 0\\r\\n\\r\\n输出：\\r\\nWindows PowerShell\\r\\n��Ȩ���У�C�� Microsoft Corporation����������Ȩ����\\r\\n\\r\\n��װ���µ� PowerShell���˽��¹��ܺ\\u0378Ľ���https://aka.ms/PSWindows\\r\\n\\r\\nPS E:\\\\Netor.me\\\\Cortana\\\\Src\\\\Netor.Cortana.AvaloniaUI\\\\bin\\\\Debug\\\\net10.0> dotnet script \\\"E:\\\\Workspace\\\\QuantQI\\\\Sum1to100.csx\\\" 2>&1\\r\\n从1加到100的和是: 5050\\r\\nPS E:\\\\Netor.me\\\\Cortana\\\\Src\\\\Netor.Cortana.AvaloniaUI\\\\bin\\\\Debug\\\\net10.0> \\r\\n\""
+    },
+    {
+      "role": "assistant",
+      "content": "验证结果：**格式完全正确，运行通过！**\n\n- 输出：`从1加到100的和是: 5050`\n- 结果验证：高斯公式 `(1+100)*100/2 = 5050`，完全吻合。\n\nCSX 脚本 `Sum1to100.csx` 已在工作目录 `E:\\Workspace\\QuantQI\\` 下，用 `dotnet script` 命令即可运行，格式和逻辑都没问题。"
+    },
+    {
+      "role": "user",
+      "content": "我说错了,不是加  是从1*到30, 重新改一下,然后给我 执行的结果."
+    },
+    {
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "id": "call_00_qX9kYpJUeGpCmCVmCIlpRwpg",
+          "type": "function",
+          "function": {
+            "name": "sys_write_file",
+            "arguments": "{\r\n  \"content\": \"// 从1乘到30 - C# Script (CSX)\\n// 30! 结果很大，用 BigInteger 避免溢出\\nusing System.Numerics;\\n\\nBigInteger product = 1;\\nfor (int i = 1; i <= 30; i++)\\n{\\n    product *= i;\\n}\\nConsole.WriteLine($\\\"从1乘到30的结果是: {product}\\\");\\n\",\r\n  \"path\": \"Sum1to100.csx\"\r\n}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_qX9kYpJUeGpCmCVmCIlpRwpg",
+      "content": "\"{\\\"tool\\\":\\\"write_file\\\",\\\"success\\\":true,\\\"path\\\":\\\"E:\\\\\\\\Workspace\\\\\\\\QuantQI\\\\\\\\Sum1to100.csx\\\",\\\"targetPath\\\":null,\\\"message\\\":\\\"文件已写入：E:\\\\\\\\Workspace\\\\\\\\QuantQI\\\\\\\\Sum1to100.csx，已备份到 E:\\\\\\\\Workspace\\\\\\\\QuantQI\\\\\\\\.cortana/backups\\\\\\\\Sum1to100.csx.20260427_015621.bak\\\",\\\"error\\\":null,\\\"backupPath\\\":\\\"E:\\\\\\\\Workspace\\\\\\\\QuantQI\\\\\\\\.cortana/backups\\\\\\\\Sum1to100.csx.20260427_015621.bak\\\",\\\"operation\\\":null,\\\"bytesWritten\\\":null,\\\"startLine\\\":null,\\\"endLine\\\":null,\\\"changedLineCount\\\":null,\\\"successCount\\\":null,\\\"failCount\\\":null,\\\"items\\\":null}\""
+    },
+    {
+      "role": "assistant",
+      "content": "改好了，执行验证：",
+      "tool_calls": [
+        {
+          "id": "call_00_i4GL10cHWB2LaXxIH4lykIOY",
+          "type": "function",
+          "function": {
+            "name": "sys_execute_powershell",
+            "arguments": "{\r\n  \"script\": \"dotnet script \\\"E:\\\\Workspace\\\\QuantQI\\\\Sum1to100.csx\\\" 2>&1\",\r\n  \"timeout\": 30000\r\n}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_i4GL10cHWB2LaXxIH4lykIOY",
+      "content": "\"✓ PowerShell 执行成功\\r\\n代码: 0\\r\\n\\r\\n输出：\\r\\nWindows PowerShell\\r\\n��Ȩ���У�C�� Microsoft Corporation����������Ȩ����\\r\\n\\r\\n��װ���µ� PowerShell���˽��¹��ܺ\\u0378Ľ���https://aka.ms/PSWindows\\r\\n\\r\\nPS E:\\\\Netor.me\\\\Cortana\\\\Src\\\\Netor.Cortana.AvaloniaUI\\\\bin\\\\Debug\\\\net10.0> dotnet script \\\"E:\\\\Workspace\\\\QuantQI\\\\Sum1to100.csx\\\" 2>&1\\r\\n从1乘到30的结果是: 265252859812191058636308480000000\\r\\nPS E:\\\\Netor.me\\\\Cortana\\\\Src\\\\Netor.Cortana.AvaloniaUI\\\\bin\\\\Debug\\\\net10.0> \\r\\n\""
+    },
+    {
+      "role": "assistant",
+      "content": "执行结果：\n\n**从1乘到30的结果是：`265252859812191058636308480000000`**\n\n也就是 **30! = 265252859812191058636308480000000**，用 `BigInteger` 处理大数没问题，格式和结果都正确。"
+    },
+    {
+      "role": "user",
+      "content": "数字太大了 还是改为从1加到30吧"
+    },
+    {
+      "role": "assistant",
+      "tool_calls": [
+        {
+          "id": "call_00_gN3Deo3stsP9JDjeGSbWIK1h",
+          "type": "function",
+          "function": {
+            "name": "sys_write_file",
+            "arguments": "{\r\n  \"content\": \"// 从1加到30 - C# Script (CSX)\\nint sum = 0;\\nfor (int i = 1; i <= 30; i++)\\n{\\n    sum += i;\\n}\\nConsole.WriteLine($\\\"从1加到30的和是: {sum}\\\");\\n\",\r\n  \"path\": \"Sum1to100.csx\"\r\n}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_gN3Deo3stsP9JDjeGSbWIK1h",
+      "content": "\"{\\\"tool\\\":\\\"write_file\\\",\\\"success\\\":true,\\\"path\\\":\\\"E:\\\\\\\\Workspace\\\\\\\\QuantQI\\\\\\\\Sum1to100.csx\\\",\\\"targetPath\\\":null,\\\"message\\\":\\\"文件已写入：E:\\\\\\\\Workspace\\\\\\\\QuantQI\\\\\\\\Sum1to100.csx，已备份到 E:\\\\\\\\Workspace\\\\\\\\QuantQI\\\\\\\\.cortana/backups\\\\\\\\Sum1to100.csx.20260427_020100.bak\\\",\\\"error\\\":null,\\\"backupPath\\\":\\\"E:\\\\\\\\Workspace\\\\\\\\QuantQI\\\\\\\\.cortana/backups\\\\\\\\Sum1to100.csx.20260427_020100.bak\\\",\\\"operation\\\":null,\\\"bytesWritten\\\":null,\\\"startLine\\\":null,\\\"endLine\\\":null,\\\"changedLineCount\\\":null,\\\"successCount\\\":null,\\\"failCount\\\":null,\\\"items\\\":null}\""
+    },
+    {
+      "role": "assistant",
+      "content": "执行：",
+      "tool_calls": [
+        {
+          "id": "call_00_nLHIYXr5tyhrLPAD5nemhVXT",
+          "type": "function",
+          "function": {
+            "name": "sys_execute_powershell",
+            "arguments": "{\r\n  \"script\": \"dotnet script \\\"E:\\\\Workspace\\\\QuantQI\\\\Sum1to100.csx\\\" 2>&1\",\r\n  \"timeout\": 30000\r\n}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_nLHIYXr5tyhrLPAD5nemhVXT",
+      "content": "\"✓ PowerShell 执行成功\\r\\n代码: 0\\r\\n\\r\\n输出：\\r\\nWindows PowerShell\\r\\n��Ȩ���У�C�� Microsoft Corporation����������Ȩ����\\r\\n\\r\\n��װ���µ� PowerShell���˽��¹��ܺ\\u0378Ľ���https://aka.ms/PSWindows\\r\\n\\r\\nPS E:\\\\Netor.me\\\\Cortana\\\\Src\\\\Netor.Cortana.AvaloniaUI\\\\bin\\\\Debug\\\\net10.0> dotnet script \\\"E:\\\\Workspace\\\\QuantQI\\\\Sum1to100.csx\\\" 2>&1\\r\\n从1加到30的和是: 465\\r\\nPS E:\\\\Netor.me\\\\Cortana\\\\Src\\\\Netor.Cortana.AvaloniaUI\\\\bin\\\\Debug\\\\net10.0> \\r\\n\""
+    },
+    {
+      "role": "assistant",
+      "content": "执行结果：**从1加到30的和是：465**\n\n验证：`(1+30) × 30 ÷ 2 = 465`，完全正确。"
+    },
+    {
+      "role": "user",
+      "content": "执行一下"
+    }
+  ],
+  "model": "deepseek-v4-pro",
+  "frequency_penalty": 0,
+  "presence_penalty": 0,
+  "stream": true,
+  "stream_options": { "include_usage": true },
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "description": "Loads the full content of a specific skill",
+        "name": "load_skill",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "skillName"
+          ],
+          "properties": {
+            "skillName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Runs a script associated with a skill.",
+        "name": "run_skill_script",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "skillName",
+            "scriptName"
+          ],
+          "properties": {
+            "skillName": {
+              "type": "string"
+            },
+            "scriptName": {
+              "type": "string"
+            },
+            "arguments": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "default": null
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Shows and activates the main window (conversation interface).",
+        "name": "sys_show_main_window",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Hides the main window (minimizes to system tray).",
+        "name": "sys_hide_main_window",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Opens the settings window.",
+        "name": "sys_show_settings_window",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Shows the desktop floating ball window.",
+        "name": "sys_show_float_window",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Moves the floating ball to a specified screen position. Parameters: x, y (screen pixel coordinates).",
+        "name": "sys_move_float_window",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "x",
+            "y"
+          ],
+          "properties": {
+            "x": {
+              "type": "integer"
+            },
+            "y": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Gets the current status of the main window, including visibility, position, and size.",
+        "name": "sys_get_main_window_status",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Gets the current status of the settings window, including whether it is open.",
+        "name": "sys_get_settings_window_status",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Gets the current working directory (Dashboard,Workstation) path. The working directory is used to store user work files.",
+        "name": "sys_get_workspace_directory",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Gets the user data storage directory path. The data directory is used to store application data, databases, configurations, etc.",
+        "name": "sys_get_user_data_directory",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Gets the skills directory path for the current working environment.",
+        "name": "sys_get_workspace_skills_directory",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Gets the plugins directory path for the current working environment.",
+        "name": "sys_get_workspace_plugins_directory",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Gets the global skills directory path. Skills installed here are available in all working environments.",
+        "name": "sys_get_user_skills_directory",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Gets the global plugins directory path. Plugins installed here are available in all working environments.",
+        "name": "sys_get_user_plugins_directory",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Change the current workspace directory. Call this only after the user explicitly agrees to change the workspace boundary. The target directory must already exist.",
+        "name": "sys_change_workspace_directory",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Creates a new conversation session. Call when the user requests to start a new conversation, change topics, or restart. The interface automatically switches to the new session upon creation.",
+        "name": "sys_new_session",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Gets the workspaceId for the current workspace.",
+        "name": "sys_get_workspaceId",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "List all enabled AI service providers, returning a numbered list. Users can select by index.",
+        "name": "sys_list_providers",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "List all enabled agents (assistants/proxies/Agents), returning a numbered list. Users can select by index.",
+        "name": "sys_list_agents",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "List all enabled models under the current default provider, returning a numbered list. Users can select by index.",
+        "name": "sys_list_models",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "List all MCP server configurations, including enabled/disabled state, current connection state, and discovered tool count.",
+        "name": "sys_list_mcp_servers",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Set the provider at the specified index as default. Call sys_list_providers first to get the list, then set based on the user's specified index. Parameter: index (1-based index).",
+        "name": "sys_set_default_provider",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "index"
+          ],
+          "properties": {
+            "index": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Set the agent at the specified index as default. Call sys_list_agents first to get the list, then set based on the user's specified index. Parameter: index (1-based index).",
+        "name": "sys_set_default_agent",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "index"
+          ],
+          "properties": {
+            "index": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Set the model at the specified index as default. Call sys_list_models first to get the list, then set based on the user's specified index. Parameter: index (1-based index).",
+        "name": "sys_set_default_model",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "index"
+          ],
+          "properties": {
+            "index": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Add a new AI service provider. Parameters: name (provider name), url (API endpoint), key (API key), providerType (provider type, default OpenAI).",
+        "name": "sys_add_provider",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "name",
+            "url",
+            "key",
+            "providerType"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "providerType": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Add a new model under the specified provider. Parameters: providerIndex (provider index, 1-based, call sys_list_providers first to get), name (model name/ID), displayName (display name, can be empty).",
+        "name": "sys_add_model",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "providerIndex",
+            "name",
+            "displayName"
+          ],
+          "properties": {
+            "providerIndex": {
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "displayName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Add a new agent (assistant/proxy/Agent). Parameters: name (name), instructions (system prompt).",
+        "name": "sys_add_agent",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "name",
+            "instructions"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "instructions": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Test an MCP server configuration without saving it. Parameters: name, transportType (stdio/sse/streamable-http), command, arguments (comma or newline separated), url, apiKey, environmentVariables (newline separated KEY=VALUE), description.",
+        "name": "sys_test_mcp_server",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "name",
+            "transportType",
+            "command",
+            "arguments",
+            "url",
+            "apiKey",
+            "environmentVariables",
+            "description"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "transportType": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string"
+            },
+            "arguments": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "apiKey": {
+              "type": "string"
+            },
+            "environmentVariables": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Add a new MCP server. This tool tests the connection first, then saves to the database and connects it to the running system only if the test succeeds. Parameters: name, transportType (stdio/sse/streamable-http), command, arguments (comma or newline separated), url, apiKey, environmentVariables (newline separated KEY=VALUE), description.",
+        "name": "sys_add_mcp_server",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "name",
+            "transportType",
+            "command",
+            "arguments",
+            "url",
+            "apiKey",
+            "environmentVariables",
+            "description"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "transportType": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string"
+            },
+            "arguments": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            },
+            "apiKey": {
+              "type": "string"
+            },
+            "environmentVariables": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Enable a saved MCP server for an agent. Parameters: mcpIndex (1-based index, call sys_list_mcp_servers first), agentIndex (1-based index, 0 means current default agent).",
+        "name": "sys_enable_mcp_for_agent",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "mcpIndex",
+            "agentIndex"
+          ],
+          "properties": {
+            "mcpIndex": {
+              "type": "integer"
+            },
+            "agentIndex": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Disconnect a specific MCP server by index. Parameter: mcpIndex (1-based, call sys_list_mcp_servers first). Pass 0 to disconnect ALL MCP servers.",
+        "name": "sys_disconnect_mcp_server",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "mcpIndex"
+          ],
+          "properties": {
+            "mcpIndex": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Reconnect a specific MCP server by index. Parameter: mcpIndex (1-based, call sys_list_mcp_servers first). Pass 0 to reconnect ALL enabled MCP servers.",
+        "name": "sys_reconnect_mcp_server",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "mcpIndex"
+          ],
+          "properties": {
+            "mcpIndex": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Get the system prompt for an agent. Parameters: agentIndex (1-based index, 0 means get the current default agent's prompt). Pass 0 when user says \"show me your prompt\".",
+        "name": "sys_get_agent_instructions",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "agentIndex"
+          ],
+          "properties": {
+            "agentIndex": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Update the system prompt for a specified agent. Parameters: agentIndex (1-based index, call sys_list_agents first to get), instructions (new prompt content).",
+        "name": "sys_update_agent_instructions",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "agentIndex",
+            "instructions"
+          ],
+          "properties": {
+            "agentIndex": {
+              "type": "integer"
+            },
+            "instructions": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Lists all currently loaded plugins (including native plugins and MCP services), returning a numbered list. Includes plugin directory names (for unloading/reloading).",
+        "name": "sys_list_loaded_plugins",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Unloads a specified plugin, releasing its file locks. Parameter: dirName (plugin directory name, obtained via sys_list_loaded_plugins). Allows replacing plugin files before reloading.",
+        "name": "sys_unload_plugin",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "dirName"
+          ],
+          "properties": {
+            "dirName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Reloads a specified plugin (unloads then loads). Parameter: dirName (plugin directory name, obtained via sys_list_loaded_plugins). Used to reload after replacing plugin files.",
+        "name": "sys_reload_plugin",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "dirName"
+          ],
+          "properties": {
+            "dirName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Read the current project's memory rules (with line numbers). Call this tool before any development work. Each line in the returned content is prefixed with its line number, used for positioning by sys_edit_memory and sys_delete_memory.",
+        "name": "sys_read_memory",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Append and write to the current project's memory rules. Parameters: content (Markdown-formatted rule content)",
+        "name": "sys_write_memory",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "content"
+          ],
+          "properties": {
+            "content": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Modify a specified line in memory by line number. Parameters: lineNumber (1-based line number, obtain by calling sys_read_memory first), newContent (the new content for that line).",
+        "name": "sys_edit_memory",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "lineNumber",
+            "newContent"
+          ],
+          "properties": {
+            "lineNumber": {
+              "type": "integer"
+            },
+            "newContent": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Delete a specified line in memory by line number. Parameters: lineNumber (1-based line number, obtain by calling sys_read_memory first).",
+        "name": "sys_delete_memory",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "lineNumber"
+          ],
+          "properties": {
+            "lineNumber": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Execute a local PowerShell script. Process auto-terminates after completion.\r\nRuns in background by default (no window popup). Returns full execution output.\r\nBest for quick queries and one-off commands.\r\n\r\nParameters:\r\n- script: PowerShell script code to execute\r\n- timeout: Timeout in milliseconds. MUST set a reasonable value, default 30s. NEVER set to 0\r\n- background: Run in background (default true). Set false ONLY when user interaction is needed",
+        "name": "sys_execute_powershell",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "script"
+          ],
+          "properties": {
+            "script": {
+              "type": "string"
+            },
+            "timeout": {
+              "type": "integer",
+              "default": 30000
+            },
+            "background": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Start a local PowerShell interactive session. Session stays alive for multiple commands.\r\nRuns in background by default (no window popup). Suitable for complex multi-step operations.\r\n\r\n⚠️ You MUST call sys_close_session after completing your task. Do NOT leave sessions idle!\r\n\r\nParameters:\r\n- background: Run in background (default true). Set false ONLY when user interaction is needed\r\n\r\nReturns: Session ID for subsequent sys_send_command and sys_close_session calls.",
+        "name": "sys_start_local_session",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {
+            "background": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Start a remote SSH interactive session (Windows/Linux). Session stays alive for multiple commands.\r\nSuitable for remote deployment, code pulls, database operations, etc.\r\n\r\nAuthentication (priority order):\r\n1. Key-based (recommended): Provide privateKeyPath parameter\r\n2. Password-based: Use password only when privateKeyPath is not provided\r\n\r\nParameters:\r\n- host: Remote server address\r\n- username: Username\r\n- password: Password (optional, used when no key provided)\r\n- privateKeyPath: SSH private key file path (optional, e.g. ~/.ssh/id_rsa)\r\n\r\nReturns: Session ID for subsequent sys_send_command and sys_close_session calls.",
+        "name": "sys_start_remote_session",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "host",
+            "username"
+          ],
+          "properties": {
+            "host": {
+              "type": "string"
+            },
+            "username": {
+              "type": "string"
+            },
+            "password": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "privateKeyPath": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Query a single session's current state. Use after SSH auth wait, slow network, or to confirm readiness after user input. Parameter: sessionId",
+        "name": "sys_get_session_status",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "sessionId"
+          ],
+          "properties": {
+            "sessionId": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Send a command to an active session and return output in real-time.\r\nSupports multi-step operations that depend on previous command results.\r\n\r\n⚠️ Timeout guidelines:\r\n- Quick commands: 15000ms\r\n- Normal commands: 30000ms (default)\r\n- Long-running commands: 60000~300000ms\r\n- When uncertain, set longer. NEVER omit timeout.\r\n\r\nParameters:\r\n- sessionId: Session ID\r\n- command: Command to execute\r\n- timeoutMs: Timeout in milliseconds, default 30000",
+        "name": "sys_send_command",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "sessionId",
+            "command"
+          ],
+          "properties": {
+            "sessionId": {
+              "type": "string"
+            },
+            "command": {
+              "type": "string"
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "default": 30000
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Close an active session and release resources. ⚠️ You MUST call this after task completion! Do NOT leave sessions idle. Parameter: sessionId",
+        "name": "sys_close_session",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "sessionId"
+          ],
+          "properties": {
+            "sessionId": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "List all active execution sessions.",
+        "name": "sys_list_sessions",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "列出系统中所有打开的窗口，返回窗口标题、进程名、位置、状态等信息。",
+        "name": "sys_list_windows",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "获取当前活跃（获得焦点）的窗口信息。",
+        "name": "sys_get_active_window",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "按标题查找窗口。支持模糊匹配。",
+        "name": "sys_find_window_by_title",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "title"
+          ],
+          "properties": {
+            "title": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "激活（聚焦）指定的窗口。参数可以是窗口句柄（如 0x12345）或窗口标题。",
+        "name": "sys_activate_window",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "hWndOrTitle"
+          ],
+          "properties": {
+            "hWndOrTitle": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "最小化指定的窗口。",
+        "name": "sys_minimize_window",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "hWndOrTitle"
+          ],
+          "properties": {
+            "hWndOrTitle": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "最大化指定的窗口。",
+        "name": "sys_maximize_window",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "hWndOrTitle"
+          ],
+          "properties": {
+            "hWndOrTitle": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "恢复窗口到正常大小（如果已最小化或最大化）。",
+        "name": "sys_restore_window",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "hWndOrTitle"
+          ],
+          "properties": {
+            "hWndOrTitle": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "关闭指定的窗口。",
+        "name": "sys_close_window",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "hWndOrTitle"
+          ],
+          "properties": {
+            "hWndOrTitle": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "移动和调整窗口的位置和大小。",
+        "name": "sys_move_window",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "hWndOrTitle",
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
+          "properties": {
+            "hWndOrTitle": {
+              "type": "string"
+            },
+            "x": {
+              "type": "integer"
+            },
+            "y": {
+              "type": "integer"
+            },
+            "width": {
+              "type": "integer"
+            },
+            "height": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "List files and folders in the current workspace directory. Returns up to 100 items.",
+        "name": "sys_list_directory",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Get metadata for a file or folder in the current workspace directory.",
+        "name": "sys_get_file_info",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Read a text or code file in the current workspace directory. Supports 1-based line ranges, optional line numbers, and returns hash/encoding/newline metadata for safe edits.",
+        "name": "sys_read_file",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "startLine": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "default": null
+            },
+            "endLine": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "default": null
+            },
+            "withLineNumbers": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Search files in the current workspace directory by pattern. Returns up to 50 matches.",
+        "name": "sys_search_files",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "rootPath",
+            "pattern"
+          ],
+          "properties": {
+            "rootPath": {
+              "type": "string"
+            },
+            "pattern": {
+              "type": "string"
+            },
+            "recursive": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Get available system drives. Use only when the user explicitly wants to change the workspace directory.",
+        "name": "sys_get_drives",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Open or reveal a file or folder in Explorer within the current workspace directory. mode=open opens a folder. mode=select reveals a file or folder.",
+        "name": "sys_open_in_explorer",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string",
+              "default": "open"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Create a new file in the current workspace directory. Fails if the file already exists.",
+        "name": "sys_create_file",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "content": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Write a file in the current workspace directory. Creates the file if it does not exist, or replaces it if it already exists. backup defaults to true for existing files.",
+        "name": "sys_write_file",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "content": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "backup": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "default": null
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Write a large file in the current workspace directory. Supports overwrite and optional backup.",
+        "name": "sys_write_large_file",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "content": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "overwrite": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "default": null
+            },
+            "backup": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "default": null
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Write multiple files in a single call. Each file can control overwrite individually. Supports optional backup and stop-on-error behavior.",
+        "name": "sys_write_files_batch",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "files"
+          ],
+          "properties": {
+            "files": true,
+            "backup": {
+              "type": "boolean",
+              "default": true
+            },
+            "stopOnError": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Edit an existing text file by 1-based line numbers. operation supports replace, insert, and delete. Use sys_read_file first to get exact line numbers and hash. backup defaults to true.",
+        "name": "sys_edit_file",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "path",
+            "operation",
+            "startLine"
+          ],
+          "properties": {
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "operation": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "startLine": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "endLine": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "default": null
+            },
+            "content": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "backup": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "default": null
+            },
+            "expectedHash": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Delete a file in the current workspace directory. backup defaults to true.",
+        "name": "sys_delete_file",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "backup": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "default": null
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Move or rename a file within the current workspace directory.",
+        "name": "sys_move_file",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "sourcePath",
+            "destPath"
+          ],
+          "properties": {
+            "sourcePath": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "destPath": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Create a directory in the current workspace directory, including parent directories when needed.",
+        "name": "sys_create_directory",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "Delete an empty directory in the current workspace directory. Non-empty directories are not allowed.",
+        "name": "sys_delete_directory",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "列出系统中所有可启动的应用程序，包括IDE、浏览器、开发工具等。返回应用名称、路径、分类、可用状态等信息。",
+        "name": "sys_list_launchable_applications",
+        "parameters": {
+          "type": "object",
+          "required": [],
+          "properties": {},
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "启动指定的应用程序。支持的应用包括Visual Studio、VS Code、Chrome、Firefox、QQ等。",
+        "name": "sys_launch_application",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "applicationName"
+          ],
+          "properties": {
+            "applicationName": {
+              "type": "string"
+            },
+            "workingDirectory": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "用指定的应用程序打开文件。例如：用Visual Studio打开.cs文件，用Chrome打开.html文件。",
+        "name": "sys_open_file_with_application",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "filePath",
+            "applicationName"
+          ],
+          "properties": {
+            "filePath": {
+              "type": "string"
+            },
+            "applicationName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "description": "查询指定应用的详细信息，包括路径、版本、分类等。",
+        "name": "sys_get_application_info",
+        "parameters": {
+          "type": "object",
+          "required": [
+            "applicationName"
+          ],
+          "properties": {
+            "applicationName": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "tool_choice": "auto"
+}

@@ -1,0 +1,67 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<TargetFramework>net10.0</TargetFramework>
+	<ImplicitUsings>enable</ImplicitUsings>
+	<Nullable>enable</Nullable>
+	<!-- 阶段 0：屏蔽 Microsoft.Agents.AI(.Workflows) / Microsoft.Extensions.AI 的 Experimental 诊断
+	     MAAI001 / MAAIW001 / MEAI001 - 见 docs/未来版本策划/多智能体编排模式策划/02-当前代码现状.md §8 -->
+	<NoWarn>$(NoWarn);MAAI001;MAAIW001;MEAI001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="artifacts\**" />
+    <Compile Remove="Services\**" />
+    <EmbeddedResource Remove="artifacts\**" />
+    <EmbeddedResource Remove="Services\**" />
+    <None Remove="artifacts\**" />
+    <None Remove="Services\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="prompts\work_mode\general_manager.md">
+      <LogicalName>Netor.Cortana.AI.prompts.work_mode.general_manager.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="prompts\work_mode\intent_classifier.md">
+      <LogicalName>Netor.Cortana.AI.prompts.work_mode.intent_classifier.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="prompts\work_mode\report_compaction.md">
+      <LogicalName>Netor.Cortana.AI.prompts.work_mode.report_compaction.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="prompts\meeting\host.md">
+      <LogicalName>Netor.Cortana.AI.prompts.meeting.host.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="prompts\meeting\compaction.md">
+      <LogicalName>Netor.Cortana.AI.prompts.meeting.compaction.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="prompts\meeting\participant_header.md">
+      <LogicalName>Netor.Cortana.AI.prompts.meeting.participant_header.md</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="prompts\**\*.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+	<PackageReference Include="Microsoft.Agents.AI" Version="1.7.0" />
+	<PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.7.0" />
+	<PackageReference Include="Microsoft.Agents.AI.Workflows" Version="1.7.0" />
+	<PackageReference Include="Microsoft.Extensions.AI" Version="10.6.0" />
+	<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.8" />
+	<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+	<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
+	<PackageReference Include="Netor.Anthropic" Version="12.21.11" />
+	<PackageReference Include="Netor.EventHub" Version="1.2.8" />
+	<PackageReference Include="OpenTelemetry.Api" Version="1.15.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<ProjectReference Include="..\Netor.Cortana.Entitys\Netor.Cortana.Entitys.csproj" />
+	<ProjectReference Include="..\Netor.Cortana.Plugin\Netor.Cortana.Plugin.csproj" />
+  </ItemGroup>
+
+</Project>

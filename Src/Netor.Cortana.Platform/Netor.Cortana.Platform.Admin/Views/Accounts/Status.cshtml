@@ -1,0 +1,57 @@
+@model Netor.Cortana.Platform.Admin.Models.Accounts.AccountStatusViewModel
+@{
+    ViewData["Title"] = "更改用户状态";
+    var mode = Context.Request.Query["mode"].ToString();
+    var isDrawer = string.Equals(mode, "drawer", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="admin-drawer-page">
+    <section class="admin-card admin-form-card">
+        <div class="admin-card-header">
+            <div>
+                <h2 class="admin-card-title">更改用户状态</h2>
+                <div class="admin-inline-stat">@Model.LoginUserName</div>
+            </div>
+            @if (isDrawer)
+            {
+                <button class="layui-btn layui-btn-primary layui-btn-sm" type="button" data-drawer-close>关闭</button>
+            }
+            else
+            {
+                <a class="layui-btn layui-btn-primary layui-btn-sm" asp-action="Details" asp-route-id="@Model.Id" asp-route-mode="drawer" data-admin-drawer="right" data-title="用户详情" data-width="820px">返回详情</a>
+            }
+        </div>
+        <div class="admin-card-body">
+            <form method="post" class="layui-form layui-form-pane" data-admin-confirm-submit="确定保存该用户状态吗？" data-admin-ajax-form="@isDrawer.ToString().ToLowerInvariant()" data-admin-table-id="accountTable" data-admin-success-message="用户状态已更新。">
+                @Html.AntiForgeryToken()
+                <input asp-for="Id" type="hidden" />
+                <input asp-for="LoginUserName" type="hidden" />
+                <input name="mode" type="hidden" value="@mode" />
+
+                <div class="layui-form-item">
+                    <label asp-for="Status" class="layui-form-label"></label>
+                    <div class="layui-input-block">
+                        <select asp-for="Status">
+                            <option value="0">正常</option>
+                            <option value="1">禁用</option>
+                            <option value="2">冻结</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-elem-quote layui-quote-nm">禁用或冻结后，前台业务应拒绝该用户继续登录或消费。</div>
+
+                <div class="admin-drawer-footer">
+                    <button class="layui-btn layui-btn-warm" type="submit" lay-submit lay-filter="adminAjaxSubmit">保存状态</button>
+                    @if (isDrawer)
+                    {
+                        <button class="layui-btn layui-btn-primary" type="button" data-drawer-close>取消</button>
+                    }
+                    else
+                    {
+                        <a class="layui-btn layui-btn-primary" asp-action="Details" asp-route-id="@Model.Id" asp-route-mode="drawer" data-admin-drawer="right" data-title="用户详情" data-width="820px">取消</a>
+                    }
+                </div>
+            </form>
+        </div>
+    </section>
+</div>

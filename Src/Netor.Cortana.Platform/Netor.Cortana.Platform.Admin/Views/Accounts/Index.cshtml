@@ -1,0 +1,349 @@
+@model Netor.Cortana.Platform.Admin.Models.Accounts.AccountIndexViewModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    ViewData["Title"] = "用户账户";
+    ViewData["WorkspaceTags"] = new[]
+    {
+        new AdminWorkspaceTag("全部用户", Model.TotalCount.ToString(), Url.Action("Index", "Accounts"), "layui-icon-user"),
+        new AdminWorkspaceTag("正常账户", Model.EnabledCount.ToString(), Url.Action("Index", "Accounts", new { status = 0 }), "layui-icon-ok"),
+        new AdminWorkspaceTag("异常/停用", Model.DisabledCount.ToString(), Url.Action("Index", "Accounts", new { status = 1 }), "layui-icon-close"),
+        new AdminWorkspaceTag("订阅记录", Model.SubscriptionCount.ToString(), Url.Action("Index", "Subscriptions"), "layui-icon-survey"),
+        new AdminWorkspaceTag("钱包余额", Model.WalletTotal.ToString("0.00"), Url.Action("Index", "Accounts", new { walletMin = 0.01m }), "layui-icon-rmb")
+    };
+}
+
+<section class="admin-card admin-filter-card">
+    <div class="admin-card-body">
+        <form id="accountFilter" class="layui-form layui-form-pane" lay-filter="accountFilter">
+            <div class="admin-filter-grid">
+                <div class="layui-form-item">
+                    <label class="layui-form-label">关键词</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="keyword" value="@Model.Keyword" placeholder="账号/昵称/实名/手机/邮箱/编号" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">状态</label>
+                    <div class="layui-input-block">
+                        <select name="status">
+                            <option value="">全部</option>
+                            @foreach (var option in GetStatusOptions())
+                            {
+                                <option value="@option.Value" selected="@(Model.Status == option.Value)">@option.Text</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">编号最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="noMin" type="number" min="0" placeholder="最小编号" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">编号最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="noMax" type="number" min="0" placeholder="最大编号" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">账户类型</label>
+                    <div class="layui-input-block">
+                        <select name="accountType">
+                            <option value="">全部</option>
+                            <option value="0">普通用户</option>
+                            <option value="1">个人用户</option>
+                            <option value="2">企业用户</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">创作者</label>
+                    <div class="layui-input-block">
+                        <select name="hasCreator">
+                            <option value="">全部</option>
+                            <option value="true">是</option>
+                            <option value="false">否</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">手机认证</label>
+                    <div class="layui-input-block">
+                        <select name="phoneConfirmed">
+                            <option value="">全部</option>
+                            <option value="true">已认证</option>
+                            <option value="false">未认证</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">邮箱认证</label>
+                    <div class="layui-input-block">
+                        <select name="emailConfirmed">
+                            <option value="">全部</option>
+                            <option value="true">已认证</option>
+                            <option value="false">未认证</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">最后登录</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="lastLoginStart" data-laydate data-laydate-type="datetime" placeholder="开始时间" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">至</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="lastLoginEnd" data-laydate data-laydate-type="datetime" placeholder="结束时间" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">钱包最小</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="walletMin" type="number" step="0.01" placeholder="0.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">钱包最大</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="walletMax" type="number" step="0.01" placeholder="9999.00" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">订单数</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="orderMin" type="number" min="0" placeholder="最小" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">订单上限</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="orderMax" type="number" min="0" placeholder="最大" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">订阅数</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="subscriptionMin" type="number" min="0" placeholder="最小" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">订阅上限</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="subscriptionMax" type="number" min="0" placeholder="最大" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">下载数</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="downloadMin" type="number" min="0" placeholder="最小" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">下载上限</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="downloadMax" type="number" min="0" placeholder="最大" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">登录次数</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="loginTimesMin" type="number" min="0" placeholder="最小" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">登录上限</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="loginTimesMax" type="number" min="0" placeholder="最大" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">登录 IP</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="loginIp" placeholder="最后登录 IP" />
+                    </div>
+                </div>
+                <div class="layui-form-item">
+                    <label class="layui-form-label">注册 IP</label>
+                    <div class="layui-input-block">
+                        <input class="layui-input" name="registerIp" placeholder="注册 IP" />
+                    </div>
+                </div>
+                <div class="layui-form-item admin-filter-submit">
+                    <button class="layui-btn layui-btn-normal" lay-submit lay-filter="accountSearch">查询</button>
+                    <button class="layui-btn layui-btn-primary" type="button" data-account-filter-reset>重置</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="admin-card admin-layui-table-card">
+    <div class="admin-card-body">
+        <input name="__RequestVerificationToken" type="hidden" value="@AntiforgeryToken()" />
+        <table id="accountTable" lay-filter="accountTable"></table>
+    </div>
+</section>
+
+<script type="text/html" id="accountStatusTpl">
+    <span class="admin-badge {{ d.statusBadgeClass }}">{{ d.statusName }}</span>
+</script>
+
+<script type="text/html" id="accountContactTpl">
+    <div class="admin-text-strong">{{ d.phone || "-" }}</div>
+    <div class="admin-text-muted">{{ d.email || "-" }}</div>
+    <div>
+        {{# if (d.phoneConfirmed) { }}<span class="admin-badge admin-badge-success">手机</span>{{# } else { }}<span class="admin-badge admin-badge-muted">手机</span>{{# } }}
+        {{# if (d.emailConfirmed) { }}<span class="admin-badge admin-badge-success">邮箱</span>{{# } else { }}<span class="admin-badge admin-badge-muted">邮箱</span>{{# } }}
+    </div>
+</script>
+
+<script type="text/html" id="accountUserTpl">
+    <div class="admin-text-strong">{{ d.loginUserName }}</div>
+    <div class="admin-text-muted">编号 {{ d.no }} · {{ d.nickName }}</div>
+    <div class="admin-text-muted">{{ d.realName }}</div>
+</script>
+
+<script type="text/html" id="accountActionsTpl">
+    <div class="layui-btn-group admin-row-actions">
+        <a class="layui-btn layui-btn-xs" lay-event="view">查看</a>
+        <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="edit">编辑</a>
+        <a class="layui-btn layui-btn-xs layui-btn-warm" lay-event="status">状态</a>
+        <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="transactions">交易</a>
+        <a class="layui-btn layui-btn-xs layui-btn-primary" lay-event="recharge">充值</a>
+        <a class="layui-btn layui-btn-xs layui-btn-danger" lay-event="password">改密</a>
+    </div>
+</script>
+
+@section Scripts {
+    <script>
+        layui.use(["form", "table", "layer"], function () {
+            const form = layui.form;
+            const table = layui.table;
+            const layer = layui.layer;
+            const filterSelector = "#accountFilter";
+            const tableId = "accountTable";
+            const tableUrl = "@Url.Action("TableData", "Accounts")";
+            const batchUrl = "@Url.Action("BatchStatus", "Accounts")";
+            const detailsUrl = "@Url.Action("Details", "Accounts")";
+            const editUrl = "@Url.Action("Edit", "Accounts")";
+            const statusUrl = "@Url.Action("Status", "Accounts")";
+            const rechargeUrl = "@Url.Action("Recharge", "Accounts")";
+            const passwordUrl = "@Url.Action("Password", "Accounts")";
+            const transactionsUrl = "@Url.Action("Transactions", "Accounts")";
+
+            const drawerUrl = (baseUrl, id) => `${baseUrl}?id=${encodeURIComponent(id)}&mode=drawer`;
+
+            window.adminTable.render({
+                elem: "#accountTable",
+                id: tableId,
+                url: tableUrl,
+                where: window.adminFilter.collect(filterSelector),
+                toolbar: "#accountTableToolbarTpl",
+                cols: [[
+                    { type: "checkbox", fixed: "left" },
+                    { field: "no", title: "编号", width: 150, sort: true },
+                    { field: "loginUserName", title: "用户", minWidth: 230, templet: "#accountUserTpl", sort: true },
+                    { title: "联系方式", minWidth: 230, templet: "#accountContactTpl" },
+                    { field: "status", title: "状态", width: 100, templet: "#accountStatusTpl", sort: true },
+                    { field: "accountTypeName", title: "类型", width: 110 },
+                    { field: "walletBalance", title: "钱包", width: 120, sort: true },
+                    { field: "subscriptionCount", title: "订阅", width: 90, sort: true },
+                    { field: "orderCount", title: "订单", width: 90, sort: true },
+                    { field: "downloadCount", title: "下载", width: 90, sort: true },
+                    { field: "creatorStatus", title: "创作者", width: 110 },
+                    { field: "loginTimes", title: "登录", width: 90, sort: true },
+                    { field: "lastLoginTimeText", title: "最后登录", width: 170, sort: true },
+                    { title: "操作", width: 285, fixed: "right", toolbar: "#accountActionsTpl" }
+                ]]
+            });
+
+            form.on("submit(accountSearch)", function () {
+                window.adminTable.reload(tableId, window.adminFilter.collect(filterSelector));
+                return false;
+            });
+
+            document.querySelector("[data-account-filter-reset]")?.addEventListener("click", function () {
+                window.adminFilter.reset(tableId, filterSelector);
+            });
+
+            const submitBatchStatus = function () {
+                const checked = table.checkStatus(tableId).data;
+                if (checked.length === 0) {
+                    layer.msg("请先选择要操作的用户。");
+                    return;
+                }
+
+                layer.confirm(`确定批量更新 ${checked.length} 个用户状态吗？`, { icon: 3, title: "批量状态" }, function (index) {
+                    const formData = new FormData();
+                    checked.forEach((item) => formData.append("ids", item.id));
+                    formData.append("status", document.getElementById("accountBatchStatus").value);
+                    formData.append("__RequestVerificationToken", document.querySelector("input[name='__RequestVerificationToken']").value);
+
+                    fetch(batchUrl, { method: "POST", body: formData })
+                        .then(() => {
+                            table.reload(tableId);
+                            layer.msg("批量状态已提交。");
+                        });
+
+                    layer.close(index);
+                });
+            };
+
+            table.on("toolbar(accountTable)", function (obj) {
+                if (obj.event === "batchStatus") {
+                    submitBatchStatus();
+                }
+            });
+
+            table.on("tool(accountTable)", function (obj) {
+                const item = obj.data;
+                if (obj.event === "view") {
+                    window.adminDrawer.openRight({ title: `查看用户 - ${item.loginUserName}`, url: drawerUrl(detailsUrl, item.id), width: "880px" });
+                } else if (obj.event === "edit") {
+                    window.adminDrawer.openRight({ title: `编辑用户 - ${item.loginUserName}`, url: drawerUrl(editUrl, item.id), width: "760px" });
+                } else if (obj.event === "status") {
+                    window.adminDrawer.openRight({ title: `更改状态 - ${item.loginUserName}`, url: drawerUrl(statusUrl, item.id), width: "560px" });
+                } else if (obj.event === "recharge") {
+                    window.adminDrawer.openRight({ title: `钱包充值 - ${item.loginUserName}`, url: drawerUrl(rechargeUrl, item.id), width: "560px" });
+                } else if (obj.event === "password") {
+                    window.adminDrawer.openRight({ title: `重置密码 - ${item.loginUserName}`, url: drawerUrl(passwordUrl, item.id), width: "620px" });
+                } else if (obj.event === "transactions") {
+                    window.adminDrawer.openBottom({
+                        title: `交易记录 - ${item.loginUserName}`,
+                        url: `${transactionsUrl}?accountId=${encodeURIComponent(item.id)}&mode=drawer`,
+                        height: "76%"
+                    });
+                }
+            });
+        });
+    </script>
+}
+
+<script type="text/html" id="accountTableToolbarTpl">
+    <div class="admin-table-toolbar">
+        <div class="admin-table-toolbar-group">
+            <select id="accountBatchStatus" class="layui-select admin-table-toolbar-select" aria-label="批量用户状态">
+                @foreach (var option in GetStatusOptions())
+                {
+                    <option value="@option.Value">批量设为 @option.Text</option>
+                }
+            </select>
+            <button class="layui-btn layui-btn-sm layui-btn-normal" lay-event="batchStatus">应用</button>
+        </div>
+    </div>
+</script>
+
+@functions {
+    private static IEnumerable<(byte Value, string Text)> GetStatusOptions()
+    {
+        return [(0, "正常"), (1, "禁用"), (2, "冻结")];
+    }
+
+    private string AntiforgeryToken()
+    {
+        return Antiforgery.GetAndStoreTokens(Context).RequestToken ?? string.Empty;
+    }
+}

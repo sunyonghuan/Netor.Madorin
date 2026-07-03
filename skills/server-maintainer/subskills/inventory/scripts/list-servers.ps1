@@ -1,0 +1,1 @@
+& "$PSScriptRoot\..\..\..\scripts\list-servers.ps1" @args

@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Netor.Cortana.Platform.Entitys\Netor.Cortana.Platform.Entitys.csproj" />
+    <ProjectReference Include="..\Netor.Cortana.Platform.Core\Netor.Cortana.Platform.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.S3" Version="4.0.24" />
+    <PackageReference Include="Netor.Extensions.EncryptExtensions" Version="1.0.5" />
+    <PackageReference Include="Netor.Extensions.JsonExtensions" Version="6.0.1" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
