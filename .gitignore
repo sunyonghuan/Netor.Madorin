@@ -3,8 +3,8 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
-# Playwright MCP snapshots (auto-generated)
-.playwright-mcp/
+# Hidden local tool/editor directories
+**/.*/
 
 # User-specific files
 *.rsuser
@@ -99,6 +99,13 @@ StyleCopReport.xml
 *.tmp_proj
 *_wpftmp.csproj
 *.log
+
+# Build script publish output
+/Build/*_stdout.txt
+/Build/*_stderr.txt
+/Build/publish_log.txt
+/Build/publish-logs/
+
 *.vspscc
 *.vssscc
 .builds
@@ -254,7 +261,6 @@ cortana.db
 cortana.db-wal
 cortana.db-shm
 Plugins/docs/google-search-crack-linker-492914-s4.json
-.claude/
 
 # Including strong name files can present a security risk
 # (https://github.com/github/gitignore/pull/2483#issue-259490424)
@@ -413,7 +419,6 @@ Cortana.Avalonia.obj
 # 偶尔会用 ai.txt 倒出长输出便于排查，不进版本库
 ai.txt
 *.tmp.txt
-/.codex/
 
 # 本地账号信息
 /Res/account.md
