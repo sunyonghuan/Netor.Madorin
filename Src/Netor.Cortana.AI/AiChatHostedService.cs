@@ -26,8 +26,11 @@ public sealed class AiChatHostedService(
     ChatTurnExecutor turnExecutor,
     ChatImageTurnExecutor imageTurnExecutor,
     ChatVideoTurnExecutor videoTurnExecutor,
+    IPublisher publisher,
     ILogger<AiChatHostedService> logger) : IAiChatEngine, IHostedService, IDisposable
 {
+    private const int SystemNoticeInputPreviewMaxLength = 500;
+
     private bool _disposed;
     private CancellationTokenSource? _serviceCts;
 
@@ -192,6 +195,10 @@ public sealed class AiChatHostedService(
         if (!selectionContextService.TryGetCurrent(out var selectionContext))
         {
             logger.LogWarning("AI 服务未初始化（缺少默认提供商/智能体/模型），跳过回复");
+            PublishInputNotAcceptedNotice(
+                userInput,
+                attachments?.Count ?? 0,
+                "当前 AI 服务未初始化，缺少默认提供商、智能体或模型。");
             return;
         }
 
@@ -214,6 +221,10 @@ public sealed class AiChatHostedService(
         if (turnState is null)
         {
             logger.LogWarning("当前默认配置无法构建 Agent，已跳过本轮发送");
+            PublishInputNotAcceptedNotice(
+                userInput,
+                attachments?.Count ?? 0,
+                "当前默认配置无法构建 Agent。");
             return;
         }
 
@@ -235,6 +246,39 @@ public sealed class AiChatHostedService(
             turnLifecycleCoordinator.NotifyChannelsCancelledAsync,
             agentResolver.ClearCachedAgent,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private void PublishInputNotAcceptedNotice(string userInput, int attachmentCount, string reason)
+    {
+        var inputPreview = BuildInputPreview(userInput, attachmentCount);
+        var content = $"{inputPreview}{Environment.NewLine}{reason}本次输入未进入对话流程。";
+
+        publisher.Publish(Events.OnSystemNotice, new SystemNoticeArgs(
+            content,
+            "输入未发送",
+            "warning",
+            "AI",
+            DateTimeOffset.UtcNow));
+    }
+
+    private static string BuildInputPreview(string userInput, int attachmentCount)
+    {
+        var text = (userInput ?? string.Empty).Trim();
+        if (text.Length > SystemNoticeInputPreviewMaxLength)
+        {
+            text = $"{text[..SystemNoticeInputPreviewMaxLength]}...";
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return attachmentCount > 0
+                ? $"收到用户输入（{attachmentCount} 个附件）。"
+                : "收到用户输入。";
+        }
+
+        return attachmentCount > 0
+            ? $"收到用户输入：{text}{Environment.NewLine}附件：{attachmentCount} 个。"
+            : $"收到用户输入：{text}";
     }
 
     /// <summary>

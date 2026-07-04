@@ -217,7 +217,7 @@ public partial class MainWindow : Window, IWorkModeSwitcher
     {
         _subscriber = App.Services.GetRequiredService<ISubscriber>();
 
-        // 用户发送消息 → 显示用户气泡（InputBox 发送路径）
+        // 用户消息进入对话流程 -> 显示用户气泡（输入框/语音等 SendMessageAsync 路径）
         _subscriber.Subscribe<ConversationUserMessageArgs>(Events.OnConversationUserMessage, (_, args) =>
         {
             if (string.IsNullOrWhiteSpace(args.Content) && args.Attachments.Count == 0)
@@ -282,18 +282,6 @@ public partial class MainWindow : Window, IWorkModeSwitcher
         _subscriber.Subscribe<SessionTitleUpdatedArgs>(Events.OnSessionTitleUpdated, (_, args) =>
         {
             Dispatcher.UIThread.Post(() => RefreshCurrentSessionTitle());
-            return Task.FromResult(false);
-        });
-
-        // 语音识别最终结果 → 显示用户消息气泡
-        _subscriber.Subscribe<VoiceTextArgs>(Events.OnSttFinal, (_, args) =>
-        {
-            if (string.IsNullOrWhiteSpace(args.Text)) return Task.FromResult(false);
-            Dispatcher.UIThread.Post(() =>
-            {
-                ChatTabContent.HideWelcome();
-                ChatTabContent.AddMessageBubble(args.Text, isUser: true);
-            });
             return Task.FromResult(false);
         });
 

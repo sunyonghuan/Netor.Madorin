@@ -292,6 +292,7 @@ public sealed class AiChatHostedServiceTests
                 new TestAppPaths(_root),
                 [],
                 NullLogger<ChatVideoTurnExecutor>.Instance),
+            publisher: _services.GetRequiredService<IPublisher>(),
             logger: NullLogger<AiChatHostedService>.Instance);
     }
 
