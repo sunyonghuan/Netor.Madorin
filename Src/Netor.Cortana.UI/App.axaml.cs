@@ -475,11 +475,6 @@ public partial class App : Application
             description: "统一 WebSocket 服务监听端口。聊天、插件总线、记忆和模型能力均通过同一端口的 /internal 端点按协议字段区分。修改后重启软件生效。",
             defaultValue: "52841", valueType: "int", sortOrder: 0);
 
-        sysSettings.EnsureSetting("Voice.WakeWordEnabled",
-            group: "语音唤醒", displayName: "语音唤醒开关",
-            description: "旧版内置语音唤醒开关。语音能力已拆为可选插件，默认软件不再启动内置语音控制。",
-            defaultValue: "false", valueType: "bool", sortOrder: 0);
-
         sysSettings.EnsureSetting("Voice.Kws.Enabled",
             group: "语音服务", displayName: "使用插件关键词唤醒",
             description: "开启后使用已安装的 voice.kws 插件提供关键词唤醒；未安装或关闭时默认软件不提供语音唤醒。",
@@ -588,6 +583,7 @@ public partial class App : Application
         sysSettings.DeleteSetting("ChatHistory.MaxContentCount");
         sysSettings.DeleteSetting("Memory.ModelId");
         sysSettings.DeleteSetting("PluginBus.Port");
+        sysSettings.DeleteSetting("Voice.WakeWordEnabled");
 
         var savedWorkspace = sysSettings.GetValue("System.WorkspaceDirectory");
         var workspacePath = (!string.IsNullOrWhiteSpace(savedWorkspace) && Directory.Exists(savedWorkspace))

@@ -32,5 +32,5 @@ public sealed class KwsPluginAdapter(
         => InvokeAsync("voice_kws_start", new Dictionary<string, object?>(), cancellationToken);
 
     public Task<VoicePluginToolResult> StopAsync(CancellationToken cancellationToken = default)
-        => InvokeAsync("voice_kws_stop", new Dictionary<string, object?>(), cancellationToken);
+        => InvokeAsync("voice_kws_stop", new Dictionary<string, object?>(), cancellationToken, requireEnabled: false);
 }

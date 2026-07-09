@@ -45,5 +45,6 @@ public sealed class SttPluginAdapter(
             {
                 ["session_id"] = sessionId ?? string.Empty
             },
-            cancellationToken);
+            cancellationToken,
+            requireEnabled: false);
 }

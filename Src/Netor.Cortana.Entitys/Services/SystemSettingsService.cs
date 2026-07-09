@@ -223,12 +223,7 @@ namespace Netor.Cortana.Entitys.Services
                     description: "应用数据和模型文件的存储目录，保存后立即生效。",
                     value: workspaceDirectory, valueType: "string", sortOrder: 0),
 
-                // ── 语音唤醒 (KWS) ────────────────────
-                Seed("Voice.WakeWordEnabled",
-                    group: "语音唤醒", displayName: "语音唤醒开关",
-                    description: "旧版内置语音唤醒开关。语音能力已拆为可选插件，默认软件不再启动内置语音控制。",
-                    value: "false", valueType: "bool", sortOrder: 0),
-
+                // ── 插件语音服务 ────────────────────
                 Seed("Voice.Kws.Enabled",
                     group: "语音服务", displayName: "使用插件关键词唤醒",
                     description: "开启后使用已安装的 voice.kws 插件提供关键词唤醒；未安装或关闭时默认软件不提供语音唤醒。",

@@ -26,6 +26,12 @@ public sealed class TtsPluginOutputChannel(
 
     public async Task OnTokenAsync(string turnId, string token, string sessionId, CancellationToken cancellationToken = default)
     {
+        if (!ttsPluginAdapter.IsAvailable)
+        {
+            _sentenceBuffer.Clear();
+            return;
+        }
+
         _activeTurnId = turnId;
         _sessionId = sessionId;
 
@@ -42,6 +48,12 @@ public sealed class TtsPluginOutputChannel(
 
     public async Task OnDoneAsync(string turnId, string sessionId, CancellationToken cancellationToken = default)
     {
+        if (!ttsPluginAdapter.IsAvailable)
+        {
+            _sentenceBuffer.Clear();
+            return;
+        }
+
         _activeTurnId = turnId;
         _sessionId = sessionId;
         await FlushSentenceAsync(cancellationToken);

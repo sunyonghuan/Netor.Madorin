@@ -14,14 +14,15 @@ public abstract class VoicePluginAdapterBase(
     VoiceCapabilityRegistry registry,
     VoicePluginCapability capability)
 {
-    public bool IsAvailable => ResolvePlugin() is not null;
+    public bool IsAvailable => ResolvePlugin(requireEnabled: true) is not null;
 
     protected async Task<VoicePluginToolResult> InvokeAsync(
         string shortToolName,
         IReadOnlyDictionary<string, object?> args,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool requireEnabled = true)
     {
-        var plugin = ResolvePlugin();
+        var plugin = ResolvePlugin(requireEnabled);
         if (plugin is null)
         {
             logger.LogDebug("未找到可用 {Capability} 插件，跳过工具调用：{ToolName}", capability, shortToolName);
@@ -74,9 +75,9 @@ public abstract class VoicePluginAdapterBase(
         return VoicePluginToolResult.Failed("invalid_response", $"{capability} 插件工具响应格式无效。");
     }
 
-    private VoicePluginDescriptor? ResolvePlugin()
+    private VoicePluginDescriptor? ResolvePlugin(bool requireEnabled)
     {
-        if (!registry.IsEnabled(capability))
+        if (requireEnabled && !registry.IsEnabled(capability))
         {
             return null;
         }

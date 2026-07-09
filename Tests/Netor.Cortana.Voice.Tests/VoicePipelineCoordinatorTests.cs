@@ -39,6 +39,7 @@ public sealed class VoicePipelineCoordinatorTests
     public async Task StartAsync_WhenKwsDisabled_DoesNotStartKws()
     {
         _settings.SetValue("Voice.Kws.Enabled", "false");
+        _settings.SetValue("Voice.Stt.Enabled", "true");
         var kws = new FakeKwsAdapter();
         var coordinator = CreateCoordinator(kws);
 
@@ -52,9 +53,12 @@ public sealed class VoicePipelineCoordinatorTests
     public async Task ApplySettingsAsync_WhenKwsDisabled_StopsKwsAndStt()
     {
         _settings.SetValue("Voice.Kws.Enabled", "true");
+        _settings.SetValue("Voice.Stt.Enabled", "true");
+        _settings.SetValue("Voice.Tts.Enabled", "true");
         var kws = new FakeKwsAdapter();
         var stt = new FakeSttAdapter();
-        var coordinator = CreateCoordinator(kws, stt);
+        var tts = new FakeTtsAdapter();
+        var coordinator = CreateCoordinator(kws, stt, tts);
         await coordinator.StartAsync(CancellationToken.None);
         Assert.AreEqual(1, kws.StartCount);
 
@@ -63,6 +67,64 @@ public sealed class VoicePipelineCoordinatorTests
 
         Assert.AreEqual(1, kws.StopCount);
         Assert.AreEqual(1, stt.StopCount);
+        Assert.AreEqual(1, tts.StopCount);
+    }
+
+    [TestMethod]
+    public async Task StartAsync_WhenSttDisabled_DoesNotStartKws()
+    {
+        _settings.SetValue("Voice.Kws.Enabled", "true");
+        _settings.SetValue("Voice.Stt.Enabled", "false");
+        var kws = new FakeKwsAdapter();
+        var coordinator = CreateCoordinator(kws);
+
+        await coordinator.StartAsync(CancellationToken.None);
+
+        Assert.AreEqual(0, kws.StartCount);
+        Assert.AreEqual(0, kws.StopCount);
+    }
+
+    [TestMethod]
+    public async Task ApplySettingsAsync_WhenSttDisabled_StopsVoiceInputChain()
+    {
+        _settings.SetValue("Voice.Kws.Enabled", "true");
+        _settings.SetValue("Voice.Stt.Enabled", "true");
+        _settings.SetValue("Voice.Tts.Enabled", "true");
+        var kws = new FakeKwsAdapter();
+        var stt = new FakeSttAdapter();
+        var tts = new FakeTtsAdapter();
+        var coordinator = CreateCoordinator(kws, stt, tts);
+        await coordinator.StartAsync(CancellationToken.None);
+        Assert.AreEqual(1, kws.StartCount);
+
+        _settings.SetValue("Voice.Stt.Enabled", "false");
+        await coordinator.ApplySettingsAsync(CancellationToken.None);
+
+        Assert.AreEqual(1, kws.StopCount);
+        Assert.AreEqual(1, stt.StopCount);
+        Assert.AreEqual(1, tts.StopCount);
+    }
+
+    [TestMethod]
+    public async Task ApplySettingsAsync_WhenTtsDisabled_StopsTtsButKeepsInputListening()
+    {
+        _settings.SetValue("Voice.Kws.Enabled", "true");
+        _settings.SetValue("Voice.Stt.Enabled", "true");
+        _settings.SetValue("Voice.Tts.Enabled", "true");
+        var kws = new FakeKwsAdapter();
+        var stt = new FakeSttAdapter();
+        var tts = new FakeTtsAdapter();
+        var coordinator = CreateCoordinator(kws, stt, tts);
+        await coordinator.StartAsync(CancellationToken.None);
+        Assert.AreEqual(1, kws.StartCount);
+
+        _settings.SetValue("Voice.Tts.Enabled", "false");
+        await coordinator.ApplySettingsAsync(CancellationToken.None);
+
+        Assert.AreEqual(1, tts.StopCount);
+        Assert.AreEqual(0, kws.StopCount);
+        Assert.AreEqual(1, kws.ConfigureCount);
+        Assert.AreEqual(1, stt.ConfigureCount);
     }
 
     private VoicePipelineCoordinator CreateCoordinator(
@@ -154,6 +216,8 @@ public sealed class VoicePipelineCoordinatorTests
 
     private sealed class FakeTtsAdapter : ITtsPluginAdapter
     {
+        public int StopCount { get; private set; }
+
         public bool IsAvailable => false;
 
         public Task EnqueueAsync(string text, string? sessionId, CancellationToken cancellationToken = default)
@@ -172,7 +236,10 @@ public sealed class VoicePipelineCoordinatorTests
             => Task.FromResult(TtsPluginToolResult.Skipped(string.Empty));
 
         public Task StopAsync(string? sessionId = null, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        {
+            StopCount++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeChatEngine : IAiChatEngine

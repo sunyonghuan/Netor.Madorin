@@ -32,6 +32,7 @@ public partial class SystemSettingsPage : UserControl
 
     private void LoadSettings()
     {
+        SettingsService.DeleteSetting("Voice.WakeWordEnabled");
         SettingsService.EnsurePlatformSettings();
 
         SettingsService.EnsureSetting("AI.Trace.Enabled",

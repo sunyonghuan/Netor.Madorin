@@ -47,7 +47,8 @@ public sealed class TtsPluginAdapter(
             {
                 ["session_id"] = sessionId ?? string.Empty
             },
-            cancellationToken);
+            cancellationToken,
+            requireEnabled: false);
 
     public Task<TtsPluginToolResult> ConfigureAsync(CancellationToken cancellationToken = default)
         => InvokeAsync(
@@ -82,9 +83,10 @@ public sealed class TtsPluginAdapter(
     private async Task<TtsPluginToolResult> InvokeAsync(
         string shortToolName,
         IReadOnlyDictionary<string, object?> args,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool requireEnabled = true)
     {
-        var plugin = ResolvePlugin();
+        var plugin = ResolvePlugin(requireEnabled);
         if (plugin is null)
         {
             logger.LogDebug("未找到可用 TTS 插件，跳过工具调用：{ToolName}", shortToolName);
@@ -136,9 +138,9 @@ public sealed class TtsPluginAdapter(
         return TtsPluginToolResult.Failed("invalid_response", "TTS 插件工具响应格式无效。");
     }
 
-    private VoicePluginDescriptor? ResolvePlugin()
+    private VoicePluginDescriptor? ResolvePlugin(bool requireEnabled = true)
     {
-        if (!registry.IsEnabled(VoicePluginCapability.Tts))
+        if (requireEnabled && !registry.IsEnabled(VoicePluginCapability.Tts))
         {
             return null;
         }

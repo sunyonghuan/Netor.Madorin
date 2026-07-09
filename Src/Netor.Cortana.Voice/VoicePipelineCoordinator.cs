@@ -47,7 +47,11 @@ public sealed class VoicePipelineCoordinator(
     private CancellationTokenSource? _serviceCts;
     private bool _disposed;
 
-    private bool IsKwsEnabled() => settings.GetValue("Voice.Kws.Enabled", false);
+    private bool IsVoiceInputEnabled()
+        => settings.GetValue("Voice.Kws.Enabled", false)
+            && settings.GetValue("Voice.Stt.Enabled", false);
+
+    private bool IsTtsEnabled() => settings.GetValue("Voice.Tts.Enabled", false);
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -115,9 +119,9 @@ public sealed class VoicePipelineCoordinator(
     private Task StartListeningAsync() => TransitionAsync("初始化", async ct =>
     {
         if (_state != State.Idle) return;
-        if (!IsKwsEnabled())
+        if (!IsVoiceInputEnabled())
         {
-            logger.LogInformation("KWS 插件开关已关闭，语音流水线保持空闲状态");
+            logger.LogInformation("语音输入链路未启用，语音流水线保持空闲状态");
             return;
         }
 
@@ -130,14 +134,35 @@ public sealed class VoicePipelineCoordinator(
     {
         return TransitionAsync("Settings.Apply", async ct =>
         {
-            if (!IsKwsEnabled())
+            var voiceInputEnabled = IsVoiceInputEnabled();
+            if (!voiceInputEnabled)
             {
+                CancelCurrentChatTask();
+                await SafeAsync("TTS.Stop", () => tts.StopAsync(cancellationToken: ct));
                 await SafeAsync("STT.Stop", () => stt.StopAsync(cancellationToken: ct));
                 await SafeAsync("KWS.Stop", () => kws.StopAsync(ct));
                 _state = State.Idle;
                 _expectedTtsCompletions = 0;
-                logger.LogInformation("语音唤醒已关闭，KWS/STT 已停止");
+                logger.LogInformation("语音输入链路已关闭，TTS/STT/KWS 已停止");
                 return;
+            }
+
+            if (!IsTtsEnabled())
+            {
+                await SafeAsync("TTS.Stop", () => tts.StopAsync(cancellationToken: ct));
+                _expectedTtsCompletions = 0;
+
+                if (_state == State.Greeting)
+                {
+                    await SafeAsync("STT.Start", () => stt.StartAsync(cancellationToken: ct));
+                    _state = State.Recognizing;
+                    logger.LogInformation("TTS 已关闭，欢迎语停止后直接进入语音识别");
+                }
+                else if (_state is State.AwaitingTts or State.Speaking)
+                {
+                    _state = State.Listening;
+                    logger.LogInformation("TTS 已关闭，当前播报已停止并回到唤醒监听");
+                }
             }
 
             await SafeAsync("KWS.Configure", () => kws.ConfigureAsync(ct));
@@ -158,7 +183,7 @@ public sealed class VoicePipelineCoordinator(
     private Task HandleWakeWordAsync()
     {
         if (_serviceCts is null || _serviceCts.IsCancellationRequested) return Task.CompletedTask;
-        if (!IsKwsEnabled()) return Task.CompletedTask;
+        if (!IsVoiceInputEnabled()) return Task.CompletedTask;
 
         return Task.Run(async () =>
         {
@@ -192,8 +217,7 @@ public sealed class VoicePipelineCoordinator(
             logger.LogInformation("收到唤醒，取消上一轮（之前状态={Prev}）", prev);
 
             // 1. 取消 AI 推理（若正在跑），避免它继续向 TTS 队列写入。
-            try { chatEngine.CancelCurrentTask(); }
-            catch (Exception ex) { logger.LogDebug(ex, "取消 AI 推理时异常"); }
+            CancelCurrentChatTask();
 
             // 2. 停 TTS：中断当前正在播放/合成的内容。
             await SafeAsync("TTS.Stop", () => tts.StopAsync(cancellationToken: _serviceCts.Token));
@@ -236,6 +260,14 @@ public sealed class VoicePipelineCoordinator(
                 return;
             }
 
+            if (!IsVoiceInputEnabled())
+            {
+                _state = State.Idle;
+                _expectedTtsCompletions = 0;
+                logger.LogInformation("语音输入链路已关闭，放弃启动新一轮识别");
+                return;
+            }
+
             // 优先播放欢迎语；播完才进 STT。若没有 TTS 插件或欢迎语缓存，直接进 STT。
             var greetingResult = await SafeInvokeAsync("TTS.GreetingPlay",
                 () => tts.GreetingPlayAsync(cancellationToken: _serviceCts.Token));
@@ -263,20 +295,36 @@ public sealed class VoicePipelineCoordinator(
         if (_state != State.Recognizing) return;
         await SafeAsync("STT.Stop", () => stt.StopAsync(cancellationToken: ct));
         // 期待一次 TTS Completed（AI 回复出 token 流时 TtsPluginOutputChannel 会发起播放）。
-        _expectedTtsCompletions = 1;
+        _expectedTtsCompletions = IsTtsEnabled() ? 1 : 0;
         // STT 释放麦克风后，立即把 KWS 拉起来听下一次唤醒，让用户能在 AI 播报中打断。
-        await SafeAsync("KWS.Start", () => kws.StartAsync(ct));
-        _state = State.AwaitingTts;
-        logger.LogDebug("STT 已出 final，等待 AI/TTS 接力（KWS 已恢复以支持 barge-in）");
+        if (IsVoiceInputEnabled())
+        {
+            await SafeAsync("KWS.Start", () => kws.StartAsync(ct));
+            _state = State.AwaitingTts;
+            logger.LogDebug("STT 已出 final，等待 AI/TTS 接力（KWS 已恢复以支持 barge-in）");
+        }
+        else
+        {
+            _state = State.Idle;
+            logger.LogInformation("STT 已出 final，但语音输入链路已关闭，保持空闲状态");
+        }
     });
 
     private Task HandleSttStoppedAsync() => TransitionAsync("STT.Stopped", async ct =>
     {
         if (_state != State.Recognizing) return;
         await SafeAsync("STT.Stop", () => stt.StopAsync(cancellationToken: ct));
-        await SafeAsync("KWS.Start", () => kws.StartAsync(ct));
-        _state = State.Listening;
-        logger.LogInformation("STT 超时无内容，已重新进入监听唤醒状态");
+        if (IsVoiceInputEnabled())
+        {
+            await SafeAsync("KWS.Start", () => kws.StartAsync(ct));
+            _state = State.Listening;
+            logger.LogInformation("STT 超时无内容，已重新进入监听唤醒状态");
+        }
+        else
+        {
+            _state = State.Idle;
+            logger.LogInformation("STT 已停止，但语音输入链路已关闭，保持空闲状态");
+        }
     });
 
     private Task HandleTtsStartedAsync() => TransitionAsync("TTS.Started", _ =>
@@ -306,6 +354,14 @@ public sealed class VoicePipelineCoordinator(
         if (_state == State.Greeting)
         {
             // 欢迎语播放结束，进入正式识别。Greeting 期间 KWS 是停的，需要先停 STT 不需要。
+            if (!IsVoiceInputEnabled())
+            {
+                _state = State.Idle;
+                _expectedTtsCompletions = 0;
+                logger.LogInformation("欢迎语结束时语音输入链路已关闭，保持空闲状态");
+                return;
+            }
+
             await SafeAsync("STT.Start", () => stt.StartAsync(cancellationToken: ct));
             _state = State.Recognizing;
             logger.LogInformation("欢迎语播报结束，已切到 STT 识别状态");
@@ -314,6 +370,14 @@ public sealed class VoicePipelineCoordinator(
 
         if (_state is State.Speaking or State.AwaitingTts)
         {
+            if (!IsVoiceInputEnabled())
+            {
+                _state = State.Idle;
+                _expectedTtsCompletions = 0;
+                logger.LogInformation("TTS 播报结束时语音输入链路已关闭，保持空闲状态");
+                return;
+            }
+
             // AwaitingTts/Speaking 期间 KWS 已经在跑（用于 barge-in），不需再 Start，
             // 直接切回 Listening 状态即可。
             _state = State.Listening;
@@ -328,11 +392,17 @@ public sealed class VoicePipelineCoordinator(
         if (_state == State.AwaitingTts)
         {
             _expectedTtsCompletions = 0;
-            _state = State.Listening;
-            logger.LogInformation("AI 完成但未发起 TTS，已重新进入监听唤醒状态");
+            _state = IsVoiceInputEnabled() ? State.Listening : State.Idle;
+            logger.LogInformation("AI 完成但未发起 TTS，当前语音流水线状态：{State}", _state);
         }
         return Task.CompletedTask;
     });
+
+    private void CancelCurrentChatTask()
+    {
+        try { chatEngine.CancelCurrentTask(); }
+        catch (Exception ex) { logger.LogDebug(ex, "取消 AI 推理时异常"); }
+    }
 
     private async Task TransitionAsync(string trigger, Func<CancellationToken, Task> action)
     {
