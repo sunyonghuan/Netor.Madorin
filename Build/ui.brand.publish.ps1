@@ -289,13 +289,13 @@ try {
 
     if ($Package) {
         $packageScript = Join-Path $BuildDir 'ui.package.ps1'
-        $packageArgs = @(
-            '-BrandReleaseDirectoryName', $brandValues.ReleaseDirectoryName,
-            '-BrandPackageName', $brandValues.PackageName
-        )
+        $packageArgs = @{
+            BrandReleaseDirectoryName = $brandValues.ReleaseDirectoryName
+            BrandPackageName = $brandValues.PackageName
+        }
 
         if (-not [string]::IsNullOrWhiteSpace($Version)) {
-            $packageArgs += @('-Version', $Version)
+            $packageArgs.Version = $Version
         }
 
         & $packageScript @packageArgs
@@ -304,7 +304,10 @@ try {
         }
     }
 } finally {
-    Set-Content -Path $AppBrandingFile -Value $originalAppBrandingSource -Encoding UTF8
+    [System.IO.File]::WriteAllText(
+        $AppBrandingFile,
+        $originalAppBrandingSource,
+        [System.Text.UTF8Encoding]::new($false))
 
     if ($published) {
         Write-Host "AppBranding.cs restored after publish." -ForegroundColor Green

@@ -93,7 +93,7 @@
 	<Style Selector="TextBox.chat-input">
 		<Setter Property="Background" Value="Transparent" />
 		<Setter Property="Foreground" Value="#cccccc" />
-		<Setter Property="CaretBrush" Value="{DynamicResource AccentBrush}" />
+		<Setter Property="CaretBrush" Value="{DynamicResource TextBrush}" />
 		<Setter Property="BorderThickness" Value="0" />
 		<Setter Property="FontSize" Value="13" />
 		<Setter Property="Padding" Value="0" />

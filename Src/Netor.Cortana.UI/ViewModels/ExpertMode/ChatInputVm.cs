@@ -478,6 +478,10 @@ public sealed class ChatInputVm : IInputVm
     /// <summary>取消当前 AI 对话（IInputVm.CancelAsync）。</summary>
     public async Task CancelAsync(CancellationToken cancellationToken = default)
     {
+        // 乐观即时恢复：UI 立刻切回空闲态，无需等待后台确认。
+        // OnConversationTurnCompleted 事件仍是最终真相，幂等不冲突。
+        IsRunning = false;
+
         try
         {
             await _chatService.CancelCurrentTaskAsync(cancellationToken);

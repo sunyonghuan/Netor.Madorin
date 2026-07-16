@@ -15,6 +15,8 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 
+using Netor.Cortana.UI.Controls.Shared.Internal;
+
 using ConnectorLine = Avalonia.Controls.Shapes.Line;
 
 namespace Netor.Cortana.UI.Controls.Shared;
@@ -60,6 +62,39 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
     private FileSystemWatcher? _watcher;
 
     /// <summary>
+    /// 路径 → 节点 O(1) 索引，替代 DFS 遍历（<see cref="FileTreePathIndex"/>）。
+    /// 仅记录已装载进 UI 的节点；工作区切换/子树重建时同步维护。
+    /// </summary>
+    private readonly FileTreePathIndex _pathIndex = new();
+
+    /// <summary>
+    /// FSW 事件 200ms 去抖 + 合并批处理器。避免事件风暴期同步刷新打爆 UI 线程。
+    /// </summary>
+    private readonly WatcherEventBatcher _batcher;
+
+    /// <summary>
+    /// 工作区装载代号。每次全量装载递增；异步装载 await 恢复后凡代号不符即视为被抢占，丢弃结果。
+    /// </summary>
+    private int _workspaceGeneration;
+
+    /// <summary>
+    /// 刷新/溢出重载时待恢复的展开目录路径集合（<see cref="StringComparer.OrdinalIgnoreCase"/>）。
+    /// 命中即在装载后自动展开，触发下一级懒加载，逐级把展开态还原回去。
+    /// </summary>
+    private readonly HashSet<string> _expansionToRestore = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// <see cref="_expansionToRestore"/> 生效的装载代号。仅当与当前 <see cref="_workspaceGeneration"/>
+    /// 相符时才使用，避免跨工作区切换后拿旧展开态误展开新树。
+    /// </summary>
+    private int _expansionRestoreGeneration = -1;
+
+    /// <summary>
+    /// 重载后待恢复的选中节点路径。目标节点随懒加载逐级出现，命中即选中并清空。
+    /// </summary>
+    private string? _selectionToRestore;
+
+    /// <summary>
     /// 当前工作目录的完整路径。
     /// </summary>
     private string _workspaceDirectory = string.Empty;
@@ -73,6 +108,11 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
     /// 全局事件订阅器，用于监听工作目录变更事件。
     /// </summary>
     private readonly ISubscriber _subscriber;
+
+    /// <summary>
+    /// 工作目录变更事件的订阅标识，用于控件卸载时退订，避免事件泄漏。
+    /// </summary>
+    private readonly Guid _workspaceChangedSubscriptionId;
 
     /// <summary>
     /// 右键复制操作暂存的文件或目录路径。
@@ -133,8 +173,9 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
     {
         InitializeComponent();
         DataContext = this;
+        _batcher = new WatcherEventBatcher(HandleWatcherDrain);
         _subscriber = App.Services.GetRequiredService<ISubscriber>();
-        _subscriber.Subscribe<WorkspaceChangedArgs>(Events.OnWorkspaceChanged, (_, args) =>
+        _workspaceChangedSubscriptionId = _subscriber.Subscribe<WorkspaceChangedArgs>(Events.OnWorkspaceChanged, (_, args) =>
         {
             Dispatcher.UIThread.Post(() => WorkspaceDirectory = args.Path);
             return Task.FromResult(false);
@@ -176,7 +217,7 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
                 return;
             _workspaceDirectory = normalized;
             UpdateWorkspaceTitle();
-            LoadTree();
+            _ = LoadWorkspaceAsync();
         }
     }
 
@@ -226,70 +267,193 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
 
     // ──────── 文件树构建 ────────
 
-    private void LoadTree()
+    /// <summary>
+    /// 目录枚举的轻量结果项。仅承载磁盘 I/O 能拿到的原始信息（路径 / 名称 / 是否目录），
+    /// 不含图标——图标解析走非线程安全的位图缓存，必须留到 UI 线程 <see cref="CreateNode"/> 时做。
+    /// </summary>
+    private readonly record struct DirEntry(string FullPath, string Name, bool IsDirectory);
+
+    /// <summary>
+    /// 异步装载整个工作区：只枚举根目录一级，子级留到展开时懒加载。
+    /// 枚举 I/O 放到线程池，节点构建 + 索引回到 UI 线程；用 <see cref="_workspaceGeneration"/>
+    /// 丢弃被后续工作区切换抢占的过期装载。
+    /// </summary>
+    private async Task LoadWorkspaceAsync()
     {
+        // 每次装载递增代号：await 恢复后凡代号不符即视为被抢占，直接丢弃结果。
+        var generation = ++_workspaceGeneration;
+
+        _batcher.Clear();
         TreeNodes.Clear();
+        _pathIndex.Clear();
         DisposeWatcher();
 
         if (string.IsNullOrEmpty(_workspaceDirectory) || !Directory.Exists(_workspaceDirectory))
             return;
 
-        foreach (var node in ScanDirectory(_workspaceDirectory, _workspaceDirectory, parent: null, depth: 0))
-            TreeNodes.Add(node);
-
-        FileTree.ItemsSource = TreeNodes;
-        ScheduleTreeConnectorUpdate();
+        // 先起监视器再枚举：装载期间的增删事件先进 batcher 排队，装载完 FlushNow 一次性消化。
         StartWatcher();
+
+        var root = _workspaceDirectory;
+        List<DirEntry> entries;
+        try
+        {
+            entries = await Task.Run(() => EnumerateLevel(root, isRootLevel: true));
+        }
+        catch
+        {
+            return;
+        }
+
+        if (generation != _workspaceGeneration)
+            return; // 已被更晚的工作区切换抢占
+
+        foreach (var entry in entries)
+        {
+            var node = CreateNode(entry.FullPath, entry.Name, entry.IsDirectory, parent: null, depth: 0);
+            TreeNodes.Add(node);
+            _pathIndex.Add(node);
+        }
+
+        MarkLastChild(TreeNodes);
+        RestoreExpansion(TreeNodes);
+        TryRestoreSelection();
+        ScheduleTreeConnectorUpdate();
+
+        // 消化装载期间积累的文件系统事件。
+        _batcher.FlushNow();
     }
 
-    private static List<FileTreeNode> ScanDirectory(string path, string workspaceRoot, FileTreeNode? parent, int depth)
+    /// <summary>
+    /// 刷新/溢出重载：先快照当前展开目录 + 选中节点，再全量重载并逐级还原展开态与选中。
+    /// 展开态快照只取「已 Loaded 且 IsExpanded」的目录路径，用生成代号绑定本次重载，
+    /// 避免跨工作区切换误用旧展开态。
+    /// </summary>
+    private Task ReloadPreservingExpansionAsync()
     {
-        var result = new List<FileTreeNode>();
+        _expansionToRestore.Clear();
+        foreach (var path in _pathIndex.EnumerateExpandedDirectoryPaths())
+            _expansionToRestore.Add(path);
+        _expansionRestoreGeneration = _workspaceGeneration + 1; // 下一次装载的代号
+        _selectionToRestore = (FileTree.SelectedItem as FileTreeNode)?.FullPath;
+
+        return LoadWorkspaceAsync();
+    }
+
+    /// <summary>
+    /// 在指定集合中把命中 <see cref="_expansionToRestore"/> 的目录节点置展开，
+    /// 触发下一级懒加载，从而逐级把展开态还原下去。仅当恢复代号与当前装载代号相符时生效。
+    /// </summary>
+    private void RestoreExpansion(IEnumerable<FileTreeNode> nodes)
+    {
+        if (_expansionToRestore.Count == 0 || _expansionRestoreGeneration != _workspaceGeneration)
+            return;
+
+        foreach (var node in nodes)
+        {
+            if (node.IsDirectory && _expansionToRestore.Contains(node.FullPath))
+                node.IsExpanded = true; // 触发 OnNodePropertyChanged → LoadChildrenAsync
+        }
+    }
+
+    /// <summary>
+    /// 若待恢复的选中节点已随懒加载出现在索引中，则选中它并清空待恢复标记。
+    /// </summary>
+    private void TryRestoreSelection()
+    {
+        if (_selectionToRestore is null)
+            return;
+        if (_pathIndex.TryGet(_selectionToRestore, out var target))
+        {
+            FileTree.SelectedItem = target;
+            _selectionToRestore = null;
+        }
+    }
+
+    /// <summary>
+    /// 首次展开某目录节点时装载其直接子级（同样只装一级）。
+    /// 竞态处理：per-node <see cref="FileTreeNode.LoadCts"/> 取消上一次未完成装载，
+    /// <see cref="_workspaceGeneration"/> 丢弃跨工作区的过期结果，装载前复核节点仍在树中。
+    /// </summary>
+    private async Task LoadChildrenAsync(FileTreeNode node)
+    {
+        if (node.LoadState is FileTreeLoadState.Loading or FileTreeLoadState.Loaded)
+            return;
+
+        node.LoadState = FileTreeLoadState.Loading;
+        var generation = _workspaceGeneration;
+
+        node.LoadCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        node.LoadCts = cts;
+        var token = cts.Token;
+
+        var path = node.FullPath;
+        List<DirEntry> entries;
+        try
+        {
+            entries = await Task.Run(() => EnumerateLevel(path, isRootLevel: false), token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch
+        {
+            node.LoadState = FileTreeLoadState.Failed;
+            return;
+        }
+
+        // 回到 UI 线程后复核：装载未被取消、未跨工作区、节点仍在索引中。
+        if (token.IsCancellationRequested || generation != _workspaceGeneration || !_pathIndex.Contains(node.FullPath))
+            return;
+
+        // 清掉占位子节点（及可能的历史子节点），换成真实一级子级。
+        foreach (var child in node.Children)
+        {
+            if (!child.IsPlaceholder)
+                _pathIndex.RemoveRecursive(child);
+        }
+        node.Children.Clear();
+
+        foreach (var entry in entries)
+        {
+            var childNode = CreateNode(entry.FullPath, entry.Name, entry.IsDirectory, node, node.Depth + 1);
+            node.Children.Add(childNode);
+            _pathIndex.Add(childNode);
+        }
+
+        MarkLastChild(node.Children);
+        node.LoadState = FileTreeLoadState.Loaded;
+
+        // 逐级还原展开态与选中：本级新出的子目录若在待恢复集里，展开触发下一级装载。
+        RestoreExpansion(node.Children);
+        TryRestoreSelection();
+        ScheduleTreeConnectorUpdate();
+    }
+
+    /// <summary>
+    /// 枚举单层目录（不递归）。纯磁盘 I/O，可在线程池执行；命中忽略集的目录直接跳过。
+    /// 排序规则与旧实现一致：文件夹在前、同类按名称忽略大小写升序。
+    /// </summary>
+    private static List<DirEntry> EnumerateLevel(string path, bool isRootLevel)
+    {
+        var result = new List<DirEntry>();
 
         try
         {
             var dirInfo = new DirectoryInfo(path);
 
-            // 文件夹在前，按名称排序；根层点目录多为平台/工作区设置目录，不在文件树中展示。
             var dirs = dirInfo.GetDirectories()
-                .Where(d => ShouldShowDirectory(d.Name, depth == 0))
+                .Where(d => !WorkspaceIgnoreRules.ShouldIgnoreName(d.Name, isRootLevel))
                 .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase);
-
             foreach (var dir in dirs)
-            {
-                var relativePath = GetRelativeThemePath(workspaceRoot, dir.FullName);
-                var node = new FileTreeNode
-                {
-                    Name = dir.Name,
-                    FullPath = dir.FullName,
-                    IsDirectory = true,
-                    ClosedIcon = FileIconTheme.ResolveFolderIcon(dir.Name, relativePath, expanded: false, isRootLevel: depth == 0),
-                    ExpandedIcon = FileIconTheme.ResolveFolderIcon(dir.Name, relativePath, expanded: true, isRootLevel: depth == 0),
-                    Parent = parent,
-                    Depth = depth
-                };
-                node.Children = new ObservableCollection<FileTreeNode>(ScanDirectory(dir.FullName, workspaceRoot, node, depth + 1));
-                result.Add(node);
-            }
+                result.Add(new DirEntry(dir.FullName, dir.Name, IsDirectory: true));
 
             var files = dirInfo.GetFiles()
                 .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase);
-
             foreach (var file in files)
-            {
-                var relativePath = GetRelativeThemePath(workspaceRoot, file.FullName);
-                result.Add(new FileTreeNode
-                {
-                    Name = file.Name,
-                    FullPath = file.FullName,
-                    IsDirectory = false,
-                    ClosedIcon = FileIconTheme.ResolveFileIcon(file.Name, relativePath),
-                    Parent = parent,
-                    Depth = depth
-                });
-            }
-
-            MarkLastChild(result);
+                result.Add(new DirEntry(file.FullName, file.Name, IsDirectory: false));
         }
         catch
         {
@@ -299,31 +463,78 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         return result;
     }
 
-    private static bool ShouldShowDirectory(string directoryName, bool isRootLevel)
+    /// <summary>
+    /// 在 UI 线程由原始信息构建单个节点，解析图标。目录节点挂上展开监听 + 占位子节点
+    /// （保证折叠状态下展开箭头可见，且首次展开触发 <see cref="LoadChildrenAsync"/>）。
+    /// </summary>
+    private FileTreeNode CreateNode(string fullPath, string name, bool isDirectory, FileTreeNode? parent, int depth)
     {
-        if (isRootLevel && directoryName.StartsWith(".", StringComparison.Ordinal))
-            return false;
+        var relativePath = GetRelativeThemePath(_workspaceDirectory, fullPath);
 
-        return !IsHiddenRepositoryDirectory(directoryName);
-    }
-
-    private static bool IsHiddenRepositoryDirectory(string directoryName)
-    {
-        return directoryName.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
-               directoryName.Equals(".svn", StringComparison.OrdinalIgnoreCase) ||
-               directoryName.Equals(".hg", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool ContainsHiddenDirectory(string relativePath)
-    {
-        var segments = relativePath.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
-        for (var i = 0; i < segments.Length; i++)
+        if (isDirectory)
         {
-            if (!ShouldShowDirectory(segments[i], i == 0))
-                return true;
+            var node = new FileTreeNode
+            {
+                Kind = FileTreeNodeKind.Directory,
+                Name = name,
+                FullPath = fullPath,
+                ClosedIcon = FileIconTheme.ResolveFolderIcon(name, relativePath, expanded: false, isRootLevel: depth == 0),
+                ExpandedIcon = FileIconTheme.ResolveFolderIcon(name, relativePath, expanded: true, isRootLevel: depth == 0),
+                Parent = parent,
+                Depth = depth
+            };
+            AttachDirectoryNode(node);
+            return node;
         }
 
-        return false;
+        return new FileTreeNode
+        {
+            Kind = FileTreeNodeKind.File,
+            Name = name,
+            FullPath = fullPath,
+            ClosedIcon = FileIconTheme.ResolveFileIcon(name, relativePath),
+            Parent = parent,
+            Depth = depth
+        };
+    }
+
+    /// <summary>
+    /// 给目录节点挂上展开监听并预置占位子节点：占位让 TreeView 渲染出展开箭头，
+    /// 首次 <see cref="FileTreeNode.IsExpanded"/> 置真时 <see cref="OnNodePropertyChanged"/> 触发懒加载。
+    /// </summary>
+    private void AttachDirectoryNode(FileTreeNode node)
+    {
+        node.PropertyChanged += OnNodePropertyChanged;
+        node.Children.Add(CreatePlaceholder(node));
+    }
+
+    /// <summary>
+    /// 构建一个占位子节点。占位不进 <see cref="_pathIndex"/>，也不参与连接线绘制（Step 8 过滤）。
+    /// </summary>
+    private static FileTreeNode CreatePlaceholder(FileTreeNode parent)
+    {
+        return new FileTreeNode
+        {
+            Kind = FileTreeNodeKind.LoadingPlaceholder,
+            Name = string.Empty,
+            FullPath = string.Empty,
+            ClosedIcon = FileIcon,
+            Parent = parent,
+            Depth = parent.Depth + 1
+        };
+    }
+
+    /// <summary>
+    /// 目录节点首次展开时触发懒加载。仅关心 <see cref="FileTreeNode.IsExpanded"/> 属性变更。
+    /// </summary>
+    private void OnNodePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(FileTreeNode.IsExpanded))
+            return;
+        if (sender is not FileTreeNode node)
+            return;
+        if (node.IsExpanded && node.LoadState == FileTreeLoadState.NotLoaded)
+            _ = LoadChildrenAsync(node);
     }
 
     private static string GetRelativeThemePath(string workspaceRoot, string fullPath)
@@ -340,7 +551,7 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         }
     }
 
-    private static void MarkLastChild(List<FileTreeNode> nodes)
+    private static void MarkLastChild(IList<FileTreeNode> nodes)
     {
         for (var i = 0; i < nodes.Count; i++)
             nodes[i].IsLastChild = i == nodes.Count - 1;
@@ -449,6 +660,10 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         if (item.DataContext is not FileTreeNode node)
             return null;
 
+        // 占位节点（懒加载展开箭头用）不参与连接线绘制。
+        if (node.IsPlaceholder)
+            return null;
+
         if (!IsNodeVisibleInExpandedTree(node) || !item.IsVisible || item.Bounds.Height < 1)
             return null;
 
@@ -502,12 +717,18 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
 
         var rootX = Math.Max(4, firstChildIconLeft - 20);
 
+        // 节点 → 目标的引用索引，把「找父节点缩进」从 O(n²)（每项 FirstOrDefault 全扫）降到 O(n)。
+        var byNode = new Dictionary<FileTreeNode, TreeConnectorTarget>(targets.Count, ReferenceEqualityComparer.Instance);
+        foreach (var target in targets)
+            byNode[target.Node] = target;
+
         var indent = targets
             .Where(target => target.Node.Parent is not null)
             .Select(target =>
             {
-                var parent = targets.FirstOrDefault(candidate => ReferenceEquals(candidate.Node, target.Node.Parent));
-                return parent is null ? 0 : target.IconLeft - parent.IconLeft;
+                return byNode.TryGetValue(target.Node.Parent!, out var parent)
+                    ? target.IconLeft - parent.IconLeft
+                    : 0;
             })
             .Where(value => value > 12)
             .DefaultIfEmpty(22)
@@ -579,116 +800,187 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         {
             IncludeSubdirectories = true,
             NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName,
+            InternalBufferSize = 65536,
             EnableRaisingEvents = true
         };
 
         _watcher.Created += OnFileSystemChanged;
         _watcher.Deleted += OnFileSystemChanged;
         _watcher.Renamed += OnFileSystemChanged;
+        _watcher.Error += OnWatcherError;
     }
 
     private void OnFileSystemChanged(object sender, FileSystemEventArgs e)
     {
-        // 忽略不展示的目录，避免根层点目录变动时把它们刷新回文件树。
-        var relative = Path.GetRelativePath(_workspaceDirectory, e.FullPath);
-        if (ContainsHiddenDirectory(relative))
+        // 忽略集在 FSW 回调线程做早期过滤，避免 node_modules 等目录事件进入批处理器。
+        if (WorkspaceIgnoreRules.ShouldIgnorePath(_workspaceDirectory, e.FullPath))
             return;
 
-        Dispatcher.UIThread.Post(() => RefreshTreeByChange(e));
+        if (e is RenamedEventArgs renamed)
+        {
+            if (WorkspaceIgnoreRules.ShouldIgnorePath(_workspaceDirectory, renamed.OldFullPath))
+                return;
+            _batcher.EnqueueRenamed(renamed.OldFullPath, renamed.FullPath);
+            return;
+        }
+
+        _batcher.Enqueue(e.ChangeType, e.FullPath);
     }
 
-    private void RefreshTreeByChange(FileSystemEventArgs e)
+    private void OnWatcherError(object sender, ErrorEventArgs e)
+    {
+        // FSW 内部缓冲区溢出或其它错误：让 batcher 输出一条 Overflow，触发 Reload。
+        _batcher.EnqueueOverflow();
+    }
+
+    /// <summary>
+    /// batcher drain 出口：把合并去重后的一批动作在 UI 线程逐条精细化应用到树，
+    /// 只增删命中的单个节点，绝不整树/整目录重扫（Overflow 例外，此时回退全量重载）。
+    /// </summary>
+    private void HandleWatcherDrain(IReadOnlyList<WatcherEventRecord> records)
     {
         if (string.IsNullOrWhiteSpace(_workspaceDirectory) || !Directory.Exists(_workspaceDirectory))
             return;
 
-        // 文件/目录新增或删除时，刷新其父目录；重命名时，刷新旧父目录和新父目录。
-        if (e is RenamedEventArgs renamed)
-        {
-            RefreshDirectory(Path.GetDirectoryName(renamed.OldFullPath));
-            RefreshDirectory(Path.GetDirectoryName(renamed.FullPath));
-            return;
-        }
-
-        RefreshDirectory(Path.GetDirectoryName(e.FullPath));
-    }
-
-    private void RefreshDirectory(string? targetDirectory)
-    {
-        if (string.IsNullOrWhiteSpace(targetDirectory))
-            return;
-
-        // 记住当前选中节点
+        // 记住选中节点，rename（删旧+建新）后尽量把选中恢复到新路径。
         var selectedPath = (FileTree.SelectedItem as FileTreeNode)?.FullPath;
 
-        // 统一去掉尾部分隔符再比较
-        var normalizedTarget = targetDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-
-        if (string.Equals(normalizedTarget, _workspaceDirectory, StringComparison.OrdinalIgnoreCase))
+        foreach (var record in records)
         {
-            var rootExpandedState = TreeNodes
-                .Where(t => t.IsDirectory)
-                .ToDictionary(t => t.FullPath, t => t.IsExpanded, StringComparer.OrdinalIgnoreCase);
-
-            TreeNodes.Clear();
-            foreach (var node in ScanDirectory(_workspaceDirectory, _workspaceDirectory, parent: null, depth: 0))
+            switch (record.Kind)
             {
-                if (node.IsDirectory && rootExpandedState.TryGetValue(node.FullPath, out var expanded))
-                    node.IsExpanded = expanded;
-
-                TreeNodes.Add(node);
+                case WatcherEventKind.Overflow:
+                    // FSW 缓冲区溢出，事件已不可靠，只能回退全量重载；保留展开态与选中。
+                    _ = ReloadPreservingExpansionAsync();
+                    return;
+                case WatcherEventKind.Created:
+                    ApplyCreated(record.Path);
+                    break;
+                case WatcherEventKind.Deleted:
+                    ApplyDeleted(record.Path);
+                    break;
+                case WatcherEventKind.Renamed:
+                    ApplyRenamed(record.OldPath!, record.Path);
+                    break;
             }
-
-            RestoreSelection(selectedPath);
-            return;
-        }
-
-        var dirNode = FindNodeByPath(TreeNodes, normalizedTarget);
-        if (dirNode is null || !dirNode.IsDirectory)
-            return;
-
-        var childExpandedState = dirNode.Children
-            .Where(t => t.IsDirectory)
-            .ToDictionary(t => t.FullPath, t => t.IsExpanded, StringComparer.OrdinalIgnoreCase);
-
-        var children = ScanDirectory(normalizedTarget, _workspaceDirectory, dirNode, dirNode.Depth + 1);
-
-        dirNode.Children.Clear();
-        foreach (var child in children)
-        {
-            if (child.IsDirectory && childExpandedState.TryGetValue(child.FullPath, out var expanded))
-                child.IsExpanded = expanded;
-
-            dirNode.Children.Add(child);
         }
 
         RestoreSelection(selectedPath);
     }
 
+    /// <summary>
+    /// 增量插入单个新增节点到正确的父节点下，保持「文件夹在前、同类按名排序」。
+    /// batcher drain 已按路径长度升序，父目录先于子入树；父目录不在索引里
+    /// （子树尚未装载 / 处于忽略目录内）时静默丢弃，等下次展开或刷新兜底。
+    /// </summary>
+    private void ApplyCreated(string fullPath)
+    {
+        if (string.IsNullOrEmpty(fullPath))
+            return;
+
+        var normalized = fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (_pathIndex.Contains(normalized))
+            return; // 已在树里，去重
+        if (WorkspaceIgnoreRules.ShouldIgnorePath(_workspaceDirectory, normalized))
+            return;
+
+        var parentDir = Path.GetDirectoryName(normalized);
+        if (string.IsNullOrEmpty(parentDir))
+            return;
+        var normalizedParent = parentDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        ObservableCollection<FileTreeNode> siblings;
+        FileTreeNode? parentNode;
+        int depth;
+
+        if (string.Equals(normalizedParent, _workspaceDirectory, StringComparison.OrdinalIgnoreCase))
+        {
+            siblings = TreeNodes;
+            parentNode = null;
+            depth = 0;
+        }
+        else
+        {
+            if (!_pathIndex.TryGet(normalizedParent, out parentNode) || !parentNode.IsDirectory)
+                return; // 父目录未装载/不可见，交给展开或刷新时兜底
+
+            // 父目录尚未展开装载（仍是占位）：跳过，待展开时一次性装全，避免占位与真实子节点混存。
+            if (parentNode.LoadState != FileTreeLoadState.Loaded)
+                return;
+
+            siblings = parentNode.Children;
+            depth = parentNode.Depth + 1;
+        }
+
+        // 只判断磁盘上的实际类型；目录节点由 CreateNode 挂占位子节点保持懒加载。
+        var isDir = Directory.Exists(normalized);
+        if (!isDir && !File.Exists(normalized))
+            return; // 建节点前对象已消失
+
+        var node = CreateNode(normalized, Path.GetFileName(normalized), isDir, parentNode, depth);
+        InsertSorted(siblings, node);
+        _pathIndex.Add(node);
+        MarkLastChild(siblings);
+        ScheduleTreeConnectorUpdate();
+    }
+
+    /// <summary>
+    /// 增量删除单个节点及其整棵子树，只从其父集合里摘掉，绝不重扫兄弟。
+    /// </summary>
+    private void ApplyDeleted(string fullPath)
+    {
+        if (string.IsNullOrEmpty(fullPath))
+            return;
+
+        var normalized = fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!_pathIndex.TryGet(normalized, out var node))
+            return; // 不在树里，无需处理
+
+        var siblings = node.Parent?.Children ?? TreeNodes;
+        siblings.Remove(node);
+        _pathIndex.RemoveRecursive(node);
+        MarkLastChild(siblings);
+        ScheduleTreeConnectorUpdate();
+    }
+
+    /// <summary>
+    /// 重命名/移动按「删旧路径 + 建新路径」处理：目录重命名会让所有子孙 FullPath 变化，
+    /// 只有重建才能保证子孙路径与索引全部正确；也天然覆盖跨目录移动。
+    /// </summary>
+    private void ApplyRenamed(string oldPath, string newPath)
+    {
+        ApplyDeleted(oldPath);
+        ApplyCreated(newPath);
+    }
+
+    /// <summary>
+    /// 把节点插入到有序兄弟集合中的正确位置：文件夹在前、同类按名称 <see cref="StringComparer.OrdinalIgnoreCase"/> 升序。
+    /// </summary>
+    private static void InsertSorted(ObservableCollection<FileTreeNode> siblings, FileTreeNode node)
+    {
+        var index = 0;
+        while (index < siblings.Count && CompareNodes(node, siblings[index]) >= 0)
+            index++;
+
+        siblings.Insert(index, node);
+    }
+
+    /// <summary>
+    /// 兄弟节点排序比较：文件夹优先，其次按名称忽略大小写。
+    /// </summary>
+    private static int CompareNodes(FileTreeNode a, FileTreeNode b)
+    {
+        if (a.IsDirectory != b.IsDirectory)
+            return a.IsDirectory ? -1 : 1;
+
+        return string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+    }
+
     private void RestoreSelection(string? selectedPath)
     {
         if (selectedPath is null) return;
-        var target = FindNodeByPath(TreeNodes, selectedPath);
-        if (target is not null)
+        if (_pathIndex.TryGet(selectedPath, out var target))
             FileTree.SelectedItem = target;
-    }
-
-    private static FileTreeNode? FindNodeByPath(IEnumerable<FileTreeNode> nodes, string fullPath)
-    {
-        foreach (var node in nodes)
-        {
-            if (string.Equals(node.FullPath, fullPath, StringComparison.OrdinalIgnoreCase))
-                return node;
-
-            if (!node.IsDirectory || node.Children.Count == 0)
-                continue;
-
-            var found = FindNodeByPath(node.Children, fullPath);
-            if (found is not null)
-                return found;
-        }
-
-        return null;
     }
 
     private void DisposeWatcher()
@@ -698,6 +990,7 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         _watcher.Created -= OnFileSystemChanged;
         _watcher.Deleted -= OnFileSystemChanged;
         _watcher.Renamed -= OnFileSystemChanged;
+        _watcher.Error -= OnWatcherError;
         _watcher.Dispose();
         _watcher = null;
     }
@@ -748,7 +1041,8 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
 
     private void OnRefreshClick(object? sender, RoutedEventArgs e)
     {
-        LoadTree();
+        // 刷新：全量重载但保留当前展开态与选中（用户选择「保留展开态」）。
+        _ = ReloadPreservingExpansionAsync();
     }
 
     private void OnCollapseAllClick(object? sender, RoutedEventArgs e)
@@ -800,7 +1094,8 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
 
         foreach (var item in FileTree.SelectedItems)
         {
-            if (item is FileTreeNode node)
+            // 占位节点（加载中）不是真实文件/目录，排除在所有右键操作之外。
+            if (item is FileTreeNode { IsPlaceholder: false } node)
                 nodes.Add(node);
         }
         return nodes;
@@ -1096,7 +1391,8 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
             return null;
 
         var item = sourceVisual.FindAncestorOfType<TreeViewItem>();
-        return item?.DataContext as FileTreeNode;
+        // 占位节点无真实路径，拖放不应把它当作落点。
+        return item?.DataContext is FileTreeNode { IsPlaceholder: false } node ? node : null;
     }
 
     private void UpdateDropVisual(DragEventArgs e)
@@ -1251,48 +1547,26 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
     {
         ClearDropVisual();
         DisposeWatcher();
+        _batcher.Clear();
+        _subscriber.Unsubscribe(_workspaceChangedSubscriptionId);
+        DetachNodeHandlers(TreeNodes);
+        _pathIndex.Clear();
         base.OnUnloaded(e);
     }
-}
 
-/// <summary>
-/// 文件树节点。
-/// </summary>
-public sealed class FileTreeNode : INotifyPropertyChanged
-{
-    private bool _isExpanded;
-
-    public required string Name { get; init; }
-    public required string FullPath { get; init; }
-    public required bool IsDirectory { get; init; }
-    public required Bitmap ClosedIcon { get; init; }
-    public Bitmap? ExpandedIcon { get; init; }
-    public FileTreeNode? Parent { get; init; }
-    public int Depth { get; init; }
-    public bool IsLastChild { get; set; }
-    public ObservableCollection<FileTreeNode> Children { get; set; } = [];
-
-    public Bitmap Icon => IsDirectory && IsExpanded && ExpandedIcon is not null
-        ? ExpandedIcon
-        : ClosedIcon;
-
-    public bool IsExpanded
+    /// <summary>
+    /// 递归解除目录节点的属性变更订阅，避免控件卸载后残留事件引用导致内存泄漏。
+    /// </summary>
+    private void DetachNodeHandlers(IEnumerable<FileTreeNode> nodes)
     {
-        get => _isExpanded;
-        set
+        foreach (var node in nodes)
         {
-            if (_isExpanded == value) return;
-            _isExpanded = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(Icon));
+            if (node.IsDirectory)
+            {
+                node.PropertyChanged -= OnNodePropertyChanged;
+                DetachNodeHandlers(node.Children);
+            }
         }
-    }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
 

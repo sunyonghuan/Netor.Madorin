@@ -172,6 +172,69 @@ public sealed class ChatSessionServiceTests
     }
 
     [TestMethod]
+    public async Task EnsureCurrentSessionAsync_AfterResumingNonLatestSession_KeepsResumedSessionInsteadOfLatest()
+    {
+        // 回归：恢复一个“非最新”专家会话后，下一轮准备（EnsureCurrentSessionAsync）
+        // 必须复用被恢复的会话，而不是重解析成“最近会话”，否则 AI 上下文会串到别的会话。
+        // 详见 ChatTurnPreparationService.TryPrepareConversationTurnAsync 的修复。
+        SeedDefaultSelection();
+        var categorize = _appPaths.WorkspaceDirectory.Md5Encrypt();
+        SeedChatSession("older-session", categorize, "较早的会话", 100);
+        SeedChatSession("latest-session", categorize, "最近的会话", 900);
+
+        var resolver = CreateResolverWithFactory();
+        resolver.LoadDefaults();
+        var sessionService = CreateSessionService();
+        var agent = resolver.BuildAgentForTurn(currentAgent: null, mentions: []);
+
+        // 先确认“最近会话”确实是 latest-session（否则本测试前提不成立）。
+        Assert.AreEqual("latest-session", sessionService.GetMostRecentVisibleExpertSessionId(categorize));
+
+        // 恢复较早的会话（模拟用户在左侧点击历史对话）。
+        await sessionService.ResumeSessionAsync(
+            "older-session",
+            agent!,
+            resolver.CurrentProvider!,
+            resolver.CurrentAgent!,
+            resolver.CurrentModel!);
+        Assert.AreEqual("older-session", sessionService.CurrentId);
+
+        // 下一轮发消息的准备：必须仍然是 older-session，而不是被覆盖成 latest-session。
+        var session = await sessionService.EnsureCurrentSessionAsync(
+            agent!,
+            resolver.CurrentProvider!,
+            resolver.CurrentAgent!,
+            resolver.CurrentModel!);
+
+        Assert.AreEqual("older-session", sessionService.CurrentId);
+        Assert.AreEqual("older-session", session.StateBag.GetValue<string>("sessionid"));
+    }
+
+    [TestMethod]
+    public async Task EnsureCurrentSessionAsync_WhenNoCurrentSession_FallsBackToMostRecentSession()
+    {
+        // 冷启动语义保持：没有当前活跃会话时，EnsureCurrentSessionAsync 回退到“最近会话”。
+        SeedDefaultSelection();
+        var categorize = _appPaths.WorkspaceDirectory.Md5Encrypt();
+        SeedChatSession("older-session", categorize, "较早的会话", 100);
+        SeedChatSession("latest-session", categorize, "最近的会话", 900);
+
+        var resolver = CreateResolverWithFactory();
+        resolver.LoadDefaults();
+        var sessionService = CreateSessionService();
+        var agent = resolver.BuildAgentForTurn(currentAgent: null, mentions: []);
+
+        var session = await sessionService.EnsureCurrentSessionAsync(
+            agent!,
+            resolver.CurrentProvider!,
+            resolver.CurrentAgent!,
+            resolver.CurrentModel!);
+
+        Assert.AreEqual("latest-session", sessionService.CurrentId);
+        Assert.AreEqual("latest-session", session.StateBag.GetValue<string>("sessionid"));
+    }
+
+    [TestMethod]
     public void GetVisibleExpertSessions_WhenSearchKeywordProvided_FiltersWithinExpertSessionsOnly()
     {
         var categorize = _appPaths.WorkspaceDirectory.Md5Encrypt();

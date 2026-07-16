@@ -93,7 +93,9 @@ public sealed class ChatTurnPreparationService(
             runtimeContext,
             cancellationToken).ConfigureAwait(false);
 
-        var session = await sessionService.LoadOrCreateSessionAsync(
+        // 复用当前活跃会话（恢复/新建后 _currentSession 已就绪），避免每轮重解析为"最近会话"
+        // 导致恢复的历史会话被覆盖、AI 上下文串到别的会话。冷启动无当前会话时自动回退到最近会话。
+        var session = await sessionService.EnsureCurrentSessionAsync(
             orchestration.Agent,
             provider,
             agentEntity,

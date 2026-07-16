@@ -49,9 +49,9 @@ public sealed class PowerShellExecutor : IAsyncDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(script);
 
-        // 确保只有一个 PowerShell 进程在执行
-        // 不使用外部 ct 获取锁 —— 锁获取不应因 AI 框架取消而失败
-        await _executionLock.WaitAsync(CancellationToken.None);
+        // 确保只有一个 PowerShell 进程在执行。
+        // 抢锁也响应外部取消：用户点停止时不应卡在等待前一条命令释放锁上。
+        await _executionLock.WaitAsync(ct);
         try
         {
             // 清理上一个进程
@@ -109,9 +109,10 @@ public sealed class PowerShellExecutor : IAsyncDisposable
 
             _process.Start();
 
-            // 仅使用 timeout 控制进程生命周期，不链接外部 CancellationToken
-            // 外部 token 来自 AI 框架，可能因流式输出结束等非预期原因被取消
-            using var cts = new CancellationTokenSource();
+            // 进程生命周期同时受 timeout 与外部取消令牌控制：
+            // - timeout 到期：超时保护，终止进程；
+            // - 外部 ct 取消（用户点停止）：立即杀进程树，无需等待自然结束或超时。
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(timeout);
 
             var exitTask = _process.WaitForExitAsync(cts.Token);
@@ -144,14 +145,21 @@ public sealed class PowerShellExecutor : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            _logger.LogWarning("PowerShell 执行超时 ({Timeout}ms)", timeout);
-
-            // 超时：终止进程并尝试收集已有输出
+            // 无论超时还是用户主动停止，都立即终止进程树。
             if (_process is { HasExited: false })
             {
                 try { _process.Kill(entireProcessTree: true); } catch { }
             }
 
+            // 外部 ct 已取消 → 用户主动停止：向上抛出，交由工具层记录“已取消”。
+            if (ct.IsCancellationRequested)
+            {
+                _logger.LogInformation("PowerShell 执行被用户取消，已终止进程树");
+                throw;
+            }
+
+            // 否则为 timeout 到期。
+            _logger.LogWarning("PowerShell 执行超时 ({Timeout}ms)", timeout);
             return new PowerShellExecutionResult
             {
                 Success = false,

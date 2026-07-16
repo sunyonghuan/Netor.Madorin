@@ -449,6 +449,10 @@ public sealed class WorkModeInputVm : IInputVm
 
     public async Task CancelAsync(CancellationToken cancellationToken = default)
     {
+        // 乐观即时恢复：UI 立刻切回空闲态，无需等待后台确认。
+        // 工作流 finally 中的 IsRunning = keepRunning 仍是最终真相，幂等不冲突。
+        IsRunning = false;
+
         var selectedTask = GetSelectedTaskInCurrentWorkspace();
         if (selectedTask is not null)
         {

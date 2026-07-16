@@ -360,6 +360,10 @@ public sealed class MeetingInputVm : IInputVm
             return;
         }
 
+        // 乐观即时恢复：UI 立刻切回空闲态，无需等待后台暂停完成。
+        // MarkMeetingIdle / MarkMeetingRunning 事件仍是最终真相，幂等不冲突。
+        IsRunning = false;
+
         await _executor.PauseAsync(_activeMeetingId, cancellationToken);
     }
 

@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="using:Netor.Cortana.UI.Controls.Shared"
+             xmlns:internal="using:Netor.Cortana.UI.Controls.Shared.Internal"
              x:Class="Netor.Cortana.UI.Controls.Shared.WorkspaceExplorer"
              x:DataType="local:WorkspaceExplorer"
              x:CompileBindings="True"
@@ -58,6 +59,7 @@
 			        IsHitTestVisible="False"
 			        Opacity="0" />
 			<TreeView x:Name="FileTree"
+			          ItemsSource="{Binding TreeNodes}"
 			          Background="Transparent"
 			          BorderBrush="Transparent"
 			          BorderThickness="1"
@@ -66,7 +68,7 @@
 			          DragDrop.AllowDrop="True"
 			          DoubleTapped="OnTreeDoubleTapped">
 				<TreeView.Styles>
-					<Style Selector="TreeViewItem" x:DataType="local:FileTreeNode">
+					<Style Selector="TreeViewItem" x:DataType="internal:FileTreeNode">
 						<Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
 					</Style>
 					<Style Selector="TreeViewItem.drop-target">
@@ -76,7 +78,7 @@
 					</Style>
 				</TreeView.Styles>
 				<TreeView.ItemTemplate>
-					<TreeDataTemplate x:DataType="local:FileTreeNode" ItemsSource="{Binding Children}">
+					<TreeDataTemplate x:DataType="internal:FileTreeNode" ItemsSource="{Binding Children}">
 						<StackPanel Orientation="Horizontal" Spacing="6" Margin="2,1">
 							<Image Width="14" Height="14" Source="{Binding Icon}" />
 							<TextBlock Text="{Binding Name}" Foreground="#cccccc" FontSize="12"

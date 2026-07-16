@@ -116,8 +116,8 @@ public sealed class ExecutionSession : IAsyncDisposable
 
         LastActivityAt = DateTime.Now;
 
-        // 不使用外部 ct 获取锁 —— 锁获取不应因 AI 框架取消而失败
-        await _writeLock.WaitAsync(CancellationToken.None);
+        // 抢锁也响应外部取消：用户点停止时不应卡在等待前一条命令释放锁上。
+        await _writeLock.WaitAsync(ct);
         var commandTimedOut = false;
         try
         {
@@ -133,9 +133,10 @@ public sealed class ExecutionSession : IAsyncDisposable
             await _process!.StandardInput.WriteLineAsync($"{command}; echo '___COMMAND_END___'");
             await _process.StandardInput.FlushAsync();
 
-            // 仅使用 timeoutMs 控制命令执行时间，不链接外部 CancellationToken
-            // 外部 token 来自 AI 框架，可能因非预期原因被取消
-            using var cts = new CancellationTokenSource();
+            // 命令执行时间同时受 timeoutMs 与外部取消令牌控制：
+            // - timeout 到期：命令超时保护，输出流可能仍被占用，建议重建会话；
+            // - 外部 ct 取消（用户点停止）：立即杀进程树，会话流状态已污染，标记失败。
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(timeoutMs);
 
             // 读取输出直到命令标记
@@ -149,7 +150,18 @@ public sealed class ExecutionSession : IAsyncDisposable
 
                 if (completed == delayTask)
                 {
-                    // 超时或取消
+                    // 外部 ct 取消（用户点停止）：立即杀进程树，会话无法继续使用。
+                    if (ct.IsCancellationRequested)
+                    {
+                        if (_process is { HasExited: false })
+                        {
+                            try { _process.Kill(entireProcessTree: true); } catch { }
+                        }
+                        SetFailure("用户停止：进程树已终止，请关闭并重建会话。");
+                        throw new OperationCanceledException(ct);
+                    }
+
+                    // timeout 到期：输出流可能仍被占用，保持 Busy 状态并告知调用方。
                     commandTimedOut = true;
                     SetState(ExecutionSessionState.Busy,
                         $"上一条命令执行超时，输出流可能仍被占用。当前命令：{SummarizeCommand(_currentCommand)}。建议关闭并重建会话。");
