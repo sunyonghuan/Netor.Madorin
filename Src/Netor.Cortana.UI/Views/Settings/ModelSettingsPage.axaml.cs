@@ -45,6 +45,7 @@ public partial class ModelSettingsPage : UserControl
         else
         {
             _selectedProviderId = null;
+            BatchEnabledSwitch.IsVisible = false;
             ModelListPanel.Children.Clear();
             ModelListPanel.Children.Add(new TextBlock
             {
@@ -70,7 +71,11 @@ public partial class ModelSettingsPage : UserControl
             {
                 var fetcher = App.Services.GetRequiredService<AiModelFetcherService>();
                 await fetcher.FetchAndSaveModelsAsync(provider);
-                Dispatcher.UIThread.Post(RefreshList);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    Publisher.Publish(Events.OnAiModelChange, new DataChangeArgs(provider.Id, ChangeType.Update));
+                    RefreshList();
+                });
             }
             catch { }
         });
@@ -81,9 +86,14 @@ public partial class ModelSettingsPage : UserControl
     private void RefreshList()
     {
         ModelListPanel.Children.Clear();
-        if (_selectedProviderId is null) return;
+        if (_selectedProviderId is null)
+        {
+            BatchEnabledSwitch.IsVisible = false;
+            return;
+        }
 
-        var list = ModelService.GetByProviderId(_selectedProviderId);
+        var list = ModelService.GetAllByProviderId(_selectedProviderId);
+        BatchEnabledSwitch.IsVisible = list.Count > 0;
         if (list.Count == 0)
         {
             ModelListPanel.Children.Add(new TextBlock
@@ -139,6 +149,16 @@ public partial class ModelSettingsPage : UserControl
             });
         }
 
+        var enabledSwitch = new ToggleSwitch
+        {
+            IsChecked = entity.IsEnabled,
+            IsEnabled = !entity.IsDefault,
+            OnContent = string.Empty,
+            OffContent = string.Empty,
+        };
+        enabledSwitch.IsCheckedChanged += (_, _) => ToggleModel(entity, enabledSwitch.IsChecked == true);
+        right.Children.Add(enabledSwitch);
+
         var editBtn = new Button
         {
             Content = "编辑",
@@ -193,8 +213,9 @@ public partial class ModelSettingsPage : UserControl
         TxtDisplayName.Text = string.Empty;
         TxtDesc.Text = string.Empty;
         CboModelType.SelectedIndex = 0;
-        NudContext.Value = 0;
+        NudContext.Value = 128000;
         ChkEnabled.IsChecked = true;
+        ChkEnabled.IsEnabled = true;
         ChkDefault.IsChecked = false;
         BtnDelete.IsVisible = false;
 
@@ -236,6 +257,7 @@ public partial class ModelSettingsPage : UserControl
         NudContext.Value = entity.ContextLength;
         ChkEnabled.IsChecked = entity.IsEnabled;
         ChkDefault.IsChecked = entity.IsDefault;
+        ChkEnabled.IsEnabled = !entity.IsDefault;
         BtnDelete.IsVisible = true;
 
         for (int i = 0; i < CboModelType.Items.Count; i++)
@@ -288,8 +310,8 @@ public partial class ModelSettingsPage : UserControl
             entity.ModelType = modelType;
             entity.ContextLength = (int)(NudContext.Value ?? 0);
             entity.Description = TxtDesc.Text?.Trim() ?? string.Empty;
-            entity.IsEnabled = ChkEnabled.IsChecked ?? true;
             entity.IsDefault = ChkDefault.IsChecked ?? false;
+            entity.IsEnabled = entity.IsDefault || (ChkEnabled.IsChecked ?? true);
             entity.InputCapabilities = inputCaps;
             entity.OutputCapabilities = outputCaps;
             entity.InteractionCapabilities = interCaps;
@@ -308,8 +330,8 @@ public partial class ModelSettingsPage : UserControl
                 ModelType = modelType,
                 ContextLength = (int)(NudContext.Value ?? 0),
                 Description = TxtDesc.Text?.Trim() ?? string.Empty,
-                IsEnabled = ChkEnabled.IsChecked ?? true,
                 IsDefault = ChkDefault.IsChecked ?? false,
+                IsEnabled = ChkDefault.IsChecked == true || (ChkEnabled.IsChecked ?? true),
                 InputCapabilities = inputCaps,
                 OutputCapabilities = outputCaps,
                 InteractionCapabilities = interCaps,
@@ -324,6 +346,62 @@ public partial class ModelSettingsPage : UserControl
     }
 
     private void OnCancelClick(object? sender, RoutedEventArgs e) => ShowList();
+
+    private void OnDefaultCheckedChanged(object? sender, RoutedEventArgs e)
+    {
+        if (ChkDefault.IsChecked == true)
+        {
+            ChkEnabled.IsChecked = true;
+            ChkEnabled.IsEnabled = false;
+        }
+        else
+        {
+            ChkEnabled.IsEnabled = true;
+        }
+    }
+
+    private void OnContextShortcutClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string value } && int.TryParse(value, out var contextLength))
+            NudContext.Value = contextLength;
+    }
+
+    private void ToggleModel(AiModelEntity entity, bool isEnabled)
+    {
+        try
+        {
+            ModelService.SetEnabled(entity.Id, isEnabled);
+            Publisher.Publish(Events.OnAiModelChange, new DataChangeArgs(entity.Id, ChangeType.Update));
+            RefreshList();
+        }
+        catch
+        {
+            RefreshList();
+        }
+    }
+
+    private void OnBatchEnabledChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_selectedProviderId is null
+            || BatchEnabledSwitch.IsChecked is not bool isEnabled)
+            return;
+
+        try
+        {
+            ModelService.SetEnabledByProviderId(_selectedProviderId, isEnabled);
+            Publisher.Publish(
+                Events.OnAiModelChange,
+                new DataChangeArgs(_selectedProviderId, ChangeType.Update));
+        }
+        catch
+        {
+            // RefreshList reloads the persisted state after a failed operation.
+        }
+        finally
+        {
+            RefreshList();
+        }
+    }
 
     private void OnDeleteClick(object? sender, RoutedEventArgs e)
     {

@@ -193,7 +193,8 @@ public sealed class WorkModeInputVm : IInputVm
             OnPropertyChanged(nameof(InputPlaceholderText));
         }
     }
-    public bool CanSubmit => !string.IsNullOrWhiteSpace(_initialInput) || Attachments.Count > 0;
+    public bool CanSubmit => _selectedModel is { IsEnabled: true }
+        && (!string.IsNullOrWhiteSpace(_initialInput) || Attachments.Count > 0);
 
     public string? ValidationError
     {
@@ -249,6 +250,7 @@ public sealed class WorkModeInputVm : IInputVm
             if (SetField(ref _selectedModel, value))
             {
                 OnPropertyChanged(nameof(SelectedModelName));
+                OnPropertyChanged(nameof(CanSubmit));
             }
         }
     }
@@ -343,11 +345,17 @@ public sealed class WorkModeInputVm : IInputVm
             ?? AvailableModels.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedModel));
         OnPropertyChanged(nameof(SelectedModelName));
+        OnPropertyChanged(nameof(CanSubmit));
     }
 
     public async Task SubmitAsync(CancellationToken cancellationToken = default)
     {
         var text = _initialInput?.Trim();
+        if (_selectedModel is null || !_selectedModel.IsEnabled)
+        {
+            ValidationError = "当前没有可用的 AI 模型。";
+            return;
+        }
         if (string.IsNullOrWhiteSpace(text)) return;
 
         ValidationError = null;
@@ -405,7 +413,7 @@ public sealed class WorkModeInputVm : IInputVm
                 // 新建任务
                 var agent = _selectedAgent ?? _chatService.CurrentAgent;
                 var provider = _selectedProvider ?? _chatService.CurrentProvider;
-                var model = _selectedModel ?? _chatService.CurrentModel;
+                var model = _selectedModel;
 
                 if (agent is null || provider is null || model is null)
                 {
@@ -711,8 +719,7 @@ public sealed class WorkModeInputVm : IInputVm
         }
 
         _selectedModel = AvailableModels.FirstOrDefault(m => m.IsDefault)
-            ?? AvailableModels.FirstOrDefault()
-            ?? _chatService.CurrentModel;
+            ?? AvailableModels.FirstOrDefault();
 
         OnPropertyChanged(nameof(SelectedAgent));
         OnPropertyChanged(nameof(SelectedAgentName));
@@ -720,6 +727,7 @@ public sealed class WorkModeInputVm : IInputVm
         OnPropertyChanged(nameof(SelectedProviderName));
         OnPropertyChanged(nameof(SelectedModel));
         OnPropertyChanged(nameof(SelectedModelName));
+        OnPropertyChanged(nameof(CanSubmit));
     }
 
     private void SyncProviderModelFromAgent(AgentEntity agent)

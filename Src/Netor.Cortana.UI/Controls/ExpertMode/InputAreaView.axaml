@@ -276,7 +276,16 @@
 			<Border Background="#181818" CornerRadius="6"
 			        BorderBrush="#3c3c3c" BorderThickness="1"
 			        Padding="4" MinWidth="220" MaxHeight="360">
-				<ScrollViewer VerticalScrollBarVisibility="Auto">
+				<StackPanel Spacing="4">
+					<TextBox x:Name="ModelSearchBox" PlaceholderText="搜索模型" TextChanged="OnModelSearchTextChanged"
+					         KeyDown="OnModelSearchKeyDown"
+					         MinWidth="212"
+					         Background="Transparent"
+					         Foreground="{DynamicResource TextBrush}"
+					         BorderBrush="Transparent"
+					         BorderThickness="0" CornerRadius="3"
+					         Padding="8,4" FontSize="12" />
+					<ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="310">
 					<ItemsControl x:Name="ModelList">
 						<ItemsControl.ItemsPanel>
 							<ItemsPanelTemplate>
@@ -284,7 +293,8 @@
 							</ItemsPanelTemplate>
 						</ItemsControl.ItemsPanel>
 					</ItemsControl>
-				</ScrollViewer>
+					</ScrollViewer>
+				</StackPanel>
 			</Border>
 		</Popup>
 

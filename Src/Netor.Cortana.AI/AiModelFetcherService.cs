@@ -46,13 +46,7 @@ public sealed class AiModelFetcherService(AiProviderDriverRegistry driverRegistr
             });
         }
 
-        if (entities.Count > 0)
-        {
-            // 先清除旧数据再写入
-            _modelService.DeleteByProviderId(provider.Id);
-            _modelService.BatchInsert(entities);
-        }
-
-        return entities;
+        // 远端请求成功后，交由模型服务在事务内合并、保留本地状态并清理缺失模型。
+        return _modelService.SyncByProviderId(provider.Id, entities);
     }
 }

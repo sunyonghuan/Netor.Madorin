@@ -29,6 +29,21 @@ namespace Netor.Cortana.Entitys.Services
         }
 
         /// <summary>
+        /// 获取指定提供商下的全部模型，包括已关闭的模型。
+        /// </summary>
+        /// <param name="providerId">AI 服务提供商 ID</param>
+        public List<AiModelEntity> GetAllByProviderId(string providerId)
+        {
+            if (string.IsNullOrWhiteSpace(providerId))
+                throw new ArgumentException("ProviderId cannot be null or empty.", nameof(providerId));
+
+            return _db.Query(
+                "SELECT * FROM AiModels WHERE ProviderId = @ProviderId ORDER BY Name",
+                ReadEntity,
+                cmd => cmd.Parameters.AddWithValue("@ProviderId", providerId));
+        }
+
+        /// <summary>
         /// 检查指定提供商是否已有模型数据。
         /// </summary>
         /// <param name="providerId">AI 服务提供商 ID</param>
@@ -59,6 +74,8 @@ namespace Netor.Cortana.Entitys.Services
             {
                 foreach (var m in models)
                 {
+                    if (m.IsDefault)
+                        m.IsEnabled = true;
                     m.CreatedTimestamp = now;
                     m.UpdatedTimestamp = now;
 
@@ -74,6 +91,82 @@ namespace Netor.Cortana.Entitys.Services
         }
 
         /// <summary>
+        /// 按提供商和模型名称增量同步远端模型，保留已有模型的本地 ID 和状态。
+        /// </summary>
+        /// <param name="providerId">AI 服务提供商 ID</param>
+        /// <param name="remoteModels">远端成功返回的模型列表</param>
+        public List<AiModelEntity> SyncByProviderId(string providerId, IEnumerable<AiModelEntity> remoteModels)
+        {
+            if (string.IsNullOrWhiteSpace(providerId))
+                throw new ArgumentException("ProviderId cannot be null or empty.", nameof(providerId));
+            ArgumentNullException.ThrowIfNull(remoteModels);
+
+            var incoming = new List<AiModelEntity>();
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var model in remoteModels)
+            {
+                ArgumentNullException.ThrowIfNull(model);
+                if (string.IsNullOrWhiteSpace(model.Name) || !names.Add(model.Name))
+                    continue;
+
+                model.ProviderId = providerId;
+                incoming.Add(model);
+            }
+
+            _db.ExecuteInTransaction((conn, transaction) =>
+            {
+                var existing = ReadByProvider(conn, transaction, providerId);
+                var existingByName = new Dictionary<string, AiModelEntity>(StringComparer.Ordinal);
+                foreach (var model in existing)
+                {
+                    existingByName.TryAdd(model.Name, model);
+                }
+                var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+
+                foreach (var remote in incoming)
+                {
+                    if (existingByName.TryGetValue(remote.Name, out var local))
+                    {
+                        UpdateRemoteMetadata(conn, transaction, local, remote, now);
+                        continue;
+                    }
+
+                    remote.Id = Guid.NewGuid().ToString("N");
+                    remote.CreatedTimestamp = now;
+                    remote.UpdatedTimestamp = now;
+                    remote.IsEnabled = true;
+                    remote.IsDefault = false;
+                    Insert(conn, transaction, remote);
+                }
+
+                var stale = existing
+                    .Where(model => !names.Contains(model.Name))
+                    .ToList();
+                var deletedDefault = stale.Any(static model => model.IsDefault);
+                if (deletedDefault)
+                {
+                    var candidates = ReadEnabled(conn, transaction)
+                        .Where(model => !stale.Any(staleModel => staleModel.Id == model.Id))
+                        .OrderBy(model => string.Equals(model.ProviderId, providerId, StringComparison.Ordinal) ? 0 : 1)
+                        .ThenBy(model => model.Name, StringComparer.Ordinal)
+                        .ToList();
+
+                    SetAllDefaults(conn, transaction, now);
+                    if (candidates.Count > 0)
+                        SetDefaultInternal(conn, transaction, candidates[0].Id, now);
+                }
+
+                foreach (var model in stale)
+                {
+                    DeleteInternal(conn, transaction, model.Id);
+                }
+                return 0;
+            });
+
+            return GetAllByProviderId(providerId);
+        }
+
+        /// <summary>
         /// 删除指定提供商下的所有模型。
         /// </summary>
         /// <param name="providerId">AI 服务提供商 ID</param>
@@ -82,9 +175,13 @@ namespace Netor.Cortana.Entitys.Services
             if (string.IsNullOrWhiteSpace(providerId))
                 throw new ArgumentException("ProviderId cannot be null or empty.", nameof(providerId));
 
-            return _db.Execute(
-                "DELETE FROM AiModels WHERE ProviderId = @ProviderId",
-                cmd => cmd.Parameters.AddWithValue("@ProviderId", providerId));
+            var before = GetAllByProviderId(providerId).Count;
+            _db.ExecuteInTransaction((conn, transaction) =>
+            {
+                DeleteByProviderIdInternal(conn, transaction, providerId);
+                return 0;
+            });
+            return before;
         }
 
         /// <summary>
@@ -110,15 +207,60 @@ namespace Netor.Cortana.Entitys.Services
 
             var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
-            _db.Execute("UPDATE AiModels SET IsDefault = 0, UpdatedTimestamp = @Now WHERE IsDefault = 1",
-                cmd => cmd.Parameters.AddWithValue("@Now", now));
+            _db.ExecuteInTransaction((conn, transaction) =>
+            {
+                var model = ReadById(conn, transaction, id)
+                    ?? throw new InvalidOperationException($"AI model '{id}' was not found.");
+                SetAllDefaults(conn, transaction, now);
+                SetDefaultInternal(conn, transaction, model.Id, now);
+                return 0;
+            });
+        }
 
-            _db.Execute("UPDATE AiModels SET IsDefault = 1, UpdatedTimestamp = @Now WHERE Id = @Id",
-                cmd =>
-                {
-                    cmd.Parameters.AddWithValue("@Now", now);
-                    cmd.Parameters.AddWithValue("@Id", id);
-                });
+        /// <summary>
+        /// 设置模型启用状态。默认模型不能被关闭。
+        /// </summary>
+        /// <param name="id">模型 ID</param>
+        /// <param name="isEnabled">是否启用</param>
+        public void SetEnabled(string id, bool isEnabled)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+                throw new ArgumentException("Id cannot be null or empty.", nameof(id));
+
+            _db.ExecuteInTransaction((conn, transaction) =>
+            {
+                var model = ReadById(conn, transaction, id)
+                    ?? throw new InvalidOperationException($"AI model '{id}' was not found.");
+                if (!isEnabled && model.IsDefault)
+                    throw new InvalidOperationException("The default AI model cannot be disabled.");
+
+                UpdateEnabled(conn, transaction, id, isEnabled, DateTimeOffset.Now.ToUnixTimeMilliseconds());
+                return 0;
+            });
+        }
+
+        /// <summary>
+        /// 按提供商批量设置模型启用状态。批量关闭时默认模型保持开启。
+        /// </summary>
+        /// <param name="providerId">AI 服务提供商 ID</param>
+        /// <param name="isEnabled">是否启用</param>
+        public void SetEnabledByProviderId(string providerId, bool isEnabled)
+        {
+            if (string.IsNullOrWhiteSpace(providerId))
+                throw new ArgumentException("ProviderId cannot be null or empty.", nameof(providerId));
+
+            _db.ExecuteInTransaction((conn, transaction) =>
+            {
+                using var command = conn.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = isEnabled
+                    ? "UPDATE AiModels SET IsEnabled = 1, UpdatedTimestamp = @Now WHERE ProviderId = @ProviderId"
+                    : "UPDATE AiModels SET IsEnabled = 0, UpdatedTimestamp = @Now WHERE ProviderId = @ProviderId AND IsDefault = 0";
+                command.Parameters.AddWithValue("@Now", DateTimeOffset.Now.ToUnixTimeMilliseconds());
+                command.Parameters.AddWithValue("@ProviderId", providerId);
+                command.ExecuteNonQuery();
+                return 0;
+            });
         }
 
         /// <summary>
@@ -128,6 +270,9 @@ namespace Netor.Cortana.Entitys.Services
         public void Add(AiModelEntity entity)
         {
             ArgumentNullException.ThrowIfNull(entity);
+
+            if (entity.IsDefault)
+                entity.IsEnabled = true;
 
             var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
             entity.CreatedTimestamp = now;
@@ -143,6 +288,9 @@ namespace Netor.Cortana.Entitys.Services
         public void Update(AiModelEntity entity)
         {
             ArgumentNullException.ThrowIfNull(entity);
+
+            if (entity.IsDefault)
+                entity.IsEnabled = true;
 
             entity.UpdatedTimestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds();
 
@@ -168,8 +316,146 @@ namespace Netor.Cortana.Entitys.Services
             if (string.IsNullOrWhiteSpace(id))
                 throw new ArgumentException("Id cannot be null or empty.", nameof(id));
 
-            _db.Execute("DELETE FROM AiModels WHERE Id = @Id",
-                cmd => cmd.Parameters.AddWithValue("@Id", id));
+            _db.ExecuteInTransaction((conn, transaction) =>
+            {
+                var model = ReadById(conn, transaction, id);
+                if (model is null)
+                    return 0;
+
+                if (model.IsDefault)
+                    ReplaceDefault(conn, transaction, model.Id, null, model.ProviderId, DateTimeOffset.Now.ToUnixTimeMilliseconds());
+
+                DeleteInternal(conn, transaction, id);
+                return 0;
+            });
+        }
+
+        private void DeleteByProviderIdInternal(SqliteConnection conn, SqliteTransaction transaction, string providerId)
+        {
+            var models = ReadByProvider(conn, transaction, providerId);
+            if (models.Any(static model => model.IsDefault))
+                ReplaceDefault(conn, transaction, null, providerId, providerId, DateTimeOffset.Now.ToUnixTimeMilliseconds());
+
+            foreach (var model in models)
+                DeleteInternal(conn, transaction, model.Id);
+        }
+
+        private static void ReplaceDefault(
+            SqliteConnection conn,
+            SqliteTransaction transaction,
+            string? excludedId,
+            string? excludedProviderId,
+            string providerId,
+            long now)
+        {
+            var candidates = ReadEnabled(conn, transaction)
+                .Where(model => excludedId is null || model.Id != excludedId)
+                .Where(model => excludedProviderId is null || !string.Equals(model.ProviderId, excludedProviderId, StringComparison.Ordinal))
+                .OrderBy(model => string.Equals(model.ProviderId, providerId, StringComparison.Ordinal) ? 0 : 1)
+                .ThenBy(model => model.Name, StringComparer.Ordinal)
+                .ToList();
+
+            SetAllDefaults(conn, transaction, now);
+            if (candidates.Count > 0)
+                SetDefaultInternal(conn, transaction, candidates[0].Id, now);
+        }
+
+        private static void SetAllDefaults(SqliteConnection conn, SqliteTransaction transaction, long now)
+        {
+            using var command = conn.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "UPDATE AiModels SET IsDefault = 0, UpdatedTimestamp = @Now WHERE IsDefault = 1";
+            command.Parameters.AddWithValue("@Now", now);
+            command.ExecuteNonQuery();
+        }
+
+        private static void SetDefaultInternal(SqliteConnection conn, SqliteTransaction transaction, string id, long now)
+        {
+            using var command = conn.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "UPDATE AiModels SET IsDefault = 1, IsEnabled = 1, UpdatedTimestamp = @Now WHERE Id = @Id";
+            command.Parameters.AddWithValue("@Now", now);
+            command.Parameters.AddWithValue("@Id", id);
+            command.ExecuteNonQuery();
+        }
+
+        private static void UpdateEnabled(SqliteConnection conn, SqliteTransaction transaction, string id, bool isEnabled, long now)
+        {
+            using var command = conn.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "UPDATE AiModels SET IsEnabled = @IsEnabled, UpdatedTimestamp = @Now WHERE Id = @Id";
+            command.Parameters.AddWithValue("@IsEnabled", isEnabled);
+            command.Parameters.AddWithValue("@Now", now);
+            command.Parameters.AddWithValue("@Id", id);
+            command.ExecuteNonQuery();
+        }
+
+        private static void DeleteInternal(SqliteConnection conn, SqliteTransaction transaction, string id)
+        {
+            using var command = conn.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "DELETE FROM AiModels WHERE Id = @Id";
+            command.Parameters.AddWithValue("@Id", id);
+            command.ExecuteNonQuery();
+        }
+
+        private static void UpdateRemoteMetadata(SqliteConnection conn, SqliteTransaction transaction, AiModelEntity local, AiModelEntity remote, long now)
+        {
+            using var command = conn.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = """
+                UPDATE AiModels SET
+                    UpdatedTimestamp = @UpdatedTimestamp, Name = @Name, DisplayName = @DisplayName,
+                    Description = @Description, ContextLength = @ContextLength, ModelType = @ModelType,
+                    InputCapabilities = @InputCapabilities, OutputCapabilities = @OutputCapabilities,
+                    InteractionCapabilities = @InteractionCapabilities, CapabilitySource = @CapabilitySource,
+                    CapabilityNotes = @CapabilityNotes
+                WHERE Id = @Id
+                """;
+            command.Parameters.AddWithValue("@UpdatedTimestamp", now);
+            command.Parameters.AddWithValue("@Name", remote.Name);
+            command.Parameters.AddWithValue("@DisplayName", remote.DisplayName);
+            command.Parameters.AddWithValue("@Description", remote.Description);
+            command.Parameters.AddWithValue("@ContextLength", remote.ContextLength);
+            command.Parameters.AddWithValue("@ModelType", remote.ModelType);
+            command.Parameters.AddWithValue("@InputCapabilities", (int)remote.InputCapabilities);
+            command.Parameters.AddWithValue("@OutputCapabilities", (int)remote.OutputCapabilities);
+            command.Parameters.AddWithValue("@InteractionCapabilities", (int)remote.InteractionCapabilities);
+            command.Parameters.AddWithValue("@CapabilitySource", remote.CapabilitySource);
+            command.Parameters.AddWithValue("@CapabilityNotes", remote.CapabilityNotes);
+            command.Parameters.AddWithValue("@Id", local.Id);
+            command.ExecuteNonQuery();
+        }
+
+        private static void Insert(SqliteConnection conn, SqliteTransaction transaction, AiModelEntity entity)
+        {
+            using var command = conn.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = InsertSql;
+            BindEntity(command, entity);
+            command.ExecuteNonQuery();
+        }
+
+        private static List<AiModelEntity> ReadByProvider(SqliteConnection conn, SqliteTransaction transaction, string providerId)
+            => ReadList(conn, transaction, "SELECT * FROM AiModels WHERE ProviderId = @ProviderId ORDER BY Name", command => command.Parameters.AddWithValue("@ProviderId", providerId));
+
+        private static List<AiModelEntity> ReadEnabled(SqliteConnection conn, SqliteTransaction transaction)
+            => ReadList(conn, transaction, "SELECT * FROM AiModels WHERE IsEnabled = 1 ORDER BY Name", null);
+
+        private static AiModelEntity? ReadById(SqliteConnection conn, SqliteTransaction transaction, string id)
+            => ReadList(conn, transaction, "SELECT * FROM AiModels WHERE Id = @Id", command => command.Parameters.AddWithValue("@Id", id)).FirstOrDefault();
+
+        private static List<AiModelEntity> ReadList(SqliteConnection conn, SqliteTransaction transaction, string sql, Action<SqliteCommand>? bind)
+        {
+            using var command = conn.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = sql;
+            bind?.Invoke(command);
+            using var reader = command.ExecuteReader();
+            var result = new List<AiModelEntity>();
+            while (reader.Read())
+                result.Add(ReadEntity(reader));
+            return result;
         }
 
         private const string InsertSql = """

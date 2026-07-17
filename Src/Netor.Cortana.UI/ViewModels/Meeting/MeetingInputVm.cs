@@ -117,7 +117,8 @@ public sealed class MeetingInputVm : IInputVm
         }
     }
 
-    public bool CanSubmit => !string.IsNullOrWhiteSpace(_initialInput) || Attachments.Count > 0;
+    public bool CanSubmit => _selectedModel is { IsEnabled: true }
+        && (!string.IsNullOrWhiteSpace(_initialInput) || Attachments.Count > 0);
 
     public string? ValidationError
     {
@@ -167,6 +168,7 @@ public sealed class MeetingInputVm : IInputVm
             if (SetField(ref _selectedModel, value))
             {
                 OnPropertyChanged(nameof(SelectedModelName));
+                OnPropertyChanged(nameof(CanSubmit));
             }
         }
     }
@@ -293,11 +295,17 @@ public sealed class MeetingInputVm : IInputVm
             ?? AvailableModels.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedModel));
         OnPropertyChanged(nameof(SelectedModelName));
+        OnPropertyChanged(nameof(CanSubmit));
     }
 
     public async Task SubmitAsync(CancellationToken cancellationToken = default)
     {
         var text = _initialInput.Trim();
+        if (_selectedModel is null || !_selectedModel.IsEnabled)
+        {
+            ValidationError = "当前没有可用的 AI 模型。";
+            return;
+        }
         if (string.IsNullOrWhiteSpace(text))
         {
             return;

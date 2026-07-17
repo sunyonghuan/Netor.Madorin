@@ -74,7 +74,7 @@ public sealed class ChatAgentResolver(
     public void ChangeModel(string modelId)
     {
         var model = modelService.GetById(modelId);
-        if (model is null)
+        if (model is null || !model.IsEnabled)
         {
             return;
         }

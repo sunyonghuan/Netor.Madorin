@@ -771,6 +771,9 @@ namespace Netor.Cortana.Entitys
             TryAddColumn("ALTER TABLE WorkTasks ADD COLUMN ManagerRunId TEXT NULL");
             TryAddColumn("ALTER TABLE WorkTasks ADD COLUMN OrchestratorState TEXT NULL");
             TryAddColumn("ALTER TABLE WorkTasks ADD COLUMN OrchestratorHeartbeatAt INTEGER NULL");
+            // v1.3: 模型启用状态。缺失列使用 1 回填，保留已有普通模型的关闭状态。
+            TryAddColumn("ALTER TABLE AiModels ADD COLUMN IsEnabled INTEGER NOT NULL DEFAULT 1");
+            Execute("UPDATE AiModels SET IsEnabled = 1 WHERE IsDefault = 1 AND IsEnabled = 0");
             // v1.2: AiModels 能力字段
             TryAddColumn("ALTER TABLE AiModels ADD COLUMN InputCapabilities INTEGER NOT NULL DEFAULT 1");
             TryAddColumn("ALTER TABLE AiModels ADD COLUMN OutputCapabilities INTEGER NOT NULL DEFAULT 1");

@@ -59,6 +59,9 @@ public partial class InputAreaView : UserControl
     // ──── 私有字段 ────
 
     private IInputVm? _inputVm;
+    private List<AiModelEntity> _modelPopupModels = [];
+    private List<AiModelEntity> _modelPopupFilteredModels = [];
+    private int _modelPopupSelectedIndex = -1;
 
     /// <summary>走马灯动画 Timer（16ms / 帧）。</summary>
     private DispatcherTimer? _inputMarqueeTimer;
@@ -243,6 +246,13 @@ public partial class InputAreaView : UserControl
     {
         Dispatcher.UIThread.Post(() =>
         {
+            if (e.PropertyName is nameof(ChatInputVm.SelectedModel)
+                or nameof(MeetingInputVm.SelectedModel)
+                or nameof(WorkModeInputVm.SelectedModel))
+            {
+                UpdateSendButtonEnabled();
+            }
+
             switch (e.PropertyName)
             {
                 case nameof(IInputVm.IsRunning):
@@ -421,6 +431,19 @@ public partial class InputAreaView : UserControl
     {
         var hasText = !string.IsNullOrWhiteSpace(InputBox.Text);
         if (_inputVm is null)
+        {
+            SendButton.IsEnabled = false;
+            return;
+        }
+
+        var hasAvailableModel = _inputVm switch
+        {
+            ChatInputVm chat => chat.SelectedModel is { IsEnabled: true },
+            MeetingInputVm meeting => meeting.SelectedModel is { IsEnabled: true },
+            WorkModeInputVm work => work.SelectedModel is { IsEnabled: true },
+            _ => false,
+        };
+        if (!hasAvailableModel)
         {
             SendButton.IsEnabled = false;
             return;
@@ -1249,32 +1272,108 @@ public partial class InputAreaView : UserControl
             WorkModeInputVm wvm => (wvm.AvailableModels.Cast<AiModelEntity>().ToList(), wvm.SelectedModel?.Id),
             _ => (new List<AiModelEntity>(), null)
         };
+        if (ModelPopup.IsOpen)
+        {
+            ModelPopup.IsOpen = false;
+            return;
+        }
+
         FillModelSelectorList(models, activeId);
-        ModelPopup.IsOpen = !ModelPopup.IsOpen;
+        ModelSearchBox.Text = string.Empty;
+        _modelPopupSelectedIndex = _modelPopupFilteredModels.Count > 0 ? 0 : -1;
+        RenderModelSelectorList(_modelPopupFilteredModels);
+        ModelPopup.IsOpen = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            ModelSearchBox.Focus();
+            ModelSearchBox.CaretIndex = ModelSearchBox.Text?.Length ?? 0;
+        });
     }
 
     private void FillModelSelectorList(IEnumerable<AiModelEntity> models, string? activeId)
     {
+        _modelPopupModels = models.ToList();
+        _modelPopupFilteredModels = _modelPopupModels.ToList();
+        _modelPopupSelectedIndex = GetInitialModelPopupIndex(_modelPopupFilteredModels, activeId);
+        RenderModelSelectorList(_modelPopupFilteredModels);
+    }
+
+    private void RenderModelSelectorList(IEnumerable<AiModelEntity> models)
+    {
         ModelList.Items.Clear();
-        foreach (var model in models)
+        var visibleModels = models.ToList();
+        for (var index = 0; index < visibleModels.Count; index++)
         {
+            var model = visibleModels[index];
             var id = model.Id;
-            var isActive = id == activeId;
+            var isHighlighted = index == _modelPopupSelectedIndex;
             var display = !string.IsNullOrWhiteSpace(model.DisplayName) ? model.DisplayName : model.Name;
             var btn = new Button
             {
-                Classes = { isActive ? "selector-item-active" : "selector-item" },
+                Classes = { isHighlighted ? "selector-item-active" : "selector-item" },
                 Tag = id,
                 Content = new TextBlock
                 {
                     Text = display, FontSize = 12,
-                    Foreground = new SolidColorBrush(Color.Parse(isActive ? "#007acc" : "#cccccc")),
+                    Foreground = new SolidColorBrush(Color.Parse(isHighlighted ? "#007acc" : "#cccccc")),
                 },
             };
             var captured = model;
             btn.Click += (_, _) => OnModelItemClick(captured);
             ModelList.Items.Add(btn);
         }
+    }
+
+    private void OnModelSearchTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        var keyword = ModelSearchBox.Text?.Trim() ?? string.Empty;
+        _modelPopupFilteredModels = keyword.Length == 0
+            ? _modelPopupModels.ToList()
+            : _modelPopupModels.Where(model =>
+                model.Name.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+                || (model.DisplayName?.Contains(keyword, StringComparison.OrdinalIgnoreCase) ?? false))
+                .ToList();
+        _modelPopupSelectedIndex = _modelPopupFilteredModels.Count > 0 ? 0 : -1;
+        RenderModelSelectorList(_modelPopupFilteredModels);
+    }
+
+    private void OnModelSearchKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!ModelPopup.IsOpen) return;
+
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            ModelPopup.IsOpen = false;
+            return;
+        }
+
+        if (e.Key is Key.Up or Key.Down)
+        {
+            e.Handled = true;
+            if (_modelPopupFilteredModels.Count == 0) return;
+
+            var offset = e.Key == Key.Down ? 1 : -1;
+            _modelPopupSelectedIndex = (_modelPopupSelectedIndex + offset + _modelPopupFilteredModels.Count)
+                % _modelPopupFilteredModels.Count;
+            RenderModelSelectorList(_modelPopupFilteredModels);
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            if (_modelPopupSelectedIndex >= 0 && _modelPopupSelectedIndex < _modelPopupFilteredModels.Count)
+                OnModelItemClick(_modelPopupFilteredModels[_modelPopupSelectedIndex]);
+        }
+    }
+
+    private static int GetInitialModelPopupIndex(IReadOnlyList<AiModelEntity> models, string? activeId)
+    {
+        if (models.Count == 0) return -1;
+
+        var activeIndex = models.ToList().FindIndex(model => model.Id == activeId);
+        return activeIndex >= 0 ? activeIndex : 0;
     }
 
     private void OnModelItemClick(AiModelEntity model)

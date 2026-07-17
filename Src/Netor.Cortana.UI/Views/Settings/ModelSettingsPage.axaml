@@ -16,6 +16,10 @@
                 </ComboBox>
                 <Button Classes="btn-secondary" Content="刷新远程模型" Click="OnFetchModelsClick" />
                 <Button Classes="btn-primary" Content="+ 添加模型" Click="OnAddClick" />
+                <ToggleSwitch x:Name="BatchEnabledSwitch" IsVisible="False"
+                              OnContent="批量开启" OffContent="批量关闭"
+                              IsCheckedChanged="OnBatchEnabledChanged"
+                              VerticalAlignment="Center" />
             </StackPanel>
         </Grid>
 
@@ -61,8 +65,13 @@
                 <!-- 上下文长度 -->
                 <StackPanel Spacing="4">
                     <TextBlock Text="上下文长度" Foreground="{StaticResource SubtextBrush}" FontSize="12" />
-                    <NumericUpDown x:Name="NudContext" Minimum="0" Value="0" FormatString="0"
+                    <NumericUpDown x:Name="NudContext" Minimum="0" Value="128000" FormatString="0"
                                    Width="150" HorizontalAlignment="Left" />
+                    <WrapPanel Orientation="Horizontal">
+                        <Button Content="128K" Tag="128000" Click="OnContextShortcutClick" Margin="0,0,6,0" Classes="btn-secondary" Padding="10,3" FontSize="11" />
+                        <Button Content="512K" Tag="512000" Click="OnContextShortcutClick" Margin="0,0,6,0" Classes="btn-secondary" Padding="10,3" FontSize="11" />
+                        <Button Content="1M"   Tag="1000000" Click="OnContextShortcutClick" Classes="btn-secondary" Padding="10,3" FontSize="11" />
+                    </WrapPanel>
                 </StackPanel>
 
                 <!-- 描述 -->
@@ -76,7 +85,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="24">
                     <CheckBox x:Name="ChkEnabled" Content="启用" IsChecked="True"
                               Foreground="{StaticResource TextBrush}" />
-                    <CheckBox x:Name="ChkDefault" Content="设为默认"
+                    <CheckBox x:Name="ChkDefault" Content="设为默认" IsCheckedChanged="OnDefaultCheckedChanged"
                               Foreground="{StaticResource TextBrush}" />
                 </StackPanel>
 

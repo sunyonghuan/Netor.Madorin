@@ -140,6 +140,7 @@ public sealed class ChatInputVm : IInputVm
         {
             if (SetField(ref _selectedModel, value))
                 OnPropertyChanged(nameof(SelectedModelName));
+                OnPropertyChanged(nameof(CanSubmit));
         }
     }
 
@@ -197,6 +198,7 @@ public sealed class ChatInputVm : IInputVm
 
     /// <summary>是否可发送：不在发送中 且 输入框非空。</summary>
     public bool CanSubmit => !_isRunning
+        && _selectedModel is { IsEnabled: true }
         && (_submitMode == ChatSubmitMode.Chat
             ? !string.IsNullOrWhiteSpace(_initialInput) || Attachments.Count > 0
             : !string.IsNullOrWhiteSpace(_initialInput));
@@ -367,13 +369,12 @@ public sealed class ChatInputVm : IInputVm
         AvailableModels.Clear();
         foreach (var m in models) AvailableModels.Add(m);
 
-        // 若当前 SelectedModel 不在新列表中，重置为第一项
-        if (_selectedModel is not null && !AvailableModels.Any(m => m.Id == _selectedModel.Id))
-        {
-            _selectedModel = AvailableModels.FirstOrDefault();
-            OnPropertyChanged(nameof(SelectedModel));
-            OnPropertyChanged(nameof(SelectedModelName));
-        }
+        _selectedModel = AvailableModels.FirstOrDefault(m => m.Id == _selectedModel?.Id)
+            ?? AvailableModels.FirstOrDefault(m => m.IsDefault)
+            ?? AvailableModels.FirstOrDefault();
+        OnPropertyChanged(nameof(SelectedModel));
+        OnPropertyChanged(nameof(SelectedModelName));
+        OnPropertyChanged(nameof(CanSubmit));
     }
 
     /// <summary>恢复默认选择（回退顺序：Agent.DefaultName → 第一项）。</summary>
@@ -422,6 +423,11 @@ public sealed class ChatInputVm : IInputVm
     public async Task SubmitAsync(CancellationToken cancellationToken = default)
     {
         var text = _initialInput?.Trim();
+        if (_selectedModel is null || !_selectedModel.IsEnabled)
+        {
+            ValidationError = "当前没有可用的 AI 模型。";
+            return;
+        }
         if (_submitMode != ChatSubmitMode.Chat && string.IsNullOrWhiteSpace(text)) return;
         if (_submitMode == ChatSubmitMode.Chat && string.IsNullOrWhiteSpace(text) && Attachments.Count == 0) return;
 
