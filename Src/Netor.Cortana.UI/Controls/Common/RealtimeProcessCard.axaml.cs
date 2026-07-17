@@ -18,7 +18,14 @@ public partial class RealtimeProcessCard : UserControl, IDisposable
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private readonly Image? _arrowImage;
 
+    /// <summary>
+    /// 单卡输出字符数上限（约 256 KB，UTF-16 每字符 2 字节）。
+    /// 超限后停止追加，FlushContent 追加截断提示，避免 TextBlock 全量重排成本无限增长。
+    /// </summary>
+    private const int MaxContentChars = 128 * 1024; // 128 K chars = 256 KB
+
     private bool _isDirty;
+    private bool _isTruncated;
     private bool _isExpanded = true;
     private bool _manualToggled;
     private bool _disposed;
@@ -86,6 +93,22 @@ public partial class RealtimeProcessCard : UserControl, IDisposable
 
         void Append()
         {
+            // 已截断：不再追加任何内容
+            if (_isTruncated)
+                return;
+
+            // 超限检测：追加后是否会超过 256 KB 上限
+            if (_contentBuffer.Length + content.Length > MaxContentChars)
+            {
+                // 尽量追加剩余空间内能容纳的部分
+                var remaining = MaxContentChars - _contentBuffer.Length;
+                if (remaining > 0)
+                    _contentBuffer.Append(content, 0, Math.Min(remaining, content.Length));
+                _isTruncated = true;
+                _isDirty = true;
+                return;
+            }
+
             if (!IsThinking && _contentBuffer.Length > 0 && !EndsWithLineBreak(_contentBuffer))
             {
                 _contentBuffer.AppendLine();
@@ -210,7 +233,11 @@ public partial class RealtimeProcessCard : UserControl, IDisposable
             return;
         }
 
-        ContentBlock.Text = _contentBuffer.ToString();
+        var text = _contentBuffer.ToString();
+        if (_isTruncated)
+            text += "\n\n--- 输出已截断（超过 256 KB），完整内容已记录在执行结果中 ---";
+
+        ContentBlock.Text = text;
         DetailScroller.ScrollToEnd();
         _isDirty = false;
     }

@@ -22,6 +22,12 @@ internal sealed class UiChatOutputChannel(
     private readonly ConcurrentDictionary<string, DateTimeOffset> _cancelledTurnIds = new(StringComparer.Ordinal);
     private string? _latestTurnId;
 
+    /// <summary>
+    /// running 事件自动滚动节流：上次滚动的 TickCount64，避免每行输出都触发 ScrollViewer 布局失效。
+    /// 仅在 UI 线程访问，无需同步。
+    /// </summary>
+    private long _lastAutoScrollTick;
+
     /// <inheritdoc />
     public string Name => "UI";
 
@@ -40,7 +46,8 @@ internal sealed class UiChatOutputChannel(
             return Task.CompletedTask;
         }
 
-        Dispatcher.UIThread.Post(() => HandleProcessEvent(evt));
+        // Background 优先级：让 PS 输出处理让位于用户输入事件，避免 Dispatcher 队列被逐行 Post 洪水阻塞 UI
+        Dispatcher.UIThread.Post(() => HandleProcessEvent(evt), DispatcherPriority.Background);
         return Task.CompletedTask;
     }
 
@@ -194,6 +201,19 @@ internal sealed class UiChatOutputChannel(
             mainWindow.AutoScrollToBottom();
     }
 
+    /// <summary>
+    /// 节流版自动滚动：running 事件每 200ms 最多触发一次，避免每行输出都造成 ScrollViewer 布局失效。
+    /// 尊重用户向上滚动（AutoScrollToBottom 内部实现）。
+    /// </summary>
+    private void ScrollToBottomThrottled()
+    {
+        var now = Environment.TickCount64;
+        if (now - _lastAutoScrollTick < 200)
+            return;
+        _lastAutoScrollTick = now;
+        ScrollToBottom();
+    }
+
     private void HandleProcessEvent(RealtimeProcessEvent evt)
     {
         var resolvedTurnId = string.IsNullOrWhiteSpace(evt.TurnId) ? _latestTurnId : evt.TurnId;
@@ -246,7 +266,8 @@ internal sealed class UiChatOutputChannel(
                 handle.AppendContent(normalizedEvent.Content);
             }
 
-            ScrollToBottom();
+            // 节流滚动：running 事件高频触发时不每行都 ScrollToBottom，减少 ScrollViewer 布局失效
+            ScrollToBottomThrottled();
             return;
         }
 

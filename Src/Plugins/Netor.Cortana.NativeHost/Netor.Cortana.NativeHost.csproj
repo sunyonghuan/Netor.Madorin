@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <BrandNativeHostAssemblyName Condition="'$(BrandNativeHostAssemblyName)' == ''">Madorin.NativeHost</BrandNativeHostAssemblyName>
-    <BrandNativeHostIcon Condition="'$(BrandNativeHostIcon)' == ''">logo.200.ico</BrandNativeHostIcon>
+    <BrandNativeHostIcon Condition="'$(BrandNativeHostIcon)' == ''">brand.ico</BrandNativeHostIcon>
     <AssemblyName>$(BrandNativeHostAssemblyName)</AssemblyName>
     <ApplicationIcon>$(BrandNativeHostIcon)</ApplicationIcon>
 

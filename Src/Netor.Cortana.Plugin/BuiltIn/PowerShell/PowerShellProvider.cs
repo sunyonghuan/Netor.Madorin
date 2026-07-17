@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using Netor.Cortana.Entitys;
 
 using System.Diagnostics;
+using System.Text;
+using System.Threading.Channels;
 
 namespace Netor.Cortana.Plugin.BuiltIn.PowerShell;
 
@@ -237,8 +239,23 @@ Parameters:
 
         var processId = Guid.NewGuid().ToString("N");
         var stopwatch = Stopwatch.StartNew();
-        void OnOutput(string line) => _ = PublishProcessEventAsync(processId, "running", line, null, stopwatch.ElapsedMilliseconds, ct);
-        void OnError(string line) => _ = PublishProcessEventAsync(processId, "running", $"[stderr] {line}", null, stopwatch.ElapsedMilliseconds, ct);
+
+        // Channel 层（层 1）：将逐行输出写入有界队列，由独立 pump task 批量合并后再 publish。
+        // 每 100ms 或每 200 行合并一次，把 Dispatcher.Post 频率从"每行一次"降低 1~2 个数量级。
+        // TryWrite 策略：channel 满时静默丢弃（10000 行缓冲在实际业务中几乎不会触发）。
+        var channel = Channel.CreateBounded<PsOutputChunk>(new BoundedChannelOptions(10_000)
+        {
+            FullMode = BoundedChannelFullMode.DropWrite,
+            SingleReader = true,
+            SingleWriter = false,
+            AllowSynchronousContinuations = false,
+        });
+
+        void OnOutput(string line) => channel.Writer.TryWrite(new PsOutputChunk(line, IsError: false));
+        void OnError(string line) => channel.Writer.TryWrite(new PsOutputChunk(line, IsError: true));
+
+        // 启动后台 pump task，与 ExecuteAsync 并发运行
+        var pumpTask = Task.Run(() => PumpOutputAsync(processId, channel.Reader, stopwatch, ct), ct);
 
         try
         {
@@ -290,6 +307,10 @@ Parameters:
         {
             _executor.OnOutputLineReceived -= OnOutput;
             _executor.OnErrorReceived -= OnError;
+            // 通知 pump 不再有新数据，等待其 drain 并退出
+            channel.Writer.TryComplete();
+            try { await pumpTask.ConfigureAwait(false); }
+            catch (OperationCanceledException) { /* 取消时忽略，剩余未 drain 的 chunk 正常丢弃 */ }
         }
     }
 
@@ -519,4 +540,44 @@ Parameters:
 错误：
 {result.Error}";
     }
+
+    /// <summary>
+    /// PS 输出 Channel 的消费端：批量读取并合并 chunk，每 100ms 或每 200 行 publish 一次。
+    /// 将 Dispatcher.Post 频率从"每行一次"大幅降低，消除 UI 队列被洪水打爆的根因。
+    /// </summary>
+    private async Task PumpOutputAsync(
+        string processId,
+        ChannelReader<PsOutputChunk> reader,
+        Stopwatch stopwatch,
+        CancellationToken ct)
+    {
+        var batch = new StringBuilder();
+
+        while (await reader.WaitToReadAsync(ct).ConfigureAwait(false))
+        {
+            batch.Clear();
+            var lineCount = 0;
+            var deadline = Environment.TickCount64 + 100; // 最多攒 100ms
+
+            while (lineCount < 200
+                   && Environment.TickCount64 < deadline
+                   && reader.TryRead(out var chunk))
+            {
+                batch.AppendLine(chunk.IsError ? $"[stderr] {chunk.Line}" : chunk.Line);
+                lineCount++;
+            }
+
+            if (batch.Length > 0)
+            {
+                await PublishProcessEventAsync(
+                    processId, "running", batch.ToString(),
+                    null, stopwatch.ElapsedMilliseconds, ct).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// PS 输出行的 Channel 传输单元。
+    /// </summary>
+    private readonly record struct PsOutputChunk(string Line, bool IsError);
 }

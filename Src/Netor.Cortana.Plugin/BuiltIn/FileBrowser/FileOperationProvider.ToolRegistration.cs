@@ -17,12 +17,14 @@ public sealed partial class FileOperationProvider
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_write_file",
             description: "Write a file in the current workspace directory. Creates the file if it does not exist, or replaces it if it already exists. backup defaults to true for existing files.",
-            method: WriteFileToolAsync));
+            method: WriteFileToolAsync,
+            serializerOptions: FileBrowserToolJsonContext.Default.Options));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_write_large_file",
             description: "Write a large file in the current workspace directory. Supports overwrite and optional backup.",
-            method: WriteLargeFileToolAsync));
+            method: WriteLargeFileToolAsync,
+            serializerOptions: FileBrowserToolJsonContext.Default.Options));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_write_files_batch",
@@ -33,12 +35,14 @@ public sealed partial class FileOperationProvider
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_edit_file",
             description: "Edit an existing text file by 1-based line numbers. operation supports replace, insert, and delete. Use sys_read_file first to get exact line numbers and hash. backup defaults to true.",
-            method: EditFileToolAsync));
+            method: EditFileToolAsync,
+            serializerOptions: FileBrowserToolJsonContext.Default.Options));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_delete_file",
             description: "Delete a file in the current workspace directory. backup defaults to true.",
-            method: DeleteFileToolAsync));
+            method: DeleteFileToolAsync,
+            serializerOptions: FileBrowserToolJsonContext.Default.Options));
 
         _tools.Add(AIFunctionFactory.Create(
             name: "sys_move_file",

@@ -200,7 +200,8 @@ public sealed class PowerShellExecutor : IAsyncDisposable
                 else
                 {
                     OnOutputLineReceived?.Invoke(line);
-                    _logger.LogInformation("PS输出: {Line}", line);
+                    // 降级为 Trace：高吞吐命令每行一条 Info 日志会向 sink 写数千次，成为次生放大器
+                    _logger.LogTrace("PS输出: {Line}", line);
                 }
             }
         }

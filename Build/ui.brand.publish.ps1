@@ -20,8 +20,8 @@
     - 如果本机 Native AOT 链接需要 vswhere.exe，请加 -UseVsWhereFix。
 
 .PARAMETER BrandConfigPath
-    品牌 JSON 路径。可以写相对 Build 目录的路径，例如 brands\sreamx.json；
-    也可以写相对仓库根目录或绝对路径。
+    品牌 JSON 路径。可以写相对 Build 目录的路径，例如 brands\sreamx\sreamx.json；
+    也可以写相对仓库根目录或绝对路径。推荐使用 brands\publish.ps1 代替直接调用本脚本。
 .PARAMETER Version
     打包时使用的版本号。只在 -Package 时传给 ui.package.ps1。
     不传则由 ui.package.ps1 从 UI 项目文件读取 Version。
@@ -34,28 +34,28 @@
     只读取并打印品牌配置，不执行发布，不修改 AppBranding.cs。
 
 .EXAMPLE
-    # 校验当前默认品牌 Madorin，不发布
-    powershell -NoProfile -ExecutionPolicy Bypass -File .\ui.brand.publish.ps1 -BrandConfigPath brands\madorin.json -ValidateOnly
+    # 校验当前默认品牌 Madorin，不发布（推荐通过 brands\publish.ps1 调用）
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand madorin -ValidateOnly
 
 .EXAMPLE
     # 发布当前默认品牌 Madorin，输出到 Realases\Madorin
-    powershell -NoProfile -ExecutionPolicy Bypass -File .\ui.brand.publish.ps1 -BrandConfigPath brands\madorin.json -UseVsWhereFix
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand madorin -UseVsWhereFix
 
 .EXAMPLE
     # 校验第二品牌 SreamX，不发布
-    powershell -NoProfile -ExecutionPolicy Bypass -File .\ui.brand.publish.ps1 -BrandConfigPath brands\sreamx.json -ValidateOnly
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand sreamx -ValidateOnly
 
 .EXAMPLE
     # 发布第二品牌 SreamX，输出到 Realases\SreamX
-    powershell -NoProfile -ExecutionPolicy Bypass -File .\ui.brand.publish.ps1 -BrandConfigPath brands\sreamx.json -UseVsWhereFix
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand sreamx -UseVsWhereFix
 
 .EXAMPLE
     # 发布并打包第二品牌 SreamX，生成 Realases\SreamX-v版本号-win-x64.zip 和 sha256
-    powershell -NoProfile -ExecutionPolicy Bypass -File .\ui.brand.publish.ps1 -BrandConfigPath brands\sreamx.json -UseVsWhereFix -Package
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand sreamx -UseVsWhereFix -Package
 #>
 
 param(
-    [string]$BrandConfigPath = 'brands\madorin.json',
+    [string]$BrandConfigPath = 'brands\madorin\madorin.json',
     [string]$Version,
     [switch]$Package,
     [switch]$UseVsWhereFix,

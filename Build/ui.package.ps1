@@ -67,7 +67,8 @@ $hashFileName = "$PackageName-v$Version-win-x64.sha256"
 $zipPath = Join-Path $resolvedOutputDir $zipFileName
 $hashPath = Join-Path $resolvedOutputDir $hashFileName
 
-$packageItems = @(Get-ChildItem -Path $resolvedSourceDir -Force)
+$packageItems = @(Get-ChildItem -Path $resolvedSourceDir -Force |
+    Where-Object { $_.Extension -notin @('.zip', '.sha256') })
 if ($packageItems.Count -eq 0) {
     throw "Source directory is empty: $resolvedSourceDir"
 }
