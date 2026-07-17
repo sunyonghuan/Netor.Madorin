@@ -279,7 +279,8 @@ try {
         -BrandNativeHostAssemblyName $brandValues.NativeHostAssemblyName `
         -BrandApplicationIcon $brandValues.ApplicationIconPath `
         -BrandNativeHostIcon $brandValues.NativeHostIcon `
-        -BrandReleaseDirectoryName $brandValues.ReleaseDirectoryName
+        -BrandReleaseDirectoryName $brandValues.ReleaseDirectoryName `
+        -Rebuild
 
     if ($LASTEXITCODE -ne 0) {
         throw "Brand publish failed, exit code: $LASTEXITCODE"

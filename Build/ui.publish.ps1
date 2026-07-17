@@ -7,7 +7,8 @@ param(
     [string]$BrandNativeHostAssemblyName = 'Madorin.NativeHost',
     [string]$BrandApplicationIcon = 'Assets\logo.200.ico',
     [string]$BrandNativeHostIcon = 'logo.200.ico',
-    [string]$BrandReleaseDirectoryName = 'Cortana'
+    [string]$BrandReleaseDirectoryName = 'Cortana',
+    [switch]$Rebuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,6 +28,21 @@ function Clear-NuGetHttpCache {
     dotnet nuget locals http-cache --clear | Out-Host
 }
 
+function Clear-ProjectReleaseCache {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath
+    )
+
+    $projectDirectory = Split-Path $ProjectPath -Parent
+    foreach ($directoryName in 'bin\Release', 'obj\Release') {
+        $cacheDirectory = Join-Path $projectDirectory $directoryName
+        if (Test-Path $cacheDirectory) {
+            Remove-Item $cacheDirectory -Recurse -Force
+        }
+    }
+}
+
 function Invoke-DotNetPublishWithRetry {
     param(
         [Parameter(Mandatory = $true)]
@@ -41,7 +57,14 @@ function Invoke-DotNetPublishWithRetry {
         [string[]]$Properties = @()
     )
 
+    if ($Rebuild) {
+        Clear-ProjectReleaseCache -ProjectPath $ProjectPath
+    }
+
     $publishArgs = @('publish', $ProjectPath, '-c', 'Release', '-o', $OutputPath, '--disable-build-servers') + $Properties
+    if ($Rebuild) {
+        $publishArgs += '-t:Rebuild;Publish'
+    }
     & dotnet @publishArgs
 
     if ($LASTEXITCODE -eq 0) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# 修复版发布脚本：自动添加 vswhere.exe 所在目录到 PATH，确保 AOT 链接成功
+# Publish after adding Visual Studio Installer tools to PATH.
 
 param(
     [string]$BrandDesktopAssemblyName = 'Madorin',
@@ -7,32 +7,39 @@ param(
     [string]$BrandNativeHostAssemblyName = 'Madorin.NativeHost',
     [string]$BrandApplicationIcon = 'Assets\logo.200.ico',
     [string]$BrandNativeHostIcon = 'logo.200.ico',
-    [string]$BrandReleaseDirectoryName = 'Cortana'
+    [string]$BrandReleaseDirectoryName = 'Cortana',
+    [switch]$Rebuild
 )
 
 $ErrorActionPreference = 'Stop'
 
 $BuildDir = $PSScriptRoot
-
 $vswhereCommand = Get-Command 'vswhere.exe' -ErrorAction SilentlyContinue
 if ($vswhereCommand) {
-    Write-Host "[+] vswhere.exe 已在 PATH 中" -ForegroundColor Green
+    Write-Host '[+] vswhere.exe is already available in PATH.' -ForegroundColor Green
 } else {
     $programFilesX86 = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFilesX86)
     $vswherePath = Join-Path $programFilesX86 'Microsoft Visual Studio\Installer\vswhere.exe'
 
     if (Test-Path $vswherePath) {
         $env:PATH = (Split-Path $vswherePath -Parent) + ';' + $env:PATH
-        Write-Host "[+] 已添加 vswhere.exe 到 PATH" -ForegroundColor Green
+        Write-Host '[+] Added the Visual Studio Installer directory to PATH.' -ForegroundColor Green
     } else {
-        Write-Host "[!] 未找到 vswhere.exe，AOT 链接可能失败" -ForegroundColor Yellow
+        Write-Host '[!] vswhere.exe was not found. Native AOT linking may fail.' -ForegroundColor Yellow
     }
 }
 
-& (Join-Path $BuildDir 'ui.publish.ps1') `
-    -BrandDesktopAssemblyName $BrandDesktopAssemblyName `
-    -BrandAssemblyTitle $BrandAssemblyTitle `
-    -BrandNativeHostAssemblyName $BrandNativeHostAssemblyName `
-    -BrandApplicationIcon $BrandApplicationIcon `
-    -BrandNativeHostIcon $BrandNativeHostIcon `
-    -BrandReleaseDirectoryName $BrandReleaseDirectoryName
+$publishArgs = @{
+    BrandDesktopAssemblyName = $BrandDesktopAssemblyName
+    BrandAssemblyTitle = $BrandAssemblyTitle
+    BrandNativeHostAssemblyName = $BrandNativeHostAssemblyName
+    BrandApplicationIcon = $BrandApplicationIcon
+    BrandNativeHostIcon = $BrandNativeHostIcon
+    BrandReleaseDirectoryName = $BrandReleaseDirectoryName
+}
+if ($Rebuild) {
+    $publishArgs.Rebuild = $true
+}
+
+& (Join-Path $BuildDir 'ui.publish.ps1') @publishArgs
+exit $LASTEXITCODE
