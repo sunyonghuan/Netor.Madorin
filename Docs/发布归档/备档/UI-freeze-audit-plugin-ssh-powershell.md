@@ -1,5 +1,18 @@
 # UI 线程卡死风险审计：PowerShell 长输出（主因）与其它相关路径
 
+## 修复状态（2026-07-17）
+
+| 优先级 | 修复项 | 状态 | 说明 |
+|---|---|---|---|
+| P0-A | `UiChatOutputChannel` 改 `DispatcherPriority.Background` | ✅ 已修复 | `UiChatOutputChannel.cs:50` |
+| P0-B | `PowerShellProvider` Channel + pump 批量合并 | ✅ 已修复 | 100ms/200行阈值，`DropWrite` 模式（不阻塞，极端场景静默丢行）|
+| P0-C | running 分支 `ScrollToBottom` 节流 | ✅ 已修复 | 新增 `ScrollToBottomThrottled()`，200ms 节流 |
+| P1-A | 单 Card 输出长度上限 256 KB | ✅ 已修复 | `RealtimeProcessCard.axaml.cs`，截断后追加提示文本 |
+| P1-B | per-line 日志降级为 `LogTrace` | ✅ 已修复 | `PowerShellExecutor.cs:204` |
+| P2 | 插件管理页 Unload/Delete 异步化 | 未修复 | 次要，用户确认非实际痛点，按需处理 |
+
+---
+
 审计日期：2026-07-15（首版）  
 2026-07-15 修订（第二版：剔除退出路径推测项，只保留经代码确认的对话时卡死路径）  
 2026-07-15 再修订（第三版：按用户实测反馈重排优先级——PowerShell 长输出确认为真实卡死主因；插件管理页同步卸载因单次点击场景降级为次要）
