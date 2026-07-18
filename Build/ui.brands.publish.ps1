@@ -12,7 +12,7 @@ param(
     [string]$Version,
     [ValidateSet('patch', 'minor', 'major')]
     [string]$Bump = 'patch',
-    [string[]]$BrandConfigPaths = @('brands\madorin.json', 'brands\sreamx.json'),
+    [string[]]$BrandConfigPaths = @('brands\madorin\madorin.json', 'brands\sreamx\sreamx.json'),
     [switch]$Package,
     [switch]$UseVsWhereFix,
     [switch]$ValidateOnly
@@ -23,7 +23,7 @@ $ErrorActionPreference = 'Stop'
 $BuildDir = $PSScriptRoot
 $SolutionDir = (Resolve-Path (Join-Path $BuildDir '..')).Path
 $ProjectFile = Join-Path $SolutionDir 'Src\Netor.Cortana.UI\Netor.Cortana.UI.csproj'
-$BrandPublishScript = Join-Path $BuildDir 'ui.brand.publish.ps1'
+$BrandPublishScript = Join-Path $BuildDir 'brands\publish.ps1'
 
 function Get-ProjectVersion {
     $content = Get-Content -Path $ProjectFile -Raw -Encoding UTF8
@@ -82,6 +82,23 @@ function Set-ProjectVersion {
     return $updated
 }
 
+function Get-BrandConfigValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Brand,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    $property = $Brand.PSObject.Properties[$Name]
+    if ($null -eq $property -or [string]::IsNullOrWhiteSpace([string]$property.Value)) {
+        throw "Brand config is missing required value: $Name"
+    }
+
+    return [string]$property.Value
+}
+
 function Resolve-BrandConfigPath {
     param([string]$Path)
 
@@ -119,7 +136,9 @@ Write-Host "Brands:        $($resolvedBrandConfigs.Count)" -ForegroundColor Cyan
 Write-Host "Package:       $Package" -ForegroundColor Cyan
 
 foreach ($config in $resolvedBrandConfigs) {
-    $null = Get-Content -Path $config -Raw -Encoding UTF8 | ConvertFrom-Json
+    $brand = Get-Content -Path $config -Raw -Encoding UTF8 | ConvertFrom-Json
+    $null = Get-BrandConfigValue -Brand $brand -Name 'id'
+    $null = Get-BrandConfigValue -Brand $brand -Name 'englishName'
     Write-Host "  - $config" -ForegroundColor DarkGray
 }
 
@@ -134,14 +153,20 @@ try {
     [System.IO.File]::WriteAllText($ProjectFile, $updatedProjectSource, [System.Text.UTF8Encoding]::new($false))
 
     foreach ($config in $resolvedBrandConfigs) {
+        $brand = Get-Content -Path $config -Raw -Encoding UTF8 | ConvertFrom-Json
+        $brandId = Get-BrandConfigValue -Brand $brand -Name 'id'
+
         Write-Host ''
         Write-Host "=== Publishing $config (v$targetVersion) ===" -ForegroundColor Green
         $args = @{
-            BrandConfigPath = $config
-            Package = $Package
+            Brand = $brandId
             Version = $targetVersion
             UseVsWhereFix = $UseVsWhereFix
         }
+        if ($Package) {
+            $args.Package = $true
+        }
+
         & $BrandPublishScript @args
         if ($LASTEXITCODE -ne 0) {
             throw "Brand publish failed for $config, exit code: $LASTEXITCODE"

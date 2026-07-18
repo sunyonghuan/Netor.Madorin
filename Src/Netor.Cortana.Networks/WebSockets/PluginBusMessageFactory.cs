@@ -62,7 +62,8 @@ internal static class PluginBusMessageFactory
                 CortanaWsEndpoints.ModelTopic,
                 CortanaWsEndpoints.PluginTopic,
                 CortanaWsEndpoints.WorkflowTopic,
-                CortanaWsEndpoints.MeetingTopic
+                CortanaWsEndpoints.MeetingTopic,
+                CortanaWsEndpoints.WorkspaceTopic
             ]
         }, WebSocketJsonContext.Default.PluginBusControlMessage);
     }

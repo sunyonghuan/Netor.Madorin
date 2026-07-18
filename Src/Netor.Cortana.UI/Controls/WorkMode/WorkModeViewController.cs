@@ -257,7 +257,7 @@ public sealed class WorkModeViewController
                     {
                         CardTitle = "回复",
                         StatusText = "完成",
-                        IsExpanded = true,
+                        IsExpanded = false,
                         CardContent = new Avalonia.Controls.SelectableTextBlock
                         {
                             Text = args.Text,
@@ -561,7 +561,7 @@ public sealed class WorkModeViewController
             {
                 CardTitle = args.StepTitle,
                 StatusText = "运行中",
-                IsExpanded = true,
+                IsExpanded = false,
             };
             _currentMainStep?.AppendSubStep(_currentSubStep);
             AttachPendingStepCards();
@@ -1022,7 +1022,7 @@ public sealed class WorkModeViewController
         {
             CardTitle = $"子智能体：{agentName}",
             StatusText = "运行中",
-            IsExpanded = true,
+            IsExpanded = false,
         };
 
         if (_currentSubStep is not null)

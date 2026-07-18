@@ -43,6 +43,7 @@ namespace Netor.Cortana.Networks;
 [JsonSerializable(typeof(MeetingExportBatch))]
 [JsonSerializable(typeof(MeetingExportRecord))]
 [JsonSerializable(typeof(MeetingHistoryCompletedPayload))]
+[JsonSerializable(typeof(WorkspaceChangedArgs))]
 internal partial class WebSocketJsonContext : JsonSerializerContext;
 
 /// <summary>

@@ -44,6 +44,9 @@ public static class CortanaWsEndpoints
     /// <summary>会议模式 topic。</summary>
     public const string MeetingTopic = "meeting";
 
+    /// <summary>工作区状态 topic。</summary>
+    public const string WorkspaceTopic = "workspace";
+
     public const string ConversationEventPublishOperation = "conversation.event.publish";
     public const string ConversationHistoryReplayOperation = "conversation.history.replay";
     public const string ConversationHistoryBatchOperation = "conversation.history.batch";
@@ -65,6 +68,9 @@ public static class CortanaWsEndpoints
     public const string MeetingHistoryReplayOperation = "meeting.history.replay";
     public const string MeetingHistoryBatchOperation = "meeting.history.batch";
     public const string MeetingHistoryCompletedOperation = "meeting.history.completed";
+
+    // ──── 工作区 operations ────
+    public const string WorkspaceEventPublishOperation = "workspace.event.publish";
 
     public static string BuildChatEndpoint(int port) => BuildPluginBusEndpoint(port);
 

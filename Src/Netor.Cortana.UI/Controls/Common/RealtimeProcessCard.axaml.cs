@@ -64,7 +64,7 @@ public partial class RealtimeProcessCard : UserControl, IDisposable
         ApplyTextBrushes();
         UpdateHeader(initial.Status, initial.ExitCode, initial.DurationMs);
         AppendContent(initial.Content);
-        SetExpanded(true);
+        SetExpanded(false);
     }
 
     public string ProcessId { get; }

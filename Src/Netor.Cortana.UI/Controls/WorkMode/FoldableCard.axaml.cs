@@ -18,7 +18,7 @@ namespace Netor.Cortana.UI.Controls.WorkMode;
 /// </summary>
 public partial class FoldableCard : UserControl
 {
-    private bool _isExpanded = true;
+    private bool _isExpanded = false;
     private string _title = string.Empty;
     private string? _status;
     private int _indentLevel;

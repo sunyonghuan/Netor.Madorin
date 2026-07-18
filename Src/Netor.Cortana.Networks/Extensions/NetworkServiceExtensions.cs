@@ -34,6 +34,8 @@ public static class NetworkServiceExtensions
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketWorkflowFeedRelayService>());
         services.AddSingleton<WebSocketMeetingFeedRelayService>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketMeetingFeedRelayService>());
+        services.AddSingleton<WebSocketWorkspaceRelayService>();
+        services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketWorkspaceRelayService>());
 
         services.AddSingleton<WebSocketChatOutputChannel>();
         services.AddSingleton<IAiOutputChannel>(sp => sp.GetRequiredService<WebSocketChatOutputChannel>());
