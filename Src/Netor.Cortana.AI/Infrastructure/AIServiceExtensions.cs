@@ -37,6 +37,9 @@ public static class AIServiceExtensions
         services.AddTransient<DeepseekOverrideHandler>()
             .AddHttpClient("Deepseek")
             .AddHttpMessageHandler<DeepseekOverrideHandler>();
+        services.AddTransient<KimiOverrideHandler>()
+            .AddHttpClient("Kimi")
+            .AddHttpMessageHandler<KimiOverrideHandler>();
         // Providers（同时作为 AIContextProvider 注入到 AIAgentFactory）
         services.AddSingleton<ProjectSettingsProvider>();
         services.AddSingleton<Microsoft.Agents.AI.AIContextProvider>(sp => sp.GetRequiredService<ProjectSettingsProvider>());
@@ -57,6 +60,7 @@ public static class AIServiceExtensions
         services.AddSingleton<IAiProviderDriver, OllamaProviderDriver>();
         services.AddSingleton<IAiProviderDriver, AnthropicProviderDriver>();
         services.AddSingleton<IAiProviderDriver, DeepseekProviderDriver>();
+        services.AddSingleton<IAiProviderDriver, KimiProviderDriver>();
         services.AddSingleton<IAiProviderDriver, GeminiProviderDriver>();
         services.AddSingleton<IAiProviderDriver, GlmProviderDriver>();
         services.AddSingleton<IAiProviderDriver, CustomProviderDriver>();

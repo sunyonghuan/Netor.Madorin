@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
 using Microsoft.Agents.AI;
@@ -188,6 +190,7 @@ public sealed class AIAgentFactory(
             }
 
             AddToolFilteringProvider(providers, toolFilterMode);
+            AddProviderToolLimitProvider(providers, driver, model);
         }
         else
         {
@@ -420,6 +423,7 @@ public sealed class AIAgentFactory(
         }
 
         AddToolFilteringProvider(providers, toolFilterMode);
+        AddProviderToolLimitProvider(providers, driver, mainModel);
 
         // 阶段 1：当 mentions >= 2 且主模型支持 FunctionCall 时，注入 Coordinator instructions
         // 让主 Agent 进入"协调者"模式（先制定计划、按工具签名传附件、最终汇总）。
@@ -713,6 +717,8 @@ public sealed class AIAgentFactory(
 #pragma warning restore MAAI001
             }
 
+            AddProviderToolLimitProvider(providers, driver, model);
+
             // P4：动态子智能体能力已迁移到 TaskEngine.OrchestratorAgent（由编排器自主创建子智能体）。
             // 老 P2 的 DynamicAgentToolsProvider / CreateSubAgentTool / DynamicAgentCreationGate 已移除。
         }
@@ -944,6 +950,79 @@ public sealed class AIAgentFactory(
         {
             providers.Add(new ToolFilteringContextProvider(mode));
         }
+    }
+
+    private void AddProviderToolLimitProvider(
+        List<AIContextProvider> providers,
+        IAiProviderDriver driver,
+        AiModelEntity model)
+    {
+        var maxTools = ResolveMaxTools(driver.Definition);
+        if (maxTools <= 0)
+        {
+            return;
+        }
+
+#pragma warning disable MAAI001
+        providers.Add(new ProviderToolLimitContextProvider(
+            driver.Definition.DisplayName,
+            model.Name,
+            maxTools,
+            services.GetService<IPublisher>(),
+            logger));
+#pragma warning restore MAAI001
+    }
+
+    private int ResolveMaxTools(AiProviderDriverDefinition definition)
+    {
+        var envName = BuildProviderMaxToolsEnvironmentName(definition.Id);
+        var envValue = Environment.GetEnvironmentVariable(envName);
+        if (TryParseMaxTools(envValue, out var envMaxTools))
+        {
+            return envMaxTools;
+        }
+
+        var settingKey = BuildProviderMaxToolsSettingKey(definition.Id);
+        var systemSettings = services.GetService<SystemSettingsService>();
+        var defaultMaxTools = definition.DefaultMaxTools ?? 0;
+        return systemSettings?.GetValue(settingKey, defaultMaxTools) ?? defaultMaxTools;
+    }
+
+    internal static string BuildProviderMaxToolsSettingKey(string providerId)
+        => $"AI.Provider.{providerId}.MaxTools";
+
+    internal static string BuildProviderMaxToolsEnvironmentName(string providerId)
+    {
+        var builder = new StringBuilder("CORTANA_");
+        foreach (var c in providerId)
+        {
+            if (char.IsAsciiLetterOrDigit(c))
+            {
+                builder.Append(char.ToUpperInvariant(c));
+            }
+            else
+            {
+                builder.Append('_');
+            }
+        }
+
+        builder.Append("_MAX_TOOLS");
+        return builder.ToString();
+    }
+
+    private static bool TryParseMaxTools(string? value, out int maxTools)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            maxTools = 0;
+            return false;
+        }
+
+        return int.TryParse(
+            value.Trim(),
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out maxTools);
     }
 
     internal static void RegisterAdditionalToolNames(

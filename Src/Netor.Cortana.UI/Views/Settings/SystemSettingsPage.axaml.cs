@@ -39,6 +39,10 @@ public partial class SystemSettingsPage : UserControl
             group: "调试", displayName: "AI 全量调试日志",
             description: "记录 AI 请求、流式更新、响应和异常的完整调试日志。发布版默认关闭，开启后可用于排查工具调用与上下文问题。",
             defaultValue: "false", valueType: "bool", sortOrder: 0);
+        SettingsService.EnsureSetting("AI.Provider.Kimi.MaxTools",
+            group: "AI", displayName: "Kimi 最大工具数量",
+            description: "Kimi 当前工具数量上限。默认 128；设置为 0 表示不限制，用于兼容 Kimi 后续放开限制的情况。环境变量 CORTANA_KIMI_MAX_TOOLS 优先于此设置。",
+            defaultValue: "128", valueType: "int", sortOrder: 20);
 
         SettingsService.EnsureSetting("Logging.File.MinimumLevel",
             group: "日志", displayName: "文件日志最小级别",

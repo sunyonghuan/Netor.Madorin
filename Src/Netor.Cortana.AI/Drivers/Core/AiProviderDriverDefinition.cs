@@ -7,4 +7,5 @@ namespace Netor.Cortana.AI.Drivers;
 public sealed record AiProviderDriverDefinition(
     string Id,
     string DisplayName,
-    bool SupportsModelDiscovery);
+    bool SupportsModelDiscovery,
+    int? DefaultMaxTools = null);
