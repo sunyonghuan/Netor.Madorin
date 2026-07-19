@@ -188,9 +188,10 @@ public sealed class ChatSessionService(
         var recentSessionId = GetMostRecentVisibleExpertSessionId(categorize);
 
         var session = await agent.CreateSessionAsync(cancellationToken).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(recentSessionId))
+        var isNewSession = string.IsNullOrWhiteSpace(recentSessionId);
+        if (!isNewSession)
         {
-            _currentSessionId = recentSessionId;
+            _currentSessionId = recentSessionId!;
             logger.LogDebug("恢复对话 Session：{SessionId}", _currentSessionId);
         }
         else
@@ -201,6 +202,16 @@ public sealed class ChatSessionService(
 
         session.StateBag.SetValue("sessionid", _currentSessionId);
         ApplySelectionState(session, provider, agentEntity, model);
+
+        if (isNewSession)
+        {
+            // 立即落库：避免 AI 回复中断/失败时首轮内容丢失，
+            // 也保证工作模式转交等下游能通过 ChatSessions.Id 外键引用。
+            _currentSessionId = await chatHistoryProvider.CreateNewSessionAsync(session, agent).ConfigureAwait(false);
+            session.StateBag.SetValue("sessionid", _currentSessionId);
+            publisher.Publish(Events.OnSessionCreated, new SessionCreatedArgs(_currentSessionId));
+        }
+
         _currentSession = session;
         return session;
     }

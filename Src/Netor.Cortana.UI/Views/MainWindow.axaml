@@ -177,5 +177,13 @@
 				          Click="OnAboutMenuClick" />
 			</MenuItem>
 		</Menu>
+
+		<!-- ══════ Toast 浮层（右上角，置顶，不拦截鼠标事件） ══════ -->
+		<Panel x:Name="ToastOverlay"
+		       HorizontalAlignment="Right"
+		       VerticalAlignment="Top"
+		       Margin="0,44,16,0"
+		       IsHitTestVisible="False" />
+
 	</Panel>
 </Window>

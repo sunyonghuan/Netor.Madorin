@@ -611,12 +611,30 @@ public sealed class ChatHistoryDataProvider(
                 sessionEntity.TotalTokenCount += services.GetRequiredService<AIAgentFactory>().LastInputTokens;
             }
 
+            // 关键：使用 UPSERT（ON CONFLICT DO UPDATE）而非 INSERT OR REPLACE。
+            // INSERT OR REPLACE 语义是"先 DELETE 旧行再 INSERT"，会触发 WorkTasks.SessionId
+            // 的 ON DELETE CASCADE，把该会话下正在后台执行的工作任务连带删除，
+            // 导致 WorkExecutionLogs 写入时父行缺失报 FK19。UPSERT 为原地更新，不会级联删除。
             dbContext.Execute(
                 """
-                INSERT OR REPLACE INTO ChatSessions
+                INSERT INTO ChatSessions
                     (Id, CreatedTimestamp, UpdatedTimestamp, Categorize, Title, Summary, RawDiscription, AgentName, SourceTaskId, IsArchived, IsPinned, LastActiveTimestamp, TotalTokenCount, CompactedContext, CompactedAtCount)
                 VALUES
                     (@Id, @CreatedTimestamp, @UpdatedTimestamp, @Categorize, @Title, @Summary, @RawDiscription, @AgentName, @SourceTaskId, @IsArchived, @IsPinned, @LastActiveTimestamp, @TotalTokenCount, @CompactedContext, @CompactedAtCount)
+                ON CONFLICT(Id) DO UPDATE SET
+                    UpdatedTimestamp = excluded.UpdatedTimestamp,
+                    Categorize = excluded.Categorize,
+                    Title = excluded.Title,
+                    Summary = excluded.Summary,
+                    RawDiscription = excluded.RawDiscription,
+                    AgentName = excluded.AgentName,
+                    SourceTaskId = excluded.SourceTaskId,
+                    IsArchived = excluded.IsArchived,
+                    IsPinned = excluded.IsPinned,
+                    LastActiveTimestamp = excluded.LastActiveTimestamp,
+                    TotalTokenCount = excluded.TotalTokenCount,
+                    CompactedContext = excluded.CompactedContext,
+                    CompactedAtCount = excluded.CompactedAtCount
                 """,
                 cmd =>
                 {

@@ -48,6 +48,9 @@ public partial class ChatView : UserControl
     private static readonly Bitmap UserAvatarBitmap = LoadUserAvatarBitmap();
     private static readonly Bitmap NoticeToggleBitmap = LoadNoticeToggleBitmap();
 
+    // 每个 agent 的头像 Bitmap 缓存（键：AgentEntity.Id）
+    private readonly Dictionary<string, Bitmap> _agentAvatarCache = new();
+
     private bool _userScrolledUp;
 
     // 用于通知 MainWindow 用户点击了 Banner 按钮（切到工作模式 / 忽略）
@@ -99,7 +102,9 @@ public partial class ChatView : UserControl
         HideWelcome();
 
         var markdown = new MarkdownRenderer { Markdown = string.Empty };
-        var row = BuildMessageRow(markdown, isUser: false, authorName: null, timestamp: DateTimeOffset.Now);
+        var chatInputVm = App.Services.GetRequiredService<ChatInputVm>();
+        var row = BuildMessageRow(markdown, isUser: false, authorName: null, timestamp: DateTimeOffset.Now,
+            agentAvatarOverride: ResolveAgentAvatar(chatInputVm.SelectedAgent));
         MessageList.Items.Add(row);
         AutoScrollToBottom();
         return markdown;
@@ -378,7 +383,9 @@ public partial class ChatView : UserControl
                 bubbleContent = markdown;
             }
 
-            MessageList.Items.Add(BuildMessageRow(bubbleContent, isUser, authorName, timestamp));
+            // 历史消息：助手气泡按 authorName 查找智能体并解析头像；未设置时回退品牌 Logo
+            var agentAvatar = isUser ? null : ResolveAgentAvatarByName(authorName);
+            MessageList.Items.Add(BuildMessageRow(bubbleContent, isUser, authorName, timestamp, agentAvatar));
             AutoScrollToBottom();
         });
     }
@@ -521,7 +528,8 @@ public partial class ChatView : UserControl
         return card;
     }
 
-    private Control BuildMessageRow(Control bubbleContent, bool isUser, string? authorName, DateTimeOffset? timestamp)
+    private Control BuildMessageRow(Control bubbleContent, bool isUser, string? authorName, DateTimeOffset? timestamp,
+        Bitmap? agentAvatarOverride = null)
     {
         var userAvatarBrush = (IBrush)this.FindResource("UserAvatarBrush")!;
         var userAvatarBorderBrush = (IBrush)this.FindResource("UserAvatarBorderBrush")!;
@@ -551,7 +559,8 @@ public partial class ChatView : UserControl
                 ? BuildUserAvatarGlyph(userAvatarGlyphBrush)
                 : new Image
                 {
-                    Source = AiAvatarBitmap,
+                    // 优先使用智能体自定义头像；未设置或加载失败时回退品牌 Logo
+                    Source = agentAvatarOverride ?? AiAvatarBitmap,
                     Width = MessageAvatarSize,
                     Height = MessageAvatarSize,
                     Stretch = Stretch.UniformToFill,
@@ -674,6 +683,61 @@ public partial class ChatView : UserControl
         if (card.FindControl<Border>("RootBorder") is { } rootBorder)
         {
             rootBorder.Margin = new Thickness(0);
+        }
+    }
+
+    // ──── 智能体头像解析 ────
+
+    /// <summary>
+    /// 解析智能体头像 Bitmap。
+    /// 若智能体未设置头像、文件不存在或加载失败，一律回退到品牌 Logo（<see cref="AiAvatarBitmap"/>）。
+    /// 结果按 AgentEntity.Id 缓存，避免重复 IO。
+    /// </summary>
+    private Bitmap ResolveAgentAvatar(AgentEntity? agent)
+    {
+        if (agent is null || string.IsNullOrWhiteSpace(agent.Avatar))
+            return AiAvatarBitmap;
+
+        if (_agentAvatarCache.TryGetValue(agent.Id, out var cached))
+            return cached;
+
+        try
+        {
+            var appPaths = App.Services.GetRequiredService<IAppPaths>();
+            var avatarPath = Path.Combine(appPaths.UserAgentsDirectory, agent.Id, agent.Avatar);
+            if (File.Exists(avatarPath))
+            {
+                var bitmap = new Bitmap(avatarPath);
+                _agentAvatarCache[agent.Id] = bitmap;
+                return bitmap;
+            }
+        }
+        catch
+        {
+            // 路径异常或解码失败时安全回退，不向外抛异常
+        }
+
+        return AiAvatarBitmap;
+    }
+
+    /// <summary>
+    /// 按智能体显示名称（AuthorName）查找实体并解析头像。
+    /// 用于历史消息加载场景。名称为空或查找不到时回退到品牌 Logo。
+    /// </summary>
+    private Bitmap ResolveAgentAvatarByName(string? authorName)
+    {
+        if (string.IsNullOrWhiteSpace(authorName))
+            return AiAvatarBitmap;
+
+        try
+        {
+            var agentService = App.Services.GetRequiredService<AgentService>();
+            var agent = agentService.FindByNameOrDisplayName(authorName);
+            return ResolveAgentAvatar(agent);
+        }
+        catch
+        {
+            return AiAvatarBitmap;
         }
     }
 

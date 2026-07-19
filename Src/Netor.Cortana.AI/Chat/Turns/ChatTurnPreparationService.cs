@@ -179,7 +179,8 @@ public sealed class ChatTurnPreparationService(
         return [
             handoffTools.CreateStartWorkTaskTool(
                 "chat",
-                () => runtimeContext,
+                // 工具被调用时（非构建时）才读 CurrentId，确保 EnsureCurrentSessionAsync 已就绪。
+                () => runtimeContext with { SessionId = sessionService.CurrentId ?? runtimeContext.SessionId },
                 sourceId: runtimeContext.SessionId),
             ..delegationTools.CreateTools(agentEntity, runtimeContext)
         ];

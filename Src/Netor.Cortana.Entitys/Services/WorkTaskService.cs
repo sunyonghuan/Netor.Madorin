@@ -130,6 +130,9 @@ public sealed class WorkTaskService
     {
         ArgumentNullException.ThrowIfNull(entity);
 
+        if (string.IsNullOrWhiteSpace(entity.SessionId))
+            throw new InvalidOperationException("工作任务缺少 SessionId，无法创建。");
+
         var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
         entity.CreatedAt = now;
         entity.UpdatedAt = now;

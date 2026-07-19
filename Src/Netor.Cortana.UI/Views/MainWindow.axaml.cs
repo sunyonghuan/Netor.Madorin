@@ -823,6 +823,18 @@ public partial class MainWindow : Window, IWorkModeSwitcher
     internal void AddSystemNotice(SystemNoticeArgs args)
         => ChatTabContent.AddSystemNotice(args);
 
+    /// <summary>
+    /// 在右上角以 Toast 形式短暂显示外部连接/断开通知，3 秒后自动消失。
+    /// 用于 WebSocket 等外部连接事件，避免在聊天流中插入持久卡片。
+    /// </summary>
+    internal void ShowConnectionToast(string message)
+    {
+        UiPromptService.ShowToast(
+            ToastOverlay,
+            message,
+            duration: TimeSpan.FromSeconds(3));
+    }
+
     /// <summary>代理 → ChatTabContent.AutoScrollToBottom（UiChatOutputChannel 调用）。</summary>
     internal void AutoScrollToBottom()
         => ChatTabContent.AutoScrollToBottom();

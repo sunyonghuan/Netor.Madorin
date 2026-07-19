@@ -28,7 +28,7 @@ public sealed partial class ToolProcessGroupCard : UserControl
         HeaderButton.Click += OnHeaderClick;
 
         ApplyTextBrushes();
-        SetExpanded(true);
+        SetExpanded(false);
         RefreshSummary();
     }
 

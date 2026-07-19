@@ -822,8 +822,8 @@ public partial class App : Application
     private void HandleWebSocketClientConnectionChanged(WebSocketClientConnectionChangedArgs args)
     {
         var message = args.IsConnected
-            ? $"客户端 {args.RemoteEndpoint} 已连接到助理。"
-            : $"客户端 {args.RemoteEndpoint} 已断开与助理的连接。";
+            ? $"外部连接 · WebSocket  {args.RemoteEndpoint} 已连接"
+            : $"外部断开 · WebSocket  {args.RemoteEndpoint} 已断开";
 
         var bubbleText = args.IsConnected
             ? $"客户端 {args.RemoteEndpoint} 已连接"
@@ -832,12 +832,8 @@ public partial class App : Application
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             var mainWindow = Services.GetRequiredService<MainWindow>();
-            mainWindow.AddSystemNotice(new SystemNoticeArgs(
-                message,
-                args.IsConnected ? "外部连接" : "外部断开",
-                args.IsConnected ? "success" : "warning",
-                "WebSocket",
-                DateTimeOffset.UtcNow));
+            // WebSocket 连接/断开属于短暂状态通知，用 Toast 代替持久卡片，避免占据聊天流
+            mainWindow.ShowConnectionToast(message);
 
             if (!mainWindow.IsVisible && IsFloatWindowEnabled())
             {
