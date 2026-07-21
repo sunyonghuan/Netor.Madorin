@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Providers.Abstractions\Madorin.AI.Runtime.Providers.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Providers.OpenAI\Madorin.AI.Runtime.Providers.OpenAI.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Providers.Anthropic\Madorin.AI.Runtime.Providers.Anthropic.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Providers.OpenAICompatible\Madorin.AI.Runtime.Providers.OpenAICompatible.csproj" />
+  </ItemGroup>
+
+</Project>

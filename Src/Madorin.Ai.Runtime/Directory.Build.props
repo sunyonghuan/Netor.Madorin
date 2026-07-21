@@ -1,0 +1,34 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework Condition="'$(TargetFramework)' == ''">net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- MAF/MEAI remain experimental. Remove these suppressions after their APIs reach GA. -->
+    <NoWarn>$(NoWarn);MAAI001;MAAIW001;MEAI001</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' and '$(OutputType)' == 'Exe'">
+    <PublishAot>true</PublishAot>
+    <SelfContained>true</SelfContained>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
+    <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(Configuration)' == 'Release' and '$(UseAgentFrameworkRuntimeDirectives)' == 'true'">
+    <RdXmlFile Include="$(MSBuildThisFileDirectory)publish\rd.xml" />
+    <TrimmerRootAssembly Include="Microsoft.Agents.AI" />
+    <TrimmerRootAssembly Include="Microsoft.Agents.AI.Abstractions" />
+    <TrimmerRootAssembly Include="Microsoft.Agents.AI.OpenAI" />
+    <TrimmerRootAssembly Include="Microsoft.Extensions.AI" />
+    <TrimmerRootAssembly Include="Microsoft.Extensions.AI.Abstractions" />
+  </ItemGroup>
+</Project>

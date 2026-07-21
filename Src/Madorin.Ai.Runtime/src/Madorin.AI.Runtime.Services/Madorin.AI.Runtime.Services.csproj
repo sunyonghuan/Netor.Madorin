@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Madorin.AI.Runtime.Entities\Madorin.AI.Runtime.Entities.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Contracts\Madorin.AI.Runtime.Contracts.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Core\Madorin.AI.Runtime.Core.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Persistence.Abstractions\Madorin.AI.Runtime.Persistence.Abstractions.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Tools.Abstractions\Madorin.AI.Runtime.Tools.Abstractions.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Orchestration.Abstractions\Madorin.AI.Runtime.Orchestration.Abstractions.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Providers.Abstractions\Madorin.AI.Runtime.Providers.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

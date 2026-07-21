@@ -1,0 +1,243 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Madorin 可配置行业 AI 工作台架构",
+    "subtitle": "发布配置、行业初始化、业务工作台与多智能体执行内核",
+    "output": "Madorin多智能体工作台架构图.html",
+    "viewBox": [1510, 760]
+  },
+  "components": [
+    {
+      "id": "distribution",
+      "type": "external",
+      "label": "发布配置",
+      "sublabel": "品牌 / 图标 / 行业边界",
+      "pos": [40, 120],
+      "size": [150, 68]
+    },
+    {
+      "id": "industry",
+      "type": "external",
+      "label": "行业包",
+      "sublabel": "项目 / 资产 / 任务",
+      "pos": [240, 120],
+      "size": [160, 68]
+    },
+    {
+      "id": "onboarding",
+      "type": "frontend",
+      "label": "首次初始化",
+      "sublabel": "领域 / 内容 / 工作习惯",
+      "pos": [450, 120],
+      "size": [160, 68]
+    },
+    {
+      "id": "overrides",
+      "type": "database",
+      "label": "用户工作台设置",
+      "sublabel": "模块 / 常用操作 / 顺序",
+      "pos": [660, 120],
+      "size": [160, 68]
+    },
+    {
+      "id": "resolver",
+      "type": "backend",
+      "label": "配置解析器",
+      "sublabel": "校验 + 合并 + 迁移",
+      "pos": [870, 120],
+      "size": [170, 68]
+    },
+    {
+      "id": "snapshot",
+      "type": "database",
+      "label": "有效工作台快照",
+      "sublabel": "不可变 + 可回退",
+      "pos": [1090, 120],
+      "size": [180, 68]
+    },
+    {
+      "id": "user",
+      "type": "external",
+      "label": "行业用户",
+      "sublabel": "熟悉的业务操作",
+      "pos": [1320, 200],
+      "size": [150, 68]
+    },
+    {
+      "id": "workbench",
+      "type": "frontend",
+      "label": "行业工作台",
+      "sublabel": "项目 + 资产 + 业务按钮",
+      "pos": [1320, 320],
+      "size": [150, 72]
+    },
+    {
+      "id": "actions",
+      "type": "security",
+      "label": "业务动作注册表",
+      "sublabel": "ActionId + 权限 + 产物",
+      "pos": [1250, 480],
+      "size": [180, 72]
+    },
+    {
+      "id": "conversations",
+      "type": "backend",
+      "label": "三种对话模式",
+      "sublabel": "专家 / 工作 / 会议",
+      "pos": [990, 480],
+      "size": [190, 72]
+    },
+    {
+      "id": "runtime",
+      "type": "backend",
+      "label": "任务与 Agent 运行时",
+      "sublabel": "Skills / Tools / Agents",
+      "pos": [730, 480],
+      "size": [190, 72]
+    },
+    {
+      "id": "artifacts",
+      "type": "database",
+      "label": "项目与业务资产",
+      "sublabel": "输入上下文 + 任务产物",
+      "pos": [470, 480],
+      "size": [190, 72]
+    },
+    {
+      "id": "storage",
+      "type": "database",
+      "label": "索引与文件存储",
+      "sublabel": "SQLite + JSONL + compact",
+      "pos": [210, 480],
+      "size": [190, 72]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "发布与工作台配置平面",
+      "wraps": ["distribution", "industry", "onboarding", "overrides", "resolver", "snapshot"],
+      "pad": 24
+    },
+    {
+      "kind": "security-group",
+      "label": "Madorin Workbench Kernel",
+      "wraps": ["workbench", "actions", "conversations", "runtime", "artifacts", "storage"],
+      "pad": 24
+    }
+  ],
+  "connections": [
+    {
+      "from": "distribution",
+      "to": "industry",
+      "variant": "emphasis"
+    },
+    {
+      "from": "industry",
+      "to": "onboarding",
+      "variant": "emphasis"
+    },
+    {
+      "from": "onboarding",
+      "to": "overrides",
+      "variant": "emphasis"
+    },
+    {
+      "from": "overrides",
+      "to": "resolver",
+      "label": "优先级合并",
+      "labelAt": [845, 202],
+      "variant": "emphasis"
+    },
+    {
+      "from": "resolver",
+      "to": "snapshot",
+      "variant": "emphasis"
+    },
+    {
+      "from": "snapshot",
+      "to": "workbench",
+      "label": "只读快照",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "via": [[1180, 250], [1285, 250], [1285, 356]],
+      "labelAt": [1210, 240]
+    },
+    {
+      "from": "user",
+      "to": "workbench",
+      "label": "业务操作",
+      "labelAt": [1395, 282],
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "workbench",
+      "to": "actions",
+      "label": "ActionId",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "actions",
+      "to": "conversations",
+      "label": "内部解析",
+      "variant": "emphasis"
+    },
+    {
+      "from": "conversations",
+      "to": "runtime",
+      "variant": "emphasis"
+    },
+    {
+      "from": "runtime",
+      "to": "artifacts",
+      "label": "产物",
+      "variant": "emphasis"
+    },
+    {
+      "from": "artifacts",
+      "to": "storage",
+      "label": "索引 / 正文",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "一套内核，多种发布",
+      "items": [
+        "Stream X、Madorin 通过发布配置获得不同品牌和行业边界",
+        "行业包定义项目、资产、任务和业务角色"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "业务界面",
+      "items": [
+        "用户只看到行业项目、资产、按钮、步骤和产物",
+        "技能、Prompt、工作流和 Agent 绑定不在界面显示"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "受控执行",
+      "items": [
+        "动作只能引用已注册能力并继续经过权限和审批",
+        "专家、工作、会议共享当前项目与资产上下文"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "可靠配置",
+      "items": [
+        "签名、版本、迁移和稳定 ID 保护发布与用户设置",
+        "解析失败时回退上一份有效工作台快照"
+      ]
+    }
+  ]
+}

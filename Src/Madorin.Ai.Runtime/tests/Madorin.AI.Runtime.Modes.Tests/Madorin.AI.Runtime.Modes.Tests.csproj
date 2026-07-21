@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Entities\Madorin.AI.Runtime.Entities.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Orchestration.Abstractions\Madorin.AI.Runtime.Orchestration.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Modes.Expert\Madorin.AI.Runtime.Modes.Expert.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Modes.Meeting\Madorin.AI.Runtime.Modes.Meeting.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Modes.Work\Madorin.AI.Runtime.Modes.Work.csproj" />
+  </ItemGroup>
+
+</Project>

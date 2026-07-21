@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Madorin.AI.Runtime.Contracts\Madorin.AI.Runtime.Contracts.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Server\Madorin.AI.Runtime.Server.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Client\Madorin.AI.Runtime.Client.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>ai-runtime</AssemblyName>
+    <RootNamespace>Madorin.AI.Runtime.Cli</RootNamespace>
+    <Version>0.1.0</Version>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseAgentFrameworkRuntimeDirectives>true</UseAgentFrameworkRuntimeDirectives>
+  </PropertyGroup>
+
+</Project>

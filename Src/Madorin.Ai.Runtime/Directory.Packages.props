@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Agents.AI" Version="1.7.0" />
+    <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1.7.0" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.6.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.6.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
+    <PackageVersion Include="MSTest" Version="4.0.2" />
+    <PackageVersion Include="Netor.Anthropic" Version="12.21.11" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.10" />
+  </ItemGroup>
+</Project>

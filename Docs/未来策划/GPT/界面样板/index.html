@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Stream X 多项目跨境电商 AI 工作台交互样板">
+  <title>Stream X · 多项目跨境电商 AI 工作台</title>
+  <link rel="icon" type="image/png" href="assets/brand.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#mainContent">跳到主要内容</a>
+
+  <div class="app-shell" id="appShell">
+    <header class="topbar">
+      <button class="icon-button mobile-only" id="navToggle" type="button" aria-label="打开导航" title="打开导航"><i data-lucide="menu"></i></button>
+      <button class="brand" type="button" data-nav-target="workbench" aria-label="返回全部项目工作台">
+        <span class="brand-mark"><img id="brandIcon" src="assets/brand.png" alt="Stream X 标志"></span>
+        <span class="brand-copy"><strong id="brandName">Stream X</strong><small id="brandSubtitle">跨境电商 AI 工作台</small></span>
+      </button>
+      <label class="global-search">
+        <i data-lucide="search"></i>
+        <span class="sr-only">搜索项目、文件、任务与对话</span>
+        <input id="globalSearch" type="search" placeholder="搜索项目、文件、任务与对话">
+        <kbd>Ctrl K</kbd>
+      </label>
+      <div class="topbar-actions">
+        <button class="primary-button" id="newTaskButton" type="button"><i data-lucide="plus"></i><span>新建工作</span></button>
+        <button class="icon-button" id="notificationButton" type="button" aria-label="通知，2 项待处理" title="通知"><i data-lucide="bell"></i><span class="notification-dot" aria-hidden="true"></span></button>
+        <button class="icon-button" id="themeToggle" type="button" aria-label="切换主题" title="切换主题"><i data-lucide="contrast"></i></button>
+        <button class="avatar-button" id="profileButton" type="button" title="账户与发布信息">林</button>
+      </div>
+    </header>
+
+    <div class="workspace-shell">
+      <aside class="sidebar-stack" id="sidebar">
+        <nav class="primary-rail" aria-label="主导航">
+          <button class="rail-workspace" type="button" data-nav-target="workbench" aria-label="返回工作台" title="Northstar Living"><span class="rail-workspace-mark">NL</span><span class="rail-item-label">Northstar Living</span></button>
+          <div class="nav-list" id="navList"></div>
+          <button class="rail-expand-toggle" id="railExpandToggle" type="button" aria-expanded="false" title="展开一级导航"><i data-lucide="panel-left-open"></i><span class="rail-item-label">展开导航</span></button>
+        </nav>
+
+        <section class="context-sidebar" aria-labelledby="contextPanelTitle">
+          <header class="context-sidebar-header">
+            <div><strong id="contextPanelTitle">工作台</strong><span id="contextPanelSubtitle">Northstar Living</span></div>
+            <button class="icon-button" type="button" data-nav-target="settings" aria-label="配置工作台" title="配置工作台"><i data-lucide="sliders-horizontal"></i></button>
+          </header>
+          <div class="context-sidebar-body" id="contextSidebarBody"></div>
+        </section>
+      </aside>
+
+      <section class="workspace-stage">
+        <nav class="work-tabs" id="workTabs" aria-label="已打开的工作"></nav>
+
+        <main class="main-content" id="mainContent" tabindex="-1">
+          <section class="view is-active" id="view-workbench" data-view="workbench" aria-labelledby="workbenchTitle">
+            <header class="page-header">
+              <div>
+                <p class="eyebrow" id="todayLabel">星期一，7 月 20 日</p>
+                <h1 id="workbenchTitle">全部项目工作台</h1>
+                <p>同时观察项目、工作和智能体；进入具体工作后才加载对话与任务资源。</p>
+              </div>
+              <div class="page-actions">
+                <button class="secondary-button" id="customizeButton" type="button"><i data-lucide="sliders-horizontal"></i>配置</button>
+                <button class="primary-button" type="button" data-open-new-work><i data-lucide="plus"></i>新建工作</button>
+              </div>
+            </header>
+
+            <section class="portfolio-summary" id="portfolioSummary" aria-label="全部项目摘要"></section>
+
+            <section class="section-block" aria-labelledby="projectsBoardTitle">
+              <div class="section-heading">
+                <div><h2 id="projectsBoardTitle">正在运行的项目</h2><p>每个项目独立保存任务、文件、对话和运行状态，切换不会刷新其他项目。</p></div>
+                <button class="text-button" type="button" data-nav-target="projects">管理项目 <i data-lucide="arrow-right"></i></button>
+              </div>
+              <div class="project-board" id="projectBoard"></div>
+            </section>
+
+            <section class="section-block" aria-labelledby="continueTitle">
+              <div class="section-heading">
+                <div><h2 id="continueTitle">继续工作</h2><p>工作以独立选项卡打开，保留其项目、文件位置、对话草稿和页面状态。</p></div>
+                <button class="text-button" type="button" data-nav-target="tasks">查看全部任务 <i data-lucide="arrow-right"></i></button>
+              </div>
+              <div class="running-work-list" id="runningWorkList"></div>
+            </section>
+
+            <section class="section-block" aria-labelledby="quickTitle">
+              <div class="section-heading">
+                <div><h2 id="quickTitle">新建业务工作</h2><p>选择操作后先确认所属项目，再创建专家、工作或会议工作页。</p></div>
+              </div>
+              <div class="quick-actions" id="quickActions"></div>
+            </section>
+
+            <section class="section-block" aria-labelledby="modulesTitle">
+              <div class="section-heading">
+                <div><h2 id="modulesTitle">行业功能</h2><p>功能入口来自 Stream X 行业配置，不依赖某个全局当前项目。</p></div>
+                <div class="segmented-control" role="group" aria-label="模块密度"><button type="button" aria-pressed="true" data-density="comfortable"><i data-lucide="layout-grid"></i><span class="sr-only">舒适视图</span></button><button type="button" aria-pressed="false" data-density="compact"><i data-lucide="rows-3"></i><span class="sr-only">紧凑视图</span></button></div>
+              </div>
+              <div class="module-grid" id="moduleGrid"></div>
+            </section>
+          </section>
+
+          <section class="view work-session-view" id="view-work-session" data-view="work-session" aria-labelledby="sessionTitle">
+            <header class="session-header">
+              <div class="session-heading">
+                <span class="session-mode-mark" id="sessionModeMark"><i data-lucide="workflow"></i></span>
+                <div><p class="session-breadcrumb" id="sessionBreadcrumb">德国独立站 / 工作模式</p><h1 id="sessionTitle">德国独立站新品上线</h1><p id="sessionObjective">完成新品本地化、合规检查和发布。</p></div>
+              </div>
+              <div class="session-actions">
+                <span class="session-status" id="sessionStatus"><span class="status-dot running"></span>执行中 · 46%</span>
+                <button class="secondary-button" id="pauseSessionButton" type="button"><i data-lucide="pause"></i><span>暂停</span></button>
+                <button class="icon-button" id="sessionMoreButton" type="button" aria-label="更多工作操作" title="更多工作操作"><i data-lucide="ellipsis"></i></button>
+              </div>
+            </header>
+
+            <div class="session-scope-bar">
+              <span id="sessionProjectChip"><i data-lucide="briefcase-business"></i>德国独立站</span>
+              <span id="sessionTaskChip"><i data-lucide="list-checks"></i>TASK-240719-017</span>
+              <span class="scope-path" id="sessionPath"><i data-lucide="folder-root"></i>E:\StreamX\NorthstarLiving\Germany-Site</span>
+              <button class="text-button" id="openFolderButton" type="button"><i data-lucide="folder-open"></i>在本地打开</button>
+            </div>
+
+            <div class="session-mobile-tabs" role="tablist" aria-label="工作页区域">
+              <button type="button" role="tab" aria-selected="true" data-session-mobile-pane="conversation"><i data-lucide="messages-square"></i>对话</button>
+              <button type="button" role="tab" aria-selected="false" data-session-mobile-pane="inspector"><i data-lucide="list-checks"></i>详情</button>
+            </div>
+
+            <div class="work-session-layout" data-mobile-pane="conversation">
+              <section class="session-conversation" aria-labelledby="conversationTitle">
+                <header class="pane-header conversation-pane-header">
+                  <div><small id="conversationModeLabel">工作对话</small><h2 id="conversationTitle">与任务协作组解决当前工作</h2></div>
+                  <div class="participant-stack" id="participantStack" aria-label="当前参与者"></div>
+                </header>
+                <div class="context-strip" id="contextStrip" aria-label="当前对话引用"></div>
+                <div class="message-stream" id="messageStream" aria-live="polite" tabindex="0"></div>
+                <div class="suggestion-strip" id="suggestionStrip" aria-label="建议回复"></div>
+                <form class="composer" id="conversationForm">
+                  <div class="attachment-preview" id="attachmentPreview" hidden></div>
+                  <label class="composer-input"><span class="sr-only">给 AI 发送消息</span><textarea id="messageInput" rows="3" placeholder="告诉 AI 要修改的方案、步骤或输入…"></textarea></label>
+                  <div class="composer-toolbar"><div><button class="composer-icon" id="attachButton" type="button" title="添加本地文件" aria-label="添加本地文件"><i data-lucide="paperclip"></i></button><button class="composer-icon" id="assetReferenceButton" type="button" title="引用项目资源" aria-label="引用项目资源"><i data-lucide="at-sign"></i></button><button class="composer-icon" id="promptLibraryButton" type="button" title="插入常用业务要求" aria-label="插入常用业务要求"><i data-lucide="library"></i></button></div><div class="composer-send-group"><span>Enter 发送</span><button class="send-button" id="sendButton" type="submit" aria-label="发送消息" title="发送消息"><i data-lucide="arrow-up"></i></button></div></div>
+                </form>
+              </section>
+
+              <aside class="work-inspector" aria-labelledby="inspectorTitle">
+                <div class="inspector-tabs" role="tablist" aria-label="工作详情">
+                  <button type="button" role="tab" aria-selected="true" data-inspector-tab="steps">步骤</button>
+                  <button type="button" role="tab" aria-selected="false" data-inspector-tab="outputs">产出</button>
+                  <button type="button" role="tab" aria-selected="false" data-inspector-tab="agents">参与者</button>
+                </div>
+                <div class="inspector-content" id="inspectorContent"><h2 id="inspectorTitle" class="sr-only">工作详情</h2></div>
+              </aside>
+            </div>
+          </section>
+
+          <section class="view" id="view-projects" data-view="projects" aria-labelledby="projectsTitle"></section>
+          <section class="view" id="view-tasks" data-view="tasks" aria-labelledby="tasksTitle"></section>
+          <section class="view" id="view-assets" data-view="assets" aria-labelledby="assetsTitle"></section>
+          <section class="view" id="view-conversations" data-view="conversations" aria-labelledby="conversationsTitle"></section>
+          <section class="view" id="view-apps" data-view="apps" aria-labelledby="appsTitle"></section>
+          <section class="view" id="view-execution" data-view="execution" aria-labelledby="executionTitle"></section>
+          <section class="view" id="view-settings" data-view="settings" aria-labelledby="settingsTitle"></section>
+        </main>
+      </section>
+    </div>
+
+    <footer class="agent-monitor" id="agentMonitor">
+      <section class="agent-monitor-drawer" aria-labelledby="agentMonitorTitle">
+        <header class="monitor-drawer-header">
+          <h2 id="agentMonitorTitle">Agent 监控</h2>
+          <div class="monitor-filters"><button type="button" aria-pressed="true" data-agent-filter="all">全部 8</button><button type="button" aria-pressed="false" data-agent-filter="running">运行中 5</button><button type="button" aria-pressed="false" data-agent-filter="attention">需处理 2</button></div>
+          <button class="monitor-collapse" id="agentMonitorCollapse" type="button" aria-label="收起 Agent 监控" title="收起"><span>收起</span><i data-lucide="chevron-down"></i></button>
+        </header>
+        <div class="agent-card-track" id="agentCardTrack" role="list"></div>
+      </section>
+      <button class="agent-monitor-handle" id="agentMonitorToggle" type="button" aria-expanded="false">
+        <span class="monitor-title"><i data-lucide="diamond"></i><strong>Stream X Workbench</strong></span>
+        <span><i data-lucide="activity"></i><strong>3</strong> 工作执行中</span>
+        <span><i data-lucide="users"></i><strong>5</strong> Agent 工作中</span>
+        <span class="monitor-attention"><i data-lucide="triangle-alert"></i><strong>2</strong> 项等待确认</span>
+        <span class="monitor-spacer"></span>
+        <span class="monitor-storage">SQLite 索引</span><span class="monitor-storage">JSONL 正文</span><time id="monitorClock">22:44:47</time>
+        <i class="monitor-chevron" data-lucide="chevron-up"></i>
+      </button>
+    </footer>
+  </div>
+
+  <div class="mobile-scrim" id="mobileScrim" hidden></div>
+  <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+
+  <dialog class="workbench-dialog onboarding-dialog" id="onboardingDialog" aria-labelledby="onboardingTitle">
+    <form method="dialog" id="onboardingForm">
+      <header class="dialog-header"><div class="dialog-brand"><span class="brand-mark"><img src="assets/brand.png" alt=""></span><div><small>首次初始化</small><h2 id="onboardingTitle">建立你的跨境电商工作台</h2></div></div><button class="icon-button" id="closeOnboardingButton" type="button" aria-label="稍后设置" title="稍后设置"><i data-lucide="x"></i></button></header>
+      <div class="onboarding-layout"><nav class="onboarding-progress" id="onboardingProgress" aria-label="初始化步骤"></nav><section class="onboarding-content" id="onboardingContent"></section></div>
+      <footer class="dialog-footer"><button class="text-button" id="useExampleButton" type="button">使用示例工作台</button><span class="footer-spacer"></span><button class="secondary-button" id="onboardingBackButton" type="button">上一步</button><button class="primary-button" id="onboardingNextButton" type="button">下一步</button></footer>
+    </form>
+  </dialog>
+
+  <dialog class="workbench-dialog action-dialog" id="actionDialog" aria-labelledby="actionDialogTitle">
+    <form method="dialog" id="actionForm">
+      <header class="dialog-header"><div><small>创建独立工作页</small><h2 id="actionDialogTitle">新建业务工作</h2></div><button class="icon-button" id="closeActionDialog" type="button" aria-label="关闭" title="关闭"><i data-lucide="x"></i></button></header>
+      <div class="action-dialog-body">
+        <label class="field-label">工作目标<textarea id="newTaskGoal" rows="3" placeholder="例如：把本周新品发布到德国独立站"></textarea></label>
+        <fieldset class="project-choice" id="projectChoice"><legend>所属项目</legend></fieldset>
+        <fieldset class="mode-choice"><legend>协作方式</legend><label><input type="radio" name="newMode" value="expert"><span><i data-lucide="messages-square"></i><strong>专家</strong><small>分析和诊断</small></span></label><label><input type="radio" name="newMode" value="work" checked><span><i data-lucide="workflow"></i><strong>工作</strong><small>编制步骤并执行</small></span></label><label><input type="radio" name="newMode" value="meeting"><span><i data-lucide="users-round"></i><strong>会议</strong><small>多角色讨论决策</small></span></label></fieldset>
+      </div>
+      <footer class="dialog-footer"><span class="dialog-note"><i data-lucide="panel-top"></i>将创建新的工作选项卡</span><span class="footer-spacer"></span><button class="secondary-button" id="cancelActionDialog" type="button">取消</button><button class="primary-button" type="submit"><i data-lucide="arrow-right"></i>创建并进入</button></footer>
+    </form>
+  </dialog>
+
+  <script src="assets/lucide.min.js"></script>
+  <script src="stream-x.workbench.config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

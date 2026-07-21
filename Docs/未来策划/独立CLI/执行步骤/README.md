@@ -1,0 +1,175 @@
+# Madorin AI Runtime V1 执行步骤总览 : 1.2%
+
+> 文档状态：执行中 · 总进度：1.2%
+>
+> 本目录只定义后续实施顺序、交付物和验收门禁，不表示对应业务能力已经实现。
+
+## 0. 总体进度
+
+| 统计项 | 已完成 | 总数 | 进度 |
+| --- | ---: | ---: | ---: |
+| 全部检查项 | 11 | 912 | 1.2% |
+| 已完成阶段 | 1 | 13 | 7.7% |
+
+总进度按 13 份阶段文档中的全部执行任务、测试要求和完成标准计算，不按阶段数量平均计算。阶段 0 已完成；阶段 1 至阶段 8 尚未开始业务实现。
+
+进度更新规则：
+
+1. 完成检查项后，将对应标记从 `[×]` 改为 `[√]`。
+2. 更新检查项所属子步骤和上级执行章节的百分比，百分比按 `已完成数 / 总数` 计算并保留一位小数，结果为整数时可以省略 `.0`。
+3. 更新阶段文档 `进度跟踪` 表中的已完成数和百分比。
+4. 更新阶段主标题、阶段状态和阶段总进度；存在未完成项时不得标记为已完成。
+5. 更新本总览的阶段状态、完成数、阶段进度和总体进度。
+
+阶段状态只使用 `待执行`、`执行中`、`已完成`：完成数为 0 时是待执行，完成数大于 0 且小于总数时是执行中，全部检查项完成时才是已完成。
+
+## 1. 命名基线
+
+原策划文档中的 `Netor.AI.Runtime` 是暂定名。本执行文档统一采用以下正式命名，并在命名冲突时覆盖原策划文档：
+
+| 对象 | 正式名称 |
+| --- | --- |
+| 项目根目录 | `Src/Madorin.Ai.Runtime` |
+| 解决方案 | `Madorin.AI.Runtime.slnx` |
+| 项目、程序集和 NuGet 包前缀 | `Madorin.AI.Runtime.*` |
+| C# 命名空间前缀 | `Madorin.AI.Runtime.*` |
+| CLI 命令 / 可执行文件 | `madorin` / Windows `madorin.exe` |
+| Pipe/Socket 默认前缀 | `madorin.ai.runtime` |
+| 环境变量前缀 | `MADORIN_AI_` |
+
+`Netor.Anthropic` 是外部包名，不得重命名。`Netor.Cortana.*` 只允许出现在迁移参考和“禁止依赖”说明中，不得成为新 Runtime 的项目引用。
+
+## 2. 设计依据与优先级
+
+实施前必须依次阅读：
+
+1. [总体方案与总需求](../README.md)
+2. [实施方案 V1](../01-实施方案-V1.md)
+3. [架构修订 V1](../02-架构修订-V1.md)
+4. [实现框架参考](../03-实现框架参考.md)
+5. [CLI 命令规范](../04-CLI命令规范.md)
+6. [Skills 加载与调用方案](../05-Skills加载与调用方案.md)
+7. 本目录中当前阶段的执行文档
+
+技术语义冲突时，以架构修订 V1 为准；CLI 的其余表面行为以 CLI 命令规范为准。
+
+**命令名称以本执行文档为准**：本目录统一使用 `madorin` 命令（Windows 为 `madorin.exe`），上位 CLI 命令规范中的 `ai-runtime` 为旧暂定名，V1 实施时以 `madorin` 为准，上位规范文档可在阶段 8 验收前同步更新。
+
+正式 `madorin` 命名以及本目录新增的 `config`、`agent`、`memory` 命令以当前执行文档为准。原策划只出现未定义的“记忆引用”，全局/项目记忆的 V1 语义以阶段 4B 为准。Skills 的来源、优先级、MAF 注入、宿主传参与远程能力预留以独立 Skills 方案为准；后续实施时再将该方案拆入相关阶段检查项，不得因新增策划文档提前增加已完成数。
+
+## 3. 当前起点
+
+当前骨架已经具备：
+
+- .NET 10、中央包管理、严格编译和 Native AOT 配置。
+- 22 个源码项目、1 个 SampleHost 和 6 个测试项目。
+- 初始领域模型、协议类型、Run 状态机、Provider/工具/传输抽象。
+- CLI 命令树和未实现命令占位。
+- Debug 构建及现有 15 项骨架测试通过。
+
+当前骨架不代表 Runtime Server、Provider Adapter、持久化、Named Pipe、内置工具或三种运行模式已经实现。执行人员不得以“项目已存在”代替阶段交付验收。
+
+### 3.1 当前多实例与并发结论
+
+当前 CLI **不具备可运行的进程级多实例能力**。现有代码只建立了 `--instance`、`--pipe-prefix`、`--max-runs` 参数、`RuntimeServerOptions` 配置模型和相关抽象；`serve`、`run` 没有执行处理器，实例锁、工作区锁、进程管理、Named Pipe 和持久化均未实现。单进程多 Run 是另一项 Runtime 能力，不能代替本节要求的多进程、多工作目录隔离。
+
+V1 必须支持以下实际拓扑：
+
+```text
+Host A -> madorin serve A1 -> Workspace A1
+       -> madorin serve A2 -> Workspace A2
+
+Host B -> madorin serve B1 -> Workspace B1
+       -> madorin serve B2 -> Workspace B2
+
+Terminal C -> madorin -> Workspace C
+Terminal D -> madorin -> Workspace D
+```
+
+评审后的实现边界：
+
+1. 一个或多个宿主进程都可以同时启动和管理多个 `madorin serve` 子进程；用户也可以在多个终端同时启动独立 CLI。
+2. 每个 Runtime 进程只绑定一个规范化工作区。不同工作区的进程并行运行，实例 ID、IPC 端点、认证密钥、运行数据、日志、临时文件和生命周期必须隔离。
+3. 同一规范化工作区始终只允许一个写实例。改变 `instanceId`、`--pipe-prefix` 或 `--data-dir` 不能绕过工作区写锁。
+4. `runtimeInstanceId` 标识 Runtime 进程实例，`hostInstanceId` 标识宿主进程。每条连接在认证后固定绑定这两个标识，不能在连接存续期间切换。
+5. GSN 只在单个 Runtime 实例内单调。宿主必须按 `(runtimeInstanceId, gsn)` 保存游标，按 `(runtimeInstanceId, runId)` 路由查询、取消和事件，不能把多个 Runtime 的 GSN 或 Run ID 放进同一无实例归属的键空间。
+6. 每个宿主到 Runtime 子进程的启动关系使用独立认证 secret、独立 Client 句柄和独立进程所有权；关闭、取消、重连或认证失败只能影响目标实例。
+7. 独立 CLI 默认把运行数据写入 `~/.madorin/data/workspaces/{workspaceKey}`；`workspaceKey` 由规范化工作区路径稳定派生，不在目录名中暴露原始路径。
+8. `config.json`、`agents/` 和全局 `memory.md` 仍由同一系统用户的多个 CLI 共享。并发读取允许；修改必须使用跨进程写锁、重新读取最新内容和原子替换。
+9. V1 不为独立 CLI 引入自动守护进程或复杂实例池，也不自动附着到首个独立 CLI 进程。相同工作区的第二个进程直接返回明确占用错误和持锁实例信息。
+10. 单个 Runtime 内部仍按后续阶段实现多 Run，但进程级隔离测试必须独立存在，不能用单进程多 Run 测试替代。
+
+## 4. 阶段顺序
+
+| 顺序 | 执行文档 | 状态 | 完成数 | 进度 | 核心出口条件 |
+| --- | --- | --- | ---: | ---: | --- |
+| 0 | [00-项目骨架基线](./00-项目骨架基线.md) | 已完成 | 11 / 11 | 100% | 解决方案、分层、首批抽象、命令树和骨架测试已建立 |
+| 1 | [01-工程与协议基线](./01-工程与协议基线.md) | 待执行 | 0 / 70 | 0% | Fake Host 与 Fake Runtime 完成三模式协议闭环 |
+| 2 | [02-Runtime骨架与双通道](./02-Runtime骨架与双通道.md) | 待执行 | 0 / 69 | 0% | 安全连接、双通道、Blob 和重连行为确定 |
+| 3 | [03-Run状态机与持久化基线](./03-Run状态机与持久化基线.md) | 待执行 | 0 / 75 | 0% | 多 Run、GSN Outbox、Session 与 `.madorin` 基线闭合 |
+| 4 | [04-Provider适配层](./04-Provider适配层.md) | 待执行 | 0 / 62 | 0% | 三个 Adapter 通过统一一致性测试 |
+| 4A | [04A-独立配置与选择](./04A-独立配置与选择.md) | 待执行 | 0 / 75 | 0% | 用户配置、首次向导、Agent 管理和本地装配通过门禁 |
+| 4B | [04B-全局与项目记忆](./04B-全局与项目记忆.md) | 待执行 | 0 / 53 | 0% | 两个 `memory.md`、文件服务、工具契约和注入规则冻结 |
+| 5 | [05-工具权限与反向RPC](./05-工具权限与反向RPC.md) | 待执行 | 0 / 76 | 0% | 权限、审批、幂等、反向 RPC 闭环通过 |
+| 6A | [06A-专家模式与JSONL](./06A-专家模式与JSONL.md) | 待执行 | 0 / 74 | 0% | 专家模式及权威消息文件可执行、可恢复 |
+| 6B | [06B-会议模式与摘要](./06B-会议模式与摘要.md) | 待执行 | 0 / 63 | 0% | 多参与者、轮次、摘要和恢复闭环通过 |
+| 6C | [06C-工作模式与故障恢复](./06C-工作模式与故障恢复.md) | 待执行 | 0 / 77 | 0% | 步骤/工具两级幂等和故障判定通过 |
+| 7 | [07-CLI-ClientSDK与参考宿主](./07-CLI-ClientSDK与参考宿主.md) | 待执行 | 0 / 96 | 0% | 参考宿主只依赖 Client SDK 完成全链路 |
+| 8 | [08-验收发布与质量门禁](./08-验收发布与质量门禁.md) | 待执行 | 0 / 111 | 0% | 全矩阵、AOT、多平台和发布门槛通过 |
+
+阶段 0 已完成，后续默认从阶段 1 开始按表中顺序执行。阶段 4A、4B 分别建立个人配置和简单记忆基线，阶段 5 以 4B 为正式前置门禁；阶段 6A、6B、6C 虽然分文档管理，仍按 6A -> 6B -> 6C 顺序推进。记忆能力按 4B 文件服务与工具契约、5 Tool Catalog 注册、6A 模型调用与自动注入、7 用户命令、8 发布验收逐步闭合。宿主通过 Client SDK/协议调用 Runtime 始终是主要使用路径。
+
+## 5. 全程不变量
+
+任何阶段都不得破坏以下约束：
+
+- 层级固定为 `Session -> Run -> AgentInvocation -> ProviderRequest`。
+- 一个 Run 只能形成一个 `Completed`、`Failed` 或 `Cancelled` 终态。
+- 事件使用 Runtime 实例内持久化 GSN 和 Run 内 `runSequence`；发送前先写 Outbox。跨实例游标必须使用 `(runtimeInstanceId, gsn)`。
+- 新建与续接使用 `NewSessionRunRequest`、`ExistingSessionRunRequest` 两个 DTO。
+- V1 一个 Runtime 实例只绑定一个工作区。
+- 一个宿主进程可以持有多个实例绑定的 Client 句柄，多个宿主进程也可以分别启动多个 Runtime；不得使用进程全局的“当前 Runtime”静态状态。
+- 查询、取消、事件去重和回调路由使用 `(runtimeInstanceId, runId)` 或实例绑定 Client，不能只按 `runId` 在多个 Runtime 之间查找。
+- 每个 Runtime 子进程使用独立 IPC 端点、认证 secret 和所有权记录；停止或释放一个实例不得关闭其他实例。
+- 用户主目录 `~/.madorin/config.json` 和 `~/.madorin/agents/*.json` 只服务直接启动的个人 CLI；独立运行数据写入 `~/.madorin/data/workspaces/{workspaceKey}`，宿主运行数据写入宿主工作区 `.madorin`。
+- 不同工作区的 Runtime/CLI 实例可以并行；同一规范化工作区只允许一个写实例，修改实例名、Pipe 前缀或数据目录不得绕过工作区锁。
+- 独立 CLI 不依赖宿主或 IPC，但必须复用 Runtime 的 Provider、Agent、Run 和持久化服务；宿主模式不得隐式依赖或自动加载个人 CLI 配置。
+- 独立配置在启动时一次性加载，V1 不实现 Profile、模式配置目录、远程配置中心或配置热更新。
+- Key 可以由向导写入当前用户的 `config.json`；输入不回显，文件限制为当前用户可读，展示、日志和错误全部脱敏。
+- 全局和项目记忆只使用 `~/.madorin/memory.md` 与 `<workspace>/.madorin/memory.md`；Agent 启动时自动注入全局后项目内容，项目规则更具体。
+- 记忆只由用户命令或经审批的 `builtin.memory` 写入，不自动从对话、项目文件或工具结果提取。
+- CanonicalHistory 是 append-only 权威历史；ContextProjection 是每次 Invocation 生成的模型视图。
+- 工具意图必须先落库再发送；有副作用调用按 `callId` 幂等。
+- 子智能体默认不继承权限；委派只能缩小作用域。
+- `Contracts`、`Core` 和公共 Provider 抽象不得暴露 MAF、MEAI 或具体 Provider SDK 类型。
+- 协议 JSON 只使用 `System.Text.Json` 源生成元数据，不回退到反射序列化。
+- `.madorin` 是 Runtime 保留数据区，Agent 文件工具不得直接访问；两个固定 `memory.md` 只能由 Memory File Service 操作。
+
+## 6. 阶段执行规则
+
+每一阶段必须按以下顺序进行：
+
+1. 复核当前阶段前置门禁和上阶段验收记录。
+2. 冻结或版本化本阶段新增的公共契约、Schema 和命令表面。
+3. 先建立失败用例、协议快照或测试替身，再实现业务代码。
+4. 按项目职责实施，不跨层直接引用具体实现。
+5. 完成单元、集成、协议一致性和必要的故障注入测试。
+6. 记录性能基线、安全检查和已知限制。
+7. 只有完成标准全部满足后，才进入下一阶段。
+
+阶段验收记录至少包含构建号、协议版本、数据库 Schema 版本、测试结果、AOT 警告数、未关闭风险和回退点。Git 提交说明必须使用中文。
+
+## 7. 通用质量门禁
+
+- Debug/Release 均为 0 警告、0 错误，分析器不得通过全局禁用绕过。
+- 所有公共异步 API 接受并向下传递 `CancellationToken`。
+- 任何网络、文件、进程、Pipe 和数据库操作都有超时、取消和结构化错误。
+- 路径、URL、Prompt、JSON、首尾空白和中文内容进行无损往返测试。
+- 关键协议类型有快照测试和向后兼容规则。
+- 数据库迁移支持预检、备份和失败回滚，不允许静默重建空库。
+- 日志不得记录 API Key、共享密钥、完整 Prompt 或敏感工具结果。
+- Release Native AOT 发布保持 0 条 trimming/AOT 警告。
+
+## 8. 范围控制
+
+V1 不实施 Gemini 正式 Adapter、跨机器 Runtime、分布式 Worker、Provider 热卸载、完整容器/AppContainer 沙箱、图形化 Workflow、通用 Agent 消息总线、音视频和 Computer Use。遇到这些需求时只记录到 V2 决策清单，不得插入当前阶段扩大范围。

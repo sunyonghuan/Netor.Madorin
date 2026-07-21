@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MSTest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Server\Madorin.AI.Runtime.Server.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Client\Madorin.AI.Runtime.Client.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Cli\Madorin.AI.Runtime.Cli.csproj" />
+  </ItemGroup>
+
+</Project>
