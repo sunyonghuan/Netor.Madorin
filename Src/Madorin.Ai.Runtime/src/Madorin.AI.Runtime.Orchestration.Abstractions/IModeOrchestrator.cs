@@ -1,5 +1,5 @@
+using Madorin.AI.Runtime.Contracts;
 using Madorin.AI.Runtime.Entities;
-using Madorin.AI.Runtime.Providers.Abstractions;
 
 namespace Madorin.AI.Runtime.Orchestration.Abstractions;
 
@@ -7,7 +7,10 @@ public interface IModeOrchestrator
 {
     public RuntimeMode Mode { get; }
 
-    public IAsyncEnumerable<RuntimeProviderEvent> ExecuteAsync(
-        AgentInvocationRequest request,
-        CancellationToken cancellationToken = default);
+    public IAsyncEnumerable<RuntimeEventEnvelope> RunAsync(
+        string runId,
+        string sessionId,
+        NewSessionRunRequest request,
+        string runtimeInstanceId,
+        CancellationToken ct = default);
 }

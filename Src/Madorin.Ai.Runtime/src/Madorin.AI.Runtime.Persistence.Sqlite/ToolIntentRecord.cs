@@ -1,0 +1,26 @@
+namespace Madorin.AI.Runtime.Persistence.Sqlite;
+
+public sealed record ToolIntentRecord(
+    string CallId,
+    string InvocationId,
+    string RunId,
+    string SessionId,
+    string ToolId,
+    string ArgumentsHash,
+    string Status,
+    string? ResultJson,
+    string? ErrorMessage,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? CompletedAt,
+    string AgentId = "",
+    string? ParentAgentId = null,
+    string ToolCatalogVersion = "",
+    DateTimeOffset? SentAt = null,
+    string? GrantId = null,
+    string? ApprovalRequestId = null,
+    string? ResultHash = null,
+    string? ResultBlobId = null,
+    string? ErrorCode = null,
+    bool IsResultVisible = true,
+    string? WorkStepId = null,
+    string? PlanVersion = null);

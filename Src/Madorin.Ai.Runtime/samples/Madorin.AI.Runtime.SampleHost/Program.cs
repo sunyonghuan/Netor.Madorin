@@ -1,4 +1,11 @@
 using Madorin.AI.Runtime.Contracts;
 
+if (args.Length > 0
+    && args[0].Equals("multi-instance", StringComparison.OrdinalIgnoreCase))
+{
+    return await MultiInstanceHost.RunAsync(args[1..]).ConfigureAwait(false);
+}
+
 Console.WriteLine(
-    $"Madorin.AI.Runtime.SampleHost scaffold (protocol {ProtocolVersions.Current}).");
+    $"Madorin.AI.Runtime.SampleHost (protocol {ProtocolVersions.Current}).");
+return 0;

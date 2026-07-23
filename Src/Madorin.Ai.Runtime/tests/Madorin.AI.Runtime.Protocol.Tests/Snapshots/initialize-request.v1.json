@@ -1,0 +1,21 @@
+{
+  "$schema": "madorin.ai.runtime.protocol-snapshot/v1",
+  "protocolVersion": "1.0",
+  "messageType": "initialize.request",
+  "payload": {
+    "hostInstanceId": "host-1",
+    "clientVersion": "1.0.0",
+    "supportedProtocolVersions": [
+      "1.0",
+      "0.9"
+    ],
+    "expectedCapabilities": {
+      "streaming": true,
+      "toolCalling": true,
+      "blobTransfer": false,
+      "multiRun": true,
+      "sessionResume": true
+    },
+    "lastConfirmedGsn": 42
+  }
+}

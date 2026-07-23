@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Madorin.AI.Runtime.Cli;
+using Madorin.AI.Runtime.Contracts;
 
 namespace Madorin.AI.Runtime.EndToEnd.Tests;
 
@@ -14,9 +15,11 @@ public sealed class CliVersionTests
         var exitCode = CliApplication.Run(["version", "--json"], output);
 
         Assert.AreEqual(ExitCodes.Success, exitCode);
-        using var document = JsonDocument.Parse(output.ToString());
+        var json = output.ToString();
+        StringAssert.Contains(json, "\"protocolVersion\":\"1.1\"");
+        using var document = JsonDocument.Parse(json);
         Assert.AreEqual(
-            "1.2",
+            ProtocolVersions.Current,
             document.RootElement.GetProperty("protocolVersion").GetString());
     }
 }

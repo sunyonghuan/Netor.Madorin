@@ -1,0 +1,8 @@
+{
+  "$schema": "madorin.ai.runtime.protocol-snapshot/v1",
+  "protocolVersion": "1.0",
+  "messageType": "run.query",
+  "payload": {
+    "runId": "run-1"
+  }
+}

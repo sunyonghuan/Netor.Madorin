@@ -1,0 +1,16 @@
+{
+  "$schema": "madorin.ai.runtime.protocol-snapshot/v1",
+  "protocolVersion": "1.0",
+  "messageType": "tool.permission.request",
+  "payload": {
+    "approvalRequestId": "approval-1",
+    "agentId": "agent-1",
+    "parentAgentId": "parent-1",
+    "toolId": "builtin.fs",
+    "callId": "call-1",
+    "argumentsHash": "arguments-hash",
+    "risk": "high",
+    "requestedScope": "workspace",
+    "reason": "Read project file"
+  }
+}

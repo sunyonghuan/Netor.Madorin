@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Madorin.AI.Runtime.Entities\Madorin.AI.Runtime.Entities.csproj" />
+  </ItemGroup>
+
 </Project>

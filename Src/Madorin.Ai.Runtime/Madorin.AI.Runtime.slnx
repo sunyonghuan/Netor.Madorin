@@ -15,10 +15,12 @@
     <Project Path="src/Madorin.AI.Runtime.Persistence.Abstractions/Madorin.AI.Runtime.Persistence.Abstractions.csproj" />
     <Project Path="src/Madorin.AI.Runtime.Persistence.Files/Madorin.AI.Runtime.Persistence.Files.csproj" />
     <Project Path="src/Madorin.AI.Runtime.Persistence.Sqlite/Madorin.AI.Runtime.Persistence.Sqlite.csproj" />
-    <Project Path="src/Madorin.AI.Runtime.Providers.Abstractions/Madorin.AI.Runtime.Providers.Abstractions.csproj" />
-    <Project Path="src/Madorin.AI.Runtime.Providers.Anthropic/Madorin.AI.Runtime.Providers.Anthropic.csproj" />
-    <Project Path="src/Madorin.AI.Runtime.Providers.OpenAI/Madorin.AI.Runtime.Providers.OpenAI.csproj" />
-    <Project Path="src/Madorin.AI.Runtime.Providers.OpenAICompatible/Madorin.AI.Runtime.Providers.OpenAICompatible.csproj" />
+    <Project Path="src/Providers/Madorin.AI.Runtime.Providers.Abstractions/Madorin.AI.Runtime.Providers.Abstractions.csproj" />
+    <Project Path="src/Providers/Madorin.AI.Runtime.Providers.Anthropic/Madorin.AI.Runtime.Providers.Anthropic.csproj" />
+    <Project Path="src/Providers/Madorin.AI.Runtime.Providers.DeepSeek/Madorin.AI.Runtime.Providers.DeepSeek.csproj" />
+    <Project Path="src/Providers/Madorin.AI.Runtime.Providers.Kimi/Madorin.AI.Runtime.Providers.Kimi.csproj" />
+    <Project Path="src/Providers/Madorin.AI.Runtime.Providers.OpenAI/Madorin.AI.Runtime.Providers.OpenAI.csproj" />
+    <Project Path="src/Providers/Madorin.AI.Runtime.Providers.OpenAICompatible/Madorin.AI.Runtime.Providers.OpenAICompatible.csproj" />
     <Project Path="src/Madorin.AI.Runtime.Server/Madorin.AI.Runtime.Server.csproj" />
     <Project Path="src/Madorin.AI.Runtime.Services/Madorin.AI.Runtime.Services.csproj" />
     <Project Path="src/Madorin.AI.Runtime.Tools.Abstractions/Madorin.AI.Runtime.Tools.Abstractions.csproj" />

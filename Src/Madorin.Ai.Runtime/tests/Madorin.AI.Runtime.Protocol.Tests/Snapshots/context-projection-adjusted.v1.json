@@ -1,0 +1,13 @@
+{
+  "$schema": "madorin.ai.runtime.protocol-snapshot/v1",
+  "protocolVersion": "1.0",
+  "messageType": "context.projection.adjusted",
+  "payload": {
+    "invocationId": "invocation-1",
+    "droppedMessageCount": 7,
+    "includedMessageCount": 3,
+    "estimatedTokens": 4096,
+    "estimateSource": "provider.estimated",
+    "strategy": "TailWindow"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "madorin.ai.runtime.protocol-snapshot/v1",
+  "protocolVersion": "1.0",
+  "messageType": "run.new_session.work",
+  "payload": {
+    "sessionIdempotencyKey": "session-key-work",
+    "runIdempotencyKey": "run-key-work",
+    "mode": "Work",
+    "selection": {
+      "selectionVersion": 3,
+      "mode": "Work",
+      "defaultSelection": {
+        "providerId": "provider-1",
+        "modelId": "model-1"
+      },
+      "modeOptions": {
+        "mode": "work",
+        "generalManager": {
+          "agentId": "work-agent",
+          "promptTemplateVersion": "v1",
+          "systemPrompt": "Work 系统提示",
+          "providerId": "provider-1",
+          "modelId": "model-1"
+        },
+        "availableAgents": [
+          {
+            "agentId": "worker",
+            "promptTemplateVersion": "v3",
+            "systemPrompt": "Execute"
+          }
+        ]
+      },
+      "sessionInstructions": "  保留首尾空白  ",
+      "toolCatalogVersion": "catalog-v1"
+    },
+    "initialInput": [
+      {
+        "type": "text",
+        "text": "Start Work"
+      }
+    ],
+    "workspaceId": "workspace-1"
+  }
+}

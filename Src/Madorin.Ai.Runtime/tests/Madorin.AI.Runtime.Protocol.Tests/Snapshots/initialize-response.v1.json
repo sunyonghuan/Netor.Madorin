@@ -1,0 +1,26 @@
+{
+  "$schema": "madorin.ai.runtime.protocol-snapshot/v1",
+  "protocolVersion": "1.0",
+  "messageType": "initialize.response",
+  "payload": {
+    "runtimeInstanceId": "runtime-1",
+    "programVersion": "1.0.0",
+    "selectedProtocolVersion": "1.0",
+    "capabilities": {
+      "streaming": true,
+      "toolCalling": true,
+      "blobTransfer": true,
+      "multiRun": true,
+      "sessionResume": true
+    },
+    "limits": {
+      "maxControlMessageBytes": 1048576,
+      "maxEventFrameBytes": 4194304,
+      "maxInlineContentBytes": 65536,
+      "maxBlobBytes": 1073741824,
+      "maxBlobBytesPerRun": 4294967296
+    },
+    "eventChannelAddress": "memory://runtime-1/events",
+    "heartbeatIntervalSeconds": 15
+  }
+}

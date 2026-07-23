@@ -2,6 +2,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Madorin.AI.Runtime.Orchestration.Abstractions\Madorin.AI.Runtime.Orchestration.Abstractions.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Persistence.Files\Madorin.AI.Runtime.Persistence.Files.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Persistence.Sqlite\Madorin.AI.Runtime.Persistence.Sqlite.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Services\Madorin.AI.Runtime.Services.csproj" />
+    <ProjectReference Include="..\Providers\Madorin.AI.Runtime.Providers.Abstractions\Madorin.AI.Runtime.Providers.Abstractions.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

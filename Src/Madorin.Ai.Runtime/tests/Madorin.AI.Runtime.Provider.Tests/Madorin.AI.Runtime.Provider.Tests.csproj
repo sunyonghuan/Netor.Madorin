@@ -12,14 +12,22 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Providers.Abstractions\Madorin.AI.Runtime.Providers.Abstractions.csproj" />
-    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Providers.OpenAI\Madorin.AI.Runtime.Providers.OpenAI.csproj" />
-    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Providers.Anthropic\Madorin.AI.Runtime.Providers.Anthropic.csproj" />
-    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Providers.OpenAICompatible\Madorin.AI.Runtime.Providers.OpenAICompatible.csproj" />
+    <ProjectReference Include="..\..\src\Providers\Madorin.AI.Runtime.Providers.Abstractions\Madorin.AI.Runtime.Providers.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Providers\Madorin.AI.Runtime.Providers.OpenAI\Madorin.AI.Runtime.Providers.OpenAI.csproj" />
+    <ProjectReference Include="..\..\src\Providers\Madorin.AI.Runtime.Providers.Anthropic\Madorin.AI.Runtime.Providers.Anthropic.csproj" />
+    <ProjectReference Include="..\..\src\Providers\Madorin.AI.Runtime.Providers.OpenAICompatible\Madorin.AI.Runtime.Providers.OpenAICompatible.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Services\Madorin.AI.Runtime.Services.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Cli\Madorin.AI.Runtime.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Persistence.Sqlite\Madorin.AI.Runtime.Persistence.Sqlite.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Tools.Builtin\Madorin.AI.Runtime.Tools.Builtin.csproj" />
   </ItemGroup>
 
 </Project>

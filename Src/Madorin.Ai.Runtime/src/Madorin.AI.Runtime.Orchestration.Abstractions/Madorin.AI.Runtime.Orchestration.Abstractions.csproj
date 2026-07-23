@@ -3,7 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Madorin.AI.Runtime.Entities\Madorin.AI.Runtime.Entities.csproj" />
     <ProjectReference Include="..\Madorin.AI.Runtime.Contracts\Madorin.AI.Runtime.Contracts.csproj" />
-    <ProjectReference Include="..\Madorin.AI.Runtime.Providers.Abstractions\Madorin.AI.Runtime.Providers.Abstractions.csproj" />
+    <ProjectReference Include="..\Providers\Madorin.AI.Runtime.Providers.Abstractions\Madorin.AI.Runtime.Providers.Abstractions.csproj" />
     <ProjectReference Include="..\Madorin.AI.Runtime.Tools.Abstractions\Madorin.AI.Runtime.Tools.Abstractions.csproj" />
   </ItemGroup>
 

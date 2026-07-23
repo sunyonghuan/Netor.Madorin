@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 2,
+  "brand": "madorin",
+  "intro": "面向软件工程开发的 AI 工作台",
+
+  "agents": {
+    "code-agent": { "displayName": "编码智能体", "vendor": "anthropic", "model": "claude-opus-4", "capabilities": ["代码读写", "测试执行"] },
+    "review-agent": { "displayName": "评审智能体", "vendor": "anthropic", "model": "claude-sonnet-4", "capabilities": ["代码分析"] },
+    "devops-agent": { "displayName": "运维智能体", "capabilities": ["构建部署", "环境管理"] },
+    "doc-agent": { "displayName": "文档智能体", "capabilities": ["文档生成"] }
+  },
+
+  "capabilities": {
+    "代码读写": { "plugins": ["fs-tools", "git-tools"] },
+    "代码分析": { "skills": ["code-review", "static-analysis"] },
+    "测试执行": { "plugins": ["test-runner"] },
+    "构建部署": { "plugins": ["build-tools", "deploy-tools"] },
+    "环境管理": { "plugins": ["env-manager"] },
+    "文档生成": { "skills": ["doc-gen"] }
+  },
+
+  "overview": {
+    "newBusiness": [
+      { "id": "new-feature", "name": "新建功能任务", "desc": "从目标描述开始", "icon": "plus",
+        "invoke": { "kind": "task", "mode": "work", "agent": "code-agent", "needs": ["代码读写", "测试执行"],
+          "prompt": "实现功能：{goal}", "inputs": [ { "key": "goal", "label": "功能目标", "type": "text" } ] } },
+      { "id": "code-analysis", "name": "代码分析", "desc": "让 Agent 审查代码", "icon": "search-code",
+        "invoke": { "kind": "task", "mode": "expert", "agent": "review-agent", "needs": ["代码分析"], "prompt": "审查当前代码库并给出改进建议" } },
+      { "id": "review-meeting", "name": "发起评审会议", "desc": "多角色 Agent 讨论", "icon": "users",
+        "invoke": { "kind": "task", "mode": "meeting", "agent": "review-agent", "needs": ["代码分析"], "prompt": "组织多角色代码评审会议" } },
+      { "id": "gen-docs", "name": "生成文档", "desc": "从代码生成文档", "icon": "file-text",
+        "invoke": { "kind": "skill", "skill": "doc-gen", "prompt": "为当前模块生成文档" } }
+    ],
+    "industry": [
+      {
+        "id": "code-repo", "name": "代码与仓库", "desc": "源码、分支与提交", "icon": "git-branch",
+        "stat": { "source": "builtin", "metric": "repo.summary" },
+        "actions": [
+          { "name": "新建分支", "icon": "git-branch-plus", "invoke": { "kind": "command", "command": "git.branch" } },
+          { "name": "代码审查", "icon": "search-code", "invoke": { "kind": "task", "mode": "expert", "agent": "review-agent", "needs": ["代码分析"], "prompt": "审查代码变更" } },
+          { "name": "生成提交信息", "icon": "message-square", "invoke": { "kind": "skill", "skill": "commit-msg", "prompt": "根据变更生成提交信息" } }
+        ]
+      },
+      {
+        "id": "build-test", "name": "构建与测试", "desc": "编译、测试与质量门禁", "icon": "flask-conical",
+        "stat": { "source": "builtin", "metric": "ci.summary" },
+        "actions": [
+          { "name": "运行测试", "icon": "play", "invoke": { "kind": "command", "command": "test.run" } },
+          { "name": "构建产物", "icon": "package", "invoke": { "kind": "task", "mode": "work", "agent": "devops-agent", "needs": ["构建部署"], "prompt": "构建并打包产物" } },
+          { "name": "修复失败用例", "icon": "wrench", "invoke": { "kind": "task", "mode": "work", "agent": "code-agent", "needs": ["代码读写", "测试执行"], "prompt": "定位并修复失败的测试用例" } }
+        ]
+      },
+      {
+        "id": "deploy-env", "name": "部署与环境", "desc": "环境、发布与回滚", "icon": "server",
+        "stat": { "source": "builtin", "metric": "deploy.summary" },
+        "actions": [
+          { "name": "部署到测试环境", "icon": "upload-cloud", "invoke": { "kind": "task", "mode": "work", "agent": "devops-agent", "needs": ["构建部署", "环境管理"], "prompt": "部署到测试环境" } },
+          { "name": "检查环境健康", "icon": "activity", "invoke": { "kind": "command", "command": "env.health" } },
+          { "name": "回滚发布", "icon": "rotate-ccw", "color": "warn", "invoke": { "kind": "task", "mode": "work", "agent": "devops-agent", "needs": ["构建部署"], "prompt": "回滚上一次发布" } }
+        ]
+      },
+      {
+        "id": "docs-knowledge", "name": "文档与知识", "desc": "文档、API 与知识库", "icon": "book-open",
+        "stat": { "source": "builtin", "metric": "docs.summary" },
+        "actions": [
+          { "name": "生成文档", "icon": "file-text", "invoke": { "kind": "skill", "skill": "doc-gen", "prompt": "生成模块文档" } },
+          { "name": "更新 API 文档", "icon": "file-code", "invoke": { "kind": "skill", "skill": "api-doc", "prompt": "根据接口更新 API 文档" } },
+          { "name": "知识库问答", "icon": "message-circle-question", "invoke": { "kind": "task", "mode": "expert", "agent": "doc-agent", "needs": ["文档生成"], "prompt": "基于知识库回答问题" } }
+        ]
+      }
+    ]
+  }
+}

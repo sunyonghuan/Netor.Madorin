@@ -1,0 +1,2543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Madorin Workbench — UI 样板</title>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<style>
+/* Icon base */
+.ico{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;flex-shrink:0}
+.ico-sm{width:14px;height:14px}
+.ico-xs{width:12px;height:12px}
+.ico-lg{width:18px;height:18px}
+.ico-xl{width:22px;height:22px}
+:root{
+  --bg:#1e1e1e;--s0:#252526;--s1:#2d2d2d;--s2:#3c3c3c;--s3:#4a4a4a;
+  --bd:#3c3c3c;--bd0:#2d2d2d;
+  --tx:#cccccc;--txm:#858585;--txf:#5a5a5a;
+  --ac:#4fc3f7;--acd:#1e3a4a;
+  --ex:#56c6a0;--exd:#1a3d30;
+  --wk:#ff8c00;--wkd:#3d2800;
+  --mt:#a78bdd;--mtd:#2d1f45;
+  --ok:#4ec994;--warn:#f0b429;--err:#f07070;
+  --font:"Segoe UI","Microsoft YaHei UI","PingFang SC",sans-serif;
+  --mono:"Cascadia Code",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-family:var(--font);font-size:13px;line-height:1.5}
+button,textarea,input{font-family:inherit;font-size:inherit;cursor:pointer;border:none;background:none;color:inherit;outline:none}
+textarea{resize:none;cursor:text}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--s2);border-radius:3px}
+#app{display:flex;flex-direction:column;height:100vh}
+
+/* ── Bars ── */
+#titlebar{height:36px;background:var(--s0);border-bottom:1px solid var(--bd0);display:flex;align-items:center;padding:0 12px;gap:10px;user-select:none;flex-shrink:0}
+.wsbrand{font-size:15px;color:var(--ac)}
+.wsname{font-size:12px;color:var(--txm)}
+.winbtns{margin-left:auto;display:flex;gap:3px}
+.wb{width:28px;height:20px;border-radius:3px;font-size:11px;color:var(--txm);display:flex;align-items:center;justify-content:center}
+.wb:hover{background:var(--s2);color:var(--tx)}
+.wb.cls:hover{background:#c42b1c;color:#fff}
+#headerbar{height:44px;background:var(--s0);border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 12px;gap:8px;flex-shrink:0}
+.hbtn{height:28px;padding:0 12px;border-radius:4px;background:var(--s1);border:1px solid var(--bd);display:flex;align-items:center;gap:5px;white-space:nowrap;color:var(--tx)}
+.hbtn:hover{background:var(--s2)}
+.hbtn.pri{background:var(--ac);color:#000;border-color:var(--ac);font-weight:600}
+.hbtn.pri:hover{opacity:.9}
+.hsep{flex:1}
+.hchip{height:24px;padding:0 10px;border-radius:12px;display:flex;align-items:center;gap:4px;font-size:12px}
+.hc-run{background:var(--exd);color:var(--ok)}
+.hc-appr{background:var(--wkd);color:var(--warn)}
+.hc-tok{background:var(--s1);color:var(--txm)}
+
+/* ── Center ── */
+#center{display:flex;flex:1;overflow:hidden}
+
+/* ── Activity Bar ── */
+#activity{width:48px;background:var(--s0);border-right:1px solid var(--bd0);display:flex;flex-direction:column;align-items:center;padding:6px 0;gap:1px;flex-shrink:0}
+.abt{width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:17px;color:var(--txm);position:relative;transition:background .12s}
+.abt:hover{background:var(--s1);color:var(--tx)}
+.abt.on{background:var(--s2);color:var(--ac)}
+.abt.on::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:18px;background:var(--ac);border-radius:0 2px 2px 0}
+.abt-sep{width:28px;height:1px;background:var(--bd);margin:4px 0}
+.abt-bot{margin-top:auto}
+.abt-badge{position:absolute;top:4px;right:4px;background:var(--warn);color:#fff;font-size:9px;font-weight:700;border-radius:6px;padding:0 4px;min-width:14px;text-align:center;line-height:14px}
+
+/* ── Side Panel ── */
+#sidepanel{width:220px;background:var(--s0);border-right:1px solid var(--bd);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.sp-head{padding:8px 10px;border-bottom:1px solid var(--bd0);display:flex;gap:6px;align-items:center}
+.sp-search{flex:1;height:24px;background:var(--s1);border:1px solid var(--bd);border-radius:3px;padding:0 8px;color:var(--tx);font-size:12px}
+.sp-search:focus{border-color:var(--ac)}
+.sp-add{width:24px;height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--s1);border:1px solid var(--bd);border-radius:3px;color:var(--ac);cursor:pointer}
+.sp-add:hover{background:var(--s2)}
+.sp-ftabs{display:flex;border-bottom:1px solid var(--bd)}
+.sft{flex:1;height:26px;font-size:11px;color:var(--txm);border-bottom:2px solid transparent}
+.sft.on{color:var(--ac);border-bottom-color:var(--ac)}
+.sp-body{flex:1;overflow-y:auto}
+.sp-panel{display:none}
+.sp-panel.on{display:block}
+.sph{padding:5px 10px 2px;font-size:11px;color:var(--txf);text-transform:uppercase;letter-spacing:.5px}
+.ti{padding:5px 10px;cursor:pointer;border-left:3px solid transparent}
+.ti:hover{background:var(--s1)}
+.ti.on{background:var(--s1);border-left-color:var(--ac)}
+.ti-row{display:flex;align-items:center;gap:5px;font-size:12px}
+.ti-sub{font-size:11px;color:var(--txm);margin-top:1px;padding-left:16px}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.d-ex{background:var(--ex)}.d-wk{background:var(--wk)}.d-mt{background:var(--mt)}.d-off{background:var(--txf)}
+.pulse{animation:pu 2s ease-in-out infinite}
+@keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── Main Area ── */
+#mainarea{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#tabbar{height:36px;background:var(--s0);border-bottom:1px solid var(--bd);display:flex;align-items:center;padding:0 8px;gap:1px;overflow-x:auto;flex-shrink:0}
+.titem{height:26px;padding:0 10px;border-radius:4px 4px 0 0;display:flex;align-items:center;gap:5px;font-size:12px;color:var(--txm);white-space:nowrap;cursor:pointer;border:1px solid transparent;border-bottom:none;position:relative;bottom:-1px}
+.titem:hover{color:var(--tx);background:var(--s1)}
+.titem.on{color:var(--tx);background:var(--bg);border-color:var(--bd);border-bottom-color:var(--bg)}
+.tdot{width:6px;height:6px;border-radius:50%}
+.tcx{width:14px;height:14px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--txf);margin-left:2px}
+.tcx:hover{background:var(--s2);color:var(--tx)}
+.tadd{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:3px;color:var(--txm);font-size:16px;margin-left:4px}
+.tadd:hover{background:var(--s1);color:var(--tx)}
+#content-row{flex:1;display:flex;overflow:hidden}
+#content{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.pane{flex:1;display:none;flex-direction:column;overflow:hidden}
+.pane.on{display:flex}
+
+/* ── Mode badges & tokens ── */
+.mbadge{padding:2px 7px;border-radius:3px;font-size:11px;font-weight:500}
+.mb-ex{background:var(--exd);color:var(--ex)}
+.mb-wk{background:var(--wkd);color:var(--wk)}
+.mb-mt{background:var(--mtd);color:var(--mt)}
+.stbadge{padding:2px 7px;border-radius:3px;font-size:11px}
+.st-run{background:var(--exd);color:var(--ok)}
+.st-wait{background:var(--wkd);color:var(--warn)}
+.st-done{background:var(--s2);color:var(--txm)}
+
+/* ── Overview ── */
+.ov-scroll{flex:1;overflow-y:auto}
+.ov-cards{display:flex;gap:10px;padding:14px;flex-wrap:wrap}
+.ovc{padding:12px 16px;background:var(--s0);border:1px solid var(--bd);border-radius:5px;min-width:130px;flex:1;cursor:pointer}
+.ovc:hover{border-color:var(--s3)}
+.ovc-num{font-size:22px;font-weight:700;margin-bottom:2px}
+.ovc-lbl{font-size:11px;color:var(--txm)}
+.sec{padding:0 14px 14px}
+.sec-title{font-size:11px;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;padding:10px 0 7px;border-top:1px solid var(--bd)}
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;font-size:11px;color:var(--txf);font-weight:400;padding:4px 8px;border-bottom:1px solid var(--bd)}
+tbody td{padding:6px 8px;font-size:12px;border-bottom:1px solid var(--bd0)}
+tbody tr:hover td{background:var(--s1);cursor:pointer}
+.sdot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}
+.sd-run{background:var(--ok)}.sd-wait{background:var(--warn)}.sd-done{background:var(--txf)}
+.prog-bar{height:3px;background:var(--s2);border-radius:2px;margin-top:3px}
+.prog-fill{height:3px;border-radius:2px}
+
+/* ── Mode common ── */
+.mode-topbar{padding:8px 14px;border-bottom:1px solid var(--bd);background:var(--s0);flex-shrink:0;display:flex;align-items:center;gap:8px}
+.mode-title{font-size:13px;font-weight:600}
+.mode-actions{margin-left:auto;display:flex;gap:6px}
+.mab{height:24px;padding:0 10px;border-radius:3px;font-size:11px;border:1px solid var(--bd);color:var(--txm)}
+.mab:hover{background:var(--s2);color:var(--tx)}
+.mab.danger{border-color:var(--err);color:var(--err)}
+.mab.danger:hover{background:#3d1a1a}
+.msg-scroll{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:14px}
+.bubble-user{align-self:flex-end;max-width:68%;padding:9px 13px;background:var(--acd);border:1px solid var(--ac);border-radius:8px 8px 2px 8px;font-size:13px;line-height:1.6}
+.bubble-ai{align-self:flex-start;max-width:72%}
+.bubble-ai .ai-sender{font-size:11px;font-weight:600;margin-bottom:3px}
+.bubble-ai .ai-body{padding:9px 13px;background:var(--s1);border:1px solid var(--bd);border-radius:5px;font-size:13px;line-height:1.6}
+.tool-card{align-self:flex-start;background:var(--s0);border:1px solid var(--bd);border-radius:4px;padding:7px 11px;font-size:12px;max-width:85%}
+.tc-head{color:var(--txm);margin-bottom:3px;font-size:11px}
+.tc-code{font-family:var(--mono);color:var(--ex);font-size:11px}
+.inputbar{padding:8px 12px;border-top:1px solid var(--bd);background:var(--s0);display:flex;gap:8px;align-items:flex-end;flex-shrink:0}
+.ibox{flex:1;background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:7px 11px;color:var(--tx);font-size:13px;min-height:34px;max-height:100px}
+.ibox:focus{border-color:var(--ac)}
+.isend{width:34px;height:34px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+
+/* ── Work Mode ── */
+.wtabs{display:flex;border-bottom:1px solid var(--bd);padding:0 14px;background:var(--s0);flex-shrink:0}
+.wt{padding:7px 11px;font-size:12px;color:var(--txm);border-bottom:2px solid transparent;white-space:nowrap}
+.wt:hover{color:var(--tx)}
+.wt.on{color:var(--wk);border-bottom-color:var(--wk)}
+.wtpane{flex:1;overflow-y:auto;display:none}
+.wtpane.on{display:block}
+.appr-bar{margin:10px 14px;padding:11px 13px;background:#3d2800;border:1px solid var(--warn);border-radius:5px;display:flex;align-items:flex-start;gap:10px}
+.appr-txt{flex:1;font-size:12px;color:var(--warn);line-height:1.5}
+.appr-code{font-family:var(--mono);background:rgba(0,0,0,.3);padding:2px 5px;border-radius:2px;font-size:11px}
+.appr-acts{display:flex;gap:5px;flex-shrink:0;margin-top:2px}
+.aa{padding:4px 9px;border-radius:3px;font-size:11px;border:1px solid}
+.aa-y{background:var(--exd);border-color:var(--ok);color:var(--ok)}
+.aa-yt{background:var(--wkd);border-color:var(--wk);color:var(--wk)}
+.aa-n{background:#3d1a1a;border-color:var(--err);color:var(--err)}
+.timeline{padding:14px}
+.step{display:flex;gap:10px;margin-bottom:10px}
+.step-ico{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;border:2px solid var(--bd)}
+.si-done{background:var(--exd);border-color:var(--ok);color:var(--ok)}
+.si-run{background:var(--wkd);border-color:var(--wk);animation:pu 1.5s infinite}
+.si-wait{background:var(--s1);color:var(--txf)}
+.step-body{flex:1;padding-top:3px}
+.step-title{font-size:13px;font-weight:500;margin-bottom:2px}
+.step-sub{font-size:11px;color:var(--txm)}
+
+/* ── Agent Swimlane ── */
+.swimlane{padding:14px;display:flex;flex-direction:column;gap:10px}
+.swim-row{background:var(--s0);border:1px solid var(--bd);border-radius:5px;padding:10px 12px}
+.swim-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.swim-name{font-size:12px;font-weight:600}
+.swim-model{font-size:10px;color:var(--txf)}
+.swim-steps{display:flex;gap:4px;flex-wrap:wrap}
+.swstep{padding:3px 8px;border-radius:3px;font-size:11px;border:1px solid var(--bd);color:var(--txm)}
+.swstep.done{background:var(--exd);border-color:var(--ok);color:var(--ok)}
+.swstep.run{background:var(--wkd);border-color:var(--wk);color:var(--wk);animation:pu 1.5s infinite}
+
+/* ── Artifact view ── */
+.artifact-list{padding:14px;display:flex;flex-direction:column;gap:8px}
+.art-item{background:var(--s0);border:1px solid var(--bd);border-radius:4px;padding:9px 12px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.art-item:hover{border-color:var(--s3)}
+.art-icon{font-size:16px}
+.art-info{flex:1}
+.art-name{font-size:12px;font-weight:500}
+.art-meta{font-size:11px;color:var(--txm);margin-top:1px}
+.art-badge{padding:2px 7px;border-radius:3px;font-size:10px;border:1px solid}
+.ab-new{background:var(--exd);border-color:var(--ok);color:var(--ok)}
+.ab-mod{background:var(--wkd);border-color:var(--wk);color:var(--wk)}
+.ab-del{background:#3d1a1a;border-color:var(--err);color:var(--err)}
+
+/* ── Meeting Mode ── */
+.meet-members{padding:7px 14px;border-bottom:1px solid var(--bd);display:flex;gap:7px;align-items:center;flex-shrink:0;background:var(--s0);flex-wrap:wrap}
+.mchip{padding:3px 9px;border-radius:12px;font-size:11px;border:1px solid}
+.mc-host{background:var(--mtd);border-color:var(--mt);color:var(--mt)}
+.mc-idle{background:var(--s1);border-color:var(--bd);color:var(--txm)}
+.mc-speak{border-color:var(--mt);color:var(--mt);animation:pu 1s infinite}
+.meet-bub{display:flex;gap:9px;max-width:86%;margin-bottom:2px}
+.mavatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;background:var(--mtd);border:1px solid var(--mt)}
+.msender{font-size:11px;color:var(--mt);font-weight:600;margin-bottom:3px}
+.mtext{background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:8px 12px;font-size:13px;line-height:1.6}
+.mthink{background:var(--s0);border:1px solid var(--bd0);border-radius:3px;padding:5px 9px;margin-top:4px;font-size:11px;color:var(--txm);font-style:italic}
+.agenda-bar{padding:7px 14px;border-bottom:1px solid var(--bd);background:var(--s0);flex-shrink:0;display:flex;align-items:center;gap:10px}
+.agenda-prog{flex:1;display:flex;gap:4px}
+.agst{height:4px;flex:1;background:var(--s2);border-radius:2px}
+.agst.done{background:var(--ok)}
+.agst.run{background:var(--mt);animation:pu 1.5s infinite}
+
+/* ── Inspector ── */
+#inspector{width:280px;background:var(--s0);border-left:1px solid var(--bd);flex-shrink:0;overflow-y:auto;padding:12px;transition:width .2s}
+.insp-head{font-size:11px;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.insp-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--bd0);font-size:12px}
+.insp-lbl{color:var(--txm)}
+.insp-val{color:var(--tx);text-align:right}
+.token-wrap{margin-top:10px}
+.token-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--txm);margin-bottom:3px}
+.token-bg{height:3px;background:var(--s2);border-radius:2px}
+.token-fg{height:3px;border-radius:2px;background:var(--ac)}
+.insp-agents{margin-top:12px}
+.ia-item{background:var(--s1);border:1px solid var(--bd);border-radius:4px;padding:8px;margin-bottom:6px;font-size:12px}
+.ia-head{display:flex;align-items:center;gap:5px;margin-bottom:3px;font-weight:600}
+.ia-step{color:var(--txm);font-size:11px}
+.ia-meta{color:var(--txf);font-size:10px;margin-top:2px}
+.insp-files{margin-top:12px}
+.if-item{background:var(--s1);border-radius:3px;padding:5px 8px;font-size:12px;margin-bottom:4px;display:flex;align-items:center;gap:6px;cursor:pointer}
+.if-item:hover{background:var(--s2)}
+
+/* ── Agent Strip ── */
+#agentstrip{background:var(--s0);border-top:1px solid var(--bd);flex-shrink:0}
+.strip-hdr{height:28px;padding:0 12px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.strip-hdr:hover{background:var(--s1)}
+.strip-lbl{font-size:11px;color:var(--txm)}
+.strip-mini{flex:1;display:flex;gap:14px;overflow:hidden}
+.smini{font-size:11px;color:var(--txm);display:flex;align-items:center;gap:4px;white-space:nowrap}
+.smdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.strip-toggle{font-size:11px;color:var(--txf);margin-left:auto}
+.strip-cards{padding:6px 12px;display:flex;gap:8px;overflow-x:auto;height:136px;scroll-behavior:smooth;-webkit-overflow-scrolling:touch}
+.strip-cards::-webkit-scrollbar{height:4px}
+.acard{min-width:195px;max-width:210px;background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:8px 10px;flex-shrink:0;display:flex;flex-direction:column;gap:3px}
+.ac-h{display:flex;align-items:center;gap:5px}
+.ac-d{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.acd-r{background:var(--ok);animation:pu 1.5s infinite}
+.acd-w{background:var(--warn)}
+.acd-o{background:var(--txf)}
+.ac-n{font-size:12px;font-weight:600;flex:1}
+.ac-m{font-size:10px;color:var(--txf)}
+.ac-task{font-size:11px;color:var(--txm)}
+.ac-step{font-size:11px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-tbar{height:3px;background:var(--s2);border-radius:2px;margin:2px 0}
+.ac-tfill{height:3px;border-radius:2px;background:var(--ac)}
+.ac-meta{font-size:10px;color:var(--txf)}
+.acard:hover{border-color:var(--s3)}
+
+/* ── Status Bar ── */
+#statusbar{height:24px;background:#007acc;display:flex;align-items:center;padding:0 10px;gap:10px;flex-shrink:0}
+.sb{font-size:11px;color:rgba(255,255,255,.85);display:flex;align-items:center;gap:4px;white-space:nowrap}
+.sbsep{width:1px;height:13px;background:rgba(255,255,255,.25)}
+.sbr{margin-left:auto;display:flex;gap:10px}
+
+/* ── New Task Dialog ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:flex;align-items:center;justify-content:center}
+.dialog{background:var(--s0);border:1px solid var(--bd);border-radius:6px;width:480px;max-width:90vw;padding:0;overflow:hidden}
+.dlg-head{padding:14px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:8px}
+.dlg-title{font-size:14px;font-weight:600;flex:1}
+.dlg-close{width:24px;height:24px;border-radius:3px;display:flex;align-items:center;justify-content:center;color:var(--txm)}
+.dlg-close:hover{background:var(--s2);color:var(--tx)}
+.dlg-body{padding:16px}
+.dlg-tabs{display:flex;gap:0;margin-bottom:16px}
+.dtab{flex:1;padding:8px;border-radius:4px;border:1px solid var(--bd);font-size:12px;text-align:center;color:var(--txm);margin-right:6px}
+.dtab:last-child{margin-right:0}
+.dtab:hover{border-color:var(--s3);color:var(--tx)}
+.dtab.on{border-color:var(--ac);color:var(--ac);background:var(--acd)}
+.fld{margin-bottom:12px}
+.fld label{display:block;font-size:11px;color:var(--txm);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.finput{width:100%;height:32px;background:var(--s1);border:1px solid var(--bd);border-radius:4px;padding:0 10px;color:var(--tx);font-size:13px}
+.finput:focus{border-color:var(--ac)}
+.ftextarea{width:100%;background:var(--s1);border:1px solid var(--bd);border-radius:4px;padding:8px 10px;color:var(--tx);font-size:13px;min-height:80px;resize:none}
+.ftextarea:focus{border-color:var(--ac)}
+.dlg-foot{padding:12px 16px;border-top:1px solid var(--bd);display:flex;justify-content:flex-end;gap:8px}
+.dbtn{height:30px;padding:0 16px;border-radius:4px;font-size:12px;border:1px solid var(--bd);color:var(--txm)}
+.dbtn:hover{background:var(--s2);color:var(--tx)}
+.dbtn.pri{background:var(--ac);color:#000;border-color:var(--ac);font-weight:600}
+.dbtn.pri:hover{opacity:.9}
+
+/* ── Approval panel ── */
+.appr-item{margin:8px 10px;padding:10px 12px;background:var(--s1);border:1px solid var(--bd);border-radius:5px}
+.appr-risk{font-size:10px;padding:1px 5px;border-radius:2px;margin-right:5px}
+.risk-hi{background:#3d1a1a;color:var(--err)}
+.risk-md{background:var(--wkd);color:var(--warn)}
+.appr-title{font-size:12px;font-weight:500;margin-bottom:4px}
+.appr-meta{font-size:11px;color:var(--txm);margin-bottom:7px}
+.appr-btns{display:flex;gap:5px}
+
+/* ── History panel ── */
+.hist-item{padding:8px 10px;cursor:pointer;border-left:3px solid transparent}
+.hist-item:hover{background:var(--s1)}
+.hist-date{font-size:10px;color:var(--txf);text-transform:uppercase;letter-spacing:.4px;padding:6px 10px 2px}
+.hi-title{font-size:12px;display:flex;align-items:center;gap:5px}
+.hi-sub{font-size:11px;color:var(--txm);margin-top:1px}
+
+/* ── Agent Registry ── */
+.ag-item{padding:8px 10px;cursor:pointer;border-left:3px solid transparent}
+.ag-item:hover{background:var(--s1)}
+.ag-name{font-size:12px;font-weight:500;display:flex;align-items:center;gap:5px}
+.ag-role{font-size:11px;color:var(--txm);margin-top:1px}
+
+/* ── Project cards (方案A) ── */
+.pcard{margin:6px 8px;padding:9px 10px;background:var(--s1);border:1px solid var(--bd);border-radius:5px;cursor:pointer}
+.pcard:hover{border-color:var(--s3)}
+.pcard.on{border-color:var(--ac)}
+.pc-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.pc-name{font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-badge{flex-shrink:0;font-size:10px;padding:1px 6px;border-radius:8px;background:var(--wkd);color:var(--wk)}
+.pc-badge.idle{background:var(--s2);color:var(--txm)}
+.pc-sub{font-size:11px;color:var(--txm);margin-top:4px;display:flex;gap:8px}
+.pc-meta{font-size:10px;color:var(--txf);margin-top:3px}
+
+/* ── Store 分类树（侧边栏） ── */
+/* 大项：全部/插件/技能/智能体/方案，可展开显示系统分类 */
+.stree-top{display:flex;align-items:center;gap:6px;padding:6px 10px;cursor:pointer;font-size:12px;color:var(--tx);border-left:3px solid transparent}
+.stree-top:hover{background:var(--s1)}
+.stree-top.on{background:var(--s1);border-left-color:var(--ac);color:var(--ac)}
+.stree-caret{width:12px;height:12px;flex-shrink:0;transition:transform .15s;color:var(--txm)}
+.stree-top.open .stree-caret{transform:rotate(90deg)}
+.stree-count{margin-left:auto;font-size:10px;color:var(--txf)}
+/* 子分类：折叠容器 */
+.stree-cats{max-height:0;overflow:hidden;transition:max-height .2s ease}
+.stree-top.open + .stree-cats{max-height:400px}
+.stree-cat{padding:5px 10px 5px 31px;cursor:pointer;font-size:12px;color:var(--txm);border-left:3px solid transparent}
+.stree-cat:hover{background:var(--s1);color:var(--tx)}
+.stree-cat.on{background:var(--s1);border-left-color:var(--ac);color:var(--ac)}
+
+/* ── Store 主区选项卡：卡片网格 ── */
+.store-toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.store-tb-search{flex:1;max-width:320px;height:28px;background:var(--s1);border:1px solid var(--bd);border-radius:4px;padding:0 10px;color:var(--tx);font-size:12px}
+.store-tb-search:focus{border-color:var(--ac)}
+.store-tb-sel{height:28px;background:var(--s1);border:1px solid var(--bd);border-radius:4px;color:var(--tx);font-size:12px;padding:0 6px;cursor:pointer}
+.store-tb-btn{height:28px;padding:0 12px;background:var(--s1);border:1px solid var(--bd);border-radius:4px;color:var(--tx);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:5px}
+.store-tb-btn:hover{background:var(--s2)}
+.store-tb-btn.pri{background:var(--ac);color:#000;border:none;font-weight:600}
+.store-typebar{display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid var(--bd0);flex-shrink:0}
+.store-typechip{font-size:12px;padding:4px 14px;border-radius:4px;background:var(--s1);border:1px solid var(--bd);color:var(--txm);cursor:pointer}
+.store-typechip:hover{color:var(--tx)}
+.store-typechip.on{background:var(--ac);border-color:var(--ac);color:#000;font-weight:600}
+.store-grid{flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;padding:14px;align-content:start}
+.scard{background:var(--s0);border:1px solid var(--bd);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.scard:hover{border-color:var(--s3)}
+.scard-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.scard-name{font-size:13px;font-weight:600;color:var(--tx)}
+.scard-type{flex-shrink:0;font-size:10px;padding:1px 8px;border-radius:10px;border:1px solid var(--bd)}
+.st-plugin{background:var(--mtd);color:var(--mt)}
+.st-skill{background:var(--exd);color:var(--ex)}
+.st-agent{background:var(--wkd);color:var(--wk)}
+.st-solution{background:var(--acd);color:var(--ac)}
+.scard-desc{font-size:11px;color:var(--txm);line-height:1.5;min-height:33px}
+.scard-meta{display:flex;justify-content:space-between;font-size:11px;border-top:1px solid var(--bd0);padding-top:8px}
+.scard-meta .k{color:var(--txf)}
+.scard-meta .v{color:var(--tx);font-weight:500}
+.scard-price.free{color:var(--ok)}
+.scard-install{height:30px;background:var(--s1);border:1px solid var(--bd);border-radius:4px;color:var(--tx);font-size:12px;cursor:pointer}
+.scard-install:hover{background:var(--ac);color:#000;border-color:var(--ac)}
+.store-foot{padding:10px 14px;font-size:11px;color:var(--txf);text-align:center;border-top:1px solid var(--bd0);flex-shrink:0}
+
+/* ── 管理视图卡片（功能管理 / 技能管理，复用 store-grid/toolbar） ── */
+.mcard{background:var(--s0);border:1px solid var(--bd);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.mcard:hover{border-color:var(--s3)}
+.mcard.off{opacity:.6}
+.mcard-hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mcard-name{font-size:13px;font-weight:600;color:var(--tx);display:flex;align-items:center;gap:6px;min-width:0}
+.mcard-name span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcard-desc{font-size:11px;color:var(--txm);line-height:1.5;min-height:33px}
+.mcard-caps{display:flex;flex-wrap:wrap;gap:4px}
+.mcard-cap{font-size:10px;padding:1px 7px;border-radius:8px;background:var(--s1);border:1px solid var(--bd);color:var(--txm)}
+.mcard-meta{display:flex;justify-content:space-between;font-size:11px;border-top:1px solid var(--bd0);padding-top:8px}
+.mcard-meta .k{color:var(--txf)}
+.mcard-meta .v{color:var(--tx);font-weight:500}
+.mcard-acts{display:flex;gap:6px}
+.mcard-acts button{flex:1;height:28px;font-size:11px;border-radius:4px;cursor:pointer;background:var(--s1);border:1px solid var(--bd);color:var(--tx);display:flex;align-items:center;justify-content:center;gap:4px}
+.mcard-acts button:hover{background:var(--s2)}
+.mcard-acts .danger:hover{background:#3d1a1a;border-color:var(--err);color:var(--err)}
+/* 开关 */
+.mswitch{width:36px;height:20px;border-radius:10px;background:var(--s2);position:relative;cursor:pointer;flex-shrink:0;transition:background .15s}
+.mswitch.on{background:var(--ok)}
+.mswitch::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s}
+.mswitch.on::after{left:18px}
+/* 来源徽章 */
+.src-badge{font-size:10px;padding:1px 8px;border-radius:10px;border:1px solid var(--bd)}
+.src-builtin{background:var(--acd);color:var(--ac)}
+.src-community{background:var(--exd);color:var(--ex)}
+.src-project{background:var(--wkd);color:var(--wk)}
+.ag-status{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ags-run{background:var(--ok);animation:pu 1.5s infinite}
+.ags-idle{background:var(--txf)}
+
+/* ── File tree ── */
+.ft-item{padding:4px 10px;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:12px;color:var(--txm)}
+.ft-item:hover{background:var(--s1);color:var(--tx)}
+
+/* ── Overview side panel items ── */
+.oni{padding:6px 10px;cursor:pointer;display:flex;align-items:flex-start;gap:8px;border-left:3px solid transparent}
+.oni:hover{background:var(--s1)}
+.oni.urgent{border-left-color:var(--err)}
+.oni.running{border-left-color:var(--wk)}
+.oni.done{border-left-color:var(--txf);opacity:.7}
+.oni-ico{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.oni-ico.err{background:#3d1a1a;color:var(--err)}
+.oni-ico.run{background:var(--wkd);color:var(--wk)}
+.oni-ico.ok{background:var(--exd);color:var(--ok)}
+.oni-ico.warn{background:#3d2800;color:var(--warn)}
+.oni-body{flex:1;min-width:0}
+.oni-title{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oni-sub{font-size:10px;color:var(--txm);margin-top:2px}
+.oni-tag{font-size:10px;padding:1px 5px;border-radius:3px;white-space:nowrap;flex-shrink:0;margin-top:2px}
+.ot-err{background:#3d1a1a;color:var(--err)}
+.ot-run{background:var(--wkd);color:var(--wk)}
+.ot-ok{background:var(--exd);color:var(--ok)}
+.ft-item.dir{color:var(--tx)}
+.ft-indent{padding-left:20px}
+.ft-indent2{padding-left:34px}
+
+/* ── Conv Panel (persistent right side) ── */
+#conv-panel{width:340px;background:var(--s0);border-left:1px solid var(--bd);flex-shrink:0;display:flex;flex-direction:column;overflow:hidden}
+.cp-head{padding:10px 12px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.cp-title{font-size:13px;font-weight:600;margin-bottom:2px;display:flex;align-items:center;gap:6px}
+.cp-sub{font-size:11px;color:var(--txm)}
+.cp-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.cp-tag{padding:2px 7px;border-radius:3px;font-size:11px;background:var(--s2);color:var(--txm);display:flex;align-items:center;gap:4px}
+.cp-tabs{display:flex;border-bottom:1px solid var(--bd);flex-shrink:0}
+.cpt{flex:1;height:32px;font-size:12px;color:var(--txm);border-bottom:2px solid transparent;display:flex;align-items:center;justify-content:center;gap:4px}
+.cpt:hover{color:var(--tx)}
+.cpt.on{color:var(--ac);border-bottom-color:var(--ac)}
+.cpt-dot{width:5px;height:5px;border-radius:50%;background:var(--wk)}
+.cp-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.cpb-user{align-self:flex-end;max-width:86%;padding:8px 11px;background:var(--acd);border:1px solid var(--ac);border-radius:7px 7px 2px 7px;font-size:12px;line-height:1.6}
+.cpb-agent{align-self:flex-start;max-width:90%}
+.cpb-sender{font-size:10px;font-weight:600;margin-bottom:3px;display:flex;align-items:center;gap:4px}
+.cpb-body{background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:8px 11px;font-size:12px;line-height:1.6}
+.cpb-action{background:var(--s0);border:1px solid var(--bd);border-radius:4px;padding:5px 9px;font-size:11px;color:var(--txm);margin-top:4px;display:flex;align-items:center;gap:5px}
+.cp-chips{padding:7px 10px;display:flex;gap:5px;flex-wrap:wrap;border-top:1px solid var(--bd);flex-shrink:0}
+.cpchip{padding:3px 8px;border-radius:12px;font-size:11px;background:var(--s1);border:1px solid var(--bd);color:var(--txm);white-space:nowrap}
+.cpchip:hover{border-color:var(--ac);color:var(--ac)}
+.cp-input{padding:8px 10px;border-top:1px solid var(--bd);background:var(--s0);display:flex;gap:7px;align-items:flex-end;flex-shrink:0}
+.cp-ibox{flex:1;background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:7px 10px;color:var(--tx);font-size:12px;min-height:32px;max-height:90px;resize:none;cursor:text;outline:none}
+.cp-ibox:focus{border-color:var(--ac)}
+.cp-send{width:30px;height:30px;border-radius:5px;background:var(--ac);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#000;font-size:14px}
+
+/* ── KPI row ── */
+.kpi-row{display:flex;gap:8px;padding:10px 14px 0;flex-wrap:wrap}
+.kpi{padding:11px 14px;background:var(--s0);border:1px solid var(--bd);border-radius:5px;flex:1;min-width:150px;cursor:pointer;display:flex;align-items:center;gap:12px}
+.kpi:hover{border-color:var(--s3)}
+.kpi-ico{width:38px;height:38px;border-radius:8px;background:var(--s1);display:flex;align-items:center;justify-content:center;color:var(--txm);flex-shrink:0}
+.kpi-body{min-width:0;flex:1}
+.kpi-lbl{font-size:10px;color:var(--txm);text-transform:uppercase;letter-spacing:.4px;margin-bottom:1px}
+.kpi-num{font-size:24px;font-weight:700;line-height:1.1}
+.kpi-trend{font-size:10px;color:var(--txm);margin-top:1px}
+
+/* ── Resume work card ── */
+.resume-section{padding:14px}
+.sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.sec-hd-title{font-size:13px;font-weight:600}
+.sec-hd-link{font-size:11px;color:var(--ac);cursor:pointer;display:flex;align-items:center;gap:3px}
+.sec-hd-link:hover{text-decoration:underline}
+.task-card{background:var(--s0);border:1px solid var(--bd);border-radius:6px;padding:12px;display:flex;gap:16px}
+.tc-left{flex:1;min-width:0}
+.tc-header{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.tc-name{font-size:14px;font-weight:600;margin-bottom:4px}
+.tc-desc{font-size:12px;color:var(--txm);line-height:1.4;margin-bottom:7px}
+.tc-meta{display:flex;gap:12px;font-size:11px;color:var(--txm);margin-bottom:7px;flex-wrap:wrap}
+.tc-prog-wrap{margin-bottom:8px}
+.tc-prog-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--txm);margin-bottom:3px}
+.tc-prog-bg{height:4px;background:var(--s2);border-radius:2px}
+.tc-prog-fg{height:4px;border-radius:2px;background:var(--wk);transition:width .5s}
+.tc-btns{display:flex;gap:6px;flex-wrap:wrap}
+.tcbtn{height:26px;padding:0 11px;border-radius:4px;font-size:11px;border:1px solid;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.tcbtn-pri{background:var(--wk);border-color:var(--wk);color:#fff;font-weight:600}
+.tcbtn-pri:hover{opacity:.9}
+.tcbtn-sec{background:var(--s1);border-color:var(--bd);color:var(--txm)}
+.tcbtn-sec:hover{background:var(--s2);color:var(--tx)}
+.tc-right{width:170px;flex-shrink:0;border-left:1px solid var(--bd);padding-left:11px}
+.tc-steps-hd{font-size:10px;color:var(--txm);text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px;display:flex;align-items:center;gap:4px}
+.tcs{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--bd0);font-size:11px}
+.tcs:last-child{border-bottom:none}
+.tcs-num{width:17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;border:1px solid var(--bd);color:var(--txf)}
+.tcs.done .tcs-num{background:var(--exd);border-color:var(--ok);color:var(--ok)}
+.tcs.run .tcs-num{background:var(--wkd);border-color:var(--wk);color:var(--wk)}
+.tcs.warn .tcs-num{background:#3d2800;border-color:var(--warn);color:var(--warn)}
+.tcs-text{flex:1;font-size:12px;line-height:1.3}
+.tcs-tag{font-size:10px}
+.tcs.done .tcs-tag{color:var(--ok)}
+.tcs.run .tcs-tag{color:var(--wk)}
+.tcs.warn .tcs-tag{color:var(--warn)}
+.tcs.wait .tcs-tag{color:var(--txf)}
+
+/* ── Quick actions ── */
+.qa-section{padding:0 14px 14px}
+.qa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.qa-item{background:var(--s0);border:1px solid var(--bd);border-radius:5px;padding:10px 12px;cursor:pointer;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center}
+.qa-item:hover{border-color:var(--ac);background:var(--s1)}
+.qa-icon{grid-row:1/3;width:32px;height:32px;border-radius:6px;background:var(--s2);display:flex;align-items:center;justify-content:center;color:var(--txm)}
+.qa-item:hover .qa-icon{background:var(--acd);color:var(--ac)}
+.qa-name{font-size:12px;font-weight:500;line-height:1.3;align-self:end}
+.qa-desc{font-size:10px;color:var(--txm);line-height:1.4;align-self:start}
+
+/* ── Overview section shell ── */
+.ov-sec{padding:14px 14px 0}
+.ov-sec-hd{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px}
+.ov-sec-t{font-size:14px;font-weight:600}
+.ov-sec-sub{font-size:11px;color:var(--txm);margin-left:8px;font-weight:400}
+.ov-sec-link{font-size:11px;color:var(--ac);cursor:pointer;display:flex;align-items:center;gap:3px}
+.ov-sec-link:hover{text-decoration:underline}
+
+/* ── Running projects ── */
+.proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.proj-card{background:var(--s0);border:1px solid var(--bd);border-radius:6px;overflow:hidden;cursor:pointer}
+.proj-card:hover{border-color:var(--s3)}
+.proj-hd{display:flex;align-items:center;gap:9px;padding:11px 12px 9px}
+.proj-ico{width:30px;height:30px;border-radius:7px;background:var(--acd);color:var(--ac);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.proj-tt{flex:1;min-width:0}
+.proj-name{font-size:13px;font-weight:600;line-height:1.2}
+.proj-meta{font-size:10px;color:var(--txm);margin-top:1px}
+.proj-st{font-size:10px;display:flex;align-items:center;gap:4px;flex-shrink:0;color:var(--ok)}
+.proj-stats{display:flex;gap:0;padding:0 12px 9px}
+.proj-stat{flex:1;border-left:2px solid var(--bd0);padding-left:8px;margin-right:8px}
+.proj-stat:first-child{border-left:none;padding-left:0}
+.proj-stat-l{font-size:9px;color:var(--txm);text-transform:uppercase;letter-spacing:.3px}
+.proj-stat-v{font-size:14px;font-weight:600;margin-top:1px}
+.proj-task{display:flex;align-items:center;gap:8px;padding:7px 12px;border-top:1px solid var(--bd0);font-size:11px}
+.proj-task-tt{flex:1;min-width:0}
+.proj-task-nm{font-weight:500;line-height:1.2}
+.proj-task-mt{font-size:10px;color:var(--txm);margin-top:1px}
+.proj-task-go{width:22px;height:22px;border-radius:4px;background:var(--s1);display:flex;align-items:center;justify-content:center;color:var(--txm);flex-shrink:0}
+.proj-task-go:hover{background:var(--s2);color:var(--tx)}
+.proj-ft{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-top:1px solid var(--bd0);font-size:10px;color:var(--txf)}
+.proj-ft-path{display:flex;align-items:center;gap:5px;min-width:0}
+.proj-ft-path span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Continue-work rows ── */
+.cw-list{display:flex;flex-direction:column;gap:6px}
+.cw-row{display:flex;align-items:center;gap:11px;background:var(--s0);border:1px solid var(--bd);border-radius:5px;padding:9px 12px;cursor:pointer}
+.cw-row:hover{border-color:var(--s3);background:var(--s1)}
+.cw-ico{width:30px;height:30px;border-radius:6px;background:var(--wkd);color:var(--wk);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cw-ico.m-ex{background:var(--exd);color:var(--ex)}
+.cw-ico.m-mt{background:var(--mtd);color:var(--mt)}
+.cw-main{flex:1;min-width:0}
+.cw-nm{font-size:12px;font-weight:600;line-height:1.2}
+.cw-mt{font-size:10px;color:var(--txm);margin-top:2px}
+.cw-proj{width:180px;flex-shrink:0;font-size:11px}
+.cw-proj-nm{color:var(--tx)}
+.cw-proj-id{color:var(--txf);font-size:10px;font-family:var(--mono)}
+.cw-prog{width:120px;flex-shrink:0;display:flex;align-items:center;gap:7px}
+.cw-prog-bg{flex:1;height:4px;background:var(--s2);border-radius:2px}
+.cw-prog-fg{height:4px;border-radius:2px;background:var(--ac)}
+.cw-prog-v{font-size:11px;color:var(--txm);width:30px;text-align:right}
+.cw-ag{width:52px;flex-shrink:0;font-size:11px;color:var(--txm);display:flex;align-items:center;gap:4px}
+.cw-go{width:26px;height:26px;border-radius:5px;background:var(--s1);display:flex;align-items:center;justify-content:center;color:var(--txm);flex-shrink:0}
+.cw-go:hover{background:var(--s2);color:var(--tx)}
+
+/* ── New business grid ── */
+.nb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}
+.nb-item{display:flex;align-items:center;gap:10px;background:var(--s0);border:1px solid var(--bd);border-radius:5px;padding:11px 13px;cursor:pointer}
+.nb-item:hover{border-color:var(--ac);background:var(--s1)}
+.nb-ico{width:32px;height:32px;border-radius:7px;background:var(--exd);color:var(--ex);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.nb-tt{flex:1;min-width:0}
+.nb-nm{font-size:12px;font-weight:500;line-height:1.2}
+.nb-desc{font-size:10px;color:var(--txm);margin-top:2px}
+.nb-go{color:var(--txf);flex-shrink:0}
+
+/* ── Industry functions ── */
+.if-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:10px}
+.if-card{background:var(--s0);border:1px solid var(--bd);border-radius:6px;padding:12px 14px}
+.if-hd{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.if-ico{width:32px;height:32px;border-radius:7px;background:var(--s1);color:var(--ac);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.if-tt{flex:1;min-width:0}
+.if-nm{font-size:13px;font-weight:600;line-height:1.2}
+.if-desc{font-size:10px;color:var(--txm);margin-top:2px}
+.if-stat{font-size:10px;color:var(--txf);text-align:right;flex-shrink:0;white-space:nowrap;padding-top:2px}
+.if-acts{display:flex;gap:6px;flex-wrap:wrap}
+.if-btn{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:4px;background:var(--s1);border:1px solid var(--bd);font-size:11px;color:var(--tx);cursor:pointer}
+.if-btn:hover{background:var(--acd);border-color:var(--ac);color:var(--ac)}
+
+
+/* ── Light Theme ── */
+:root[data-theme="light"]{
+  --bg:#f4f6f8;--s0:#ffffff;--s1:#f0f2f4;--s2:#e2e5e9;--s3:#d4d8dd;
+  --bd:#e2e5e9;--bd0:#ebebee;
+  --tx:#1c2128;--txm:#6b7280;--txf:#9ca3af;
+  --ac:#0969da;--acd:#dbeafe;
+  --ex:#1a7f5a;--exd:#dcfce7;
+  --wk:#b45309;--wkd:#fef3c7;
+  --mt:#6d28d9;--mtd:#ede9fe;
+  --ok:#16a34a;--warn:#d97706;--err:#dc2626;
+}
+:root[data-theme="light"] #statusbar{background:#0550ae}
+:root[data-theme="light"] .hbtn.pri{background:var(--ac);color:#fff}
+:root[data-theme="light"] .cpb-user{background:var(--acd);border-color:var(--ac);color:var(--tx)}
+:root[data-theme="light"] .bubble-user{background:var(--acd);border-color:var(--ac)}
+:root[data-theme="light"] .ovc,.kpi,.task-card,.qa-item,.acard,.ti:hover,.ag-item:hover,.hist-item:hover{box-shadow:0 1px 3px rgba(0,0,0,.06)}
+
+/* ── Activity Bar Expanded ── */
+#activity{transition:width .18s ease;overflow:hidden}
+#activity.expanded{width:200px}
+.abt{flex-direction:row;justify-content:center}
+#activity.expanded .abt{justify-content:flex-start;padding:0 12px 0 10px;width:100%;border-radius:0;gap:10px;height:44px}
+#activity.expanded .abt::before{display:none}
+#activity.expanded .abt.on{background:var(--acd);color:var(--ac)}
+#activity.expanded .abt.on::after{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ac);border-radius:0 2px 2px 0}
+.abt-text{display:none;flex-direction:column;align-items:flex-start;min-width:0;overflow:hidden}
+#activity.expanded .abt-text{display:flex}
+.abt-name{font-size:13px;font-weight:500;white-space:nowrap;color:var(--tx)}
+.abt-desc{font-size:11px;color:var(--txm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+#activity.expanded .abt.on .abt-desc{color:var(--ac);opacity:.8}
+.abt-expand{width:100%;height:32px;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:4px;color:var(--txm);padding:0 10px}
+.abt-expand:hover{background:var(--s1);color:var(--ac)}
+#activity.expanded .abt-expand{justify-content:flex-start}
+.abt-expand-label{display:none;font-size:12px;white-space:nowrap}
+#activity.expanded .abt-expand-label{display:inline}
+.abt-sep{transition:width .18s}
+#activity.expanded .abt-sep{width:100%;margin:4px 0}
+
+/* ── Project Context Panel (right, default) ── */
+#ctx-panel{width:280px;background:var(--s0);border-left:1px solid var(--bd);flex-shrink:0;display:flex;flex-direction:column;overflow:hidden}
+.ctx-head{padding:12px 14px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.ctx-proj-name{font-size:14px;font-weight:700;margin-bottom:2px}
+.ctx-proj-sub{font-size:11px;color:var(--txm)}
+.ctx-tabs{display:flex;border-bottom:1px solid var(--bd);flex-shrink:0}
+.ctx-tab{flex:1;height:30px;font-size:11px;color:var(--txm);border-bottom:2px solid transparent;display:flex;align-items:center;justify-content:center;gap:4px}
+.ctx-tab:hover{color:var(--tx)}
+.ctx-tab.on{color:var(--ac);border-bottom-color:var(--ac)}
+.ctx-body{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.ctx-section-title{font-size:10px;color:var(--txm);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.ctx-agent-row{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--bd0);font-size:12px}
+.ctx-agent-row:last-child{border-bottom:none}
+.ctx-file-row{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:12px;color:var(--txm);cursor:pointer}
+.ctx-file-row:hover{color:var(--tx)}
+.ctx-activity-row{font-size:11px;color:var(--txm);padding:3px 0}
+.ctx-cta{width:100%;height:32px;background:var(--ac);color:#fff;border-radius:5px;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:4px}
+:root[data-theme="light"] .ctx-cta{color:#fff}
+.ctx-cta:hover{opacity:.9}
+
+/* ── Conv panel (lazy, slide in) ── */
+#conv-panel{position:absolute;right:0;top:0;bottom:0;width:340px;background:var(--s0);border-left:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;transform:translateX(100%);transition:transform .2s ease;z-index:10}
+#conv-panel.open{transform:translateX(0)}
+
+
+/* light-theme oni overrides */
+:root[data-theme="light"] .oni-ico.err{background:#fee2e2;color:#dc2626}
+:root[data-theme="light"] .oni-ico.warn{background:#fef3c7;color:#d97706}
+:root[data-theme="light"] .oni-ico.ok{background:#dcfce7;color:#16a34a}
+:root[data-theme="light"] .oni-ico.run{background:#fef3c7;color:#b45309}
+:root[data-theme="light"] .oni-tag.ot-err{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5}
+:root[data-theme="light"] .oni-tag.ot-run{background:#fef3c7;color:#b45309;border:1px solid #fcd34d}
+:root[data-theme="light"] .oni[style*="mtd"]{background:var(--mtd)}
+:root[data-theme="light"] .oni.urgent{border-left-color:#dc2626;background:#fff5f5}
+:root[data-theme="light"] .oni.urgent:hover{background:#fee2e2}
+:root[data-theme="light"] .oni.running{border-left-color:#d97706;background:#fffbeb}
+:root[data-theme="light"] .oni.running:hover{background:#fef3c7}
+
+/* light-theme acard, strip */
+:root[data-theme="light"] .acard{background:var(--s1);border-color:var(--bd)}
+:root[data-theme="light"] .strip-hdr{background:var(--s0)}
+:root[data-theme="light"] .strip-cards{background:var(--bg)}
+
+
+/* ── Upgraded conv input area ── */
+.cp-input-wrap{border-top:1px solid var(--bd);background:var(--s0);flex-shrink:0}
+.cp-selectors{padding:6px 10px 0;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.cp-sel{height:22px;padding:0 8px;border-radius:3px;background:var(--s2);border:1px solid var(--bd);font-size:11px;color:var(--txm);display:flex;align-items:center;gap:4px;white-space:nowrap}
+.cp-sel:hover{background:var(--s3);color:var(--tx)}
+.cp-sel-sep{flex:1}
+.cp-tokcount{font-size:10px;color:var(--txf);padding-right:2px}
+.cp-input-box-wrap{padding:6px 10px 4px;position:relative}
+.cp-ibox2{width:100%;background:var(--s1);border:1px solid var(--bd);border-radius:5px;padding:8px 36px 8px 10px;color:var(--tx);font-size:12px;min-height:60px;max-height:120px;resize:none;cursor:text;outline:none;font-family:inherit;line-height:1.5}
+.cp-ibox2:focus{border-color:var(--ac)}
+.cp-send2{position:absolute;right:18px;bottom:12px;width:26px;height:26px;border-radius:4px;background:var(--ac);display:flex;align-items:center;justify-content:center;color:#000;font-size:13px}
+.cp-send2:hover{opacity:.9}
+.cp-toolbar2{padding:0 10px 6px;display:flex;align-items:center;gap:2px}
+.cptool{height:24px;padding:0 8px;border-radius:3px;font-size:11px;color:var(--txm);display:flex;align-items:center;gap:4px;background:none;border:none}
+.cptool:hover{background:var(--s2);color:var(--tx)}
+.cptool.code{font-family:var(--mono)}
+.cp-marquee{height:2px;background:var(--s2);flex-shrink:0}
+.cp-marquee-fill{height:2px;width:30%;background:var(--wk);animation:marquee 2s linear infinite}
+@keyframes marquee{0%{margin-left:-30%}100%{margin-left:100%}}
+
+/* popup for @ and / completion */
+.cp-popup{position:absolute;bottom:calc(100% + 4px);left:10px;right:10px;background:var(--s0);border:1px solid var(--bd);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,.3);z-index:20;max-height:180px;overflow-y:auto;display:none}
+.cp-popup.open{display:block}
+.cp-popup-item{padding:6px 10px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px}
+.cp-popup-item:hover{background:var(--s1)}
+.cp-popup-item.selected{background:var(--acd);color:var(--ac)}
+.cp-popup-icon{width:20px;height:20px;border-radius:3px;background:var(--s2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cp-popup-name{font-size:12px;font-weight:500}
+.cp-popup-desc{font-size:10px;color:var(--txm)}
+
+
+/* ia-wrap: redesigned input area */
+.ia-wrap{display:flex;flex-direction:column;border-top:1px solid var(--bd);background:var(--s0);flex-shrink:0;padding:8px 12px 10px}
+.ia-selrow{display:flex;align-items:center;gap:5px;margin-bottom:6px;flex-wrap:wrap}
+.ia-sel{height:20px;padding:0 7px;border-radius:3px;background:var(--s2);border:1px solid var(--bd);font-size:10px;color:var(--txm);display:flex;align-items:center;gap:3px;white-space:nowrap}
+.ia-sel:hover{background:var(--s3);color:var(--tx)}
+.ia-agents{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:6px}
+.ia-agent-chip{display:flex;align-items:center;gap:4px;height:22px;padding:0 8px 0 7px;border-radius:11px;font-size:11px;border:1px solid var(--mt);background:var(--mtd);color:var(--mt)}
+.ia-rm{cursor:pointer;opacity:.5;font-size:10px;margin-left:1px}
+.ia-rm:hover{opacity:1}
+.ia-add-agent{height:22px;padding:0 8px;border-radius:11px;border:1px dashed var(--bd);font-size:11px;color:var(--txm);background:none;display:flex;align-items:center;gap:3px}
+.ia-add-agent:hover{border-color:var(--mt);color:var(--mt)}
+.ia-chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
+.ia-chip{height:26px;padding:0 11px;border-radius:13px;border:1px solid var(--bd);font-size:11px;color:var(--txm);background:var(--s1);cursor:pointer;white-space:nowrap;display:flex;align-items:center}
+.ia-chip:hover{border-color:var(--ac);color:var(--tx)}
+.ia-chip.on{background:var(--acd);border-color:var(--ac);color:var(--ac);font-weight:500}
+.ia-box{border:1px solid var(--bd);border-radius:6px;background:var(--s1);transition:border-color .15s,box-shadow .15s;overflow:visible;position:relative}
+.ia-box:focus-within{border-color:var(--ac);box-shadow:0 0 0 2px rgba(79,195,247,.12)}
+.ia-ta{width:100%;background:transparent;padding:10px 12px 6px;color:var(--tx);font-size:13px;min-height:76px;max-height:200px;resize:none;outline:none;font-family:inherit;line-height:1.6;display:block}
+.ia-bar{display:flex;align-items:center;gap:2px;padding:4px 8px 6px 10px;border-top:1px solid var(--bd0)}
+.iatool2{height:26px;padding:0 7px;border-radius:4px;font-size:12px;color:var(--txm);display:flex;align-items:center;gap:4px}
+.iatool2:hover{background:var(--s2);color:var(--tx)}
+.ia-hint{font-size:10px;color:var(--txf);margin-right:6px;white-space:nowrap}
+.ia-send{width:32px;height:32px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;flex-shrink:0}
+.ia-send:hover{opacity:.9}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- Title Bar -->
+<div id="titlebar">
+  <span class="wsbrand">⛵</span>
+  <span class="wsname">渡海舟 · 跨境电商工作台</span>
+  <div class="winbtns">
+    <button class="wb">─</button><button class="wb">□</button><button class="wb cls">✕</button>
+  </div>
+</div>
+
+<!-- Header Bar -->
+<div id="headerbar">
+  <button class="hbtn pri" onclick="openNewDialog()"><i data-lucide="plus" class="ico ico-sm"></i> 新建任务</button>
+  <button class="hbtn" onclick="openCmdPalette()"><i data-lucide="command" class="ico ico-sm"></i> 命令面板</button>
+  <div class="hsep"></div>
+  <div class="hchip hc-run" onclick="switchTab('overview')" style="cursor:pointer">● 3 运行中</div>
+  <div class="hchip hc-appr" onclick="switchNav('approval')" style="cursor:pointer">⚠ 2 审批</div>
+  <div class="hchip hc-tok"><i data-lucide="activity" class="ico ico-sm"></i> 124k tokens</div>
+  <button class="hbtn" onclick="switchNav('settings')" style="margin-left:4px"><i data-lucide="settings" class="ico ico-sm"></i> 设置</button>
+  <button class="hbtn" onclick="toggleTheme()" id="theme-btn" title="切换主题" style="padding:0 10px">
+    <i data-lucide="sun" class="ico ico-sm" id="theme-ico"></i>
+  </button>
+</div>
+
+<div id="center">
+<!-- Activity Bar -->
+<div id="activity">
+  <button class="abt" id="abt-overview" onclick="switchNav('overview')" title="总览">
+    <i data-lucide="layout-dashboard" class="ico ico-lg" style="flex-shrink:0"></i>
+    <div class="abt-text"><span class="abt-name">总览</span><span class="abt-desc">全局任务与 Agent</span></div>
+  </button>
+  <button class="abt on" id="abt-projects" onclick="switchNav('projects')" title="项目管理">
+    <i data-lucide="folder-kanban" class="ico ico-lg" style="flex-shrink:0"></i>
+    <div class="abt-text"><span class="abt-name">项目管理</span><span class="abt-desc">所有工作项目</span></div>
+  </button>
+  <button class="abt" id="abt-plugins" onclick="switchNav('plugins')" title="功能管理">
+    <i data-lucide="cpu" class="ico ico-lg" style="flex-shrink:0"></i>
+    <div class="abt-text"><span class="abt-name">功能管理</span><span class="abt-desc">所有已安装插件</span></div>
+  </button>
+  <button class="abt" id="abt-skills" onclick="switchNav('skills')" title="技能管理">
+    <i data-lucide="triangle-alert" class="ico ico-lg" style="flex-shrink:0"></i>
+    <div class="abt-text"><span class="abt-name">技能管理</span><span class="abt-desc">所有已安装技能</span></div>
+  </button>
+  <button class="abt" id="abt-store" onclick="switchNav('store')" title="应用商店">
+    <i data-lucide="store" class="ico ico-lg" style="flex-shrink:0"></i>
+    <div class="abt-text"><span class="abt-name">应用商店</span><span class="abt-desc">发现并安装插件与技能</span></div>
+  </button>
+  <div class="abt-sep"></div>
+  <button class="abt abt-bot" id="abt-settings" onclick="switchNav('settings')" title="设置">
+    <i data-lucide="settings" class="ico ico-lg" style="flex-shrink:0"></i>
+    <div class="abt-text"><span class="abt-name">设置</span><span class="abt-desc">系统偏好设置</span></div>
+  </button>
+  <button class="abt-expand" onclick="toggleActivityBar()" id="act-expand-btn" title="展开导航">
+    <i data-lucide="chevrons-right" class="ico ico-sm" id="act-expand-ico" style="flex-shrink:0"></i>
+    <span class="abt-expand-label" id="act-expand-label">展开导航</span>
+  </button>
+</div>
+
+<!-- Side Panel -->
+<div id="sidepanel">
+  <div class="sp-head">
+    <input class="sp-search" placeholder="搜索..." oninput="spSearch(this.value)">
+    <button class="sp-add" id="sp-add-btn" onclick="spAdd()" title="新建"><i data-lucide="plus" class="ico ico-sm"></i></button>
+  </div>
+
+  <!-- Overview Panel -->
+  <div class="sp-panel" id="sp-overview">
+    <div class="sp-ftabs">
+      <button class="sft on" onclick="spftab(this)">运行中</button>
+      <button class="sft" onclick="spftab(this)">待处理</button>
+      <button class="sft" onclick="spftab(this)">全部</button>
+    </div>
+    <div class="sp-body">
+      <!-- 需要处理 -->
+      <div class="sph" style="color:var(--err)"><i data-lucide="alert-circle" class="ico ico-xs"></i> 需要处理 (3)</div>
+      <div class="oni urgent" onclick="switchNav('approval')">
+        <div class="oni-ico err"><i data-lucide="triangle-alert" class="ico ico-xs"></i></div>
+        <div class="oni-body">
+          <div class="oni-title">写入文件审批</div>
+          <div class="oni-sub">登录模块重写 · 2m 前</div>
+        </div>
+        <span class="oni-tag ot-err">待处理</span>
+      </div>
+      <div class="oni urgent" onclick="switchNav('approval')">
+        <div class="oni-ico err"><i data-lucide="triangle-alert" class="ico ico-xs"></i></div>
+        <div class="oni-body">
+          <div class="oni-title">执行查询审批</div>
+          <div class="oni-sub">代码优化讨论 · 45s 前</div>
+        </div>
+        <span class="oni-tag ot-err">待处理</span>
+      </div>
+      <div class="oni urgent" onclick="switchNav('plugins')">
+        <div class="oni-ico warn"><i data-lucide="wifi-off" class="ico ico-xs"></i></div>
+        <div class="oni-body">
+          <div class="oni-title">Claude 心跳延迟</div>
+          <div class="oni-sub">架构评审会 · 5m 前</div>
+        </div>
+        <span class="oni-tag ot-err">需关注</span>
+      </div>
+
+      <!-- 运行中 -->
+      <div class="sph" style="margin-top:6px"><i data-lucide="activity" class="ico ico-xs"></i> 运行中 (3)</div>
+      <div class="oni running" onclick="openTask('work1','登录模块重写','work')">
+        <div class="oni-ico run"><i data-lucide="zap" class="ico ico-xs"></i></div>
+        <div class="oni-body">
+          <div class="oni-title">登录模块重写</div>
+          <div class="oni-sub">步骤 3/6 · 38% · Claude-3.7</div>
+        </div>
+        <span class="oni-tag ot-run">工作</span>
+      </div>
+      <div class="oni running" onclick="openTask('meeting1','架构评审会','meeting')">
+        <div class="oni-ico" style="background:var(--mtd);color:var(--mt)"><i data-lucide="users" class="ico ico-xs"></i></div>
+        <div class="oni-body">
+          <div class="oni-title">架构评审会</div>
+          <div class="oni-sub">议题 2/4 · 3 Agent</div>
+        </div>
+        <span class="oni-tag" style="background:var(--mtd);color:var(--mt)">会议</span>
+      </div>
+      <div class="oni running" onclick="openTask('expert1','代码优化讨论','expert')">
+        <div class="oni-ico" style="background:var(--exd);color:var(--ex)"><i data-lucide="message-square" class="ico ico-xs"></i></div>
+        <div class="oni-body">
+          <div class="oni-title">代码优化讨论</div>
+          <div class="oni-sub">GPT-4o · 生成中</div>
+        </div>
+        <span class="oni-tag" style="background:var(--exd);color:var(--ex)">专家</span>
+      </div>
+
+      <!-- 今日完成 -->
+      <div class="sph" style="margin-top:6px;color:var(--ok)"><i data-lucide="check-circle" class="ico ico-xs"></i> 今日完成 (2)</div>
+      <div class="oni done" onclick="openTask('done1','需求分析','work')">
+        <div class="oni-ico ok"><i data-lucide="check" class="ico ico-xs"></i></div>
+        <div class="oni-body">
+          <div class="oni-title">需求分析</div>
+          <div class="oni-sub">完成 · 14:02 · 18k tokens</div>
+        </div>
+      </div>
+      <div class="oni done" onclick="openTask('done2','接口设计文档','expert')">
+        <div class="oni-ico ok"><i data-lucide="check" class="ico ico-xs"></i></div>
+        <div class="oni-body">
+          <div class="oni-title">接口设计文档</div>
+          <div class="oni-sub">完成 · 11:45 · 12k tokens</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Projects (项目管理 · 方案A 项目卡片视图) -->
+  <div class="sp-panel on" id="sp-projects">
+    <div class="sp-ftabs">
+      <button class="sft on" onclick="spftab(this)">活跃</button>
+      <button class="sft" onclick="spftab(this)">全部</button>
+      <button class="sft" onclick="spftab(this)">已归档</button>
+    </div>
+    <div class="sp-body">
+      <div class="sph">活跃项目 (2)</div>
+      <div class="pcard on" onclick="openTask('work1','登录模块重写','work')">
+        <div class="pc-top">
+          <div class="pc-name"><i data-lucide="folder-kanban" class="ico ico-xs" style="color:var(--wk)"></i> 认证系统重构</div>
+          <span class="pc-badge">3 运行中</span>
+        </div>
+        <div class="pc-sub"><span>2 任务</span><span>3 Agent</span></div>
+        <div class="pc-meta">最后活动 · 2m 前</div>
+      </div>
+      <div class="pcard" onclick="openTask('meeting1','架构评审会','meeting')">
+        <div class="pc-top">
+          <div class="pc-name"><i data-lucide="folder-kanban" class="ico ico-xs" style="color:var(--mt)"></i> 架构评审</div>
+          <span class="pc-badge">1 运行中</span>
+        </div>
+        <div class="pc-sub"><span>4 任务</span><span>1 Agent</span></div>
+        <div class="pc-meta">最后活动 · 12m 前</div>
+      </div>
+      <div class="sph" style="margin-top:6px">空闲项目 (1)</div>
+      <div class="pcard" onclick="openTask('done1','需求分析','work')">
+        <div class="pc-top">
+          <div class="pc-name"><i data-lucide="folder" class="ico ico-xs" style="color:var(--txm)"></i> 数据迁移工具</div>
+          <span class="pc-badge idle">空闲</span>
+        </div>
+        <div class="pc-sub"><span>6 任务</span><span>0 Agent</span></div>
+        <div class="pc-meta">最后活动 · 昨天 14:02</div>
+      </div>
+    </div>
+  </div>
+  <!-- Plugins (功能管理) 导航树 → 主区卡片 -->
+  <div class="sp-panel" id="sp-plugins">
+    <!-- 树由 renderPluginTree() 动态生成：状态项固定，分类项来自数据库 -->
+    <div class="sp-body" id="plugins-tree"></div>
+  </div>
+  <!-- Skills (技能管理 · 仅全局技能) 导航树 → 主区卡片 -->
+  <div class="sp-panel" id="sp-skills">
+    <!-- 树由 renderSkillTree() 动态生成：来源项固定，分类项来自数据库 -->
+    <div class="sp-body" id="skills-tree"></div>
+  </div>
+  <!-- Store (应用商店 · 图标筛选按钮 + 下推式筛选面板) -->
+  <!-- Store 分类树：大项(全部/插件/技能/智能体/方案) → 展开系统分类 -->
+  <div class="sp-panel" id="sp-store">
+    <div class="sp-body">
+      <!-- 全部资源（无子分类） -->
+      <div class="stree-top on" onclick="openStore('all','','全部资源')">
+        <i data-lucide="layout-grid" class="ico ico-xs"></i> 全部资源 <span class="stree-count">15</span>
+      </div>
+      <!-- 更新：列出所有有更新的资源 -->
+      <div class="stree-top" onclick="openStore('update','','可用更新')">
+        <i data-lucide="arrow-up-circle" class="ico ico-xs" style="color:var(--warn)"></i> 更新
+        <span class="stree-count" id="store-update-count" style="background:var(--warn);color:#000;border-radius:8px;padding:0 6px">3</span>
+      </div>
+      <!-- 插件 -->
+      <div class="stree-top" onclick="toggleTree(this)">
+        <i data-lucide="chevron-right" class="ico ico-xs stree-caret"></i>
+        <i data-lucide="plug" class="ico ico-xs" style="color:var(--mt)"></i> 插件 <span class="stree-count">6</span>
+      </div>
+      <div class="stree-cats">
+        <div class="stree-cat" onclick="openStore('plugin','linux','插件 · Linux')">Linux</div>
+        <div class="stree-cat" onclick="openStore('plugin','windows','插件 · Windows')">Windows</div>
+        <div class="stree-cat" onclick="openStore('plugin','tools','插件 · 便捷工具')">便捷工具</div>
+        <div class="stree-cat" onclick="openStore('plugin','dev','插件 · 编程开发')">编程开发</div>
+      </div>
+      <!-- 技能 -->
+      <div class="stree-top" onclick="toggleTree(this)">
+        <i data-lucide="chevron-right" class="ico ico-xs stree-caret"></i>
+        <i data-lucide="sparkles" class="ico ico-xs" style="color:var(--ex)"></i> 技能 <span class="stree-count">5</span>
+      </div>
+      <div class="stree-cats">
+        <div class="stree-cat" onclick="openStore('skill','office','技能 · 办公效率')">办公效率</div>
+        <div class="stree-cat" onclick="openStore('skill','dev','技能 · 编程开发')">编程开发</div>
+        <div class="stree-cat" onclick="openStore('skill','tools','技能 · 便捷工具')">便捷工具</div>
+      </div>
+      <!-- 智能体 -->
+      <div class="stree-top" onclick="toggleTree(this)">
+        <i data-lucide="chevron-right" class="ico ico-xs stree-caret"></i>
+        <i data-lucide="bot" class="ico ico-xs" style="color:var(--wk)"></i> 智能体 <span class="stree-count">3</span>
+      </div>
+      <div class="stree-cats">
+        <div class="stree-cat" onclick="openStore('agent','service','智能体 · 客服')">客服</div>
+        <div class="stree-cat" onclick="openStore('agent','ops','智能体 · 运维')">运维</div>
+        <div class="stree-cat" onclick="openStore('agent','automation','智能体 · 自动化')">自动化</div>
+      </div>
+      <!-- 方案 -->
+      <div class="stree-top" onclick="toggleTree(this)">
+        <i data-lucide="chevron-right" class="ico ico-xs stree-caret"></i>
+        <i data-lucide="layers" class="ico ico-xs" style="color:var(--ac)"></i> 方案 <span class="stree-count">1</span>
+      </div>
+      <div class="stree-cats">
+        <div class="stree-cat" onclick="openStore('solution','fullstack','方案 · 全栈开发')">全栈开发</div>
+      </div>
+    </div>
+  </div>
+  <!-- Approval -->
+  <div class="sp-panel" id="sp-approval">
+    <div class="sp-body">
+      <div class="sph" style="color:var(--warn)">⚠ 待处理 (2)</div>
+      <div class="appr-item">
+        <div style="margin-bottom:5px"><span class="appr-risk risk-hi">高风险</span><span style="font-size:11px;color:var(--txm)">等待 2m 34s</span></div>
+        <div class="appr-title">写入文件 write_file("src/auth.cs")</div>
+        <div class="appr-meta">Claude-3.7 · 登录模块重写</div>
+        <div class="appr-btns"><button class="aa aa-y" onclick="handleAppr(this,'allow')">✓ 允许</button><button class="aa aa-yt" onclick="handleAppr(this,'task')">✓ 本任务</button><button class="aa aa-n" onclick="handleAppr(this,'deny')">✕ 拒绝</button></div>
+      </div>
+      <div class="appr-item">
+        <div style="margin-bottom:5px"><span class="appr-risk risk-md">中风险</span><span style="font-size:11px;color:var(--txm)">等待 45s</span></div>
+        <div class="appr-title">执行查询 execute_query(db, sql)</div>
+        <div class="appr-meta">GPT-4o · 代码优化讨论</div>
+        <div class="appr-btns"><button class="aa aa-y" onclick="handleAppr(this,'allow')">✓ 允许</button><button class="aa aa-yt" onclick="handleAppr(this,'task')">✓ 本任务</button><button class="aa aa-n" onclick="handleAppr(this,'deny')">✕ 拒绝</button></div>
+      </div>
+      <div class="sph" style="margin-top:8px">已处理 (3)</div>
+      <div style="padding:5px 10px;font-size:11px;color:var(--ok)">✓ read_file("app.cs") 允许 · 12:41</div>
+      <div style="padding:5px 10px;font-size:11px;color:var(--ok)">✓ search_code("auth") 允许 · 12:38</div>
+      <div style="padding:5px 10px;font-size:11px;color:var(--err)">✕ delete_file("old.cs") 拒绝 · 12:30</div>
+    </div>
+  </div>
+  <!-- History -->
+  <div class="sp-panel" id="sp-history">
+    <div class="sp-ftabs"><button class="sft on" onclick="spftab(this)">全部</button><button class="sft" onclick="spftab(this)">专家</button><button class="sft" onclick="spftab(this)">工作</button></div>
+    <div class="sp-body">
+      <div class="hist-date">今天 · 2026-07-20</div>
+      <div class="hist-item" onclick="openTask('done1','需求分析','work')"><div class="hi-title"><span class="mbadge mb-wk"><i data-lucide="zap" class="ico ico-xs"></i></span>需求分析</div><div class="hi-sub">完成 · 14:02 · 18k tokens</div></div>
+      <div class="hist-item" onclick="openTask('done2','接口设计文档','expert')"><div class="hi-title"><span class="mbadge mb-ex"><i data-lucide="message-square" class="ico ico-xs"></i></span>接口设计文档</div><div class="hi-sub">完成 · 11:45 · 12k tokens</div></div>
+      <div class="hist-date">昨天 · 2026-07-19</div>
+      <div class="hist-item"><div class="hi-title"><span class="mbadge mb-mt"><i data-lucide="users" class="ico ico-xs"></i></span>功能评审会</div><div class="hi-sub">完成 · 4 Agent · meetings/2026-07-19.md</div></div>
+      <div class="hist-item"><div class="hi-title"><span class="mbadge mb-wk"><i data-lucide="zap" class="ico ico-xs"></i></span>数据库优化</div><div class="hi-sub">完成 · 6 步骤 · 45k tokens</div></div>
+      <div class="hist-date">2026-07-18</div>
+      <div class="hist-item"><div class="hi-title"><span class="mbadge mb-ex"><i data-lucide="message-square" class="ico ico-xs"></i></span>架构讨论</div><div class="hi-sub">完成 · 32k tokens</div></div>
+      <div style="padding:8px 10px"><button class="mab" style="width:100%;display:flex;justify-content:center" onclick="alert('打开 .cortana/conversations/')"><i data-lucide="folder-open" class="ico ico-sm"></i> 打开存储目录</button></div>
+    </div>
+  </div>
+  <!-- Workspace -->
+  <div class="sp-panel" id="sp-workspace">
+    <div class="sp-body">
+      <div class="sph">工作区文件</div>
+      <div class="ft-item dir"><i data-lucide="folder" class="ico ico-xs" style="color:var(--warn)"></i> Src</div>
+      <div class="ft-item ft-indent"><i data-lucide="folder" class="ico ico-xs" style="color:var(--warn)"></i> Netor.Cortana.UI</div>
+      <div class="ft-item ft-indent2" style="color:var(--wk)"><i data-lucide="file-code" class="ico ico-xs" style="color:var(--txm)"></i> auth.cs<span style="font-size:10px;margin-left:5px;color:var(--wk)">(修改中)</span></div>
+      <div class="ft-item ft-indent2"><i data-lucide="file-code" class="ico ico-xs"></i> App.axaml.cs</div>
+      <div class="ft-item ft-indent2"><i data-lucide="file-code" class="ico ico-xs"></i> MainWindow.axaml</div>
+      <div class="ft-item ft-indent"><i data-lucide="folder" class="ico ico-xs" style="color:var(--warn)"></i> Netor.Cortana.AI</div>
+      <div class="ft-item ft-indent2"><i data-lucide="file-code" class="ico ico-xs"></i> ChatAgent.cs</div>
+      <div class="ft-item dir"><i data-lucide="folder" class="ico ico-xs" style="color:var(--warn)"></i> .cortana</div>
+      <div class="ft-item ft-indent"><i data-lucide="folder" class="ico ico-xs" style="color:var(--txm)"></i> conversations</div>
+      <div class="ft-item ft-indent2"><i data-lucide="file-text" class="ico ico-xs"></i> work/task_003.jsonl</div>
+      <div class="ft-item ft-indent"><i data-lucide="folder" class="ico ico-xs" style="color:var(--txm)"></i> meetings</div>
+      <div class="ft-item ft-indent2"><i data-lucide="file-text" class="ico ico-xs"></i> 2026-07-19_架构评审.md</div>
+      <div class="sph" style="margin-top:6px">已安装插件</div>
+      <div class="ft-item"><i data-lucide="plug" class="ico ico-xs"></i> Netor.Plugin.Voice</div>
+      <div class="ft-item"><i data-lucide="plug" class="ico ico-xs"></i> Netor.Plugin.Memory</div>
+      <div class="ft-item"><i data-lucide="plug" class="ico ico-xs"></i> Netor.Plugin.CodeExec</div>
+    </div>
+  </div>
+  <!-- Settings -->
+  <div class="sp-panel" id="sp-settings">
+    <div class="sp-body">
+      <div class="sph">快速入口</div>
+      <div class="ti" onclick="alert('Provider 设置')"><div class="ti-row"><i data-lucide="globe" class="ico ico-xs"></i> Provider 配置</div></div>
+      <div class="ti" onclick="alert('Model 管理')"><div class="ti-row"><i data-lucide="brain" class="ico ico-xs"></i> Model 管理</div></div>
+      <div class="ti" onclick="alert('Agent 定义')"><div class="ti-row"><i data-lucide="cpu" class="ico ico-xs"></i> Agent 定义</div></div>
+      <div class="ti" onclick="alert('插件管理')"><div class="ti-row"><i data-lucide="plug" class="ico ico-xs"></i> 插件管理</div></div>
+      <div class="ti" onclick="alert('MCP 服务器')"><div class="ti-row">⚡ MCP 服务器</div></div>
+      <div class="ti" onclick="alert('存储健康')"><div class="ti-row"><i data-lucide="database" class="ico ico-xs"></i> 存储健康检查</div></div>
+      <div class="ti" onclick="alert('代理设置')"><div class="ti-row"><i data-lucide="shield" class="ico ico-xs"></i> 代理设置</div></div>
+    </div>
+  </div>
+</div><!-- end sidepanel -->
+
+<!-- Main Area -->
+<div id="mainarea">
+  <div id="tabbar">
+    <button class="titem on" id="tab-overview" onclick="switchTab('overview')"><i data-lucide="layout-dashboard" class="ico ico-xs"></i> 总览</button>
+    <button class="titem" id="tab-work1" onclick="switchTab('work1')"><span class="tdot" style="background:var(--wk)"></span>登录模块重写<button class="tcx" onclick="closeTab(event,'work1')">✕</button></button>
+    <button class="titem" id="tab-meeting1" onclick="switchTab('meeting1')"><span class="tdot" style="background:var(--mt)"></span>架构评审会<span class="tdot pulse" style="background:var(--ok);margin-left:3px"></span><button class="tcx" onclick="closeTab(event,'meeting1')">✕</button></button>
+    <button class="tadd" onclick="openNewDialog()">＋</button>
+  </div>
+  <div id="content-row">
+    <div id="content">
+
+      <!-- OVERVIEW -->
+      <div class="pane on" id="pane-overview">
+        <div class="ov-scroll">
+          <!-- KPI Row -->
+          <div class="kpi-row">
+            <div class="kpi"><div class="kpi-ico"><i data-lucide="briefcase" class="ico ico-lg"></i></div><div class="kpi-body"><div class="kpi-lbl">运行项目</div><div class="kpi-num">3</div><div class="kpi-trend">6 项活跃工作</div></div></div>
+            <div class="kpi"><div class="kpi-ico"><i data-lucide="bot" class="ico ico-lg"></i></div><div class="kpi-body"><div class="kpi-lbl">工作中智能体</div><div class="kpi-num" style="color:var(--ok)">8</div><div class="kpi-trend">5 运行 · 2 需处理</div></div></div>
+            <div class="kpi"><div class="kpi-ico"><i data-lucide="files" class="ico ico-lg"></i></div><div class="kpi-body"><div class="kpi-lbl">项目文件</div><div class="kpi-num">710</div><div class="kpi-trend">5.1 GB 本地资源</div></div></div>
+            <div class="kpi"><div class="kpi-ico" style="background:var(--wkd)"><i data-lucide="alert-circle" class="ico ico-lg" style="color:var(--warn)"></i></div><div class="kpi-body"><div class="kpi-lbl">等待处理</div><div class="kpi-num" style="color:var(--warn)">2</div><div class="kpi-trend">发布确认 · 素材确认</div></div></div>
+          </div>
+
+          <!-- Running Projects -->
+          <div class="ov-sec">
+            <div class="ov-sec-hd">
+              <div><span class="ov-sec-t">正在运行的项目</span><span class="ov-sec-sub">每个项目独立保存任务、文件、对话和运行状态，切换不会刷新其他项目</span></div>
+              <span class="ov-sec-link" onclick="switchNav('projects')">管理项目 <i data-lucide="arrow-right" class="ico ico-xs"></i></span>
+            </div>
+            <div class="proj-grid">
+              <div class="proj-card" onclick="openTask('work1','德国独立站','work')">
+                <div class="proj-hd">
+                  <div class="proj-ico"><i data-lucide="store" class="ico ico-sm"></i></div>
+                  <div class="proj-tt"><div class="proj-name">德国独立站</div><div class="proj-meta">独立站项目 · 德国 / 欧盟</div></div>
+                  <div class="proj-st"><span class="dot d-ex pulse"></span>经营中</div>
+                </div>
+                <div class="proj-stats">
+                  <div class="proj-stat"><div class="proj-stat-l">活跃工作</div><div class="proj-stat-v">2</div></div>
+                  <div class="proj-stat"><div class="proj-stat-l">智能体</div><div class="proj-stat-v">3</div></div>
+                  <div class="proj-stat"><div class="proj-stat-l">项目文件</div><div class="proj-stat-v">428</div></div>
+                </div>
+                <div class="proj-task"><div class="proj-task-tt"><div class="proj-task-nm">德国站新品上线</div><div class="proj-task-mt">执行中 · 46% · 3 个智能体</div></div><div class="proj-task-go"><i data-lucide="arrow-up-right" class="ico ico-xs"></i></div></div>
+                <div class="proj-task"><div class="proj-task-tt"><div class="proj-task-nm">德国站上线评审</div><div class="proj-task-mt">会议中 · 58% · 4 个智能体</div></div><div class="proj-task-go"><i data-lucide="arrow-up-right" class="ico ico-xs"></i></div></div>
+                <div class="proj-ft"><div class="proj-ft-path"><i data-lucide="folder" class="ico ico-xs"></i><span>E:\StreamX\NorthstarLiving\Germany-Site</span></div><span>684 MB · 刚刚</span></div>
+              </div>
+              <div class="proj-card" onclick="openTask('expert1','Amazon DE','expert')">
+                <div class="proj-hd">
+                  <div class="proj-ico"><i data-lucide="shopping-bag" class="ico ico-sm"></i></div>
+                  <div class="proj-tt"><div class="proj-name">Amazon DE</div><div class="proj-meta">平台渠道项目 · 德国站</div></div>
+                  <div class="proj-st"><span class="dot d-ex pulse"></span>经营中</div>
+                </div>
+                <div class="proj-stats">
+                  <div class="proj-stat"><div class="proj-stat-l">活跃工作</div><div class="proj-stat-v">2</div></div>
+                  <div class="proj-stat"><div class="proj-stat-l">智能体</div><div class="proj-stat-v">2</div></div>
+                  <div class="proj-stat"><div class="proj-stat-l">项目文件</div><div class="proj-stat-v">186</div></div>
+                </div>
+                <div class="proj-task"><div class="proj-task-tt"><div class="proj-task-nm">Amazon 结算核对</div><div class="proj-task-mt">分析中 · 31% · 2 个智能体</div></div><div class="proj-task-go"><i data-lucide="arrow-up-right" class="ico ico-xs"></i></div></div>
+                <div class="proj-ft"><div class="proj-ft-path"><i data-lucide="folder" class="ico ico-xs"></i><span>E:\StreamX\NorthstarLiving\Amazon-DE</span></div><span>238 MB · 4 分钟前</span></div>
+              </div>
+              <div class="proj-card" onclick="openTask('work2','Summer Table 2026','work')">
+                <div class="proj-hd">
+                  <div class="proj-ico"><i data-lucide="megaphone" class="ico ico-sm"></i></div>
+                  <div class="proj-tt"><div class="proj-name">Summer Table 2026</div><div class="proj-meta">营销活动项目 · 德国 / 社交渠道</div></div>
+                  <div class="proj-st" style="color:var(--wk)"><span class="dot d-wk pulse"></span>执行中</div>
+                </div>
+                <div class="proj-stats">
+                  <div class="proj-stat"><div class="proj-stat-l">活跃工作</div><div class="proj-stat-v">2</div></div>
+                  <div class="proj-stat"><div class="proj-stat-l">智能体</div><div class="proj-stat-v">3</div></div>
+                  <div class="proj-stat"><div class="proj-stat-l">项目文件</div><div class="proj-stat-v">96</div></div>
+                </div>
+                <div class="proj-task"><div class="proj-task-tt"><div class="proj-task-nm">Summer Table 分发</div><div class="proj-task-mt">等待确认 · 72% · 3 个智能体</div></div><div class="proj-task-go"><i data-lucide="arrow-up-right" class="ico ico-xs"></i></div></div>
+                <div class="proj-ft"><div class="proj-ft-path"><i data-lucide="folder" class="ico ico-xs"></i><span>E:\StreamX\NorthstarLiving\Campaigns\Summer-Table-2026</span></div><span>3.8 GB · 8 分钟前</span></div>
+              </div>
+            </div>
+          </div>
+          <!-- Continue Work -->
+          <div class="ov-sec">
+            <div class="ov-sec-hd">
+              <div><span class="ov-sec-t">继续工作</span><span class="ov-sec-sub">工作以独立选项卡打开，保留其项目、文件位置、对话草稿和页面状态</span></div>
+              <span class="ov-sec-link" onclick="switchNav('tasks')">查看全部任务 <i data-lucide="arrow-right" class="ico ico-xs"></i></span>
+            </div>
+            <div class="cw-list">
+              <div class="cw-row" onclick="openTask('work1','德国独立站新品上线','work')">
+                <div class="cw-ico"><i data-lucide="git-branch-plus" class="ico ico-sm"></i></div>
+                <div class="cw-main"><div class="cw-nm">德国独立站新品上线</div><div class="cw-mt">工作模式 · 执行中 · 刚刚</div></div>
+                <div class="cw-proj"><div class="cw-proj-nm">德国独立站</div><div class="cw-proj-id">TASK-240719-017</div></div>
+                <div class="cw-prog"><div class="cw-prog-bg"><div class="cw-prog-fg" style="width:46%"></div></div><span class="cw-prog-v">46%</span></div>
+                <div class="cw-ag"><i data-lucide="users" class="ico ico-xs"></i> 3 个</div>
+                <div class="cw-go"><i data-lucide="arrow-right" class="ico ico-sm"></i></div>
+              </div>
+              <div class="cw-row" onclick="openTask('expert1','Amazon DE 结算差异核对','expert')">
+                <div class="cw-ico m-ex"><i data-lucide="message-square" class="ico ico-sm"></i></div>
+                <div class="cw-main"><div class="cw-nm">Amazon DE 结算差异核对</div><div class="cw-mt">专家模式 · 分析中 · 4 分钟前</div></div>
+                <div class="cw-proj"><div class="cw-proj-nm">Amazon DE</div><div class="cw-proj-id">TASK-240719-022</div></div>
+                <div class="cw-prog"><div class="cw-prog-bg"><div class="cw-prog-fg" style="width:31%"></div></div><span class="cw-prog-v">31%</span></div>
+                <div class="cw-ag"><i data-lucide="users" class="ico ico-xs"></i> 2 个</div>
+                <div class="cw-go"><i data-lucide="arrow-right" class="ico ico-sm"></i></div>
+              </div>
+              <div class="cw-row" onclick="openTask('meeting1','德国站上线评审','meeting')">
+                <div class="cw-ico m-mt"><i data-lucide="users" class="ico ico-sm"></i></div>
+                <div class="cw-main"><div class="cw-nm">德国站上线评审</div><div class="cw-mt">会议模式 · 会议中 · 刚刚</div></div>
+                <div class="cw-proj"><div class="cw-proj-nm">德国独立站</div><div class="cw-proj-id">MEET-240719-006</div></div>
+                <div class="cw-prog"><div class="cw-prog-bg"><div class="cw-prog-fg" style="width:58%"></div></div><span class="cw-prog-v">58%</span></div>
+                <div class="cw-ag"><i data-lucide="users" class="ico ico-xs"></i> 4 个</div>
+                <div class="cw-go"><i data-lucide="arrow-right" class="ico ico-sm"></i></div>
+              </div>
+              <div class="cw-row" onclick="openTask('work2','Summer Table 社交分发','work')">
+                <div class="cw-ico"><i data-lucide="send" class="ico ico-sm"></i></div>
+                <div class="cw-main"><div class="cw-nm">Summer Table 社交分发</div><div class="cw-mt">工作模式 · 等待确认 · 8 分钟前</div></div>
+                <div class="cw-proj"><div class="cw-proj-nm">Summer Table 2026</div><div class="cw-proj-id">TASK-240719-019</div></div>
+                <div class="cw-prog"><div class="cw-prog-bg"><div class="cw-prog-fg" style="width:72%"></div></div><span class="cw-prog-v">72%</span></div>
+                <div class="cw-ag"><i data-lucide="users" class="ico ico-xs"></i> 3 个</div>
+                <div class="cw-go"><i data-lucide="arrow-right" class="ico ico-sm"></i></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- New Business -->
+          <div class="ov-sec">
+            <div class="ov-sec-hd">
+              <div><span class="ov-sec-t">新建业务工作</span><span class="ov-sec-sub">选择操作后先确认所属项目，再创建专家、工作或会议工作页</span></div>
+            </div>
+            <div class="nb-grid">
+              <div class="nb-item" onclick="openNewDialog()"><div class="nb-ico"><i data-lucide="layout-template" class="ico ico-sm"></i></div><div class="nb-tt"><div class="nb-nm">新建独立站</div><div class="nb-desc">从市场、域名到上线计划</div></div><i data-lucide="arrow-up-right" class="ico ico-xs nb-go"></i></div>
+              <div class="nb-item" onclick="openNewDialog()"><div class="nb-ico"><i data-lucide="package-plus" class="ico ico-sm"></i></div><div class="nb-tt"><div class="nb-nm">导入商品</div><div class="nb-desc">清洗、归类并建立商品资产</div></div><i data-lucide="arrow-up-right" class="ico ico-xs nb-go"></i></div>
+              <div class="nb-item" onclick="openNewDialog()"><div class="nb-ico"><i data-lucide="languages" class="ico ico-sm"></i></div><div class="nb-tt"><div class="nb-nm">翻译商品页</div><div class="nb-desc">翻译并完成本地化校对</div></div><i data-lucide="arrow-up-right" class="ico ico-xs nb-go"></i></div>
+              <div class="nb-item" onclick="openNewDialog()"><div class="nb-ico"><i data-lucide="scan-search" class="ico ico-sm"></i></div><div class="nb-tt"><div class="nb-nm">经营诊断</div><div class="nb-desc">分析经营数据与优先事项</div></div><i data-lucide="arrow-up-right" class="ico ico-xs nb-go"></i></div>
+              <div class="nb-item" onclick="openNewDialog()"><div class="nb-ico"><i data-lucide="send" class="ico ico-sm"></i></div><div class="nb-tt"><div class="nb-nm">分发社交内容</div><div class="nb-desc">编排渠道内容与发布时间</div></div><i data-lucide="arrow-up-right" class="ico ico-xs nb-go"></i></div>
+              <div class="nb-item" onclick="openNewDialog()"><div class="nb-ico"><i data-lucide="user-check" class="ico ico-sm"></i></div><div class="nb-tt"><div class="nb-nm">站点评审</div><div class="nb-desc">多角色评审站点上线条件</div></div><i data-lucide="arrow-up-right" class="ico ico-xs nb-go"></i></div>
+            </div>
+          </div>
+
+          <!-- Industry Functions -->
+          <div class="ov-sec" style="padding-bottom:24px">
+            <div class="ov-sec-hd">
+              <div><span class="ov-sec-t">行业功能</span><span class="ov-sec-sub">功能入口来自 渡海舟 行业配置，不依赖某个全局当前项目</span></div>
+            </div>
+            <div class="if-grid">
+              <div class="if-card">
+                <div class="if-hd"><div class="if-ico"><i data-lucide="server" class="ico ico-sm"></i></div><div class="if-tt"><div class="if-nm">服务器与域名</div><div class="if-desc">基础设施与可用性</div></div><div class="if-stat">2 台服务器 · 4 个域名 · 1 项续费</div></div>
+                <div class="if-acts"><button class="if-btn"><i data-lucide="server-cog" class="ico ico-xs"></i> 购买服务器</button><button class="if-btn"><i data-lucide="globe" class="ico ico-xs"></i> 注册域名</button><button class="if-btn"><i data-lucide="search-check" class="ico ico-xs"></i> 检查 DNS</button></div>
+              </div>
+              <div class="if-card">
+                <div class="if-hd"><div class="if-ico"><i data-lucide="store" class="ico ico-sm"></i></div><div class="if-tt"><div class="if-nm">独立站与渠道</div><div class="if-desc">站点、店铺与销售连接</div></div><div class="if-stat">1 个独立站 · 2 个平台渠道</div></div>
+                <div class="if-acts"><button class="if-btn"><i data-lucide="layout-template" class="ico ico-xs"></i> 建设独立站</button><button class="if-btn"><i data-lucide="link" class="ico ico-xs"></i> 连接销售渠道</button><button class="if-btn"><i data-lucide="user-check" class="ico ico-xs"></i> 评审站点</button></div>
+              </div>
+              <div class="if-card">
+                <div class="if-hd"><div class="if-ico"><i data-lucide="package" class="ico ico-sm"></i></div><div class="if-tt"><div class="if-nm">商品与内容</div><div class="if-desc">商品主数据与本地化内容</div></div><div class="if-stat">428 个商品 · 27 个待发布</div></div>
+                <div class="if-acts"><button class="if-btn"><i data-lucide="package-plus" class="ico ico-xs"></i> 新建商品</button><button class="if-btn"><i data-lucide="languages" class="ico ico-xs"></i> 翻译商品页</button><button class="if-btn"><i data-lucide="wand-sparkles" class="ico ico-xs"></i> 优化商品标题</button></div>
+              </div>
+              <div class="if-card">
+                <div class="if-hd"><div class="if-ico"><i data-lucide="megaphone" class="ico ico-sm"></i></div><div class="if-tt"><div class="if-nm">营销与社交分发</div><div class="if-desc">活动、素材与渠道发布</div></div><div class="if-stat">3 个活动 · 本周 14 条内容</div></div>
+                <div class="if-acts"><button class="if-btn"><i data-lucide="rocket" class="ico ico-xs"></i> 新建营销活动</button><button class="if-btn"><i data-lucide="send" class="ico ico-xs"></i> 分发社交内容</button><button class="if-btn"><i data-lucide="bar-chart-3" class="ico ico-xs"></i> 复盘营销活动</button></div>
+              </div>
+              <div class="if-card">
+                <div class="if-hd"><div class="if-ico"><i data-lucide="truck" class="ico ico-sm"></i></div><div class="if-tt"><div class="if-nm">订单、客服与履约</div><div class="if-desc">交易交付与客户问题</div></div><div class="if-stat">184 个今日订单 · 6 个异常</div></div>
+                <div class="if-acts"><button class="if-btn" style="color:var(--warn)"><i data-lucide="triangle-alert" class="ico ico-xs"></i> 处理异常订单</button><button class="if-btn"><i data-lucide="headset" class="ico ico-xs"></i> 生成客服回复</button><button class="if-btn"><i data-lucide="clipboard-check" class="ico ico-xs"></i> 检查履约</button></div>
+              </div>
+              <div class="if-card">
+                <div class="if-hd"><div class="if-ico"><i data-lucide="landmark" class="ico ico-sm"></i></div><div class="if-tt"><div class="if-nm">结算与经营</div><div class="if-desc">回款、费用与经营分析</div></div><div class="if-stat">2 个结算周期 · 1 项差异</div></div>
+                <div class="if-acts"><button class="if-btn"><i data-lucide="scale" class="ico ico-xs"></i> 核对结算差异</button><button class="if-btn"><i data-lucide="file-text" class="ico ico-xs"></i> 生成利润报告</button><button class="if-btn"><i data-lucide="calendar-check" class="ico ico-xs"></i> 周经营复盘</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WORK MODE -->
+      <div class="pane" id="pane-work1">
+        <div class="mode-topbar">
+          <span class="mbadge mb-wk"><i data-lucide="zap" class="ico ico-xs"></i> 工作</span>
+          <span class="mode-title">登录模块重写</span>
+          <span class="stbadge st-run">● 运行中 · 步骤 3/8</span>
+          <div class="mode-actions">
+            <button class="mab" onclick="pauseTask()">⏸ 暂停</button>
+            <button class="mab danger" onclick="stopTask()">✕ 停止</button>
+          </div>
+        </div>
+        <div class="wtabs">
+          <button class="wt on" onclick="workTab(this,'plan')">计划与进度</button>
+          <button class="wt" onclick="workTab(this,'swim')">Agent 泳道</button>
+          <button class="wt" onclick="workTab(this,'log')">活动流</button>
+          <button class="wt" onclick="workTab(this,'chat')">对话</button>
+          <button class="wt" onclick="workTab(this,'art')">产物</button>
+        </div>
+        <div class="wtpane on" id="wtp-plan">
+          <div class="appr-bar">
+            <span style="flex-shrink:0"><i data-lucide="triangle-alert" class="ico" style="color:var(--warn)"></i></span>
+            <div class="appr-txt"><strong>高风险审批：</strong>Claude-3.7 请求执行 <span class="appr-code">write_file("src/auth.cs")</span>，覆盖现有文件（152行）</div>
+            <div class="appr-acts">
+              <button class="aa aa-y" onclick="handleAppr(this,'allow')">✓ 允许本次</button>
+              <button class="aa aa-yt" onclick="handleAppr(this,'task')">✓ 允许本任务</button>
+              <button class="aa aa-n" onclick="handleAppr(this,'deny')">✕ 拒绝</button>
+            </div>
+          </div>
+          <div class="timeline">
+            <div class="step"><div class="step-ico si-done">✓</div><div class="step-body"><div class="step-title">分析现有代码结构</div><div class="step-sub">Claude · 完成 · 读取了 8 个文件</div></div></div>
+            <div class="step"><div class="step-ico si-done">✓</div><div class="step-body"><div class="step-title">确认重构范围与目标</div><div class="step-sub">用户确认 · 已锁定 Token-based 认证方案</div></div></div>
+            <div class="step"><div class="step-ico si-run"><i data-lucide="loader" class="ico ico-xs"></i></div><div class="step-body"><div class="step-title" style="color:var(--wk)" id="wk-step-title">生成 auth.cs（进行中）</div><div class="step-sub" id="wk-step-sub">Claude · 正在写入 JWT 验证逻辑...</div></div></div>
+            <div class="step"><div class="step-ico si-wait">4</div><div class="step-body"><div class="step-title" style="color:var(--txm)">生成单元测试</div><div class="step-sub">等待步骤 3 完成</div></div></div>
+            <div class="step"><div class="step-ico si-wait">5</div><div class="step-body"><div class="step-title" style="color:var(--txm)">集成测试 & 验证</div><div class="step-sub">等待</div></div></div>
+            <div class="step"><div class="step-ico si-wait">6</div><div class="step-body"><div class="step-title" style="color:var(--txm)">代码 Review & 归档</div><div class="step-sub">等待</div></div></div>
+          </div>
+        </div>
+        <div class="wtpane" id="wtp-swim">
+          <div class="swimlane">
+            <div class="swim-row">
+              <div class="swim-head"><span class="ag-status ags-run"></span><span class="swim-name">Claude-3.7 #1</span><span class="swim-model">opus-4-8 · 8.2k tokens</span></div>
+              <div class="swim-steps"><span class="swstep done">分析代码</span><span class="swstep done">确认方案</span><span class="swstep run">生成 auth.cs</span><span class="swstep">单元测试</span><span class="swstep">集成测试</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="wtpane" id="wtp-log">
+          <div style="padding:14px;font-size:12px;display:flex;flex-direction:column;gap:5px">
+            <div><span style="color:var(--ok)">14:23:12</span> <span style="color:var(--txm)">[Claude-3.7]</span> 正在写入 auth.cs</div>
+            <div><span style="color:var(--warn)">14:23:08</span> <span style="color:var(--txm)">[Claude-3.7]</span> ⚠ 请求 write_file — 等待审批</div>
+            <div><span style="color:var(--ok)">14:22:55</span> <span style="color:var(--txm)">[Claude-3.7]</span> read_file("src/auth.cs") ✓</div>
+            <div><span style="color:var(--ok)">14:22:40</span> <span style="color:var(--txm)">[系统]</span> 步骤 2 完成 → 步骤 3</div>
+            <div><span style="color:var(--ok)">14:22:30</span> <span style="color:var(--txm)">[用户]</span> 确认重构方案</div>
+          </div>
+        </div>
+        <div class="wtpane" id="wtp-chat">
+          <div class="msg-scroll">
+            <div class="bubble-user">重构现有登录模块，改用 Token-based 认证，需要兼容现有用户数据库。</div>
+            <div class="bubble-ai"><div class="ai-sender" style="color:var(--wk)">Claude-3.7</div><div class="ai-body">分析完成，重构计划：<br>1. 新建 auth.cs 实现 JWT Token 验证<br>2. 保留 UserService 接口不变<br>3. 添加 RefreshToken 机制<br><br>确认后立即执行。</div></div>
+            <div class="bubble-user">确认，开始执行。</div>
+            <div class="tool-card"><div class="tc-head"><i data-lucide="wrench" class="ico ico-xs" style="color:var(--txm)"></i> 工具调用 · read_file</div><div class="tc-code">"src/auth.cs" → 读取成功（152行）</div></div>
+          </div>
+          <div class="ia-wrap"><div class="ia-selrow"><button class="ia-sel" onclick="showProviderPicker()"><i data-lucide="cpu" class="ico ico-xs"></i> Anthropic</button><button class="ia-sel" onclick="showModelPicker()"><i data-lucide="zap" class="ico ico-xs"></i> claude-opus-4-8 ▾</button><button class="ia-sel" onclick="showAgentPicker()"><i data-lucide="user" class="ico ico-xs"></i> Claude-3.7 ▾</button><span style="flex:1"></span><span style="font-size:10px;color:var(--txf)">8.2k / 64k</span></div><div class="ia-chips"><button class="ia-chip on" onclick="selectChip(this)">暂停并保存进度</button><button class="ia-chip" onclick="selectChip(this)">调整执行优先级</button><button class="ia-chip" onclick="selectChip(this)">生成进度报告</button></div><div class="ia-box"><div class="cp-popup" id="cp-ap-wk2"><div class="cp-popup-item selected"><div class="cp-popup-icon"><i data-lucide="cpu" class="ico ico-xs"></i></div><div><div class="cp-popup-name">Claude-3.7</div><div class="cp-popup-desc">当前任务</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="cpu" class="ico ico-xs"></i></div><div><div class="cp-popup-name">GPT-4o</div><div class="cp-popup-desc">gpt-4o</div></div></div></div><div class="cp-popup" id="cp-cp-wk2"><div class="cp-popup-item selected"><div class="cp-popup-icon"><i data-lucide="folder" class="ico ico-xs"></i></div><div><div class="cp-popup-name">#file</div><div class="cp-popup-desc">引用工作区文件</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="file-code" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/code</div><div class="cp-popup-desc">插入代码块</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="search" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/search</div><div class="cp-popup-desc">搜索代码符号</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="git-branch" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/task</div><div class="cp-popup-desc">新建子任务</div></div></div></div><textarea class="ia-ta" rows="3" placeholder="向任务补充说明，# 引用文件，@ 选择 Agent..." oninput="onInputArea(this,'wk2')" onkeydown="onInputKeydown(event,this)"></textarea><div class="ia-bar"><button class="iatool2" title="添加附件"><i data-lucide="paperclip" class="ico ico-xs"></i></button><button class="iatool2" title="@提及 Agent" onclick="toggleInputPopup('cp-ap-wk2','@')"><i data-lucide="at-sign" class="ico ico-xs"></i></button><button class="iatool2" title="技能与命令" onclick="toggleInputPopup('cp-cp-wk2','/')"><i data-lucide="sliders-horizontal" class="ico ico-xs"></i></button><span style="flex:1"></span><span class="ia-hint">Enter 发送</span><button class="ia-send" style="background:var(--wk)" onclick="sendMsg(this)">↑</button></div></div></div>
+            </div>
+        <div class="wtpane" id="wtp-art">
+          <div class="artifact-list">
+            <div class="art-item"><span class="art-icon"><i data-lucide="file-text" class="ico"></i></span><div class="art-info"><div class="art-name">src/auth.cs</div><div class="art-meta">Token 认证逻辑 · 修改中</div></div><span class="art-badge ab-mod">修改中</span></div>
+            <div class="art-item"><span class="art-icon"><i data-lucide="file-text" class="ico"></i></span><div class="art-info"><div class="art-name">tests/auth.test.cs</div><div class="art-meta">单元测试 · 待生成</div></div><span class="art-badge" style="border-color:var(--bd);color:var(--txm)">待生成</span></div>
+          </div>
+        </div>
+        <div class="ia-wrap"><div class="ia-selrow"><button class="ia-sel" onclick="showProviderPicker()"><i data-lucide="cpu" class="ico ico-xs"></i> Anthropic</button><button class="ia-sel" onclick="showModelPicker()"><i data-lucide="zap" class="ico ico-xs"></i> claude-opus-4-8 ▾</button><button class="ia-sel" onclick="showAgentPicker()"><i data-lucide="user" class="ico ico-xs"></i> Claude-3.7 ▾</button><span style="flex:1"></span><span style="font-size:10px;color:var(--txf)">8.2k / 64k</span></div><div class="ia-chips"><button class="ia-chip on" onclick="selectChip(this)">暂停并保存进度</button><button class="ia-chip" onclick="selectChip(this)">调整执行优先级</button><button class="ia-chip" onclick="selectChip(this)">生成进度报告</button></div><div class="ia-box"><div class="cp-popup" id="cp-ap-wk2"><div class="cp-popup-item selected"><div class="cp-popup-icon"><i data-lucide="cpu" class="ico ico-xs"></i></div><div><div class="cp-popup-name">Claude-3.7</div><div class="cp-popup-desc">当前任务</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="cpu" class="ico ico-xs"></i></div><div><div class="cp-popup-name">GPT-4o</div><div class="cp-popup-desc">gpt-4o</div></div></div></div><div class="cp-popup" id="cp-cp-wk2"><div class="cp-popup-item selected"><div class="cp-popup-icon"><i data-lucide="folder" class="ico ico-xs"></i></div><div><div class="cp-popup-name">#file</div><div class="cp-popup-desc">引用工作区文件</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="file-code" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/code</div><div class="cp-popup-desc">插入代码块</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="search" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/search</div><div class="cp-popup-desc">搜索代码符号</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="git-branch" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/task</div><div class="cp-popup-desc">新建子任务</div></div></div></div><textarea class="ia-ta" rows="3" placeholder="向任务补充说明，# 引用文件，@ 选择 Agent..." oninput="onInputArea(this,'wk2')" onkeydown="onInputKeydown(event,this)"></textarea><div class="ia-bar"><button class="iatool2" title="添加附件"><i data-lucide="paperclip" class="ico ico-xs"></i></button><button class="iatool2" title="@提及 Agent" onclick="toggleInputPopup('cp-ap-wk2','@')"><i data-lucide="at-sign" class="ico ico-xs"></i></button><button class="iatool2" title="技能与命令" onclick="toggleInputPopup('cp-cp-wk2','/')"><i data-lucide="sliders-horizontal" class="ico ico-xs"></i></button><span style="flex:1"></span><span class="ia-hint">Enter 发送</span><button class="ia-send" style="background:var(--wk)" onclick="sendMsg(this)">↑</button></div></div></div>
+      </div>
+
+      <!-- MEETING MODE -->
+      <div class="pane" id="pane-meeting1">
+        <div class="mode-topbar">
+          <span class="mbadge mb-mt"><i data-lucide="users" class="ico ico-xs"></i> 会议</span>
+          <span class="mode-title">架构评审会</span>
+          <span style="font-size:12px;color:var(--txm)">议题 2/4 · 微服务拆分策略</span>
+          <div class="mode-actions">
+            <span style="font-size:12px;color:var(--txm)">进行 28m</span>
+            <button class="mab danger">✕ 结束会议</button>
+          </div>
+        </div>
+        <div class="agenda-bar">
+          <span style="font-size:11px;color:var(--txm);margin-right:8px">议程：</span>
+          <div class="agenda-prog">
+            <div class="agst done" title="开场与背景介绍"></div>
+            <div class="agst run" title="微服务拆分策略（当前）"></div>
+            <div class="agst" title="数据迁移方案"></div>
+            <div class="agst" title="总结与行动项"></div>
+          </div>
+          <span style="font-size:11px;color:var(--mt);margin-left:8px">● 微服务拆分策略</span>
+        </div>
+        <div class="meet-members">
+          <span style="font-size:11px;color:var(--txm)">参会：</span>
+          <span class="mchip mc-host"><i data-lucide="mic" class="ico ico-xs"></i> 主持人</span>
+          <span class="mchip mc-speak" id="speaking-chip">评审员A ●</span>
+          <span class="mchip mc-idle">评审员B</span>
+          <span class="mchip mc-idle">评审员C</span>
+        </div>
+        <div class="msg-scroll">
+          <div class="meet-bub"><div class="mavatar"><i data-lucide="mic" class="ico" style="color:var(--mt)"></i></div><div class="meet-content"><div class="msender">会议主持</div><div class="mtext">进入第二个议题：微服务拆分策略。请各位就当前单体架构的痛点和拆分优先级发表意见。</div></div></div>
+          <div class="meet-bub"><div class="mavatar">A</div><div class="meet-content"><div class="msender">评审员A <span style="color:var(--txf);font-weight:400">(GPT-4o)</span></div><div class="mtext">从性能瓶颈看，订单服务和库存服务的读写冲突是最主要痛点，建议优先拆分这两个模块。当前耦合导致的锁争用已影响 P99 延迟。</div><div class="mthink"><i data-lucide="brain-circuit" class="ico ico-xs"></i> 分析了系统架构文档，确认订单-库存耦合是核心问题</div></div></div>
+          <div class="meet-bub"><div class="mavatar" style="background:var(--s1);border-color:var(--bd)">B</div><div class="meet-content"><div class="msender">评审员B <span style="color:var(--txf);font-weight:400">(Gemini-2.0)</span></div><div class="mtext">同意 A 的分析。补充：用户认证服务也有强烈的独立部署需求，安全合规要求它与业务逻辑完全隔离...</div></div></div>
+        </div>
+        <div class="ia-wrap"><div class="ia-agents"><span style="font-size:11px;color:var(--txm);flex-shrink:0">参会：</span><span class="ia-agent-chip"><i data-lucide="mic" class="ico ico-xs"></i> 主持人 <span class="ia-rm" onclick="this.closest('.ia-agent-chip').remove()">×</span></span><span class="ia-agent-chip"><i data-lucide="user" class="ico ico-xs"></i> 评审员A <span class="ia-rm" onclick="this.closest('.ia-agent-chip').remove()">×</span></span><span class="ia-agent-chip"><i data-lucide="user" class="ico ico-xs"></i> 评审员B <span class="ia-rm" onclick="this.closest('.ia-agent-chip').remove()">×</span></span><button class="ia-add-agent" onclick="addMeetingAgent(this)"><i data-lucide="plus" class="ico ico-xs"></i> 添加</button></div><div class="ia-selrow"><button class="ia-sel" onclick="showProviderPicker()"><i data-lucide="cpu" class="ico ico-xs"></i> Anthropic</button><button class="ia-sel" onclick="showModelPicker()"><i data-lucide="zap" class="ico ico-xs"></i> claude-sonnet-4-6 ▾</button><button class="ia-sel" onclick="showAgentPicker()"><i data-lucide="user" class="ico ico-xs"></i> 会议主持 ▾</button><span style="flex:1"></span><span style="font-size:10px;color:var(--txf)">8.2k / 64k</span></div><div class="ia-chips"><button class="ia-chip on" onclick="selectChip(this)">总结当前议题</button><button class="ia-chip" onclick="selectChip(this)">推进下一议题</button><button class="ia-chip" onclick="selectChip(this)">生成行动项</button></div><div class="ia-box"><div class="cp-popup" id="cp-ap-mt"><div class="cp-popup-item selected"><div class="cp-popup-icon"><i data-lucide="cpu" class="ico ico-xs"></i></div><div><div class="cp-popup-name">会议主持</div><div class="cp-popup-desc">当前任务</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="cpu" class="ico ico-xs"></i></div><div><div class="cp-popup-name">GPT-4o</div><div class="cp-popup-desc">gpt-4o</div></div></div></div><div class="cp-popup" id="cp-cp-mt"><div class="cp-popup-item selected"><div class="cp-popup-icon"><i data-lucide="folder" class="ico ico-xs"></i></div><div><div class="cp-popup-name">#file</div><div class="cp-popup-desc">引用工作区文件</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="file-code" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/code</div><div class="cp-popup-desc">插入代码块</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="search" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/search</div><div class="cp-popup-desc">搜索代码符号</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="git-branch" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/task</div><div class="cp-popup-desc">新建子任务</div></div></div></div><textarea class="ia-ta" rows="3" placeholder="插话、补充议题，或向会议提问..." oninput="onInputArea(this,'mt')" onkeydown="onInputKeydown(event,this)"></textarea><div class="ia-bar"><button class="iatool2" title="添加附件"><i data-lucide="paperclip" class="ico ico-xs"></i></button><button class="iatool2" title="@提及 Agent" onclick="toggleInputPopup('cp-ap-mt','@')"><i data-lucide="at-sign" class="ico ico-xs"></i></button><button class="iatool2" title="技能与命令" onclick="toggleInputPopup('cp-cp-mt','/')"><i data-lucide="sliders-horizontal" class="ico ico-xs"></i></button><span style="flex:1"></span><span class="ia-hint">Enter 发送</span><button class="ia-send" style="background:var(--mt)" onclick="sendMsg(this)">↑</button></div></div></div>
+      </div>
+
+      <!-- EXPERT MODE -->
+      <div class="pane" id="pane-expert1">
+        <div class="mode-topbar">
+          <span class="mbadge mb-ex"><i data-lucide="message-square" class="ico ico-xs"></i> 专家</span>
+          <span class="mode-title">代码优化讨论</span>
+          <span style="font-size:11px;color:var(--txm)">GPT-4o · 12k tokens</span>
+          <div class="mode-actions">
+            <button class="mab" onclick="alert('转为工作任务，保留本会话作为上下文')"><i data-lucide="shuffle" class="ico ico-sm"></i> 转为工作任务</button>
+            <button class="mab danger">■ 停止</button>
+          </div>
+        </div>
+        <div class="msg-scroll">
+          <div class="bubble-user">帮我分析这个查询有没有优化空间：SELECT * FROM orders o JOIN users u ON o.user_id = u.id WHERE o.status = 'pending'</div>
+          <div class="bubble-ai"><div class="ai-sender" style="color:var(--ex)">GPT-4o</div><div class="ai-body">我来分析这个查询。发现几个可优化点：<br><br>1. <strong>SELECT *</strong>：拉取所有字段，建议改为显式列名<br>2. <strong>缺少索引</strong>：orders.user_id 和 orders.status 需要索引<br>3. <strong>缺少 LIMIT</strong>：大表全量返回有风险</div></div>
+          <div class="tool-card"><div class="tc-head"><i data-lucide="wrench" class="ico ico-xs" style="color:var(--txm)"></i> 工具调用 · analyze_query</div><div class="tc-code">{"query":"SELECT * FROM orders...", "explain":true} → 返回执行计划</div></div>
+          <div class="bubble-ai"><div class="ai-sender" style="color:var(--ex)">GPT-4o</div><div class="ai-body">执行计划分析完成。主要问题：<br>• orders 表全表扫描（缺 status 索引）<br>• 建议加：<code style="font-family:var(--mono);background:var(--s2);padding:1px 4px;border-radius:2px">CREATE INDEX idx_orders_status ON orders(status)</code><br>• 预计查询提速 5-10x</div></div>
+          <div style="align-self:flex-start;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--txm)"><span class="dot d-ex pulse"></span>GPT-4o 正在生成...</div>
+        </div>
+        <div class="ia-wrap"><div class="ia-selrow"><button class="ia-sel" onclick="showProviderPicker()"><i data-lucide="cpu" class="ico ico-xs"></i> OpenAI</button><button class="ia-sel" onclick="showModelPicker()"><i data-lucide="zap" class="ico ico-xs"></i> gpt-4o ▾</button><button class="ia-sel" onclick="showAgentPicker()"><i data-lucide="user" class="ico ico-xs"></i> GPT-4o ▾</button><span style="flex:1"></span><span style="font-size:10px;color:var(--txf)">8.2k / 64k</span></div><div class="ia-chips"><button class="ia-chip on" onclick="selectChip(this)">继续深入分析</button><button class="ia-chip" onclick="selectChip(this)">生成代码实现</button><button class="ia-chip" onclick="selectChip(this)">解释实现原理</button></div><div class="ia-box"><div class="cp-popup" id="cp-ap-ex"><div class="cp-popup-item selected"><div class="cp-popup-icon"><i data-lucide="cpu" class="ico ico-xs"></i></div><div><div class="cp-popup-name">GPT-4o</div><div class="cp-popup-desc">当前任务</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="cpu" class="ico ico-xs"></i></div><div><div class="cp-popup-name">GPT-4o</div><div class="cp-popup-desc">gpt-4o</div></div></div></div><div class="cp-popup" id="cp-cp-ex"><div class="cp-popup-item selected"><div class="cp-popup-icon"><i data-lucide="folder" class="ico ico-xs"></i></div><div><div class="cp-popup-name">#file</div><div class="cp-popup-desc">引用工作区文件</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="file-code" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/code</div><div class="cp-popup-desc">插入代码块</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="search" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/search</div><div class="cp-popup-desc">搜索代码符号</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="git-branch" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/task</div><div class="cp-popup-desc">新建子任务</div></div></div></div><textarea class="ia-ta" rows="3" placeholder="输入消息，# 引用文件，@ 选择 Agent，/ 命令，或粘贴代码..." oninput="onInputArea(this,'ex')" onkeydown="onInputKeydown(event,this)"></textarea><div class="ia-bar"><button class="iatool2" title="添加附件"><i data-lucide="paperclip" class="ico ico-xs"></i></button><button class="iatool2" title="@提及 Agent" onclick="toggleInputPopup('cp-ap-ex','@')"><i data-lucide="at-sign" class="ico ico-xs"></i></button><button class="iatool2" title="技能与命令" onclick="toggleInputPopup('cp-cp-ex','/')"><i data-lucide="sliders-horizontal" class="ico ico-xs"></i></button><span style="flex:1"></span><span class="ia-hint">Enter 发送</span><button class="ia-send" style="background:var(--ex)" onclick="sendMsg(this)">↑</button></div></div></div>
+      </div>
+
+    </div><!-- end #content -->
+
+    <!-- Project Context Panel (static, no live rendering) -->
+    <div id="ctx-panel">
+      <div class="ctx-head">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <i data-lucide="folder-kanban" class="ico ico-sm" style="color:var(--ac)"></i>
+          <span class="ctx-proj-name">登录模块重写</span>
+          <button onclick="openConversation()" style="margin-left:auto" title="打开对话">
+            <i data-lucide="message-circle" class="ico ico-sm" style="color:var(--txm)"></i>
+          </button>
+        </div>
+        <div class="ctx-proj-sub">工作任务 · 3 步骤进行中 · Claude-3.7</div>
+      </div>
+      <div class="ctx-tabs">
+        <button class="ctx-tab on" onclick="ctxTab(this,'summary')"><i data-lucide="bar-chart-2" class="ico ico-xs"></i> 摘要</button>
+        <button class="ctx-tab" onclick="ctxTab(this,'agents')"><i data-lucide="cpu" class="ico ico-xs"></i> Agent</button>
+        <button class="ctx-tab" onclick="ctxTab(this,'files')"><i data-lucide="folder" class="ico ico-xs"></i> 文件</button>
+      </div>
+      <div class="ctx-body" id="ctx-summary">
+        <!-- Status -->
+        <div>
+          <div class="ctx-section-title">执行状态</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;justify-content:space-between;font-size:12px">
+              <span style="color:var(--txm)">进度</span><span>步骤 3 / 6</span>
+            </div>
+            <div style="height:4px;background:var(--s2);border-radius:2px">
+              <div style="height:4px;width:38%;background:var(--wk);border-radius:2px"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:12px">
+              <span style="color:var(--txm)">耗时</span><span id="ctx-elapsed">12m 34s</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:12px">
+              <span style="color:var(--txm)">待审批</span>
+              <span style="color:var(--warn)"><i data-lucide="triangle-alert" class="ico ico-xs"></i> 1 项</span>
+            </div>
+          </div>
+        </div>
+        <!-- Running Agents -->
+        <div>
+          <div class="ctx-section-title">运行中 Agent</div>
+          <div class="ctx-agent-row">
+            <span class="dot d-wk pulse"></span>
+            <span style="flex:1;font-size:12px">Claude-3.7 #1</span>
+            <span style="font-size:11px;color:var(--txm)" id="ctx-agent-step">生成 auth.cs...</span>
+          </div>
+        </div>
+        <!-- Recent activity -->
+        <div>
+          <div class="ctx-section-title">最近活动</div>
+          <div class="ctx-activity-row" id="ctx-feed-1">14:23 · Claude-3.7 正在写入 auth.cs</div>
+          <div class="ctx-activity-row" style="color:var(--warn)">14:22 · ⚠ 等待审批：write_file</div>
+          <div class="ctx-activity-row">14:20 · 步骤 2 完成，进入步骤 3</div>
+        </div>
+        <!-- CTA -->
+        <button class="ctx-cta" onclick="openConversation()">
+          <i data-lucide="message-circle" class="ico ico-sm"></i> 继续工作对话
+        </button>
+      </div>
+      <div class="ctx-body" id="ctx-agents" style="display:none">
+        <div class="ctx-section-title">本项目 Agent 实例</div>
+        <div class="ctx-agent-row">
+          <span class="ag-status ags-run"></span>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:500">Claude-3.7 #1</div>
+            <div style="font-size:10px;color:var(--txm)">opus-4-8 · 8.2k tokens</div>
+          </div>
+          <button class="mab" style="font-size:10px" onclick="openConversation()">对话</button>
+        </div>
+        <div style="margin-top:10px">
+          <div class="ctx-section-title">可用 Agent 定义</div>
+          <div class="ctx-agent-row" style="cursor:pointer" onclick="alert('分配 GPT-4o 到此项目')">
+            <span class="ag-status ags-idle"></span>
+            <div style="flex:1"><div style="font-size:12px">GPT-4o</div><div style="font-size:10px;color:var(--txm)">gpt-4o · 空闲</div></div>
+            <button class="mab" style="font-size:10px">分配</button>
+          </div>
+          <div class="ctx-agent-row" style="cursor:pointer">
+            <span class="ag-status ags-idle"></span>
+            <div style="flex:1"><div style="font-size:12px">Gemini-Pro</div><div style="font-size:10px;color:var(--txm)">gemini · 空闲</div></div>
+            <button class="mab" style="font-size:10px">分配</button>
+          </div>
+        </div>
+        <button class="ctx-cta" onclick="openNewDialog()">
+          <i data-lucide="plus" class="ico ico-sm"></i> 在本项目新建任务
+        </button>
+      </div>
+      <div class="ctx-body" id="ctx-files" style="display:none">
+        <div class="ctx-section-title">项目文件</div>
+        <div class="ctx-file-row" onclick="alert('打开 src/auth.cs')">
+          <i data-lucide="file-code" class="ico ico-xs" style="color:var(--wk)"></i>
+          <span style="flex:1">src/auth.cs</span>
+          <span style="font-size:10px;color:var(--wk)">修改中</span>
+        </div>
+        <div class="ctx-file-row"><i data-lucide="file-code" class="ico ico-xs"></i><span>App.axaml.cs</span></div>
+        <div class="ctx-file-row"><i data-lucide="file-code" class="ico ico-xs"></i><span>MainWindow.axaml</span></div>
+        <div class="ctx-section-title" style="margin-top:8px">产物输出</div>
+        <div class="ctx-file-row" style="color:var(--txm)"><i data-lucide="file-text" class="ico ico-xs"></i><span>.cortana/work/task_003.jsonl</span></div>
+        <button class="mab" style="width:100%;display:flex;justify-content:center;margin-top:8px" onclick="alert('打开项目文件夹')">
+          <i data-lucide="folder-open" class="ico ico-xs"></i> 打开项目目录
+        </button>
+      </div>
+    </div>
+
+    <!-- Conversation Panel (lazy, only when opened) -->
+    <div id="conv-panel">
+      <div class="cp-head">
+        <div class="cp-title">
+          <i data-lucide="message-circle" class="ico ico-sm"></i>
+          <span>对话</span>
+          <button onclick="closeConversation()" style="margin-left:auto;color:var(--txm);font-size:10px" title="关闭对话">
+            <i data-lucide="x" class="ico ico-xs"></i>
+          </button>
+        </div>
+        <div class="cp-sub">登录模块重写 · Claude-3.7</div>
+        <div class="cp-tags">
+          <span class="cp-tag"><i data-lucide="folder" class="ico ico-xs"></i> 登录模块重写 <span class="xt" onclick="this.parentElement.remove()">×</span></span>
+          <span class="cp-tag"><i data-lucide="file-code" class="ico ico-xs"></i> auth.cs <span class="xt" onclick="this.parentElement.remove()">×</span></span>
+        </div>
+      </div>
+      <div class="cp-tabs">
+        <button class="cpt" id="cpt-expert" onclick="convTab(this,'expert')"><i data-lucide="message-square" class="ico ico-xs"></i> 专家</button>
+        <button class="cpt on" id="cpt-work" onclick="convTab(this,'work')"><i data-lucide="zap" class="ico ico-xs"></i> 工作 <span class="cpt-dot"></span></button>
+        <button class="cpt" id="cpt-meeting" onclick="convTab(this,'meeting')"><i data-lucide="users" class="ico ico-xs"></i> 会议</button>
+      </div>
+      <div class="cp-msgs" id="cv-expert" style="display:none">
+        <div class="cpb-agent"><div class="cpb-sender" style="color:var(--ex)"><i data-lucide="cpu" class="ico ico-xs"></i> GPT-4o</div><div class="cpb-body">你好，我已加载工作区上下文，有什么可以帮你？</div></div>
+        <div class="cpb-user">帮我分析 auth.cs 的安全漏洞</div>
+        <div class="cpb-agent"><div class="cpb-sender" style="color:var(--ex)"><i data-lucide="cpu" class="ico ico-xs"></i> GPT-4o</div><div class="cpb-body">发现 2 处问题：<br>1. Token 未设置过期时间<br>2. 缺少 RefreshToken 轮换</div></div>
+      </div>
+      <div class="cp-msgs" id="cv-work">
+        <div class="cpb-agent"><div class="cpb-sender" style="color:var(--wk)"><i data-lucide="cpu" class="ico ico-xs"></i> Claude-3.7</div><div class="cpb-body">已读取 auth.cs（152行）。开始重构为 JWT Token-based 认证...</div><div class="cpb-action"><i data-lucide="file-code" class="ico ico-xs"></i> read_file("src/auth.cs") → 152行</div></div>
+        <div class="cpb-user">确认，开始执行。注意兼容现有用户表。</div>
+        <div class="cpb-agent"><div class="cpb-sender" style="color:var(--wk)"><i data-lucide="cpu" class="ico ico-xs"></i> Claude-3.7</div><div class="cpb-body">已记录兼容性要求。步骤 3/6 进行中，遇到需确认的高风险操作：</div></div>
+        <div class="cpb-agent">
+          <div class="cpb-sender" style="color:var(--warn)"><i data-lucide="triangle-alert" class="ico ico-xs"></i> 待审批</div>
+          <div class="cpb-body" style="border-color:var(--warn);background:#3d2800">write_file("src/auth.cs") · 覆盖现有 152 行</div>
+          <div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap">
+            <button class="cpchip" style="border-color:var(--ok);color:var(--ok)" onclick="handleApprInline(this,'allow')">✓ 允许本次</button>
+            <button class="cpchip" style="border-color:var(--wk);color:var(--wk)" onclick="handleApprInline(this,'task')">✓ 本任务</button>
+            <button class="cpchip" style="border-color:var(--err);color:var(--err)" onclick="handleApprInline(this,'deny')">✕ 拒绝</button>
+          </div>
+        </div>
+        <div id="cp-typing" style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--txm)"><span class="dot d-wk pulse"></span> Claude-3.7 正在生成...</div>
+      </div>
+      <div class="cp-msgs" id="cv-meeting" style="display:none">
+        <div class="cpb-agent"><div class="cpb-sender" style="color:var(--mt)"><i data-lucide="mic" class="ico ico-xs"></i> 会议主持</div><div class="cpb-body">进入第二议题：微服务拆分策略。请各位就痛点和优先级发表意见。</div></div>
+        <div class="cpb-agent"><div class="cpb-sender" style="color:var(--txm)">评审员A</div><div class="cpb-body">订单服务和库存服务的读写冲突是主要痛点，建议优先拆分。</div></div>
+      </div>
+      <!-- Smart chips -->
+      <div class="cp-chips">
+        <button class="cpchip" onclick="insertChip(this)">询问合规风险</button>
+        <button class="cpchip" onclick="insertChip(this)">要求重新讨论</button>
+        <button class="cpchip" onclick="insertChip(this)">生成行动项</button>
+      </div>
+
+      <!-- Upgraded Input Area (matches InputAreaView.axaml) -->
+      <div class="ia-wrap"><div class="ia-selrow"><button class="ia-sel" onclick="showProviderPicker()"><i data-lucide="cpu" class="ico ico-xs"></i> Anthropic</button><button class="ia-sel" onclick="showModelPicker()"><i data-lucide="zap" class="ico ico-xs"></i> claude-opus-4-8 ▾</button><button class="ia-sel" onclick="showAgentPicker()"><i data-lucide="user" class="ico ico-xs"></i> Claude-3.7 ▾</button><span style="flex:1"></span><span style="font-size:10px;color:var(--txf)">8.2k / 64k</span></div><div class="ia-chips"><button class="ia-chip on" onclick="selectChip(this)">暂停并保存进度</button><button class="ia-chip" onclick="selectChip(this)">调整执行优先级</button><button class="ia-chip" onclick="selectChip(this)">生成进度报告</button></div><div class="ia-box"><div class="cp-popup" id="cp-ap-wk2"><div class="cp-popup-item selected"><div class="cp-popup-icon"><i data-lucide="cpu" class="ico ico-xs"></i></div><div><div class="cp-popup-name">Claude-3.7</div><div class="cp-popup-desc">当前任务</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="cpu" class="ico ico-xs"></i></div><div><div class="cp-popup-name">GPT-4o</div><div class="cp-popup-desc">gpt-4o</div></div></div></div><div class="cp-popup" id="cp-cp-wk2"><div class="cp-popup-item selected"><div class="cp-popup-icon"><i data-lucide="folder" class="ico ico-xs"></i></div><div><div class="cp-popup-name">#file</div><div class="cp-popup-desc">引用工作区文件</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="file-code" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/code</div><div class="cp-popup-desc">插入代码块</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="search" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/search</div><div class="cp-popup-desc">搜索代码符号</div></div></div><div class="cp-popup-item"><div class="cp-popup-icon"><i data-lucide="git-branch" class="ico ico-xs"></i></div><div><div class="cp-popup-name">/task</div><div class="cp-popup-desc">新建子任务</div></div></div></div><textarea class="ia-ta" rows="3" placeholder="向任务补充说明，# 引用文件，@ 选择 Agent..." oninput="onInputArea(this,'wk2')" onkeydown="onInputKeydown(event,this)"></textarea><div class="ia-bar"><button class="iatool2" title="添加附件"><i data-lucide="paperclip" class="ico ico-xs"></i></button><button class="iatool2" title="@提及 Agent" onclick="toggleInputPopup('cp-ap-wk2','@')"><i data-lucide="at-sign" class="ico ico-xs"></i></button><button class="iatool2" title="技能与命令" onclick="toggleInputPopup('cp-cp-wk2','/')"><i data-lucide="sliders-horizontal" class="ico ico-xs"></i></button><span style="flex:1"></span><span class="ia-hint">Enter 发送</span><button class="ia-send" style="background:var(--wk)" onclick="sendMsg(this)">↑</button></div></div></div>
+          <!-- / command popup -->
+          <div class="cp-popup" id="cp-cmd-popup">
+            <div class="cp-popup-item selected">
+              <div class="cp-popup-icon"><i data-lucide="file-code" class="ico ico-xs"></i></div>
+              <div><div class="cp-popup-name">/code</div><div class="cp-popup-desc">插入代码块</div></div>
+            </div>
+            <div class="cp-popup-item">
+              <div class="cp-popup-icon"><i data-lucide="file-text" class="ico ico-xs"></i></div>
+              <div><div class="cp-popup-name">/file</div><div class="cp-popup-desc">引用工作区文件</div></div>
+            </div>
+            <div class="cp-popup-item">
+              <div class="cp-popup-icon"><i data-lucide="search" class="ico ico-xs"></i></div>
+              <div><div class="cp-popup-name">/search</div><div class="cp-popup-desc">搜索代码符号</div></div>
+            </div>
+            <div class="cp-popup-item">
+              <div class="cp-popup-icon"><i data-lucide="git-branch" class="ico ico-xs"></i></div>
+              <div><div class="cp-popup-name">/task</div><div class="cp-popup-desc">新建子任务</div></div>
+            </div>
+          </div>
+        <!-- Bottom toolbar: 附件 / @ / / / 代码 -->
+        
+      </div>
+  </div><!-- end content-row -->
+</div><!-- end mainarea -->
+</div><!-- end center -->
+
+<!-- Agent Monitor Strip -->
+<div id="agentstrip" style="background:var(--s0);border-top:1px solid var(--bd);flex-shrink:0">
+  <div class="strip-hdr" onclick="toggleStrip()">
+    <span class="strip-lbl">Agent 监控</span>
+    <!-- Collapsed: mini agent list -->
+    <div class="strip-mini" id="strip-mini">
+      <span class="smini"><span class="smdot" style="background:var(--ok);animation:pu 1.5s infinite"></span>Claude: 生成代码中</span>
+      <span class="smini"><span class="smdot" style="background:var(--ok);animation:pu 1.5s infinite"></span>GPT-4o: 流式输出</span>
+      <span class="smini"><span class="smdot" style="background:var(--warn)"></span>评审员A: 等待发言</span>
+      <span class="smini"><span class="smdot" style="background:var(--ok);animation:pu 1.5s infinite"></span>会议主持: 协调中</span>
+    </div>
+    <!-- Expanded: summary counts -->
+    <div id="strip-summary" style="display:none;flex:1;display:none;align-items:center;gap:10px;font-size:11px;padding:0 8px">
+      <span style="color:var(--ok)"><i data-lucide="activity" class="ico ico-xs"></i> 进行中 4</span>
+      <span style="color:var(--warn)"><i data-lucide="pause-circle" class="ico ico-xs"></i> 等待 1</span>
+      <span style="color:var(--txm)">共 5 个实例</span>
+    </div>
+    <span class="strip-toggle" id="strip-btn">▲ 展开</span>
+  </div>
+  <div class="strip-cards" id="strip-cards" style="display:none">
+    <div class="acard" onclick="focusAgentCard('work1')" style="cursor:pointer">
+      <div class="ac-h"><span class="ac-d acd-r"></span><span class="ac-n">Claude-3.7 #1</span><span class="ac-m">opus-4-8</span></div>
+      <div class="ac-task"><i data-lucide="pin" class="ico ico-xs" style="color:var(--txm)"></i> 登录模块重写</div>
+      <div class="ac-step" id="strip-claude-step">▶ 生成 auth.cs 认证逻辑...</div>
+      <div class="ac-tbar"><div class="ac-tfill" style="width:13%"></div></div>
+      <div class="ac-meta">8.2k / 64k · 步骤 3/8 · 12m34s</div>
+    </div>
+    <div class="acard" onclick="focusAgentCard('expert1')" style="cursor:pointer">
+      <div class="ac-h"><span class="ac-d acd-r"></span><span class="ac-n">GPT-4o #1</span><span class="ac-m">gpt-4o</span></div>
+      <div class="ac-task"><i data-lucide="pin" class="ico ico-xs" style="color:var(--txm)"></i> 代码优化讨论</div>
+      <div class="ac-step">▶ 流式输出分析结果...</div>
+      <div class="ac-tbar"><div class="ac-tfill" style="width:19%"></div></div>
+      <div class="ac-meta">12k / 64k · 5m12s</div>
+    </div>
+    <div class="acard" onclick="focusAgentCard('meeting1')" style="cursor:pointer">
+      <div class="ac-h"><span class="ac-d acd-r"></span><span class="ac-n">会议主持 #1</span><span class="ac-m">sonnet-4-6</span></div>
+      <div class="ac-task"><i data-lucide="pin" class="ico ico-xs" style="color:var(--txm)"></i> 架构评审会</div>
+      <div class="ac-step">▶ 协调评审员A发言</div>
+      <div class="ac-tbar"><div class="ac-tfill" style="width:19%;background:var(--mt)"></div></div>
+      <div class="ac-meta">6.1k / 32k · 轮次 2/5 · 28m</div>
+    </div>
+    <div class="acard" onclick="focusAgentCard('meeting1')" style="cursor:pointer">
+      <div class="ac-h"><span class="ac-d acd-w"></span><span class="ac-n">评审员A #1</span><span class="ac-m">gpt-4o</span></div>
+      <div class="ac-task"><i data-lucide="pin" class="ico ico-xs" style="color:var(--txm)"></i> 架构评审会</div>
+      <div class="ac-step" style="color:var(--warn)">⏸ 等待发言机会</div>
+      <div class="ac-tbar"><div class="ac-tfill" style="width:13%;background:var(--warn)"></div></div>
+      <div class="ac-meta">4.3k / 32k · 28m</div>
+    </div>
+    <div class="acard" onclick="focusAgentCard('meeting1')" style="cursor:pointer">
+      <div class="ac-h"><span class="ac-d acd-r"></span><span class="ac-n">评审员B #1</span><span class="ac-m">gemini-2.0</span></div>
+      <div class="ac-task"><i data-lucide="pin" class="ico ico-xs" style="color:var(--txm)"></i> 架构评审会</div>
+      <div class="ac-step">▶ 准备下一轮发言</div>
+      <div class="ac-tbar"><div class="ac-tfill" style="width:12%;background:var(--mt)"></div></div>
+      <div class="ac-meta">3.8k / 32k · 28m</div>
+    </div>
+  </div>
+</div>
+
+<!-- Status Bar -->
+<div id="statusbar">
+  <span class="sb"><i data-lucide="activity" class="ico ico-xs"></i> 3 任务执行中</span>
+  <span class="sb"><i data-lucide="users" class="ico ico-xs"></i> 5 Agent 工作中</span>
+  <span class="sb" style="color:rgba(255,200,0,.9)"><i data-lucide="triangle-alert" class="ico ico-xs"></i> 2 项等待确认</span>
+  <div class="sbr">
+    <span class="sb">SQLite 索引</span>
+    <span class="sb">JSONL 正文</span>
+    <span class="sbsep"></span>
+    <span class="sb" id="clock">14:23:05</span>
+  </div>
+</div>
+
+</div><!-- end #app -->
+
+<!-- New Task Dialog -->
+<div class="overlay" id="new-dialog" style="display:none" onclick="if(event.target===this)closeNewDialog()">
+  <div class="dialog">
+    <div class="dlg-head">
+      <span class="dlg-title">新建任务</span>
+      <button class="dlg-close" onclick="closeNewDialog()">✕</button>
+    </div>
+    <div class="dlg-body">
+      <div class="dlg-tabs">
+        <button class="dtab on" onclick="dlgTab(this,'expert')"><i data-lucide="message-square" class="ico ico-sm"></i> 专家会话</button>
+        <button class="dtab" onclick="dlgTab(this,'work')"><i data-lucide="zap" class="ico ico-sm"></i> 工作任务</button>
+        <button class="dtab" onclick="dlgTab(this,'meeting')"><i data-lucide="users" class="ico ico-sm"></i> 会议</button>
+      </div>
+      <div id="dlg-expert">
+        <div class="fld"><label>会话标题</label><input class="finput" placeholder="可选，留空将自动生成" /></div>
+        <div class="fld"><label>选择 Agent</label><input class="finput" value="Claude-3.7 (opus-4-8)" /></div>
+        <div class="fld"><label>初始消息</label><textarea class="ftextarea" placeholder="输入问题或粘贴内容..."></textarea></div>
+      </div>
+      <div id="dlg-work" style="display:none">
+        <div class="fld"><label>任务标题</label><input class="finput" placeholder="简述任务目标" /></div>
+        <div class="fld"><label>目标描述</label><textarea class="ftextarea" placeholder="详细描述要完成的工作..."></textarea></div>
+        <div class="fld"><label>总经理 Agent</label><input class="finput" value="Claude-3.7 (opus-4-8)" /></div>
+        <div class="fld"><label>编排策略</label>
+          <select class="finput"><option>自动（推荐）</option><option>Magentic 编排</option><option>并行分析</option></select>
+        </div>
+      </div>
+      <div id="dlg-meeting" style="display:none">
+        <div class="fld"><label>会议主题</label><input class="finput" placeholder="输入会议主题" /></div>
+        <div class="fld"><label>议程（每行一条）</label><textarea class="ftextarea" placeholder="议题1&#10;议题2&#10;议题3"></textarea></div>
+        <div class="fld"><label>参会 Agent（多选）</label><input class="finput" placeholder="会议主持, 评审员A, 评审员B" /></div>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button class="dbtn" onclick="closeNewDialog()">取消</button>
+      <button class="dbtn pri" onclick="createTask()">▶ 开始</button>
+    </div>
+  </div>
+</div>
+
+<!-- Command Palette -->
+<div class="overlay" id="cmd-palette" style="display:none" onclick="if(event.target===this)closeCmdPalette()">
+  <div class="dialog" style="margin-top:80px;align-self:flex-start">
+    <div style="padding:8px">
+      <input id="cmd-input" class="finput" style="width:100%;font-size:14px;height:36px" placeholder="输入命令或搜索任务..." oninput="filterCmd(this.value)" />
+    </div>
+    <div id="cmd-results" style="padding:0 0 8px;max-height:300px;overflow-y:auto">
+      <div class="ti" onclick="switchTab('overview');closeCmdPalette()"><div class="ti-row"><i data-lucide="layout-dashboard" class="ico ico-xs"></i> 总览仪表板</div></div>
+      <div class="ti" onclick="openTask('work1','登录模块重写','work');closeCmdPalette()"><div class="ti-row"><span class="dot d-wk"></span>打开：登录模块重写</div></div>
+      <div class="ti" onclick="openTask('meeting1','架构评审会','meeting');closeCmdPalette()"><div class="ti-row"><span class="dot d-mt"></span>打开：架构评审会</div></div>
+      <div class="ti" onclick="switchNav('approval');closeCmdPalette()"><div class="ti-row">⚠ 查看待审批 (2)</div></div>
+      <div class="ti" onclick="switchNav('history');closeCmdPalette()"><div class="ti-row"><i data-lucide="history" class="ico ico-xs"></i> 历史记录</div></div>
+      <div class="ti" onclick="toggleStrip();closeCmdPalette()"><div class="ti-row"><i data-lucide="cpu" class="ico ico-xs"></i> 展开 Agent 监控面板</div></div>
+      <div class="ti" onclick="openNewDialog();closeCmdPalette()"><div class="ti-row">＋ 新建任务...</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Core: Tab switching ──
+function switchTab(id) {
+  document.querySelectorAll('.titem').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('on'));
+  const tab = document.getElementById('tab-' + id);
+  const pane = document.getElementById('pane-' + id);
+  if (tab) tab.classList.add('on');
+  if (pane) pane.classList.add('on');
+  // Sync side panel task highlight
+  document.querySelectorAll('.ti').forEach(t => t.classList.remove('on'));
+  const ti = document.getElementById('ti-' + id);
+  if (ti) ti.classList.add('on');
+  // Update inspector for current task
+  updateInspector(id);
+}
+
+// ── Open task tab ──
+function openTask(id, label, mode) {
+  if (!document.getElementById('tab-' + id)) {
+    const colors = {expert:'var(--ex)', work:'var(--wk)', meeting:'var(--mt)'};
+    const tabbar = document.getElementById('tabbar');
+    const add = tabbar.querySelector('.tadd');
+    const btn = document.createElement('button');
+    btn.className = 'titem'; btn.id = 'tab-' + id;
+    btn.innerHTML = `<span class="tdot" style="background:${colors[mode]||'var(--ac)'}"></span>${label}<button class="tcx" onclick="closeTab(event,'${id}')">✕</button>`;
+    btn.onclick = (e) => { if (!e.target.classList.contains('tcx')) switchTab(id); };
+    tabbar.insertBefore(btn, add);
+  }
+  if (!document.getElementById('pane-' + id)) {
+    const div = document.createElement('div');
+    div.className = 'pane'; div.id = 'pane-' + id;
+    div.style.cssText = 'align-items:center;justify-content:center;color:var(--txm)';
+    div.innerHTML = `<div style="text-align:center"><div style="font-size:32px;margin-bottom:10px">◈</div><div>${label}</div><div style="font-size:11px;margin-top:4px">正在加载历史记录...</div></div>`;
+    document.getElementById('content').appendChild(div);
+  }
+  switchTab(id);
+}
+
+// ── Close tab ──
+function closeTab(e, id) {
+  e.stopPropagation();
+  const tab = document.getElementById('tab-' + id);
+  const pane = document.getElementById('pane-' + id);
+  const wasActive = tab && tab.classList.contains('on');
+  if (tab) tab.remove();
+  if (pane) pane.remove();
+  if (wasActive) switchTab('overview');
+}
+
+// ── Nav: switch side panel ──
+let currentNav = 'projects';
+
+// ── 各导航的上下文添加按钮配置 ──
+const navAddConfig = {
+  overview: { show: true,  title: '新建任务',       action: () => openNewDialog() },
+  projects: { show: true,  title: '新建项目',       action: () => openNewDialog() },
+  plugins:  { show: true,  title: '打开插件目录',   action: () => alert('打开插件安装目录，放入插件包') },
+  skills:   { show: true,  title: '选择技能压缩包', action: () => alert('选择技能压缩包所在目录') },
+  store:    { show: false },
+  settings: { show: false }
+};
+
+function switchNav(nav) {
+  currentNav = nav;
+  document.querySelectorAll('.abt').forEach(b => b.classList.remove('on'));
+  document.querySelectorAll('.sp-panel').forEach(p => p.classList.remove('on'));
+  const btn = document.getElementById('abt-' + nav);
+  if (btn) btn.classList.add('on');
+  const panel = document.getElementById('sp-' + nav);
+  if (panel) panel.classList.add('on');
+  // 上下文添加按钮（应用商店无添加，分类树在侧栏内）
+  const addBtn = document.getElementById('sp-add-btn');
+  const cfg = navAddConfig[nav] || { show: false };
+  if (addBtn) {
+    addBtn.style.display = cfg.show ? 'flex' : 'none';
+    if (cfg.title) addBtn.title = cfg.title;
+  }
+  if (nav === 'overview') switchTab('overview');
+}
+
+// ── 上下文添加按钮点击 ──
+function spAdd() {
+  const cfg = navAddConfig[currentNav];
+  if (cfg && cfg.action) cfg.action();
+}
+
+// ── Store 分类树：展开/收起大项 ──
+function toggleTree(el) {
+  el.classList.toggle('open');
+  lucide.createIcons();
+}
+
+// ── Store 示例数据（真实实现来自平台 Market 接口）──
+// ver = 商店最新版本；installedVer = 本地已安装版本（null=未安装）。
+// 有更新 = 已安装 且 installedVer !== ver
+const STORE_ASSETS = [
+  {name:'专业流程智能体', type:'agent',    cat:'automation', ver:'1.0.0', installedVer:null,    dev:'Netor 官方', price:'19.9', free:false, desc:'面向长期任务编排和自动化执行的付费智能体。'},
+  {name:'SSH 客户端插件', type:'plugin',   cat:'linux',      ver:'1.0.2', installedVer:'1.0.0', dev:'Netor 官方', price:'免费', free:true,  desc:'提供 SSH 连接管理、命令执行、交互式 Shell 与 SFTP 文件传输能力。'},
+  {name:'Websocket Integration', type:'skill', cat:'dev',    ver:'1.0.0', installedVer:'1.0.0', dev:'Netor',     price:'免费', free:true,  desc:'Madorin PluginBus WebSocket 接入，用于生成 /internal 单端。'},
+  {name:'Skill Plugin Installation', type:'skill', cat:'tools', ver:'1.0.0', installedVer:null, dev:'Netor',  price:'免费', free:true,  desc:'安装 Madorin skill 或 plugin；处理 zip/目录批量安装、解压、覆盖和结构。'},
+  {name:'Server Maintainer', type:'skill', cat:'ops',       ver:'1.0.0', installedVer:'0.9.0', dev:'Netor',     price:'免费', free:true,  desc:'服务器管理中央调度，读取服务器清单并执行维护动作。'},
+  {name:'CSharp Scripts', type:'skill',    cat:'dev',        ver:'1.0.3', installedVer:'1.0.1', dev:'Netor',     price:'免费', free:true,  desc:'以脚本方式运行单文件 C# 程序，用于快速实验、原型验证和概念测试。'},
+];
+const TYPE_META = {
+  plugin:  {label:'插件',   cls:'st-plugin'},
+  skill:   {label:'技能',   cls:'st-skill'},
+  agent:   {label:'智能体', cls:'st-agent'},
+  solution:{label:'方案',   cls:'st-solution'},
+};
+// 是否有可用更新
+const hasUpdate = a => a.installedVer && a.installedVer !== a.ver;
+const updateCount = () => STORE_ASSETS.filter(hasUpdate).length;
+
+// ── 点分类树 → 主区打开应用商店选项卡，显示筛选后的卡片 ──
+// type='update' 是特殊视图：列出所有有更新的资源
+function openStore(type, cat, label) {
+  // 侧栏高亮（限定在应用商店面板内，避免误清其它面板的树）
+  document.querySelectorAll('#sp-store .stree-top,#sp-store .stree-cat').forEach(e => e.classList.remove('on'));
+  if (event && event.currentTarget) event.currentTarget.classList.add('on');
+  ensureStoreTab();
+  renderStoreCards(type, cat);
+  // 主区类型条同步高亮（更新视图不高亮任何类型）
+  document.querySelectorAll('.store-typechip').forEach(c =>
+    c.classList.toggle('on', c.dataset.type === (type === 'all' ? 'all' : type)));
+  // 更新视图显示"全部更新"按钮
+  const upAll = document.getElementById('store-update-all');
+  if (upAll) upAll.style.display = (type === 'update') ? 'flex' : 'none';
+  const crumb = document.getElementById('store-crumb');
+  if (crumb) crumb.textContent = label || '全部资源';
+  switchTab('store');
+}
+
+// ── 确保主区存在应用商店选项卡与面板 ──
+function ensureStoreTab() {
+  if (!document.getElementById('tab-store')) {
+    const tabbar = document.getElementById('tabbar');
+    const add = tabbar.querySelector('.tadd');
+    const btn = document.createElement('button');
+    btn.className = 'titem'; btn.id = 'tab-store';
+    btn.innerHTML = `<i data-lucide="store" class="ico ico-xs"></i> 应用商店<button class="tcx" onclick="closeTab(event,'store')">✕</button>`;
+    btn.onclick = (e) => { if (!e.target.classList.contains('tcx')) switchTab('store'); };
+    tabbar.insertBefore(btn, add);
+    lucide.createIcons();
+  }
+  if (!document.getElementById('pane-store')) buildStorePane();
+}
+
+function buildStorePane() {
+  const pane = document.createElement('div');
+  pane.className = 'pane'; pane.id = 'pane-store';
+  pane.innerHTML = `
+    <div class="store-toolbar">
+      <input class="store-tb-search" placeholder="搜索名称、开发者、能力关键词" oninput="filterStoreSearch(this.value)">
+      <span style="flex:1"></span>
+      <select class="store-tb-sel" onchange="renderStoreCards(curStoreType,curStoreCat,this.value)">
+        <option value="latest">最新</option>
+        <option value="featured">热门优先</option>
+        <option value="downloads">下载量</option>
+      </select>
+      <button class="store-tb-btn" id="store-update-all" style="display:none" onclick="updateAll()"><i data-lucide="arrow-up-circle" class="ico ico-xs"></i> 全部更新</button>
+      <button class="store-tb-btn" onclick="renderStoreCards(curStoreType,curStoreCat)"><i data-lucide="refresh-cw" class="ico ico-xs"></i> 刷新</button>
+      <button class="store-tb-btn pri"><i data-lucide="log-in" class="ico ico-xs"></i> 登录</button>
+    </div>
+    <div class="store-typebar">
+      <span id="store-crumb" style="align-self:center;font-size:12px;color:var(--txm);margin-right:8px">全部资源</span>
+      <span style="flex:1"></span>
+      <span class="store-typechip on" data-type="all" onclick="openStore('all','','全部资源')">全部</span>
+      <span class="store-typechip" data-type="plugin" onclick="openStore('plugin','','插件')">插件</span>
+      <span class="store-typechip" data-type="skill" onclick="openStore('skill','','技能')">技能</span>
+      <span class="store-typechip" data-type="agent" onclick="openStore('agent','','智能体')">智能体</span>
+      <span class="store-typechip" data-type="solution" onclick="openStore('solution','','方案')">方案</span>
+    </div>
+    <div class="store-grid" id="store-grid"></div>
+    <div class="store-foot" id="store-foot">已加载全部 0 个资源。</div>`;
+  document.getElementById('content').appendChild(pane);
+  lucide.createIcons();
+}
+
+let curStoreType = 'all', curStoreCat = '';
+function renderStoreCards(type, cat, sort) {
+  curStoreType = type; curStoreCat = cat;
+  const grid = document.getElementById('store-grid');
+  if (!grid) return;
+  const isUpdate = type === 'update';
+  let list = isUpdate
+    ? STORE_ASSETS.filter(hasUpdate)
+    : STORE_ASSETS.filter(a => (type === 'all' || a.type === type) && (!cat || a.cat === cat));
+  grid.innerHTML = list.map(a => {
+    const t = TYPE_META[a.type] || {label:a.type, cls:''};
+    const up = hasUpdate(a);
+    // 版本行：更新视图显示 旧→新
+    const verRow = up
+      ? `<div class="scard-meta"><span class="k">版本</span><span class="v"><span style="color:var(--txm)">${a.installedVer}</span> <i data-lucide="arrow-right" class="ico-xs" style="vertical-align:-2px"></i> <span style="color:var(--ok)">${a.ver}</span></span></div>`
+      : `<div class="scard-meta"><span class="k">当前版本</span><span class="v">${a.ver}</span></div>`;
+    // 按钮：有更新→更新；已装且最新→已安装(禁用)；未装→安装
+    const btn = up
+      ? `<button class="scard-install" onclick="doUpdate(this,'${a.name}')"><i data-lucide="arrow-up-circle" class="ico-xs" style="vertical-align:-2px"></i> 更新到 ${a.ver}</button>`
+      : a.installedVer
+        ? `<button class="scard-install" disabled style="opacity:.5;cursor:default">已安装</button>`
+        : `<button class="scard-install">安装</button>`;
+    return `<div class="scard">
+      <div class="scard-hd"><span class="scard-name">${a.name}</span><span class="scard-type ${t.cls}">${t.label}</span></div>
+      <div class="scard-desc">${a.desc}</div>
+      ${verRow}
+      <div class="scard-meta"><span class="k">开发者</span><span class="v">${a.dev}</span></div>
+      ${isUpdate ? '' : `<div class="scard-meta"><span class="k">价格</span><span class="v scard-price ${a.free?'free':''}">${a.price}</span></div>`}
+      ${btn}
+    </div>`;
+  }).join('');
+  const foot = document.getElementById('store-foot');
+  if (foot) foot.textContent = isUpdate
+    ? (list.length ? `${list.length} 个资源有可用更新。` : '所有资源均为最新版本。')
+    : `已加载全部 ${list.length} 个资源。`;
+  lucide.createIcons();
+}
+
+// 单个更新：模拟把 installedVer 追平到 ver
+function doUpdate(btn, name) {
+  const a = STORE_ASSETS.find(x => x.name === name);
+  if (a) a.installedVer = a.ver;
+  // 更新侧栏"更新"节点计数并重渲染当前视图
+  refreshStoreUpdateBadge();
+  renderStoreCards('update', '');
+}
+// 全部更新
+function updateAll() {
+  STORE_ASSETS.filter(hasUpdate).forEach(a => a.installedVer = a.ver);
+  refreshStoreUpdateBadge();
+  renderStoreCards('update', '');
+}
+function refreshStoreUpdateBadge() {
+  const el = document.getElementById('store-update-count');
+  if (el) el.textContent = updateCount();
+}
+
+function filterStoreSearch(kw) {
+  const grid = document.getElementById('store-grid');
+  if (!grid) return;
+  const k = kw.trim().toLowerCase();
+  grid.querySelectorAll('.scard').forEach(card => {
+    const txt = card.textContent.toLowerCase();
+    card.style.display = (!k || txt.includes(k)) ? 'flex' : 'none';
+  });
+}
+
+// ══════════════ 功能管理（插件）══════════════
+// 分类来自数据库，样板用数组模拟一次接口返回（真实：GET /plugins/categories）
+let PLUGIN_CATEGORIES = [
+  {id:'io',   name:'输入输出'},
+  {id:'net',  name:'联网检索'},
+  {id:'exec', name:'代码执行'},
+  {id:'mem',  name:'记忆存储'},
+];
+const PLUGIN_DATA = [
+  {name:'Netor.Plugin.Voice',   on:true,  ver:'1.2.0', caps:['语音输入','语音输出','唤醒词'], catId:'io',   desc:'语音输入输出，支持唤醒词与实时转写。'},
+  {name:'Netor.Plugin.Memory',  on:true,  ver:'0.8.3', caps:['长期记忆','向量检索','摘要','标签','清理'], catId:'mem', desc:'长期记忆存储，向量检索历史对话与产物。'},
+  {name:'Netor.Plugin.CodeExec',on:true,  ver:'2.0.1', caps:['沙箱','多语言','超时控制','依赖注入','日志','限额','快照','回滚'], catId:'exec', desc:'代码执行沙箱，隔离运行多语言脚本。'},
+  {name:'Netor.Plugin.Web',     on:false, ver:'1.5.0', caps:['联网检索','网页抓取','摘要','引用'], catId:'net',  desc:'联网检索与网页抓取，返回带引用的结果。'},
+];
+
+// ── 动态生成插件树：状态项固定，分类项 + 全部计数来自数据 ──
+function renderPluginTree() {
+  const host = document.getElementById('plugins-tree');
+  if (!host) return;
+  const total = PLUGIN_DATA.length;
+  const on = PLUGIN_DATA.filter(p => p.on).length;
+  // 只渲染"有插件"的分类，计数动态
+  const cats = PLUGIN_CATEGORIES
+    .map(c => ({...c, count: PLUGIN_DATA.filter(p => p.catId === c.id).length}))
+    .filter(c => c.count > 0);
+  host.innerHTML = `
+    <div class="stree-top on" onclick="openPlugins('all','全部插件')">
+      <i data-lucide="layout-grid" class="ico ico-xs"></i> 全部插件 <span class="stree-count">${total}</span>
+    </div>
+    <div class="stree-top" onclick="openPlugins('enabled','已启用')">
+      <i data-lucide="circle-check" class="ico ico-xs" style="color:var(--ok)"></i> 已启用 <span class="stree-count">${on}</span>
+    </div>
+    <div class="stree-top" onclick="openPlugins('disabled','已停用')">
+      <i data-lucide="circle-slash" class="ico ico-xs" style="color:var(--txf)"></i> 已停用 <span class="stree-count">${total - on}</span>
+    </div>
+    <div class="stree-top" onclick="toggleTree(this)">
+      <i data-lucide="chevron-right" class="ico ico-xs stree-caret"></i>
+      <i data-lucide="folder" class="ico ico-xs" style="color:var(--mt)"></i> 按能力分类 <span class="stree-count">${cats.length}</span>
+    </div>
+    <div class="stree-cats">
+      ${cats.map(c => `<div class="stree-cat" onclick="openPlugins('cat:${c.id}','分类 · ${c.name}')">${c.name} <span class="stree-count">${c.count}</span></div>`).join('')}
+    </div>`;
+  lucide.createIcons();
+}
+
+function openPlugins(filter, label) {
+  document.querySelectorAll('#sp-plugins .stree-top,#sp-plugins .stree-cat').forEach(e => e.classList.remove('on'));
+  if (event && event.currentTarget) event.currentTarget.classList.add('on');
+  ensureMgmtTab('plugins', '功能管理', 'cpu');
+  renderPluginCards(filter);
+  const crumb = document.getElementById('plugins-crumb');
+  if (crumb) crumb.textContent = label || '全部插件';
+  switchTab('plugins');
+}
+
+function renderPluginCards(filter) {
+  const grid = document.getElementById('plugins-grid');
+  if (!grid) return;
+  let list = PLUGIN_DATA.filter(p =>
+    filter === 'all' ? true :
+    filter === 'enabled' ? p.on :
+    filter === 'disabled' ? !p.on :
+    filter.startsWith('cat:') ? p.catId === filter.slice(4) : true);
+  grid.innerHTML = list.map((p, i) => `
+    <div class="mcard${p.on?'':' off'}">
+      <div class="mcard-hd">
+        <div class="mcard-name"><i data-lucide="plug" class="ico ico-xs" style="color:${p.on?'var(--ok)':'var(--txf)'}"></i><span>${p.name}</span></div>
+        <div class="mswitch${p.on?' on':''}" onclick="togglePlugin(this)"></div>
+      </div>
+      <div class="mcard-desc">${p.desc}</div>
+      <div class="mcard-caps">${p.caps.slice(0,4).map(c=>`<span class="mcard-cap">${c}</span>`).join('')}${p.caps.length>4?`<span class="mcard-cap">+${p.caps.length-4}</span>`:''}</div>
+      <div class="mcard-meta"><span class="k">功能总数</span><span class="v">${p.caps.length} 个</span></div>
+      <div class="mcard-meta"><span class="k">版本</span><span class="v">v${p.ver}</span></div>
+      <div class="mcard-acts">
+        <button onclick="alert('配置 ${p.name}')"><i data-lucide="settings" class="ico ico-xs"></i> 设置</button>
+        <button class="danger" onclick="alert('卸载 ${p.name}')"><i data-lucide="trash-2" class="ico ico-xs"></i> 卸载</button>
+      </div>
+    </div>`).join('');
+  const foot = document.getElementById('plugins-foot');
+  if (foot) foot.textContent = `共 ${list.length} 个插件。`;
+  lucide.createIcons();
+}
+
+function togglePlugin(el) {
+  el.classList.toggle('on');
+  el.closest('.mcard').classList.toggle('off', !el.classList.contains('on'));
+}
+
+// ══════════════ 技能管理 ══════════════
+// 分类同样来自数据库（真实：GET /skills/categories）
+let SKILL_CATEGORIES = [
+  {id:'code', name:'代码'},
+  {id:'doc',  name:'文档'},
+  {id:'test', name:'测试'},
+];
+const SKILL_DATA = [
+  {name:'/code-review', src:'builtin',   ver:'内置',  catId:'code', desc:'代码评审：分析改动、指出问题、给出修复建议。'},
+  {name:'/design-sync', src:'builtin',   ver:'内置',  catId:'doc',  desc:'设计系统同步：将本地组件库与设计稿对齐。'},
+  {name:'/commit',      src:'community', ver:'1.3.0', catId:'code', desc:'根据暂存改动生成规范的提交信息。'},
+  {name:'/test-gen',    src:'community', ver:'0.9.1', catId:'test', desc:'为选定函数生成单元测试用例。'},
+];
+const SRC_META = {builtin:{label:'内置',cls:'src-builtin'}, community:{label:'社区',cls:'src-community'}, project:{label:'项目',cls:'src-project'}};
+
+// ── 动态生成技能树：来源项固定，分类项 + 计数来自数据 ──
+function renderSkillTree() {
+  const host = document.getElementById('skills-tree');
+  if (!host) return;
+  const total = SKILL_DATA.length;
+  const builtin = SKILL_DATA.filter(s => s.src === 'builtin').length;
+  const community = SKILL_DATA.filter(s => s.src === 'community').length;
+  const cats = SKILL_CATEGORIES
+    .map(c => ({...c, count: SKILL_DATA.filter(s => s.catId === c.id).length}))
+    .filter(c => c.count > 0);
+  host.innerHTML = `
+    <div class="stree-top on" onclick="openSkills('all','全部技能')">
+      <i data-lucide="layout-grid" class="ico ico-xs"></i> 全部技能 <span class="stree-count">${total}</span>
+    </div>
+    <div class="stree-top" onclick="openSkills('builtin','内置')">
+      <i data-lucide="shield-check" class="ico ico-xs" style="color:var(--ac)"></i> 内置 <span class="stree-count">${builtin}</span>
+    </div>
+    <div class="stree-top" onclick="openSkills('community','社区')">
+      <i data-lucide="users" class="ico ico-xs" style="color:var(--ex)"></i> 社区 <span class="stree-count">${community}</span>
+    </div>
+    <div class="stree-top" onclick="toggleTree(this)">
+      <i data-lucide="chevron-right" class="ico ico-xs stree-caret"></i>
+      <i data-lucide="folder" class="ico ico-xs" style="color:var(--ex)"></i> 按能力分类 <span class="stree-count">${cats.length}</span>
+    </div>
+    <div class="stree-cats">
+      ${cats.map(c => `<div class="stree-cat" onclick="openSkills('cat:${c.id}','分类 · ${c.name}')">${c.name} <span class="stree-count">${c.count}</span></div>`).join('')}
+    </div>
+    <div style="padding:10px;font-size:11px;color:var(--txm);border-top:1px solid var(--bd0);margin-top:6px">
+      <i data-lucide="info" class="ico ico-xs"></i> 项目专属技能在项目管理内部管理
+    </div>`;
+  lucide.createIcons();
+}
+
+function openSkills(filter, label) {
+  document.querySelectorAll('#sp-skills .stree-top,#sp-skills .stree-cat').forEach(e => e.classList.remove('on'));
+  if (event && event.currentTarget) event.currentTarget.classList.add('on');
+  ensureMgmtTab('skills', '技能管理', 'sparkles');
+  renderSkillCards(filter);
+  const crumb = document.getElementById('skills-crumb');
+  if (crumb) crumb.textContent = label || '全部技能';
+  switchTab('skills');
+}
+
+function renderSkillCards(filter) {
+  const grid = document.getElementById('skills-grid');
+  if (!grid) return;
+  let list = SKILL_DATA.filter(s =>
+    filter === 'all' ? true :
+    (filter === 'builtin' || filter === 'community') ? s.src === filter :
+    filter.startsWith('cat:') ? s.catId === filter.slice(4) : true);
+  grid.innerHTML = list.map(s => {
+    const m = SRC_META[s.src] || {label:s.src, cls:''};
+    return `<div class="mcard">
+      <div class="mcard-hd">
+        <div class="mcard-name"><i data-lucide="sparkles" class="ico ico-xs" style="color:var(--ac)"></i><span>${s.name}</span></div>
+        <span class="src-badge ${m.cls}">${m.label}</span>
+      </div>
+      <div class="mcard-desc">${s.desc}</div>
+      <div class="mcard-meta"><span class="k">版本</span><span class="v">${s.ver}</span></div>
+      <div class="mcard-acts">
+        <button onclick="alert('应用到当前项目：${s.name}')"><i data-lucide="folder-plus" class="ico ico-xs"></i> 应用到项目</button>
+        <button class="danger" onclick="alert('移除 ${s.name}')"><i data-lucide="trash-2" class="ico ico-xs"></i> 移除</button>
+      </div>
+    </div>`;
+  }).join('');
+  const foot = document.getElementById('skills-foot');
+  if (foot) foot.textContent = `共 ${list.length} 个全局技能。`;
+  lucide.createIcons();
+}
+
+// ── 管理选项卡通用创建器（功能管理 / 技能管理 共用）──
+function ensureMgmtTab(key, label, icon) {
+  if (!document.getElementById('tab-' + key)) {
+    const tabbar = document.getElementById('tabbar');
+    const add = tabbar.querySelector('.tadd');
+    const btn = document.createElement('button');
+    btn.className = 'titem'; btn.id = 'tab-' + key;
+    btn.innerHTML = `<i data-lucide="${icon}" class="ico ico-xs"></i> ${label}<button class="tcx" onclick="closeTab(event,'${key}')">✕</button>`;
+    btn.onclick = (e) => { if (!e.target.classList.contains('tcx')) switchTab(key); };
+    tabbar.insertBefore(btn, add);
+    lucide.createIcons();
+  }
+  if (!document.getElementById('pane-' + key)) buildMgmtPane(key, label);
+}
+
+function buildMgmtPane(key, label) {
+  const searchPh = key === 'plugins' ? '搜索插件名称、能力关键词' : '搜索技能名称、描述';
+  const addTitle = key === 'plugins' ? '打开插件目录' : '导入技能包';
+  const pane = document.createElement('div');
+  pane.className = 'pane'; pane.id = 'pane-' + key;
+  pane.innerHTML = `
+    <div class="store-toolbar">
+      <input class="store-tb-search" placeholder="${searchPh}" oninput="filterMgmtSearch('${key}',this.value)">
+      <span style="flex:1"></span>
+      <button class="store-tb-btn"><i data-lucide="refresh-cw" class="ico ico-xs"></i> 刷新</button>
+      <button class="store-tb-btn pri" onclick="${key==='plugins'?"spAddFor('plugins')":"spAddFor('skills')"}"><i data-lucide="plus" class="ico ico-xs"></i> ${addTitle}</button>
+    </div>
+    <div class="store-typebar">
+      <span id="${key}-crumb" style="align-self:center;font-size:12px;color:var(--txm)">${label}</span>
+      <span style="flex:1"></span>
+      <button class="store-tb-btn" onclick="switchNav('store')"><i data-lucide="store" class="ico ico-xs"></i> 去应用商店</button>
+    </div>
+    <div class="store-grid" id="${key}-grid"></div>
+    <div class="store-foot" id="${key}-foot"></div>`;
+  document.getElementById('content').appendChild(pane);
+  lucide.createIcons();
+}
+
+function filterMgmtSearch(key, kw) {
+  const grid = document.getElementById(key + '-grid');
+  if (!grid) return;
+  const k = kw.trim().toLowerCase();
+  grid.querySelectorAll('.mcard').forEach(card => {
+    card.style.display = (!k || card.textContent.toLowerCase().includes(k)) ? 'flex' : 'none';
+  });
+}
+
+// 工具栏"打开插件目录/导入技能包"复用侧栏添加逻辑
+function spAddFor(nav) {
+  const cfg = navAddConfig[nav];
+  if (cfg && cfg.action) cfg.action();
+}
+
+// ── Side panel filter tabs ──
+function spftab(el) {
+  const parent = el.parentElement;
+  parent.querySelectorAll('.sft').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+}
+
+// ── Work mode internal tabs ──
+function workTab(btn, tabId) {
+  document.querySelectorAll('.wt').forEach(t => t.classList.remove('on'));
+  btn.classList.add('on');
+  document.querySelectorAll('.wtpane').forEach(p => p.classList.remove('on'));
+  const pane = document.getElementById('wtp-' + tabId);
+  if (pane) pane.classList.add('on');
+  // Hide/show bottom input bar when in chat tab
+  const bar = document.getElementById('work-bar');
+  if (bar) bar.style.display = tabId === 'chat' ? 'none' : 'flex';
+}
+
+// ── Agent Strip toggle ──
+let stripOpen = false;
+function toggleStrip() {
+  stripOpen = !stripOpen;
+  const cards = document.getElementById('strip-cards');
+  const mini = document.getElementById('strip-mini');
+  const summary = document.getElementById('strip-summary');
+  const btn = document.getElementById('strip-btn');
+  cards.style.display = stripOpen ? 'flex' : 'none';
+  mini.style.display = stripOpen ? 'none' : 'flex';
+  if (summary) summary.style.display = stripOpen ? 'flex' : 'none';
+  btn.textContent = stripOpen ? '▼ 收起' : '▲ 展开';
+  if (stripOpen) lucide.createIcons();
+}
+
+// ── Focus an agent card → open its task tab, jump to 总界面选项卡 ──
+function focusAgentCard(taskId) {
+  const meta = {
+    work1: {label:'登录模块重写', mode:'work'},
+    meeting1: {label:'架构评审会', mode:'meeting'},
+    expert1: {label:'代码优化讨论', mode:'expert'},
+  };
+  const m = meta[taskId] || {label:taskId, mode:'work'};
+  openTask(taskId, m.label, m.mode);
+  // Activate the task's 总界面（首个）选项卡
+  const firstWt = document.querySelector('#pane-' + taskId + ' .wt');
+  if (firstWt) firstWt.click();
+}
+
+// ── Inspector ──
+function toggleInspector() {}
+function updateInspector(tabId) {
+  const data = {
+    overview: {title:'总览', mode:'', status:''},
+    work1: {title:'登录模块重写', mode:'mb-wk', modeLabel:'⚙ 工作', status:'st-run', statusLabel:'● 运行中'},
+    meeting1: {title:'架构评审会', mode:'mb-mt', modeLabel:'会议', status:'st-run', statusLabel:'● 运行中'},
+    expert1: {title:'代码优化讨论', mode:'mb-ex', modeLabel:'专家', status:'st-run', statusLabel:'● 运行中'},
+  };
+  // Just update the title for now
+}
+function inspectAgent(id) {
+  switchNav('plugins');
+}
+
+// ── Approval handling ──
+function handleAppr(btn, action) {
+  const item = btn.closest('.appr-item');
+  const title = item.querySelector('.appr-title').textContent;
+  const msgs = {allow:`✓ 已允许本次：${title}`, task:`✓ 已允许本任务中的同类请求`, deny:`✕ 已拒绝：${title}`};
+  item.style.opacity = '.4';
+  item.style.pointerEvents = 'none';
+  showToast(msgs[action], action === 'deny' ? 'err' : 'ok');
+  // Update approval count in header
+  const chip = document.querySelector('.hc-appr');
+  if (chip) { const n = parseInt(chip.textContent) - 1; chip.textContent = `⚠ ${Math.max(0,n)} 审批`; }
+}
+
+// ── New Task Dialog ──
+function openNewDialog() {
+  document.getElementById('new-dialog').style.display = 'flex';
+}
+function closeNewDialog() {
+  document.getElementById('new-dialog').style.display = 'none';
+}
+function dlgTab(btn, mode) {
+  document.querySelectorAll('.dtab').forEach(t => t.classList.remove('on'));
+  btn.classList.add('on');
+  ['expert','work','meeting'].forEach(m => {
+    const el = document.getElementById('dlg-' + m);
+    if (el) el.style.display = m === mode ? '' : 'none';
+  });
+}
+function createTask() {
+  closeNewDialog();
+  showToast('任务已创建，正在初始化 Agent...', 'ok');
+}
+
+// ── Command Palette ──
+function openCmdPalette() {
+  document.getElementById('cmd-palette').style.display = 'flex';
+  setTimeout(() => document.getElementById('cmd-input').focus(), 50);
+}
+function closeCmdPalette() {
+  document.getElementById('cmd-palette').style.display = 'none';
+}
+function filterCmd(val) {
+  const items = document.querySelectorAll('#cmd-results .ti');
+  items.forEach(item => {
+    item.style.display = !val || item.textContent.toLowerCase().includes(val.toLowerCase()) ? '' : 'none';
+  });
+}
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); openCmdPalette(); }
+  if (e.key === 'Escape') { closeCmdPalette(); closeNewDialog(); }
+});
+
+// ── Toast notification ──
+function showToast(msg, type) {
+  const t = document.createElement('div');
+  t.style.cssText = `position:fixed;bottom:36px;right:14px;padding:8px 14px;border-radius:4px;font-size:12px;z-index:200;pointer-events:none;border:1px solid;transition:opacity .3s;background:${type==='ok'?'var(--exd)':type==='err'?'#3d1a1a':'var(--s1)'};border-color:${type==='ok'?'var(--ok)':type==='err'?'var(--err)':'var(--bd)'};color:${type==='ok'?'var(--ok)':type==='err'?'var(--err)':'var(--tx)'}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; setTimeout(() => t.remove(), 300); }, 2500);
+}
+
+// ── Task control ──
+function pauseTask() { showToast('任务已暂停，后台 Agent 停止执行', 'ok'); }
+function stopTask() { if (confirm('确定要停止当前任务吗？')) showToast('任务已停止', 'err'); }
+
+// ── Side panel search ──
+function spSearch(val) {
+  document.querySelectorAll('.ti,.ag-item,.hist-item').forEach(item => {
+    item.style.display = !val || item.textContent.toLowerCase().includes(val.toLowerCase()) ? '' : 'none';
+  });
+}
+
+// ── Clock ──
+function updateClock() {
+  const n = new Date();
+  const t = [n.getHours(), n.getMinutes(), n.getSeconds()].map(x => String(x).padStart(2,'0')).join(':');
+  const el = document.getElementById('clock'); if (el) el.textContent = t;
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ── Animate agent step text ──
+const claudeSteps = ['▶ 生成 JWT Token 验证逻辑...','▶ 写入 RefreshToken 处理...','▶ 添加 Middleware 注入...','▶ 生成接口注释...','▶ 整理 auth.cs 结构...'];
+let csIdx = 0;
+setInterval(() => {
+  csIdx = (csIdx + 1) % claudeSteps.length;
+  const s = claudeSteps[csIdx];
+  ['strip-claude-step','insp-agent-step','wk-step-sub'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent = s; });
+  const ov = document.getElementById('ov-step'); if (ov) ov.textContent = s.replace('▶ ','▶ ');
+  // Update activity feed
+  const feed = document.getElementById('activity-feed');
+  if (feed) {
+    const n = new Date(); const t = [n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
+    const row = document.createElement('div');
+    row.innerHTML = `<span style="color:var(--ok)">${t}</span> <span style="color:var(--txm)">[Claude-3.7]</span> ${s.replace('▶ ','')}`;
+    feed.insertBefore(row, feed.firstChild);
+    if (feed.children.length > 8) feed.lastChild.remove();
+  }
+}, 3000);
+
+// ── Simulate meeting speaker rotation ──
+const speakers = ['评审员A','评审员B','评审员C','主持人'];
+let spIdx = 0;
+setInterval(() => {
+  spIdx = (spIdx + 1) % speakers.length;
+  const chip = document.getElementById('speaking-chip');
+  if (chip) chip.textContent = speakers[spIdx] + ' ●';
+}, 4000);
+
+// ── Inspector time ──
+let taskSeconds = 754;
+setInterval(() => {
+  taskSeconds++;
+  const m = Math.floor(taskSeconds/60), s = taskSeconds%60;
+  const el = document.getElementById('insp-time'); if (el) el.textContent = `${m}m ${String(s).padStart(2,'0')}s`;
+}, 1000);
+
+// ── Theme toggle ──
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') !== 'light';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  const ico = document.getElementById('theme-ico');
+  if (ico) ico.setAttribute('data-lucide', isDark ? 'moon' : 'sun');
+  lucide.createIcons();
+}
+
+// ── Activity bar expand/collapse ──
+let actExpanded = false;
+function toggleActivityBar() {
+  actExpanded = !actExpanded;
+  const act = document.getElementById('activity');
+  const ico = document.getElementById('act-expand-ico');
+  const lbl = document.getElementById('act-expand-label');
+  act.classList.toggle('expanded', actExpanded);
+  if (ico) ico.setAttribute('data-lucide', actExpanded ? 'chevrons-left' : 'chevrons-right');
+  if (lbl) lbl.textContent = actExpanded ? '收起导航' : '展开导航';
+  lucide.createIcons();
+}
+
+// ── Context panel tabs ──
+function ctxTab(btn, tab) {
+  document.querySelectorAll('.ctx-tab').forEach(t => t.classList.remove('on'));
+  btn.classList.add('on');
+  ['summary','agents','files'].forEach(t => {
+    const el = document.getElementById('ctx-' + t);
+    if (el) el.style.display = t === tab ? 'flex' : 'none';
+  });
+}
+
+// ── Conversation panel: lazy open/close ──
+function openConversation() {
+  const panel = document.getElementById('conv-panel');
+  if (panel) { panel.classList.add('open'); lucide.createIcons(); }
+}
+function closeConversation() {
+  const panel = document.getElementById('conv-panel');
+  if (panel) panel.classList.remove('open');
+}
+
+// ── Conversation mode tabs ──
+function convTab(btn, mode) {
+  document.querySelectorAll('.cpt').forEach(t => t.classList.remove('on'));
+  btn.classList.add('on');
+  ['expert','work','meeting'].forEach(m => {
+    const el = document.getElementById('cv-' + m);
+    if (el) el.style.display = m === mode ? 'flex' : 'none';
+  });
+}
+
+// ── Context panel elapsed timer ──
+let ctxSeconds = 754;
+setInterval(() => {
+  ctxSeconds++;
+  const m = Math.floor(ctxSeconds/60), s = ctxSeconds%60;
+  const el = document.getElementById('ctx-elapsed');
+  if (el) el.textContent = m + 'm ' + String(s).padStart(2,'0') + 's';
+  // Also update ctx agent step with animated text
+  const stepEl = document.getElementById('ctx-agent-step');
+  if (stepEl) { /* updated by claudeSteps interval below */ }
+}, 1000);
+
+// ── Sync ctx-agent-step with claudeSteps animation ──
+setInterval(() => {
+  const el = document.getElementById('ctx-agent-step');
+  const el2 = document.getElementById('ctx-feed-1');
+  if (el) el.textContent = claudeSteps[csIdx].replace('▶ ','');
+  if (el2) {
+    const n = new Date();
+    const t = [n.getHours(),n.getMinutes()].map(x=>String(x).padStart(2,'0')).join(':');
+    el2.textContent = t + ' · ' + claudeSteps[csIdx].replace('▶ ','Claude-3.7 ');
+  }
+}, 3000);
+
+// Initialize
+
+function selectChip(el) {
+  el.closest('.ia-chips').querySelectorAll('.ia-chip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+}
+function addMeetingAgent(btn) {
+  const strip = btn.closest('.ia-agents');
+  const names = ['Gemini-Pro', 'GPT-4o', 'Kimi', 'Claude-3.7', '评审员C'];
+  const used = Array.from(strip.querySelectorAll('.ia-agent-chip')).map(c => c.textContent.replace('×','').trim());
+  const next = names.find(n => !used.includes(n));
+  if (!next) return;
+  const chip = document.createElement('span');
+  chip.className = 'ia-agent-chip';
+  chip.innerHTML = '<i data-lucide="user" class="ico ico-xs"></i> ' + next + ' <span class="ia-rm" onclick="this.closest(\'.ia-agent-chip\').remove()">×</span>';
+  strip.insertBefore(chip, btn);
+  lucide.createIcons();
+}
+// 初始化默认导航（项目管理）的上下文添加按钮状态
+switchNav('projects');
+// 动态构建功能管理 / 技能管理侧栏树（分类来自数据库，样板用模拟数据）
+renderPluginTree();
+renderSkillTree();
+refreshStoreUpdateBadge();
+lucide.createIcons();
+</script>
+<script>
+function toggleConvPanel() {
+  const p = document.getElementById('conv-panel');
+  p.style.width = p.style.width === '0px' ? '' : '0px';
+  p.style.overflow = p.style.width === '0px' ? 'hidden' : '';
+}
+function handleApprInline(btn, action) {
+  const wrap = btn.parentElement;
+  const msgs = {allow:'✓ 已允许本次操作', task:'✓ 已允许本任务中同类操作', deny:'✕ 已拒绝'};
+  const colors = {allow:'var(--ok)', task:'var(--wk)', deny:'var(--err)'};
+  wrap.innerHTML = '<span style="font-size:11px;padding:4px 0;display:block;color:' + colors[action] + '">' + msgs[action] + '</span>';
+  showToast(msgs[action], action === 'deny' ? 'err' : 'ok');
+}
+function insertChip(btn) {
+  const box = document.getElementById('cp-ibox');
+  if (box) { box.value = btn.textContent.trim(); box.focus(); }
+}
+function sendConvMsg() {
+  const box = document.getElementById('cp-ibox');
+  if (!box || !box.value.trim()) return;
+  const msgs = document.getElementById('cv-work');
+  const typing = document.getElementById('cp-typing');
+  const bubble = document.createElement('div');
+  bubble.className = 'cpb-user'; bubble.textContent = box.value;
+  if (typing) msgs.insertBefore(bubble, typing); else msgs.appendChild(bubble);
+  box.value = ''; msgs.scrollTop = msgs.scrollHeight;
+  setTimeout(() => {
+    const r = document.createElement('div'); r.className = 'cpb-agent';
+    r.innerHTML = '<div class="cpb-sender" style="color:var(--wk)"><i data-lucide="cpu" class="ico ico-xs"></i> Claude-3.7</div><div class="cpb-body">已收到，正在处理...</div>';
+    if (typing) msgs.insertBefore(r, typing); else msgs.appendChild(r);
+    msgs.scrollTop = msgs.scrollHeight; lucide.createIcons();
+  }, 700);
+}
+
+// ── Conv input: @ and / popup toggle ──
+function toggleInputPopup(id, triggerChar) {
+  // Close all except target
+  document.querySelectorAll('.cp-popup').forEach(p => {
+    p.classList.toggle('open', p.id === id && !p.classList.contains('open'));
+  });
+  // Insert trigger char into nearest textarea
+  const wrap = document.getElementById(id);
+  if (wrap) {
+    const parent = wrap.closest('.cp-input-box-wrap');
+    if (parent) {
+      const ta = parent.querySelector('textarea');
+      if (ta && document.getElementById(id).classList.contains('open')) {
+        ta.value += triggerChar; ta.focus();
+      }
+    }
+  }
+}
+function onInputArea(el, uid) {
+  const val = el.value;
+  const lastChar = val.slice(-1);
+  if (lastChar === '@') { toggleInputPopup('cp-agent-popup-' + uid, ''); }
+  else if (lastChar === '/' || lastChar === '#') { toggleInputPopup('cp-cmd-popup-' + uid, ''); }
+  else {
+    document.querySelectorAll('[id^="cp-agent-popup-"],[id^="cp-cmd-popup-"]').forEach(p => p.classList.remove('open'));
+  }
+}
+function onInputKeydown(e, el) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(el.closest('.cp-input-wrap').querySelector('.cp-send2')); }
+  if (e.key === 'Escape') document.querySelectorAll('.cp-popup').forEach(p => p.classList.remove('open'));
+}
+function sendMsg(btn) {
+  const wrap = btn.closest('.cp-input-wrap');
+  const ta = wrap ? wrap.querySelector('textarea') : null;
+  if (!ta || !ta.value.trim()) return;
+  // Find closest message scroll area
+  const pane = btn.closest('.pane,.wtpane');
+  const scroll = pane ? pane.querySelector('.msg-scroll,.wtpane') : null;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble-user';
+  bubble.textContent = ta.value;
+  if (scroll) { scroll.appendChild(bubble); scroll.scrollTop = scroll.scrollHeight; }
+  ta.value = '';
+}
+function toggleCpPopup(id) {
+  document.querySelectorAll('.cp-popup').forEach(p => {
+    p.classList.toggle('open', p.id === id && !p.classList.contains('open'));
+  });
+}
+function closeCpPopups() {
+  document.querySelectorAll('.cp-popup').forEach(p => p.classList.remove('open'));
+}
+// Trigger popups on @ and /
+function onConvInput(el) {
+  const val = el.value;
+  const lastChar = val.slice(-1);
+  if (lastChar === '@') toggleCpPopup('cp-agent-popup');
+  else if (lastChar === '/') toggleCpPopup('cp-cmd-popup');
+  else closeCpPopups();
+}
+function onConvKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendConvMsg();
+    closeCpPopups();
+  }
+  if (e.key === 'Escape') closeCpPopups();
+}
+
+// ── Selector pickers (simplified popups) ──
+function showProviderPicker() {
+  showToast('Provider: Anthropic / OpenAI / Gemini / Kimi', 'ok');
+}
+function showModelPicker() {
+  showToast('Model: claude-opus-4-8 / claude-sonnet-4-6 / gpt-4o', 'ok');
+}
+function showAgentPicker() {
+  showToast('Agent: Claude-3.7 / GPT-4o / Gemini-Pro', 'ok');
+}
+
+lucide.createIcons();
+
+// ── Global popup dismiss: click outside closes all cp-popup ──
+document.addEventListener('mousedown', function(e) {
+  // If click is inside a popup or on a toolbar trigger button, leave it open
+  if (e.target.closest('.cp-popup') || e.target.closest('.iatool2')) return;
+  document.querySelectorAll('.cp-popup.open').forEach(p => p.classList.remove('open'));
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 2,
+  "brand": "sreamx",
+  "intro": "面向跨境电商运维的 AI 工作台",
+
+  "agents": {
+    "infra-ops": { "displayName": "基础设施运维", "vendor": "anthropic", "model": "claude-opus-4", "capabilities": ["服务器管理", "域名管理"] },
+    "site-builder": { "displayName": "独立站建站", "vendor": "anthropic", "model": "claude-sonnet-4", "capabilities": ["独立站管理", "渠道连接"] },
+    "content-ops": { "displayName": "商品内容运营", "capabilities": ["商品本地化", "商品优化"] },
+    "marketing-ops": { "displayName": "营销运营", "vendor": "openai", "model": "gpt-4o", "capabilities": ["营销分发"] },
+    "order-ops": { "displayName": "订单履约客服", "capabilities": ["订单履约", "客服"] },
+    "finance-ops": { "displayName": "结算经营分析", "vendor": "anthropic", "model": "claude-opus-4", "capabilities": ["结算分析"] }
+  },
+
+  "capabilities": {
+    "服务器管理": { "plugins": ["server-manager"] },
+    "域名管理": { "plugins": ["dns-tools", "domain-registrar"] },
+    "独立站管理": { "plugins": ["site-builder-plugin"] },
+    "渠道连接": { "plugins": ["channel-connector"] },
+    "商品本地化": { "skills": ["page-translate", "product-clean"] },
+    "商品优化": { "skills": ["title-optimize"] },
+    "营销分发": { "plugins": ["social-publisher"], "skills": ["campaign-plan"] },
+    "订单履约": { "plugins": ["order-sync", "fulfillment"] },
+    "客服": { "skills": ["cs-reply"] },
+    "结算分析": { "plugins": ["settlement"], "skills": ["profit-report"] }
+  },
+
+  "overview": {
+    "newBusiness": [
+      {
+        "id": "new-site", "name": "新建独立站", "desc": "从市场、域名到上线计划", "icon": "layout-template",
+        "invoke": { "kind": "task", "mode": "work", "agent": "site-builder", "needs": ["独立站管理", "域名管理"],
+          "prompt": "为 {market} 市场规划并搭建独立站，涵盖域名、选品、页面与上线计划",
+          "inputs": [ { "key": "market", "label": "目标市场", "type": "text" } ] }
+      },
+      {
+        "id": "import-products", "name": "导入商品", "desc": "清洗、归类并建立商品资产", "icon": "package-plus",
+        "invoke": { "kind": "plugin", "plugin": "product-importer", "entry": "import", "skills": ["product-clean"] }
+      },
+      {
+        "id": "translate-page", "name": "翻译商品页", "desc": "翻译并完成本地化校对", "icon": "languages",
+        "invoke": { "kind": "skill", "skill": "page-translate", "prompt": "翻译并本地化 {sku} 的商品页",
+          "inputs": [ { "key": "sku", "label": "商品 SKU", "type": "text" } ] }
+      },
+      {
+        "id": "biz-diagnosis", "name": "经营诊断", "desc": "分析经营数据与优先事项", "icon": "scan-search",
+        "invoke": { "kind": "task", "mode": "expert", "agent": "finance-ops", "needs": ["结算分析"],
+          "prompt": "分析近 30 天经营数据，给出优先改进事项" }
+      },
+      {
+        "id": "social-distribute", "name": "分发社交内容", "desc": "编排渠道内容与发布时间", "icon": "send",
+        "invoke": { "kind": "task", "mode": "work", "agent": "marketing-ops", "needs": ["营销分发"],
+          "prompt": "为 {campaign} 编排多渠道社交内容与发布排期",
+          "inputs": [ { "key": "campaign", "label": "活动名称", "type": "text" } ] }
+      },
+      {
+        "id": "site-review", "name": "站点评审", "desc": "多角色评审站点上线条件", "icon": "user-check",
+        "invoke": { "kind": "task", "mode": "meeting", "agent": "site-builder", "needs": ["独立站管理"],
+          "prompt": "组织多角色评审 {site} 的上线条件与风险",
+          "inputs": [ { "key": "site", "label": "站点", "type": "text" } ] }
+      }
+    ],
+    "industry": [
+      {
+        "id": "server-domain", "name": "服务器与域名", "desc": "基础设施与可用性", "icon": "server",
+        "stat": { "source": "builtin", "metric": "infra.summary" },
+        "actions": [
+          { "name": "购买服务器", "icon": "server-cog",
+            "invoke": { "kind": "task", "mode": "work", "agent": "infra-ops", "needs": ["服务器管理"],
+              "prompt": "为 {project} 采购 {spec} 服务器并完成初始化",
+              "inputs": [ { "key": "spec", "label": "规格", "type": "select", "options": ["2C4G", "4C8G", "8C16G"] } ] } },
+          { "name": "注册域名", "icon": "globe",
+            "invoke": { "kind": "task", "mode": "work", "agent": "infra-ops", "needs": ["域名管理"],
+              "prompt": "为 {site} 注册并解析域名",
+              "inputs": [ { "key": "site", "label": "站点", "type": "text" } ] } },
+          { "name": "检查 DNS", "icon": "search-check",
+            "invoke": { "kind": "command", "command": "dns.check" } }
+        ]
+      },
+      {
+        "id": "site-channel", "name": "独立站与渠道", "desc": "站点、店铺与销售连接", "icon": "store",
+        "stat": { "source": "builtin", "metric": "channel.summary" },
+        "actions": [
+          { "name": "建设独立站", "icon": "layout-template",
+            "invoke": { "kind": "task", "mode": "work", "agent": "site-builder", "needs": ["独立站管理"], "prompt": "搭建新的独立站" } },
+          { "name": "连接销售渠道", "icon": "link",
+            "invoke": { "kind": "plugin", "plugin": "channel-connector", "entry": "connect" } },
+          { "name": "评审站点", "icon": "user-check",
+            "invoke": { "kind": "task", "mode": "meeting", "agent": "site-builder", "needs": ["独立站管理"], "prompt": "评审站点上线条件" } }
+        ]
+      },
+      {
+        "id": "product-content", "name": "商品与内容", "desc": "商品主数据与本地化内容", "icon": "package",
+        "stat": { "source": "builtin", "metric": "product.summary" },
+        "actions": [
+          { "name": "新建商品", "icon": "package-plus",
+            "invoke": { "kind": "task", "mode": "work", "agent": "content-ops", "needs": ["商品本地化"], "prompt": "创建新商品并补全主数据" } },
+          { "name": "翻译商品页", "icon": "languages",
+            "invoke": { "kind": "skill", "skill": "page-translate", "prompt": "翻译并本地化商品页" } },
+          { "name": "优化商品标题", "icon": "wand-sparkles",
+            "invoke": { "kind": "skill", "skill": "title-optimize", "prompt": "优化商品标题以提升点击率" } }
+        ]
+      },
+      {
+        "id": "marketing", "name": "营销与社交分发", "desc": "活动、素材与渠道发布", "icon": "megaphone",
+        "stat": { "source": "builtin", "metric": "marketing.summary" },
+        "actions": [
+          { "name": "新建营销活动", "icon": "rocket",
+            "invoke": { "kind": "task", "mode": "work", "agent": "marketing-ops", "needs": ["营销分发"], "prompt": "策划一场新的营销活动" } },
+          { "name": "分发社交内容", "icon": "send",
+            "invoke": { "kind": "task", "mode": "work", "agent": "marketing-ops", "needs": ["营销分发"], "prompt": "编排并分发社交内容" } },
+          { "name": "复盘营销活动", "icon": "bar-chart-3",
+            "invoke": { "kind": "task", "mode": "expert", "agent": "marketing-ops", "needs": ["营销分发"], "prompt": "复盘营销活动效果" } }
+        ]
+      },
+      {
+        "id": "order-fulfillment", "name": "订单、客服与履约", "desc": "交易交付与客户问题", "icon": "truck",
+        "stat": { "source": "builtin", "metric": "order.summary" },
+        "actions": [
+          { "name": "处理异常订单", "icon": "triangle-alert", "color": "warn",
+            "invoke": { "kind": "task", "mode": "work", "agent": "order-ops", "needs": ["订单履约"], "prompt": "排查并处理异常订单" } },
+          { "name": "生成客服回复", "icon": "headset",
+            "invoke": { "kind": "skill", "skill": "cs-reply", "prompt": "根据工单生成客服回复" } },
+          { "name": "检查履约", "icon": "clipboard-check",
+            "invoke": { "kind": "command", "command": "fulfillment.check" } }
+        ]
+      },
+      {
+        "id": "settlement", "name": "结算与经营", "desc": "回款、费用与经营分析", "icon": "landmark",
+        "stat": { "source": "builtin", "metric": "settlement.summary" },
+        "actions": [
+          { "name": "核对结算差异", "icon": "scale",
+            "invoke": { "kind": "task", "mode": "expert", "agent": "finance-ops", "needs": ["结算分析"], "prompt": "核对结算差异并给出结论" } },
+          { "name": "生成利润报告", "icon": "file-text",
+            "invoke": { "kind": "skill", "skill": "profit-report", "prompt": "生成本期利润报告" } },
+          { "name": "周经营复盘", "icon": "calendar-check",
+            "invoke": { "kind": "task", "mode": "meeting", "agent": "finance-ops", "needs": ["结算分析"], "prompt": "组织本周经营复盘" } }
+        ]
+      }
+    ]
+  }
+}

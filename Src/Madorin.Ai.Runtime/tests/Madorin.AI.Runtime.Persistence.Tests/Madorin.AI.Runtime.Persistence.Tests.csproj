@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="MSTest" />
   </ItemGroup>
 
@@ -19,6 +20,7 @@
     <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Persistence.Abstractions\Madorin.AI.Runtime.Persistence.Abstractions.csproj" />
     <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Persistence.Sqlite\Madorin.AI.Runtime.Persistence.Sqlite.csproj" />
     <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Persistence.Files\Madorin.AI.Runtime.Persistence.Files.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Services\Madorin.AI.Runtime.Services.csproj" />
   </ItemGroup>
 
 </Project>

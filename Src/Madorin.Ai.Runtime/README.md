@@ -30,8 +30,10 @@ Run 请求、工作区单绑定、恢复握手和工具幂等要求优先于实�
   `storage`、`ctl` 命令树和全局选项。
 - OpenAI、Anthropic、OpenAI Compatible、MAF、MEAI、SQLite 的版本基线。
 
-当前没有实现 Runtime 服务、Provider Adapter、持久化、Named Pipe、内置工具
-或三种模式的业务执行。未实现命令只提供参数解析和帮助信息。
+阶段 2 已实现 Runtime 服务、Windows Named Pipe/Unix Socket 传输、双向握手认证、
+控制/事件双通道、Blob staging、心跳重连、Host lease 和多实例进程边界。
+Provider Adapter、业务模式和后续阶段能力仍按执行步骤文档推进；未进入范围的命令会明确报告
+`NotImplemented`，不伪造成功。
 
 ## 目录
 

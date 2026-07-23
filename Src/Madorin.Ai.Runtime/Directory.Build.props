@@ -9,8 +9,6 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <IsAotCompatible>true</IsAotCompatible>
-    <!-- MAF/MEAI remain experimental. Remove these suppressions after their APIs reach GA. -->
-    <NoWarn>$(NoWarn);MAAI001;MAAIW001;MEAI001</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release' and '$(OutputType)' == 'Exe'">

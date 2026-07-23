@@ -6,5 +6,5 @@ public interface IAgentInvocationExecutor
 {
     public IAsyncEnumerable<RuntimeProviderEvent> ExecuteAsync(
         AgentInvocationRequest request,
-        CancellationToken cancellationToken = default);
+        CancellationToken ct = default);
 }

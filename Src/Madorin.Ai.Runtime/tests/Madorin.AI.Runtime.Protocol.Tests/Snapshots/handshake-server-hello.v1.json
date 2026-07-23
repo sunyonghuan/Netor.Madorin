@@ -1,0 +1,10 @@
+{
+  "$schema": "madorin.ai.runtime.protocol-snapshot/v1",
+  "protocolVersion": "1.0",
+  "messageType": "handshake.server_hello",
+  "payload": {
+    "runtimeInstanceId": "runtime-1",
+    "nonceS": "nonce-s",
+    "runtimeResponse": "proof-s"
+  }
+}

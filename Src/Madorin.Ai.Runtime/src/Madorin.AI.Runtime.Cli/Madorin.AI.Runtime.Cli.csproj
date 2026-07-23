@@ -2,8 +2,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Madorin.AI.Runtime.Contracts\Madorin.AI.Runtime.Contracts.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Orchestration.Abstractions\Madorin.AI.Runtime.Orchestration.Abstractions.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Services\Madorin.AI.Runtime.Services.csproj" />
     <ProjectReference Include="..\Madorin.AI.Runtime.Server\Madorin.AI.Runtime.Server.csproj" />
     <ProjectReference Include="..\Madorin.AI.Runtime.Client\Madorin.AI.Runtime.Client.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Persistence.Files\Madorin.AI.Runtime.Persistence.Files.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Persistence.Sqlite\Madorin.AI.Runtime.Persistence.Sqlite.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -12,7 +16,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <AssemblyName>ai-runtime</AssemblyName>
+    <AssemblyName>madorin</AssemblyName>
     <RootNamespace>Madorin.AI.Runtime.Cli</RootNamespace>
     <Version>0.1.0</Version>
     <TargetFramework>net10.0</TargetFramework>

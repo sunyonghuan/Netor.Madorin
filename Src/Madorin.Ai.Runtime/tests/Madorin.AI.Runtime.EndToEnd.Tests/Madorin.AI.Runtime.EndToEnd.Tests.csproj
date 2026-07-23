@@ -19,6 +19,8 @@
     <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Server\Madorin.AI.Runtime.Server.csproj" />
     <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Client\Madorin.AI.Runtime.Client.csproj" />
     <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Cli\Madorin.AI.Runtime.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Providers\Madorin.AI.Runtime.Providers.Abstractions\Madorin.AI.Runtime.Providers.Abstractions.csproj" />
+    <ProjectReference Include="..\..\samples\Madorin.AI.Runtime.SampleHost\Madorin.AI.Runtime.SampleHost.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

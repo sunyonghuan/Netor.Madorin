@@ -11,11 +11,13 @@ brands/
   publish.ps1          ← 统一发布入口（传 -Brand 参数执行）
   README.md            ← 本文档
   madorin/
-    madorin.json       ← 品牌配置
+    madorin.json       ← 品牌配置（身份 + 构建）
+    workbench.json     ← 界面/业务配置（总览页 KPI / 常用操作 / 模式介绍）
     brand.ico          ← 应用图标（用于 UI 主程序 + NativeHost）
     brand.png          ← 应用 Logo（用于界面内显示）
   sreamx/
     sreamx.json
+    workbench.json
     brand.ico
     brand.png
 ```
@@ -47,6 +49,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand 
 1. 在 `brands/` 下新建文件夹，命名为品牌 ID（小写英文）。
 2. 在文件夹内放置：
    - `{brand}.json` — 复制 `madorin.json` 修改各字段
+   - `workbench.json` — 复制 `madorin/workbench.json`，按行业改 KPI 与常用操作
    - `brand.ico` — 品牌图标（256×256 多尺寸 `.ico`）
    - `brand.png` — 品牌 Logo（建议 512×512 透明背景 PNG）
 3. 执行 `-ValidateOnly` 验证配置无误后再正式发布。
@@ -99,3 +102,72 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand 
 | `localPlatformApiBaseUrl` | | 本地联调时的平台 API 地址。默认：`http://localhost:5190`。 |
 | `productionPlatformApiBaseUrl` | | 生产环境平台 API 地址，打包后应用默认连接此地址。例：`https://platform.netor.me`。 |
 | `platformBaseUrlDescription` | | 应用内设置页面中该 API 地址选项的描述文本，面向最终用户展示。 |
+
+---
+
+## 界面/业务配置字段说明（`workbench.json`）
+
+界面与业务配置独立于 `{brand}.json`，用于驱动总览页等界面按品牌行业呈现不同内容。
+骨架代码不变，换品牌即换配置。完整设计见
+[总览页配置驱动方案](../../Docs/未来策划/界面策划/总览页配置驱动方案.md)。
+
+> 🆕 **当前为 v2（`schemaVersion: 2`）。** 总览页五层工作台，配置驱动 `newBusiness`（新建业务工作）
+> 与 `industry`（行业功能）两段；动作用 `invoke`（skill/plugin/command/task 四种 kind）表达，
+> 配 `capabilities` 能力别名层 + `agents` 内联定义。**权威字段说明见方案文档
+> [§9 v2 工作台配置模型](../../Docs/未来策划/界面策划/总览页配置驱动方案.md#9-v2工作台配置模型)。**
+> 下方 v1 字段表（KPI/quickActions）为历史保留。
+
+> ⚠️ **存放位置未定性。** 项目后期将整体移出重建，`workbench.json` 放在品牌目录内
+> 只是当前**候选之一**（便于跑通 schema），也可能改为独立配置仓 / 平台下发 /
+> 应用数据目录。这里的文件仅作**参考样例**。已定性的是配置的 schema 与驱动机制，
+> 不是路径。候选与权衡见方案文档 §5.0。
+
+### v1 历史字段（以下为 v1，实际以 §9 v2 为准）
+
+### 顶层
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `schemaVersion` | ✅ | 配置结构版本，当前为 `1`。 |
+| `brand` | ✅ | 品牌 ID，与文件夹名及 `{brand}.json` 的 `id` 一致。 |
+| `overview` | ✅ | 总览页配置段，见下。 |
+
+### `overview` 段
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `intro` | | 模式介绍文案，随行业不同。例：`面向软件工程开发的 AI 工作台`。 |
+| `kpis` | ✅ | KPI 仪表盘卡片数组，见下。 |
+| `quickActions` | ✅ | 常用操作品牌段数组（通用段由骨架固定注入），见下。 |
+
+### `kpis[]` 卡片
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `id` | ✅ | 卡片稳定标识。 |
+| `label` | ✅ | 卡片标签文字。 |
+| `icon` | ✅ | lucide 图标名（如 `list-checks`）。 |
+| `color` | | 主题色变量名：`ok` / `ac` / `warn` / `txm` 等。 |
+| `format` | | 数值格式：`number`（默认）/ `currency`。 |
+| `source` | ✅ | 数值来源，见"来源类型"。 |
+| `trend` | | 趋势小字来源，可加 `prefix` / `suffix` / `color`。 |
+
+### `quickActions[]` 操作
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `id` | ✅ | 操作稳定标识。 |
+| `name` | ✅ | 操作名。 |
+| `desc` | | 操作描述小字。 |
+| `icon` | ✅ | lucide 图标名。 |
+| `action` | ✅ | 点击行为，见"来源类型"（不使用 `platform`）。 |
+
+### 来源类型（`source` / `action` 的 `type`）
+
+| type | 字段 | 说明 |
+|------|------|------|
+| `builtin` | `metric` / `ref` | Runtime 内置指标或内置函数。 |
+| `command` | `ref` | 跑命令，解析输出为数值 / 触发行为。 |
+| `skill` | `ref` | 调技能取返回值 / 触发行为。 |
+| `platform` | `metric` | 运营平台 API 指标（仅 `source` 用）。 |
+| `static` | `text` | 固定文案（仅 `trend` 用）。 |

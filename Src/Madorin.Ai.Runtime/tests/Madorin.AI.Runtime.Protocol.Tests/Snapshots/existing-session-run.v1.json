@@ -1,0 +1,32 @@
+{
+  "$schema": "madorin.ai.runtime.protocol-snapshot/v1",
+  "protocolVersion": "1.0",
+  "messageType": "run.existing_session",
+  "payload": {
+    "sessionId": "session-1",
+    "runIdempotencyKey": "run-key-next",
+    "turnOverride": {
+      "selectionVersion": 4,
+      "mode": "Expert",
+      "defaultSelection": {
+        "providerId": "provider-2",
+        "modelId": "model-2"
+      },
+      "modeOptions": {
+        "mode": "expert",
+        "agent": {
+          "agentId": "agent-2",
+          "promptTemplateVersion": "v2",
+          "systemPrompt": "Override prompt"
+        }
+      },
+      "toolCatalogVersion": "catalog-v2"
+    },
+    "inputOverride": [
+      {
+        "type": "text",
+        "text": "next turn"
+      }
+    ]
+  }
+}

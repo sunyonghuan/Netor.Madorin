@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Madorin.AI.Runtime.Contracts\Madorin.AI.Runtime.Contracts.csproj" />
     <ProjectReference Include="..\Madorin.AI.Runtime.Transport.Abstractions\Madorin.AI.Runtime.Transport.Abstractions.csproj" />
+    <ProjectReference Include="..\Madorin.AI.Runtime.Transport.NamedPipes\Madorin.AI.Runtime.Transport.NamedPipes.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
