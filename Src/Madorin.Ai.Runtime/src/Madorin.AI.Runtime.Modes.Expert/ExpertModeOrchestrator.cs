@@ -476,6 +476,8 @@ public sealed class ExpertModeOrchestrator(
                 if (gatewayResult.Kind is ToolGatewayResultKind.NeedsPermission
                     or ToolGatewayResultKind.NeedsApproval)
                 {
+                    runSequence = await _outbox.GetNextRunSequenceAsync(runId, ct)
+                        .ConfigureAwait(false);
                     await _sessionRepo.TransitionRunStatusAsync(
                         runId,
                         RunStatus.WaitingForTool,
@@ -492,6 +494,8 @@ public sealed class ExpertModeOrchestrator(
                         gatewayResult,
                         _toolCatalogSnapshot,
                         ct).ConfigureAwait(false);
+                    runSequence = await _outbox.GetNextRunSequenceAsync(runId, ct)
+                        .ConfigureAwait(false);
                     await _sessionRepo.TransitionRunStatusAsync(
                         runId,
                         RunStatus.WaitingForApproval,

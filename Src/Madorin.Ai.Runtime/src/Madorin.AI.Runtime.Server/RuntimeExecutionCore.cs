@@ -219,13 +219,16 @@ internal sealed class RuntimeExecutionCore(
                 repository,
                 outbox,
                 _agentContextComposer,
+                emitAccepted: false,
+                startRunSequence: 1,
                 toolStateStore: toolStateStore,
                 toolGateway: toolGateway,
                 toolCatalogSnapshot: toolCatalogSnapshot,
                 runtimeLimits: _runtimeLimits,
                 toolConsentCoordinator: toolConsentCoordinator,
                 workRepo: workRepo,
-                connection: repositoryConnection),
+                connection: repositoryConnection,
+                credentialRefreshHandler: credentialRefreshHandler),
 
             _ => throw new NotSupportedException(
                 $"Runtime mode '{request.Mode}' is not supported.")

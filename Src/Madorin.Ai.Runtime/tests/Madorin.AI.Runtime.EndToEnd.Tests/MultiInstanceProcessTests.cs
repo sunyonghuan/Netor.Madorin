@@ -28,6 +28,15 @@ public sealed class MultiInstanceProcessTests
             await processB.ReconnectAsync(0).ConfigureAwait(false);
             await processB.ReconnectAsync(1).ConfigureAwait(false);
 
+            var cliWorkspace = Path.Combine(root, "terminal-c");
+            Directory.CreateDirectory(cliWorkspace);
+            await RunIndependentCliAsync(runtimePath, cliWorkspace).ConfigureAwait(false);
+
+            await processA.ReconnectAsync(0).ConfigureAwait(false);
+            await processA.ReconnectAsync(1).ConfigureAwait(false);
+            await processB.ReconnectAsync(0).ConfigureAwait(false);
+            await processB.ReconnectAsync(1).ConfigureAwait(false);
+
             await AssertConnectionFailsAsync(
                 hostA.Runtimes[0] with { Secret = hostB.Runtimes[0].Secret },
                 "wrong secret").ConfigureAwait(false);
@@ -60,12 +69,50 @@ public sealed class MultiInstanceProcessTests
         }
     }
 
+    private static async Task RunIndependentCliAsync(
+        string runtimePath,
+        string workspace)
+    {
+        var startInfo = new ProcessStartInfo("dotnet")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            WorkingDirectory = workspace
+        };
+        startInfo.ArgumentList.Add(runtimePath);
+        startInfo.ArgumentList.Add("memory");
+        startInfo.ArgumentList.Add("add");
+        startInfo.ArgumentList.Add("project");
+        startInfo.ArgumentList.Add("--workspace");
+        startInfo.ArgumentList.Add(workspace);
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("The independent CLI process could not start.");
+        var standardOutput = process.StandardOutput.ReadToEndAsync();
+        var standardError = process.StandardError.ReadToEndAsync();
+        await process.StandardInput.WriteLineAsync("terminal-c-memory").ConfigureAwait(false);
+        process.StandardInput.Close();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+        var output = await standardOutput.ConfigureAwait(false);
+        var error = await standardError.ConfigureAwait(false);
+
+        Assert.AreEqual(0, process.ExitCode, $"{output}\n{error}");
+        var projectMemory = await File.ReadAllTextAsync(
+            Path.Combine(workspace, ".madorin", "memory.md"),
+            timeout.Token).ConfigureAwait(false);
+        Assert.Contains("- terminal-c-memory\n", projectMemory, StringComparison.Ordinal);
+    }
+
     private static async Task AssertConnectionFailsAsync(
         RuntimeEndpoint endpoint,
         string scenario)
     {
         await using var client = CreateClient(endpoint, $"negative-{Guid.NewGuid():N}");
-        await Assert.ThrowsExactlyAsync<InvalidDataException>(
+        await Assert.ThrowsExactlyAsync<RuntimeClientAuthenticationException>(
             async () => await client.ConnectAsync().ConfigureAwait(false),
             scenario).ConfigureAwait(false);
     }

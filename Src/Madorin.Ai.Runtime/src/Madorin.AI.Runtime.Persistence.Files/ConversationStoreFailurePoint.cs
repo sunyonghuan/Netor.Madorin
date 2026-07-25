@@ -9,5 +9,7 @@ public enum ConversationStoreFailurePoint
     AfterLineTerminator,
     AfterFileFlush,
     BeforeIndexWrite,
-    AfterIndexWrite
+    AfterIndexWrite,
+    BeforeDeletionArtifactsMove,
+    AfterDeletionArtifactsMove
 }

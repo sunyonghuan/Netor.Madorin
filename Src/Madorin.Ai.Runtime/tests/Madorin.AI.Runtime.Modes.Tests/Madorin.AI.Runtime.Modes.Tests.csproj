@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Modes.Meeting\Madorin.AI.Runtime.Modes.Meeting.csproj" />
     <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Modes.Work\Madorin.AI.Runtime.Modes.Work.csproj" />
     <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Services\Madorin.AI.Runtime.Services.csproj" />
+    <ProjectReference Include="..\..\src\Madorin.AI.Runtime.Tools.Builtin\Madorin.AI.Runtime.Tools.Builtin.csproj" />
   </ItemGroup>
 
 </Project>

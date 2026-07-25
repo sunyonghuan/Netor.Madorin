@@ -20,6 +20,9 @@ public sealed class CliVersionTests
         using var document = JsonDocument.Parse(json);
         Assert.AreEqual(
             ProtocolVersions.Current,
-            document.RootElement.GetProperty("protocolVersion").GetString());
+            document.RootElement
+                .GetProperty("data")
+                .GetProperty("protocolVersion")
+                .GetString());
     }
 }

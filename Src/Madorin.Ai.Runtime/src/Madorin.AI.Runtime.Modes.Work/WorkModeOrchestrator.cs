@@ -22,17 +22,24 @@ namespace Madorin.AI.Runtime.Modes.Work;
 public sealed class WorkModeOrchestrator : IModeOrchestrator
 {
     private const string PlanProjectionVersion = "work-plan-v1";
-    private const string StepProjectionVersion = "work-step-v1";
+    private const string StepProjectionVersion = "work-step-v2";
 
     private readonly Func<string, IRuntimeProviderAdapter> _providerFactory;
+    private readonly ConversationStore _store;
     private readonly SqliteSessionRepository _sessionRepo;
     private readonly SqliteWorkRepository _workRepo;
     private readonly SqliteEventOutbox _outbox;
     private readonly AgentContextComposer? _agentContextComposer;
+    private readonly bool _emitAccepted;
+    private readonly long _startRunSequence;
     private readonly IToolStateStore? _toolStateStore;
     private readonly ToolGateway? _toolGateway;
     private readonly ToolCatalogSnapshot? _toolCatalogSnapshot;
     private readonly ToolConsentCoordinator? _toolConsentCoordinator;
+    private readonly Func<ApprovalRequest, CancellationToken, Task<ApprovalResponse>>?
+        _workflowApprovalHandler;
+    private readonly Func<CredentialsRefreshRequestedEvent, CancellationToken, Task<bool>>?
+        _credentialRefreshHandler;
     private readonly RuntimeLimits _runtimeLimits;
 
     public WorkModeOrchestrator(
@@ -41,23 +48,36 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
         SqliteSessionRepository sessionRepo,
         SqliteEventOutbox outbox,
         AgentContextComposer? agentContextComposer = null,
+        bool emitAccepted = true,
+        long startRunSequence = 0,
         IToolStateStore? toolStateStore = null,
         ToolGateway? toolGateway = null,
         ToolCatalogSnapshot? toolCatalogSnapshot = null,
         RuntimeLimits? runtimeLimits = null,
         ToolConsentCoordinator? toolConsentCoordinator = null,
         SqliteWorkRepository? workRepo = null,
-        SqliteConnection? connection = null)
+        SqliteConnection? connection = null,
+        Func<ApprovalRequest, CancellationToken, Task<ApprovalResponse>>?
+            workflowApprovalHandler = null,
+        Func<CredentialsRefreshRequestedEvent, CancellationToken, Task<bool>>?
+            credentialRefreshHandler = null)
     {
         _providerFactory = providerFactory ?? throw new ArgumentNullException(nameof(providerFactory));
-        ArgumentNullException.ThrowIfNull(store);
+        _store = store ?? throw new ArgumentNullException(nameof(store));
         _sessionRepo = sessionRepo ?? throw new ArgumentNullException(nameof(sessionRepo));
         _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _agentContextComposer = agentContextComposer;
+        _emitAccepted = emitAccepted;
+        _startRunSequence = startRunSequence;
         _toolStateStore = toolStateStore;
         _toolGateway = toolGateway;
         _toolCatalogSnapshot = toolCatalogSnapshot;
         _toolConsentCoordinator = toolConsentCoordinator;
+        _workflowApprovalHandler = workflowApprovalHandler
+            ?? (toolConsentCoordinator is { CanRequestApproval: true }
+                ? toolConsentCoordinator.RequestWorkflowApprovalAsync
+                : null);
+        _credentialRefreshHandler = credentialRefreshHandler;
         _runtimeLimits = runtimeLimits ?? new RuntimeLimits(
             MaxToolRounds: 8,
             MaxToolCallsPerRound: 8,
@@ -105,9 +125,13 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
             ct).ConfigureAwait(false);
         if (completedEarly is not null)
         {
-            long earlySequence = 0;
-            yield return await CreateAcceptedEnvelopeAsync(
-                runId, sessionId, runtimeInstanceId, earlySequence++, ct).ConfigureAwait(false);
+            long earlySequence = _startRunSequence;
+            if (_emitAccepted)
+            {
+                yield return await CreateAcceptedEnvelopeAsync(
+                    runId, sessionId, runtimeInstanceId, earlySequence++, ct).ConfigureAwait(false);
+            }
+
             var replayAgent = options.AvailableAgents[0];
             var replayInvocation = await CreateInvocationRequestAsync(
                 runId, sessionId, request, replayAgent, StepProjectionVersion, ct,
@@ -152,9 +176,12 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
             plan: null,
             ct).ConfigureAwait(false);
 
-        long runSequence = 0;
-        yield return await CreateAcceptedEnvelopeAsync(
-            runId, sessionId, runtimeInstanceId, runSequence++, ct).ConfigureAwait(false);
+        long runSequence = _startRunSequence;
+        if (_emitAccepted)
+        {
+            yield return await CreateAcceptedEnvelopeAsync(
+                runId, sessionId, runtimeInstanceId, runSequence++, ct).ConfigureAwait(false);
+        }
 
         var managerInvocation = await CreateInvocationRequestAsync(
             runId, sessionId, request, options.GeneralManager, PlanProjectionVersion, ct)
@@ -179,6 +206,14 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
                         sessionId, WorkSessionStatus.Failed, ct).ConfigureAwait(false);
                     throw new InvalidOperationException(
                         $"General-manager invocation '{failed.InvocationId}' failed: {failed.Error.Message}");
+                case WorkRunStatusProviderEvent statusChanged:
+                    yield return await CreateStatusEnvelopeAsync(
+                        runtimeInstanceId,
+                        runId,
+                        runSequence++,
+                        statusChanged.Status,
+                        ct).ConfigureAwait(false);
+                    break;
             }
         }
 
@@ -190,23 +225,27 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
             ?? WorkPlanValidator.CreateFallbackPlan(
                 goal, options, planVersion: "1", stepId: fallbackStepId);
         plan = WorkPlanValidator.ValidateOrThrow(plan, options);
-
-        await _workRepo.UpsertSessionAsync(
+        var canonicalMessages = await AppendPlanRevisionAsync(
+            sessionId,
+            managerInvocation.InvocationId,
+            options.GeneralManager.AgentId,
+            plan,
+            ct).ConfigureAwait(false);
+        await _workRepo.SavePlanRevisionAsync(
             sessionId,
             runId,
-            WorkSessionStatus.Executing,
             options.GeneralManager.AgentId,
             policy,
             options.EffectiveContextPolicy,
-            plan.PlanVersion,
-            planMessageId: null,
             plan,
+            canonicalMessages.PlanMessageId,
+            canonicalMessages.StepMessageIds,
             ct).ConfigureAwait(false);
-        await _workRepo.SavePlanStepsAsync(sessionId, runId, plan, ct).ConfigureAwait(false);
 
         var agentById = options.AvailableAgents.ToDictionary(
             static a => a.AgentId, StringComparer.Ordinal);
         var completedCount = 0;
+        var approvedLoopRisks = new HashSet<string>(StringComparer.Ordinal);
 
         while (true)
         {
@@ -271,13 +310,24 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
                 var childInvocation = await CreateInvocationRequestAsync(
                     runId, sessionId, request, agent, StepProjectionVersion, ct,
                     stepGoal: readyStep.Goal ?? goal,
+                    parentAgentId: options.GeneralManager.AgentId,
                     parentInvocationId: managerInvocation.InvocationId,
                     workStepId: readyStep.StepId,
-                    workPlanVersion: readyStep.PlanVersion).ConfigureAwait(false);
+                    workPlanVersion: readyStep.PlanVersion,
+                    workPlan: plan,
+                    currentStepState: readyStep,
+                    planSteps: steps).ConfigureAwait(false);
 
                 if (completedResult is null)
                 {
-                    var started = await _sessionRepo.TryStartWorkStepAsync(
+                    var childSnapshotJson = JsonSerializer.Serialize(
+                        childInvocation.Snapshot,
+                        RuntimeJsonContext.Default.InvocationSnapshot);
+                    var checkpointJson = CreateStepCheckpointJson(
+                        readyStep,
+                        childInvocation.InvocationId,
+                        stepInputHash);
+                    var started = await _sessionRepo.TryStartWorkStepWithCheckpointAsync(
                         readyStep.StepId,
                         readyStep.PlanVersion,
                         runId,
@@ -285,6 +335,9 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
                         readyStep.TargetAgentId,
                         stepInputHash,
                         childInvocation.InvocationId,
+                        childInvocation.Snapshot,
+                        childSnapshotJson,
+                        checkpointJson,
                         ct).ConfigureAwait(false);
                     if (!started)
                     {
@@ -299,8 +352,44 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
                     }
                 }
 
+                var loopRisk = DetectLoopRisk(readyStep, steps, policy);
+                if (completedResult is null
+                    && loopRisk is not null
+                    && approvedLoopRisks.Add(loopRisk.ApprovalKey))
+                {
+                    var approved = await RequestWorkflowApprovalAsync(
+                        sessionId,
+                        runId,
+                        readyStep,
+                        childInvocation,
+                        loopRisk.Reason,
+                        ct).ConfigureAwait(false);
+                    if (!approved)
+                    {
+                        await _sessionRepo.FailWorkStepAsync(
+                            readyStep.StepId,
+                            readyStep.PlanVersion,
+                            loopRisk.Reason,
+                            ct).ConfigureAwait(false);
+                        await _workRepo.UpdateSessionStatusAsync(
+                            sessionId,
+                            WorkSessionStatus.Failed,
+                            ct).ConfigureAwait(false);
+                        throw new InvalidOperationException(
+                            $"The host denied continuation for work step '{readyStep.StepId}': {loopRisk.Reason}");
+                    }
+                }
+
                 yield return await CreateInvocationStartedEnvelopeAsync(
                     childInvocation, runtimeInstanceId, runSequence++, ct).ConfigureAwait(false);
+                if (IsProjectionAdjusted(childInvocation.Snapshot.ContextProjection))
+                {
+                    yield return await CreateContextProjectionAdjustedEnvelopeAsync(
+                        childInvocation,
+                        runtimeInstanceId,
+                        runSequence++,
+                        ct).ConfigureAwait(false);
+                }
 
                 if (completedResult is not null)
                 {
@@ -345,9 +434,12 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
                         case InvocationFailedProviderEvent failed:
                             stepFailed = true;
                             stepError = failed.Error;
-                            await _sessionRepo.FailWorkStepAsync(
-                                readyStep.StepId, readyStep.PlanVersion, failed.Error.Message, ct)
-                                .ConfigureAwait(false);
+                            if (policy.FailurePolicy is not WorkStepFailurePolicy.AskHost)
+                            {
+                                await _sessionRepo.FailWorkStepAsync(
+                                    readyStep.StepId, readyStep.PlanVersion, failed.Error.Message, ct)
+                                    .ConfigureAwait(false);
+                            }
                             yield return await CreateInvocationFailedEnvelopeAsync(
                                 runId,
                                 runtimeInstanceId,
@@ -355,8 +447,7 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
                                 failed.Error,
                                 runSequence++,
                                 ct).ConfigureAwait(false);
-                            if (policy.FailurePolicy is WorkStepFailurePolicy.Stop
-                                or WorkStepFailurePolicy.AskHost)
+                            if (policy.FailurePolicy is WorkStepFailurePolicy.Stop)
                             {
                                 await _workRepo.UpdateSessionStatusAsync(
                                     sessionId, WorkSessionStatus.Failed, ct).ConfigureAwait(false);
@@ -364,6 +455,14 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
                                     $"Work-step invocation '{failed.InvocationId}' failed: {failed.Error.Message}");
                             }
 
+                            break;
+                        case WorkRunStatusProviderEvent statusChanged:
+                            yield return await CreateStatusEnvelopeAsync(
+                                runtimeInstanceId,
+                                runId,
+                                runSequence++,
+                                statusChanged.Status,
+                                ct).ConfigureAwait(false);
                             break;
                     }
 
@@ -375,6 +474,37 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
 
                 if (stepFailed)
                 {
+                    if (policy.FailurePolicy is WorkStepFailurePolicy.AskHost)
+                    {
+                        var reason = stepError?.Message ?? "Work step failed.";
+                        var approved = await RequestWorkflowApprovalAsync(
+                            sessionId,
+                            runId,
+                            readyStep,
+                            childInvocation,
+                            reason,
+                            ct).ConfigureAwait(false);
+                        await _sessionRepo.FailWorkStepAsync(
+                            readyStep.StepId,
+                            readyStep.PlanVersion,
+                            reason,
+                            ct).ConfigureAwait(false);
+                        if (!approved)
+                        {
+                            await _workRepo.UpdateSessionStatusAsync(
+                                sessionId, WorkSessionStatus.Failed, ct).ConfigureAwait(false);
+                            throw new InvalidOperationException(
+                                $"The host stopped work step '{readyStep.StepId}' after failure: {reason}");
+                        }
+
+                        await _workRepo.ResetStepForRetryAsync(
+                            readyStep.StepId,
+                            readyStep.PlanVersion,
+                            reason,
+                            ct).ConfigureAwait(false);
+                        continue;
+                    }
+
                     if (policy.FailurePolicy is WorkStepFailurePolicy.Retry)
                     {
                         if (readyStep.AttemptCount < policy.MaxRetriesPerStep)
@@ -384,9 +514,10 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
                                 readyStep.PlanVersion,
                                 stepError?.Message ?? "Work step failed.",
                                 ct).ConfigureAwait(false);
-                            if (policy.RetryBackoffMilliseconds > 0)
+                            var retryDelay = ComputeRetryDelay(policy, readyStep.AttemptCount);
+                            if (retryDelay > TimeSpan.Zero)
                             {
-                                await Task.Delay(policy.RetryBackoffMilliseconds, ct)
+                                await Task.Delay(retryDelay, ct)
                                     .ConfigureAwait(false);
                             }
 
@@ -563,6 +694,286 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
         return sb.Length == 0 ? "Complete the assigned work." : sb.ToString();
     }
 
+    private async Task<(string PlanMessageId, IReadOnlyDictionary<string, string> StepMessageIds)>
+        AppendPlanRevisionAsync(
+            string sessionId,
+            string managerInvocationId,
+            string managerAgentId,
+            WorkPlanDraft plan,
+            CancellationToken ct)
+    {
+        var planJson = JsonSerializer.Serialize(plan, RuntimeJsonContext.Default.WorkPlanDraft);
+        var planRecord = await AppendCanonicalWorkBodyAsync(
+            sessionId,
+            managerInvocationId,
+            managerAgentId,
+            planJson,
+            kind: "work.plan",
+            plan.PlanVersion,
+            stepId: null,
+            ct).ConfigureAwait(false);
+
+        var stepMessageIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var step in plan.Steps)
+        {
+            var stepJson = JsonSerializer.Serialize(
+                step,
+                RuntimeJsonContext.Default.WorkPlanStepDraft);
+            var stepRecord = await AppendCanonicalWorkBodyAsync(
+                sessionId,
+                managerInvocationId,
+                managerAgentId,
+                stepJson,
+                kind: "work.step",
+                plan.PlanVersion,
+                step.StepId,
+                ct).ConfigureAwait(false);
+            stepMessageIds.Add(step.StepId, stepRecord.MessageId);
+        }
+
+        return (planRecord.MessageId, stepMessageIds);
+    }
+
+    private async Task<ConversationRecordV1> AppendCanonicalWorkBodyAsync(
+        string sessionId,
+        string invocationId,
+        string agentId,
+        string bodyJson,
+        string kind,
+        string planVersion,
+        string? stepId,
+        CancellationToken ct)
+    {
+        var content = JsonSerializer.SerializeToElement(
+            new ContentBlock[] { new TextContentBlock(bodyJson) },
+            RuntimeJsonContext.Default.ContentBlockArray);
+        var metadata = CreateWorkMessageMetadata(kind, planVersion, stepId);
+        return await _store.AppendMessageAsync(
+            sessionId,
+            Mode.ToString(),
+            new ConversationMessageDraft(
+                invocationId,
+                agentId,
+                "assistant",
+                content,
+                DateTimeOffset.UtcNow,
+                SummaryMetadata: metadata),
+            ct).ConfigureAwait(false);
+    }
+
+    private static JsonElement CreateWorkMessageMetadata(
+        string kind,
+        string planVersion,
+        string? stepId)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("kind", kind);
+            writer.WriteString("planVersion", planVersion);
+            if (stepId is not null)
+            {
+                writer.WriteString("stepId", stepId);
+            }
+
+            writer.WriteEndObject();
+        }
+
+        using var document = JsonDocument.Parse(stream.ToArray());
+        return document.RootElement.Clone();
+    }
+
+    private static string CreateStepCheckpointJson(
+        WorkStepSnapshot step,
+        string invocationId,
+        string stepInputHash)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("kind", "work.step.running");
+            writer.WriteString("stepId", step.StepId);
+            writer.WriteString("planVersion", step.PlanVersion);
+            writer.WriteString("invocationId", invocationId);
+            writer.WriteString("stepInputHash", stepInputHash);
+            writer.WriteString("stepMessageId", step.StepMessageId);
+            writer.WriteStartArray("dependsOn");
+            foreach (var dependency in step.DependsOn ?? [])
+            {
+                writer.WriteStringValue(dependency);
+            }
+
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    private async Task<bool> RequestWorkflowApprovalAsync(
+        string sessionId,
+        string runId,
+        WorkStepSnapshot step,
+        AgentInvocationRequest invocation,
+        string reason,
+        CancellationToken ct)
+    {
+        var approvalRequestId = CreateWorkflowApprovalRequestId(
+            runId,
+            step.StepId,
+            step.PlanVersion,
+            step.AttemptCount + 1,
+            reason);
+        var correlationId = Guid.NewGuid().ToString("N");
+        var request = new ApprovalRequest(
+            correlationId,
+            approvalRequestId,
+            $"work:{step.StepId}:{step.AttemptCount + 1}",
+            runId,
+            invocation.AgentId,
+            invocation.ParentAgentId,
+            "work.failure-policy",
+            ComputeHash(reason),
+            ToolRiskLevel.Write,
+            $"work-step:{step.StepId}",
+            reason,
+            sessionId,
+            invocation.InvocationId,
+            invocation.Snapshot.ParentInvocationId,
+            step.StepId,
+            step.PlanVersion);
+        var requestJson = JsonSerializer.Serialize(
+            request,
+            RuntimeJsonContext.Default.ApprovalRequest);
+        await _workRepo.MarkStepWaitingForApprovalAsync(
+            sessionId,
+            step.StepId,
+            step.PlanVersion,
+            approvalRequestId,
+            requestJson,
+            ct).ConfigureAwait(false);
+
+        if (_workflowApprovalHandler is null)
+        {
+            await _workRepo.MarkRequiresManualInterventionAsync(
+                sessionId,
+                step.StepId,
+                step.PlanVersion,
+                "Workflow approval is required but the host approval channel is unavailable.",
+                ct).ConfigureAwait(false);
+            throw new InvalidOperationException(
+                "Workflow approval is required but the host approval channel is unavailable.");
+        }
+
+        var response = await _workflowApprovalHandler(request, ct)
+            .ConfigureAwait(false);
+        if (!string.Equals(response.CorrelationId, correlationId, StringComparison.Ordinal)
+            || !string.Equals(response.ApprovalRequestId, approvalRequestId, StringComparison.Ordinal))
+        {
+            await _workRepo.MarkRequiresManualInterventionAsync(
+                sessionId,
+                step.StepId,
+                step.PlanVersion,
+                "The host returned a workflow approval response for another request.",
+                ct).ConfigureAwait(false);
+            throw new InvalidOperationException(
+                "The host returned a workflow approval response for another request.");
+        }
+
+        await _workRepo.MarkStepRunningAfterApprovalAsync(
+            sessionId,
+            step.StepId,
+            step.PlanVersion,
+            approvalRequestId,
+            ct).ConfigureAwait(false);
+        return response.Decision is ToolAuthorizationDecision.Granted;
+    }
+
+    private static WorkLoopRisk? DetectLoopRisk(
+        WorkStepSnapshot current,
+        IReadOnlyList<WorkStepSnapshot> allSteps,
+        WorkflowPolicy policy)
+    {
+        if (policy.LoopDetection is WorkLoopDetection.Disabled
+            || !policy.RequireHumanConfirmationOnLoop)
+        {
+            return null;
+        }
+
+        if (current.Depth >= policy.MaxAgentDepth)
+        {
+            return new WorkLoopRisk(
+                $"depth:{current.StepId}:{current.PlanVersion}",
+                $"Step '{current.StepId}' reached the configured Agent depth threshold {policy.MaxAgentDepth}.");
+        }
+
+        var repeatedGoal = allSteps
+            .Where(step => string.Equals(step.TargetAgentId, current.TargetAgentId, StringComparison.Ordinal)
+                && string.Equals(
+                    NormalizeGoal(step.Goal),
+                    NormalizeGoal(current.Goal),
+                    StringComparison.Ordinal))
+            .OrderBy(static step => step.StepId, StringComparer.Ordinal)
+            .ToArray();
+        if (repeatedGoal.Length > 1
+            && !string.Equals(repeatedGoal[0].StepId, current.StepId, StringComparison.Ordinal))
+        {
+            return new WorkLoopRisk(
+                $"goal:{current.TargetAgentId}:{NormalizeGoal(current.Goal)}",
+                $"Step '{current.StepId}' repeats the same target and normalized goal without a distinct objective.");
+        }
+
+        if (current.AttemptCount > Math.Max(1, policy.MaxRetriesPerStep))
+        {
+            return new WorkLoopRisk(
+                $"progress:{current.StepId}:{current.PlanVersion}:{current.AttemptCount}",
+                $"Step '{current.StepId}' is being attempted again without a completed output.");
+        }
+
+        return null;
+    }
+
+    private static TimeSpan ComputeRetryDelay(WorkflowPolicy policy, int completedAttempts)
+    {
+        if (policy.RetryBackoffMilliseconds <= 0)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var exponent = Math.Clamp(completedAttempts, 0, 6);
+        var milliseconds = Math.Min(
+            60_000L,
+            checked((long)policy.RetryBackoffMilliseconds * (1L << exponent)));
+        return TimeSpan.FromMilliseconds(milliseconds);
+    }
+
+    private static string CreateWorkflowApprovalRequestId(
+        string runId,
+        string stepId,
+        string planVersion,
+        int attemptNumber,
+        string reason)
+    {
+        var identity = $"{runId}\n{stepId}\n{planVersion}\n{attemptNumber}\n{reason}";
+        return $"work-approval-{Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(identity)))}";
+    }
+
+    private static string NormalizeGoal(string? goal) =>
+        string.Join(
+            ' ',
+            (goal ?? string.Empty)
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            .ToUpperInvariant();
+
+    private sealed record WorkLoopRisk(string ApprovalKey, string Reason);
+
+    private sealed record WorkRunStatusProviderEvent(
+        string InvocationId,
+        RunStatus Status) : RuntimeProviderEvent(InvocationId);
+
     private Task<RuntimeEventEnvelope> CreateAcceptedEnvelopeAsync(
         string runId, string sessionId, string runtimeInstanceId, long runSequence, CancellationToken ct) =>
         CreateEnvelopeAsync(
@@ -574,6 +985,21 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
         CreateEnvelopeAsync(
             runtimeInstanceId, runId, runSequence, MessageTypes.RunCompleted,
             new RunCompletedEvent(runId, sessionId), RuntimeJsonContext.Default.RunCompletedEvent, ct);
+
+    private Task<RuntimeEventEnvelope> CreateStatusEnvelopeAsync(
+        string runtimeInstanceId,
+        string runId,
+        long runSequence,
+        RunStatus status,
+        CancellationToken ct) =>
+        CreateEnvelopeAsync(
+            runtimeInstanceId,
+            runId,
+            runSequence,
+            MessageTypes.RunStatusChanged,
+            new RunStatusChangedEvent(runId, status.ToString()),
+            RuntimeJsonContext.Default.RunStatusChangedEvent,
+            ct);
 
     private async Task<RuntimeEventEnvelope> CreateInvocationStartedEnvelopeAsync(
         AgentInvocationRequest request,
@@ -606,6 +1032,40 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
             runtimeInstanceId, runId, runSequence, MessageTypes.InvocationCompleted,
             new InvocationCompletedEvent(invocationId),
             RuntimeJsonContext.Default.InvocationCompletedEvent, ct);
+
+    private Task<RuntimeEventEnvelope> CreateContextProjectionAdjustedEnvelopeAsync(
+        AgentInvocationRequest request,
+        string runtimeInstanceId,
+        long runSequence,
+        CancellationToken ct)
+    {
+        var projection = request.Snapshot.ContextProjection
+            ?? throw new InvalidOperationException(
+                $"Invocation '{request.InvocationId}' has no context-projection snapshot.");
+        return CreateEnvelopeAsync(
+            runtimeInstanceId,
+            request.RunId,
+            runSequence,
+            MessageTypes.ContextProjectionAdjusted,
+            new ContextProjectionAdjustedEvent(
+                request.InvocationId,
+                projection.DroppedMessageCount,
+                projection.IncludedMessageCount,
+                projection.EstimatedTokens,
+                projection.EstimateSource,
+                projection.Strategy,
+                projection.RetainedItems,
+                projection.TokenLimit,
+                projection.SummarizedUnitCount),
+            RuntimeJsonContext.Default.ContextProjectionAdjustedEvent,
+            ct);
+    }
+
+    private static bool IsProjectionAdjusted(ContextProjectionSnapshot? projection) =>
+        projection is not null
+        && (projection.DroppedMessageCount > 0
+            || projection.SummarizedUnitCount > 0
+            || !string.Equals(projection.Strategy, "Full", StringComparison.Ordinal));
 
     private Task<RuntimeEventEnvelope> CreateInvocationFailedEnvelopeAsync(
         string runId,
@@ -669,43 +1129,127 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
                 HasIrreversibleToolSideEffects: hasIrreversibleToolSideEffects,
                 CancellationToken: ct);
 
-            var assistantContent = new List<ContentBlock>();
-            RuntimeError? failure = null;
+            List<ContentBlock> assistantContent;
+            RuntimeError? failure;
             var completed = false;
-            await foreach (var providerEvent in provider.CompleteStreamingAsync(providerRequest, ct)
-                .ConfigureAwait(false))
+            for (var providerAttempt = 0; ; providerAttempt++)
             {
-                switch (providerEvent)
+                assistantContent = [];
+                failure = null;
+                completed = false;
+                var hasObservedProviderOutput = false;
+                var attemptRequest = providerRequest.CreateAttempt(providerAttempt);
+                await foreach (var providerEvent in provider.CompleteStreamingAsync(attemptRequest, ct)
+                    .ConfigureAwait(false))
                 {
-                    case TextDeltaProviderEvent textDelta:
-                        AccumulateAssistantContent(assistantContent, textDelta);
-                        yield return textDelta;
+                    switch (providerEvent)
+                    {
+                        case TextDeltaProviderEvent textDelta:
+                            hasObservedProviderOutput = true;
+                            AccumulateAssistantContent(assistantContent, textDelta);
+                            yield return textDelta;
+                            break;
+                        case ReasoningDeltaProviderEvent reasoningDelta:
+                            hasObservedProviderOutput = true;
+                            AccumulateAssistantContent(assistantContent, reasoningDelta);
+                            break;
+                        case ToolCallDeltaProviderEvent:
+                            hasObservedProviderOutput = true;
+                            break;
+                        case ToolCallCompleteProviderEvent toolCall:
+                            hasObservedProviderOutput = true;
+                            AccumulateAssistantContent(assistantContent, toolCall);
+                            yield return toolCall;
+                            break;
+                        case UsageUpdatedProviderEvent:
+                            hasObservedProviderOutput = true;
+                            break;
+                        case InvocationCompletedProviderEvent:
+                            completed = true;
+                            break;
+                        case InvocationFailedProviderEvent failed:
+                            failure = failed.Error;
+                            break;
+                    }
+
+                    if (failure is not null)
+                    {
                         break;
-                    case ReasoningDeltaProviderEvent reasoningDelta:
-                        AccumulateAssistantContent(assistantContent, reasoningDelta);
-                        break;
-                    case ToolCallCompleteProviderEvent toolCall:
-                        AccumulateAssistantContent(assistantContent, toolCall);
-                        yield return toolCall;
-                        break;
-                    case InvocationCompletedProviderEvent:
-                        completed = true;
-                        break;
-                    case InvocationFailedProviderEvent failed:
-                        failure = failed.Error;
-                        yield return failed;
-                        break;
+                    }
                 }
 
-                if (failure is not null)
+                if (failure is null)
                 {
+                    break;
+                }
+
+                if (providerAttempt != 0
+                    || !IsAuthenticationFailure(failure)
+                    || !ProviderRetryPolicy.CanRetry(providerRequest, hasObservedProviderOutput)
+                    || _credentialRefreshHandler is null)
+                {
+                    yield return new InvocationFailedProviderEvent(request.InvocationId, failure);
                     yield break;
                 }
-            }
 
-            if (failure is not null)
-            {
-                yield break;
+                await _sessionRepo.TransitionRunStatusAsync(
+                    request.RunId,
+                    RunStatus.Running,
+                    RunStatus.WaitingForCredentials,
+                    ct).ConfigureAwait(false);
+                await _workRepo.MarkCredentialsWaitAsync(
+                    request.SessionId,
+                    request.Snapshot.WorkStepId,
+                    request.Snapshot.WorkPlanVersion,
+                    ct).ConfigureAwait(false);
+                yield return new WorkRunStatusProviderEvent(
+                    request.InvocationId,
+                    RunStatus.WaitingForCredentials);
+
+                bool refreshed;
+                try
+                {
+                    refreshed = await _credentialRefreshHandler(
+                            new CredentialsRefreshRequestedEvent(
+                                request.RunId,
+                                request.ProviderId,
+                                "Unauthorized"),
+                            ct)
+                        .ConfigureAwait(false);
+                }
+                catch
+                {
+                    await _workRepo.MarkSessionInterruptedAsync(
+                            request.SessionId,
+                            "Provider credential refresh was interrupted.",
+                            CancellationToken.None)
+                        .ConfigureAwait(false);
+                    throw;
+                }
+
+                await _workRepo.MarkCredentialsWaitEndedAsync(
+                        request.SessionId,
+                        request.Snapshot.WorkStepId,
+                        request.Snapshot.WorkPlanVersion,
+                        ct)
+                    .ConfigureAwait(false);
+                await _sessionRepo.TransitionRunStatusAsync(
+                    request.RunId,
+                    RunStatus.WaitingForCredentials,
+                    RunStatus.Running,
+                    ct).ConfigureAwait(false);
+                yield return new WorkRunStatusProviderEvent(
+                    request.InvocationId,
+                    RunStatus.Running);
+                if (!refreshed)
+                {
+                    yield return new InvocationFailedProviderEvent(
+                        request.InvocationId,
+                        CreateRuntimeError(
+                            "CredentialRefreshTimeout",
+                            "Provider credentials were not refreshed before the waiting period expired."));
+                    yield break;
+                }
             }
 
             if (!completed)
@@ -793,14 +1337,15 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
                     toolCall.CallId,
                     toolCall.ToolId,
                     request.AgentId,
-                    ParentAgentId: null,
+                    request.ParentAgentId,
                     toolCall.Arguments.GetRawText(),
                     request.RunId,
                     request.SessionId,
                     request.InvocationId,
                     ToolCatalogVersion: _toolCatalogSnapshot.EffectiveVersion,
                     WorkStepId: request.Snapshot.WorkStepId,
-                    PlanVersion: request.Snapshot.WorkPlanVersion);
+                    PlanVersion: request.Snapshot.WorkPlanVersion,
+                    ParentInvocationId: request.Snapshot.ParentInvocationId);
 
                 ToolGatewayResult gatewayResult;
                 try
@@ -829,10 +1374,36 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
                         yield break;
                     }
 
+                    var consentRequestId = ToolConsentCoordinator.CreateConsentRequestId(
+                        gatewayResult.Kind,
+                        invocation);
+                    if (!string.IsNullOrWhiteSpace(invocation.WorkStepId)
+                        && !string.IsNullOrWhiteSpace(invocation.PlanVersion))
+                    {
+                        await _workRepo.MarkStepWaitingForApprovalAsync(
+                            invocation.SessionId,
+                            invocation.WorkStepId,
+                            invocation.PlanVersion,
+                            consentRequestId,
+                            CreatePendingConsentJson(gatewayResult.Kind, invocation, consentRequestId),
+                            ct).ConfigureAwait(false);
+                    }
+
                     gatewayResult = await _toolConsentCoordinator.ResolveAndExecuteAsync(
                         invocation,
                         gatewayResult,
                         ct).ConfigureAwait(false);
+
+                    if (!string.IsNullOrWhiteSpace(invocation.WorkStepId)
+                        && !string.IsNullOrWhiteSpace(invocation.PlanVersion))
+                    {
+                        await _workRepo.MarkStepRunningAfterApprovalAsync(
+                            invocation.SessionId,
+                            invocation.WorkStepId,
+                            invocation.PlanVersion,
+                            consentRequestId,
+                            ct).ConfigureAwait(false);
+                    }
                 }
 
                 var toolResult = CreateToolResultContent(toolCall, gatewayResult);
@@ -899,6 +1470,38 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
 
                 break;
         }
+    }
+
+    private static string CreatePendingConsentJson(
+        ToolGatewayResultKind kind,
+        ToolInvocation invocation,
+        string consentRequestId)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("kind", kind switch
+            {
+                ToolGatewayResultKind.NeedsApproval => "approval",
+                ToolGatewayResultKind.NeedsPermission => "permission",
+                _ => "unknown"
+            });
+            writer.WriteString("requestId", consentRequestId);
+            writer.WriteString("callId", invocation.CallId);
+            writer.WriteString("toolId", invocation.ToolId);
+            writer.WriteString("agentId", invocation.AgentId);
+            writer.WriteString("parentAgentId", invocation.ParentAgentId);
+            writer.WriteString("runId", invocation.RunId);
+            writer.WriteString("sessionId", invocation.SessionId);
+            writer.WriteString("invocationId", invocation.InvocationId);
+            writer.WriteString("parentInvocationId", invocation.ParentInvocationId);
+            writer.WriteString("workStepId", invocation.WorkStepId);
+            writer.WriteString("planVersion", invocation.PlanVersion);
+            writer.WriteEndObject();
+        }
+
+        return Encoding.UTF8.GetString(stream.ToArray());
     }
 
     private static ToolResultContentBlock CreateToolResultContent(
@@ -968,6 +1571,10 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
             ProviderDetails: null,
             Guid.NewGuid().ToString("N"));
 
+    private static bool IsAuthenticationFailure(RuntimeError error) =>
+        string.Equals(error.Code, RuntimeErrorCodes.AuthenticationFailed, StringComparison.Ordinal)
+        || string.Equals(error.Category, "authentication", StringComparison.Ordinal);
+
 
     private async Task<AgentInvocationRequest> CreateInvocationRequestAsync(
         string runId,
@@ -977,19 +1584,108 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
         string projectionVersion,
         CancellationToken ct,
         string? stepGoal = null,
+        string? parentAgentId = null,
         string? parentInvocationId = null,
         string? workStepId = null,
-        string? workPlanVersion = null)
+        string? workPlanVersion = null,
+        WorkPlanDraft? workPlan = null,
+        WorkStepSnapshot? currentStepState = null,
+        IReadOnlyList<WorkStepSnapshot>? planSteps = null)
     {
         var providerId = agent.ProviderId ?? request.Selection.DefaultSelection.ProviderId;
         var modelId = agent.ModelId ?? request.Selection.DefaultSelection.ModelId;
         ArgumentException.ThrowIfNullOrWhiteSpace(providerId);
         ArgumentException.ThrowIfNullOrWhiteSpace(modelId);
 
+        var provider = _providerFactory(providerId)
+            ?? throw new InvalidOperationException($"Provider '{providerId}' was not found.");
         var invocationId = Guid.NewGuid().ToString("N");
         var context = _agentContextComposer is null
             ? AgentContextComposer.WithoutMemory(agent.SystemPrompt)
             : await _agentContextComposer.ComposeAsync(agent.SystemPrompt, ct).ConfigureAwait(false);
+        var availableTools = ResolveAvailableTools(agent, providerId);
+        var systemMessage = new RuntimeProviderMessage(
+            RuntimeProviderRoles.System,
+            [new TextContentBlock(context.Instructions)]);
+        RuntimeProviderMessage[] projectedMessages;
+        ContextProjectionSnapshot? projectionSnapshot = null;
+        if (string.Equals(projectionVersion, PlanProjectionVersion, StringComparison.Ordinal)
+            && request.Selection.ModeOptions is WorkModeOptions workOptions)
+        {
+            projectedMessages =
+            [
+                new RuntimeProviderMessage(
+                    RuntimeProviderRoles.User,
+                    [new TextContentBlock(BuildManagerPlanningInput(
+                        ExtractGoalText(request.InitialInput),
+                        workOptions,
+                        availableTools))])
+            ];
+        }
+        else if (workPlan is not null
+            && currentStepState is not null
+            && planSteps is not null
+            && request.Selection.ModeOptions is WorkModeOptions projectedWorkOptions)
+        {
+            var currentStep = workPlan.Steps.FirstOrDefault(step =>
+                string.Equals(step.StepId, currentStepState.StepId, StringComparison.Ordinal))
+                ?? throw new InvalidDataException(
+                    $"Work plan '{workPlan.PlanVersion}' does not contain step '{currentStepState.StepId}'.");
+            var modelContextWindow = provider.Models
+                .FirstOrDefault(candidate => string.Equals(candidate.Id, modelId, StringComparison.Ordinal))
+                ?.ContextWindow;
+            var modelContextLimit = modelContextWindow is > 0
+                ? (int)Math.Max(1, modelContextWindow.Value * 9L / 10L)
+                : int.MaxValue;
+            var configuredLimit = projectedWorkOptions.EffectiveContextPolicy.MaxTokens;
+            var tokenLimit = configuredLimit is > 0
+                ? Math.Min(configuredLimit.Value, modelContextLimit)
+                : modelContextLimit;
+            ValueTask<ProviderTokenEstimate> EstimateProjectionAsync(
+                RuntimeProviderMessage[] candidateMessages,
+                CancellationToken token) =>
+                provider.EstimateTokensAsync(
+                    new RuntimeProviderRequest(
+                        invocationId,
+                        agent.AgentId,
+                        providerId,
+                        modelId,
+                        [systemMessage, .. candidateMessages],
+                        Tools: availableTools,
+                        CancellationToken: token),
+                    token);
+            var projection = await WorkContextProjectionBuilder.BuildAsync(
+                    workPlan,
+                    currentStep,
+                    currentStepState,
+                    planSteps,
+                    projectedWorkOptions.EffectiveContextPolicy,
+                    tokenLimit,
+                    EstimateProjectionAsync,
+                    ct: ct)
+                .ConfigureAwait(false);
+            projectedMessages = projection.Messages;
+            projectionSnapshot = new ContextProjectionSnapshot(
+                projection.Strategy,
+                projection.RetainedItems,
+                projection.DroppedMessageCount,
+                projection.Messages.Length,
+                projection.EstimatedTokens,
+                projection.EstimateSource,
+                projection.TokenLimit,
+                projection.SummarizedUnitCount);
+        }
+        else
+        {
+            var userContent = stepGoal is null
+                ? request.InitialInput
+                : [new TextContentBlock(stepGoal)];
+            projectedMessages =
+            [
+                new RuntimeProviderMessage(RuntimeProviderRoles.User, userContent)
+            ];
+        }
+
         var snapshot = new InvocationSnapshot(
             invocationId,
             agent.AgentId,
@@ -1003,10 +1699,9 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
             DateTimeOffset.UtcNow,
             parentInvocationId,
             workStepId,
-            workPlanVersion);
-        ContentBlock[] userContent = stepGoal is null
-            ? request.InitialInput
-            : [new TextContentBlock(stepGoal)];
+            workPlanVersion,
+            projectionSnapshot);
+
         return new AgentInvocationRequest(
             invocationId,
             runId,
@@ -1015,13 +1710,59 @@ public sealed class WorkModeOrchestrator : IModeOrchestrator
             providerId,
             modelId,
             [
-                new RuntimeProviderMessage(
-                    RuntimeProviderRoles.System,
-                    [new TextContentBlock(context.Instructions)]),
-                new RuntimeProviderMessage(RuntimeProviderRoles.User, userContent),
+                systemMessage,
+                .. projectedMessages
             ],
             snapshot,
-            AvailableTools: ResolveAvailableTools(agent, providerId));
+            AvailableTools: availableTools,
+            ParentAgentId: parentAgentId);
+    }
+
+    private static string BuildManagerPlanningInput(
+        string goal,
+        WorkModeOptions options,
+        ToolDescriptor[]? tools)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("Create a structured WorkPlanDraft for this goal:");
+        builder.AppendLine(goal);
+        builder.AppendLine("Available agents and declared capabilities:");
+        foreach (var agent in options.AvailableAgents)
+        {
+            builder.Append("- ").Append(agent.AgentId);
+            if (agent.AllowedToolIds is { Length: > 0 })
+            {
+                builder.Append("; tools=").AppendJoin(',', agent.AllowedToolIds);
+            }
+
+            if (agent.SkillIds is { Length: > 0 })
+            {
+                builder.Append("; skills=").AppendJoin(',', agent.SkillIds);
+            }
+
+            builder.AppendLine();
+        }
+
+        builder.AppendLine("Runtime tool catalog visible to the general manager:");
+        if (tools is null || tools.Length == 0)
+        {
+            builder.AppendLine("- none");
+        }
+        else
+        {
+            foreach (var tool in tools)
+            {
+                builder.Append("- ").Append(tool.ToolId).Append(':').AppendLine(tool.DisplayName);
+            }
+        }
+
+        builder.Append("WorkflowPolicy: ").AppendLine(
+            JsonSerializer.Serialize(
+                options.EffectiveWorkflowPolicy,
+                RuntimeJsonContext.Default.WorkflowPolicy));
+        builder.AppendLine(
+            "Return only a WorkPlanDraft JSON object. The first planVersion is '1'.");
+        return builder.ToString();
     }
 
     private ToolDescriptor[]? ResolveAvailableTools(AgentRef agent, string providerId)

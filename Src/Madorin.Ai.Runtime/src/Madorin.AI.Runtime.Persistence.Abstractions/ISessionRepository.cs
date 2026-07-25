@@ -65,6 +65,33 @@ public interface ISessionRepository
         IReadOnlyList<AgentSnapshot> agentSnapshots,
         CancellationToken ct = default);
 
+    /// <summary>Lists sessions using a structured query with optional filters.</summary>
+    public Task<IReadOnlyList<SessionDescriptor>> ListSessionsAsync(
+        SessionListQuery query,
+        CancellationToken ct = default);
+
+    /// <summary>Sets a Session's title only when the current title is null or empty.</summary>
+    public Task<bool> TrySetInitialSessionTitleAsync(
+        string sessionId,
+        string title,
+        CancellationToken ct = default);
+
+    /// <summary>Sets a Session status and returns false when the Session does not exist.</summary>
+    public Task<bool> TrySetSessionStatusAsync(
+        string sessionId,
+        SessionStatus status,
+        CancellationToken ct = default);
+
+    /// <summary>Deletes a Session and all Runtime metadata owned by it in one transaction.</summary>
+    public Task<bool> TryDeleteSessionAsync(
+        string sessionId,
+        CancellationToken ct = default);
+
+    /// <summary>Gets tool-result Blob ids owned by one Session and protected by all other owners.</summary>
+    public Task<SessionBlobReferences> GetToolResultBlobReferencesAsync(
+        string sessionId,
+        CancellationToken ct = default);
+
     /// <summary>Lists lightweight message metadata by Session sequence cursor.</summary>
     public Task<IReadOnlyList<MessageIndexEntry>> ListMessageIndexAsync(
         string sessionId,

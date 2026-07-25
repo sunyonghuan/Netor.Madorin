@@ -267,6 +267,7 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
 
     public async Task MarkInterruptedAsync(CancellationToken ct = default)
     {
+        var updatedAt = FormatTimestamp(DateTimeOffset.UtcNow);
         using var transaction = _connection.BeginTransaction(deferred: false);
         await using var runCommand = _connection.CreateCommand();
         runCommand.Transaction = transaction;
@@ -278,7 +279,7 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
                 $completed, $failed, $cancelled, $interrupted, $waitingForApproval);
             """;
         runCommand.Parameters.AddWithValue("$interrupted", RunStatus.Interrupted.ToString());
-        runCommand.Parameters.AddWithValue("$updatedAt", FormatTimestamp(DateTimeOffset.UtcNow));
+        runCommand.Parameters.AddWithValue("$updatedAt", updatedAt);
         runCommand.Parameters.AddWithValue("$completed", RunStatus.Completed.ToString());
         runCommand.Parameters.AddWithValue("$failed", RunStatus.Failed.ToString());
         runCommand.Parameters.AddWithValue("$cancelled", RunStatus.Cancelled.ToString());
@@ -287,21 +288,63 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
             RunStatus.WaitingForApproval.ToString());
         await runCommand.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
 
+        await using var workSessionCommand = _connection.CreateCommand();
+        workSessionCommand.Transaction = transaction;
+        workSessionCommand.CommandText = """
+            UPDATE work_sessions
+            SET status = $interrupted,
+                updated_at = $updatedAt
+            WHERE status IN ($planning, $executing, 'waiting_for_credentials');
+            """;
+        workSessionCommand.Parameters.AddWithValue("$interrupted", InterruptedWorkStepStatus);
+        workSessionCommand.Parameters.AddWithValue("$updatedAt", updatedAt);
+        workSessionCommand.Parameters.AddWithValue("$planning", "planning");
+        workSessionCommand.Parameters.AddWithValue("$executing", "executing");
+        await workSessionCommand.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+
         await using var stepCommand = _connection.CreateCommand();
         stepCommand.Transaction = transaction;
         stepCommand.CommandText = """
             UPDATE work_steps
-            SET status = $interrupted
-            WHERE status = $running;
+            SET status = $interrupted,
+                completed_at = $updatedAt
+            WHERE status IN ($running, 'waiting_for_credentials');
             """;
         stepCommand.Parameters.AddWithValue("$interrupted", InterruptedWorkStepStatus);
+        stepCommand.Parameters.AddWithValue("$updatedAt", updatedAt);
         stepCommand.Parameters.AddWithValue("$running", RunningWorkStepStatus);
         await stepCommand.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+
+        await using var attemptCommand = _connection.CreateCommand();
+        attemptCommand.Transaction = transaction;
+        attemptCommand.CommandText = """
+            UPDATE work_step_attempts
+            SET status = $interrupted,
+                completed_at = $updatedAt
+            WHERE status IN ($running, 'waiting_for_credentials');
+            """;
+        attemptCommand.Parameters.AddWithValue("$interrupted", InterruptedWorkStepStatus);
+        attemptCommand.Parameters.AddWithValue("$updatedAt", updatedAt);
+        attemptCommand.Parameters.AddWithValue("$running", RunningWorkStepStatus);
+        await attemptCommand.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+
+        await using var backgroundCommand = _connection.CreateCommand();
+        backgroundCommand.Transaction = transaction;
+        backgroundCommand.CommandText = """
+            UPDATE work_background_jobs
+            SET status = $interrupted,
+                completed_at = $updatedAt
+            WHERE status = $running;
+            """;
+        backgroundCommand.Parameters.AddWithValue("$interrupted", InterruptedWorkStepStatus);
+        backgroundCommand.Parameters.AddWithValue("$updatedAt", updatedAt);
+        backgroundCommand.Parameters.AddWithValue("$running", RunningWorkStepStatus);
+        await backgroundCommand.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         transaction.Commit();
     }
 
     /// <summary>Creates or reuses the Running state for a work step (step-level idempotency only).</summary>
-    public async Task<bool> TryStartWorkStepAsync(
+    public Task<bool> TryStartWorkStepAsync(
         string stepId,
         string planVersion,
         string runId,
@@ -309,6 +352,31 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
         string targetAgentId,
         string stepInputHash,
         string invocationId,
+        CancellationToken ct = default) =>
+        TryStartWorkStepWithCheckpointAsync(
+            stepId,
+            planVersion,
+            runId,
+            sessionId,
+            targetAgentId,
+            stepInputHash,
+            invocationId,
+            invocationSnapshot: null,
+            invocationSnapshotJson: null,
+            checkpointJson: null,
+            ct);
+
+    public async Task<bool> TryStartWorkStepWithCheckpointAsync(
+        string stepId,
+        string planVersion,
+        string runId,
+        string sessionId,
+        string targetAgentId,
+        string stepInputHash,
+        string invocationId,
+        InvocationSnapshot? invocationSnapshot = null,
+        string? invocationSnapshotJson = null,
+        string? checkpointJson = null,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stepId);
@@ -318,6 +386,20 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
         ArgumentException.ThrowIfNullOrWhiteSpace(targetAgentId);
         ArgumentException.ThrowIfNullOrWhiteSpace(stepInputHash);
         ArgumentException.ThrowIfNullOrWhiteSpace(invocationId);
+        if ((invocationSnapshot is null) != (invocationSnapshotJson is null))
+        {
+            throw new ArgumentException(
+                "InvocationSnapshot and invocationSnapshotJson must be supplied together.",
+                nameof(invocationSnapshot));
+        }
+
+        if (invocationSnapshot is not null
+            && !string.Equals(invocationSnapshot.InvocationId, invocationId, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "The invocation snapshot identity must match invocationId.",
+                nameof(invocationSnapshot));
+        }
 
         var createdAt = FormatTimestamp(DateTimeOffset.UtcNow);
         using var transaction = _connection.BeginTransaction(deferred: false);
@@ -333,6 +415,7 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
                 target_agent_id = $targetAgentId,
                 step_input_hash = $stepInputHash,
                 invocation_id = $invocationId,
+                checkpoint_json = $checkpointJson,
                 started_at = $createdAt,
                 attempt_count = COALESCE(attempt_count, 0) + 1
             WHERE step_id = $stepId
@@ -345,6 +428,7 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
         promoteCommand.Parameters.AddWithValue("$targetAgentId", targetAgentId);
         promoteCommand.Parameters.AddWithValue("$stepInputHash", stepInputHash);
         promoteCommand.Parameters.AddWithValue("$invocationId", invocationId);
+        promoteCommand.Parameters.AddWithValue("$checkpointJson", (object?)checkpointJson ?? DBNull.Value);
         promoteCommand.Parameters.AddWithValue("$createdAt", createdAt);
         promoteCommand.Parameters.AddWithValue("$stepId", stepId);
         promoteCommand.Parameters.AddWithValue("$planVersion", planVersion);
@@ -354,6 +438,13 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
             await InsertStepAttemptAsync(
                 stepId, planVersion, invocationId, RunningWorkStepStatus, createdAt, transaction, ct)
                 .ConfigureAwait(false);
+            await InsertInvocationSnapshotForStepAsync(
+                runId,
+                sessionId,
+                invocationSnapshot,
+                invocationSnapshotJson,
+                transaction,
+                ct).ConfigureAwait(false);
             transaction.Commit();
             return true;
         }
@@ -371,6 +462,7 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
                 step_input_hash,
                 created_at,
                 invocation_id,
+                checkpoint_json,
                 started_at,
                 attempt_count)
             VALUES(
@@ -383,6 +475,7 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
                 $stepInputHash,
                 $createdAt,
                 $invocationId,
+                $checkpointJson,
                 $createdAt,
                 1);
             """;
@@ -395,6 +488,7 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
         stepCommand.Parameters.AddWithValue("$stepInputHash", stepInputHash);
         stepCommand.Parameters.AddWithValue("$createdAt", createdAt);
         stepCommand.Parameters.AddWithValue("$invocationId", invocationId);
+        stepCommand.Parameters.AddWithValue("$checkpointJson", (object?)checkpointJson ?? DBNull.Value);
         var inserted = await stepCommand.ExecuteNonQueryAsync(ct).ConfigureAwait(false) == 1;
 
         if (!inserted)
@@ -413,8 +507,46 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
         await InsertStepAttemptAsync(
             stepId, planVersion, invocationId, RunningWorkStepStatus, createdAt, transaction, ct)
             .ConfigureAwait(false);
+        await InsertInvocationSnapshotForStepAsync(
+            runId,
+            sessionId,
+            invocationSnapshot,
+            invocationSnapshotJson,
+            transaction,
+            ct).ConfigureAwait(false);
         transaction.Commit();
         return true;
+    }
+
+    private async Task InsertInvocationSnapshotForStepAsync(
+        string runId,
+        string sessionId,
+        InvocationSnapshot? snapshot,
+        string? snapshotJson,
+        SqliteTransaction transaction,
+        CancellationToken ct)
+    {
+        if (snapshot is null || snapshotJson is null)
+        {
+            return;
+        }
+
+        await using var command = _connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            INSERT INTO invocation_snapshots(
+                invocation_id, run_id, session_id, snapshot_json, started_at)
+            VALUES(
+                $invocationId, $runId, $sessionId, $snapshotJson, $startedAt);
+            """;
+        command.Parameters.AddWithValue("$invocationId", snapshot.InvocationId);
+        command.Parameters.AddWithValue("$runId", runId);
+        command.Parameters.AddWithValue("$sessionId", sessionId);
+        command.Parameters.AddWithValue("$snapshotJson", snapshotJson);
+        command.Parameters.AddWithValue(
+            "$startedAt",
+            snapshot.StartedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
+        await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     private async Task InsertStepAttemptAsync(
@@ -491,6 +623,7 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
             UPDATE work_steps
             SET status = $completed,
                 result_json = $resultJson,
+                error_message = NULL,
                 completed_at = $completedAt
             WHERE step_id = $stepId
               AND plan_version = $planVersion
@@ -614,35 +747,87 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
             Enum.Parse<RunStatus>(reader.GetString(2), ignoreCase: false));
     }
 
-    public async Task<IReadOnlyList<SessionDescriptor>> ListSessionsAsync(
+    public Task<IReadOnlyList<SessionDescriptor>> ListSessionsAsync(
         string? cursor,
         int pageSize,
+        CancellationToken ct = default) =>
+        ListSessionsAsync(new SessionListQuery(Status: null, Cursor: cursor, Limit: pageSize), ct);
+
+    public async Task<IReadOnlyList<SessionDescriptor>> ListSessionsAsync(
+        SessionListQuery query,
         CancellationToken ct = default)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
-        var position = await ResolveCursorAsync(cursor, ct).ConfigureAwait(false);
-        await using var command = _connection.CreateCommand();
-        command.CommandText = position is null
-            ? """
-                SELECT session_id, mode, status, updated_at
-                FROM sessions
-                ORDER BY updated_at DESC, session_id DESC
-                LIMIT $pageSize;
-                """
-            : """
-                SELECT session_id, mode, status, updated_at
-                FROM sessions
-                WHERE updated_at < $updatedAt
-                   OR (updated_at = $updatedAt AND session_id < $sessionId)
-                ORDER BY updated_at DESC, session_id DESC
-                LIMIT $pageSize;
-                """;
-        command.Parameters.AddWithValue("$pageSize", pageSize);
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(query.Limit);
+
+        var position = await ResolveCursorAsync(query.Cursor, ct).ConfigureAwait(false);
+
+        var conditions = new List<string>();
         if (position is not null)
         {
-            command.Parameters.AddWithValue("$updatedAt", position.Value.UpdatedAt);
-            command.Parameters.AddWithValue("$sessionId", position.Value.SessionId);
+            conditions.Add("(updated_at < $cursorUpdatedAt OR (updated_at = $cursorUpdatedAt AND session_id < $cursorSessionId))");
         }
+
+        if (query.Mode is not null)
+        {
+            conditions.Add("mode = $mode");
+        }
+
+        if (query.Status is not null)
+        {
+            conditions.Add("status = $status");
+        }
+
+        if (query.Since is not null)
+        {
+            conditions.Add("updated_at >= $since");
+        }
+
+        if (!string.IsNullOrEmpty(query.Search))
+        {
+            conditions.Add("instr(COALESCE(title, ''), $search) > 0");
+        }
+
+        var where = conditions.Count > 0
+            ? "WHERE " + string.Join(" AND ", conditions)
+            : string.Empty;
+
+        await using var command = _connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT session_id, mode, status, updated_at, title
+            FROM sessions
+            {where}
+            ORDER BY updated_at DESC, session_id DESC
+            LIMIT $limit;
+            """;
+
+        if (position is not null)
+        {
+            command.Parameters.AddWithValue("$cursorUpdatedAt", position.Value.UpdatedAt);
+            command.Parameters.AddWithValue("$cursorSessionId", position.Value.SessionId);
+        }
+
+        if (query.Mode is not null)
+        {
+            command.Parameters.AddWithValue("$mode", query.Mode.Value.ToString());
+        }
+
+        if (query.Status is not null)
+        {
+            command.Parameters.AddWithValue("$status", query.Status.Value.ToString());
+        }
+
+        if (query.Since is not null)
+        {
+            command.Parameters.AddWithValue("$since", FormatTimestamp(query.Since.Value));
+        }
+
+        if (!string.IsNullOrEmpty(query.Search))
+        {
+            command.Parameters.AddWithValue("$search", query.Search);
+        }
+
+        command.Parameters.AddWithValue("$limit", query.Limit);
 
         var sessions = new List<SessionDescriptor>();
         await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
@@ -657,10 +842,199 @@ public sealed class SqliteSessionRepository(SqliteConnection conn) : ISessionRep
                     "O",
                     CultureInfo.InvariantCulture,
                     DateTimeStyles.RoundtripKind),
-                Title: null));
+                reader.IsDBNull(4) ? null : reader.GetString(4)));
         }
 
         return sessions;
+    }
+
+    public async Task<bool> TrySetInitialSessionTitleAsync(
+        string sessionId,
+        string title,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+
+        await using var command = _connection.CreateCommand();
+        command.CommandText = """
+            UPDATE sessions
+            SET title = $title
+            WHERE session_id = $sessionId
+              AND (title IS NULL OR title = '');
+            """;
+        command.Parameters.AddWithValue("$title", title);
+        command.Parameters.AddWithValue("$sessionId", sessionId);
+        return await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false) == 1;
+    }
+
+    public async Task<bool> TrySetSessionStatusAsync(
+        string sessionId,
+        SessionStatus status,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+        if (!Enum.IsDefined(status))
+        {
+            throw new ArgumentOutOfRangeException(nameof(status));
+        }
+
+        using var transaction = _connection.BeginTransaction(deferred: false);
+        string? currentStatus;
+        await using (var readCommand = _connection.CreateCommand())
+        {
+            readCommand.Transaction = transaction;
+            readCommand.CommandText = "SELECT status FROM sessions WHERE session_id = $sessionId;";
+            readCommand.Parameters.AddWithValue("$sessionId", sessionId);
+            currentStatus = await readCommand.ExecuteScalarAsync(ct).ConfigureAwait(false) as string;
+        }
+
+        if (currentStatus is null)
+        {
+            transaction.Commit();
+            return false;
+        }
+
+        var current = Enum.Parse<SessionStatus>(currentStatus, ignoreCase: false);
+        if (current == status)
+        {
+            transaction.Commit();
+            return true;
+        }
+
+        await using var updateCommand = _connection.CreateCommand();
+        updateCommand.Transaction = transaction;
+        updateCommand.CommandText = """
+            UPDATE sessions
+            SET status = $status,
+                updated_at = $updatedAt
+            WHERE session_id = $sessionId
+              AND status = $currentStatus;
+            """;
+        updateCommand.Parameters.AddWithValue("$status", status.ToString());
+        updateCommand.Parameters.AddWithValue("$updatedAt", FormatTimestamp(DateTimeOffset.UtcNow));
+        updateCommand.Parameters.AddWithValue("$sessionId", sessionId);
+        updateCommand.Parameters.AddWithValue("$currentStatus", currentStatus);
+        var updated = await updateCommand.ExecuteNonQueryAsync(ct).ConfigureAwait(false) == 1;
+        transaction.Commit();
+        return updated;
+    }
+
+    public async Task<bool> TryDeleteSessionAsync(
+        string sessionId,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+
+        using var transaction = _connection.BeginTransaction(deferred: false);
+        await using (var existsCommand = _connection.CreateCommand())
+        {
+            existsCommand.Transaction = transaction;
+            existsCommand.CommandText =
+                "SELECT 1 FROM sessions WHERE session_id = $sessionId;";
+            existsCommand.Parameters.AddWithValue("$sessionId", sessionId);
+            if (await existsCommand.ExecuteScalarAsync(ct).ConfigureAwait(false) is null)
+            {
+                transaction.Commit();
+                return false;
+            }
+        }
+
+        await using var deleteCommand = _connection.CreateCommand();
+        deleteCommand.Transaction = transaction;
+        deleteCommand.CommandText = """
+            DELETE FROM work_step_dependencies
+            WHERE EXISTS (
+                SELECT 1
+                FROM work_steps
+                WHERE work_steps.session_id = $sessionId
+                  AND work_steps.plan_version = work_step_dependencies.plan_version
+                  AND (work_steps.step_id = work_step_dependencies.step_id
+                       OR work_steps.step_id = work_step_dependencies.depends_on_step_id)
+            );
+            DELETE FROM work_step_attempts
+            WHERE EXISTS (
+                SELECT 1
+                FROM work_steps
+                WHERE work_steps.session_id = $sessionId
+                  AND work_steps.step_id = work_step_attempts.step_id
+                  AND work_steps.plan_version = work_step_attempts.plan_version
+            );
+            DELETE FROM work_background_jobs WHERE session_id = $sessionId;
+            DELETE FROM work_plan_revisions WHERE session_id = $sessionId;
+            DELETE FROM work_steps WHERE session_id = $sessionId;
+            DELETE FROM work_sessions WHERE session_id = $sessionId;
+
+            DELETE FROM meeting_invocations WHERE session_id = $sessionId;
+            DELETE FROM meeting_participants WHERE session_id = $sessionId;
+            DELETE FROM meeting_rounds WHERE session_id = $sessionId;
+            DELETE FROM meeting_sessions WHERE session_id = $sessionId;
+
+            DELETE FROM tool_audit
+            WHERE session_id = $sessionId
+               OR run_id IN (SELECT run_id FROM runs WHERE session_id = $sessionId);
+            DELETE FROM tool_approvals
+            WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = $sessionId);
+            DELETE FROM tool_grants
+            WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = $sessionId);
+            DELETE FROM tool_intents
+            WHERE session_id = $sessionId
+               OR run_id IN (SELECT run_id FROM runs WHERE session_id = $sessionId);
+            DELETE FROM invocation_snapshots
+            WHERE session_id = $sessionId
+               OR run_id IN (SELECT run_id FROM runs WHERE session_id = $sessionId);
+
+            DELETE FROM event_outbox
+            WHERE run_id IN (SELECT run_id FROM runs WHERE session_id = $sessionId);
+            DELETE FROM run_idempotency WHERE session_id = $sessionId;
+            DELETE FROM message_index WHERE session_id = $sessionId;
+            DELETE FROM agent_snapshots WHERE session_id = $sessionId;
+            DELETE FROM session_selections WHERE session_id = $sessionId;
+            DELETE FROM runs WHERE session_id = $sessionId;
+            DELETE FROM session_idempotency WHERE session_id = $sessionId;
+            DELETE FROM sessions WHERE session_id = $sessionId;
+            """;
+        deleteCommand.Parameters.AddWithValue("$sessionId", sessionId);
+        await deleteCommand.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        transaction.Commit();
+        return true;
+    }
+
+    public async Task<SessionBlobReferences> GetToolResultBlobReferencesAsync(
+        string sessionId,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
+
+        var targetBlobIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var protectedBlobIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using var command = _connection.CreateCommand();
+        command.CommandText = """
+            SELECT COALESCE(tool_intents.session_id, runs.session_id),
+                   tool_intents.result_blob_id
+            FROM tool_intents
+            LEFT JOIN runs ON runs.run_id = tool_intents.run_id
+            WHERE tool_intents.result_blob_id IS NOT NULL
+              AND tool_intents.result_blob_id <> '';
+            """;
+        await using var reader = await command.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        while (await reader.ReadAsync(ct).ConfigureAwait(false))
+        {
+            var ownerSessionId = reader.IsDBNull(0) ? null : reader.GetString(0);
+            var blobId = reader.GetString(1);
+            if (string.Equals(ownerSessionId, sessionId, StringComparison.Ordinal))
+            {
+                targetBlobIds.Add(blobId);
+            }
+            else
+            {
+                protectedBlobIds.Add(blobId);
+            }
+        }
+
+        return new SessionBlobReferences(
+            targetBlobIds.OrderBy(static id => id, StringComparer.Ordinal).ToArray(),
+            protectedBlobIds.OrderBy(static id => id, StringComparer.Ordinal).ToArray());
     }
 
     public async Task<PersistedSessionSnapshot?> GetSessionSnapshotAsync(

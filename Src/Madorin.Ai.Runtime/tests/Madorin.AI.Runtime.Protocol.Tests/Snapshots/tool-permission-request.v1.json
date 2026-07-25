@@ -11,6 +11,11 @@
     "argumentsHash": "arguments-hash",
     "risk": "high",
     "requestedScope": "workspace",
-    "reason": "Read project file"
+    "reason": "Read project file",
+    "sessionId": "session-1",
+    "invocationId": "invocation-1",
+    "parentInvocationId": "parent-invocation-1",
+    "workStepId": "step-1",
+    "planVersion": "plan-v1"
   }
 }

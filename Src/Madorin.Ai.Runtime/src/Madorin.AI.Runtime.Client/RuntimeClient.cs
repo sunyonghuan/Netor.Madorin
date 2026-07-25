@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Madorin.AI.Runtime.Contracts;
@@ -13,6 +15,7 @@ public sealed class RuntimeClient : IRuntimeClient
 {
     private readonly RuntimeClientOptions _options;
     private readonly SemaphoreSlim _stateGate = new(1, 1);
+    private readonly RuntimeHostCallbackDispatcher? _hostCallbackDispatcher;
     private NamedPipeTransport? _transport;
     private NamedPipeTransport? _eventTransport;
     private AuthenticatedFrameChannel? _authenticatedControl;
@@ -28,6 +31,9 @@ public sealed class RuntimeClient : IRuntimeClient
     private CancellationTokenSource? _lifecycleCancellation;
     private Task? _heartbeatTask;
     private int _heartbeatIntervalSeconds;
+    private Process? _ownedProcess;
+    private RuntimeInstanceBinding? _instanceBinding;
+    private bool _forceOwnedProcessShutdown;
     private int _disposed;
 
     public RuntimeClient(RuntimeClientOptions options)
@@ -54,15 +60,370 @@ public sealed class RuntimeClient : IRuntimeClient
 
         if (options.HeartbeatInterval < TimeSpan.Zero
             || options.ReconnectWindow < TimeSpan.Zero
-            || options.ReconnectDelay < TimeSpan.Zero)
+            || options.ReconnectDelay < TimeSpan.Zero
+            || options.StartupTimeout < TimeSpan.Zero
+            || options.OwnedProcessShutdownTimeout < TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(options),
-                "Heartbeat and reconnect intervals cannot be negative.");
+                "Client timeout and reconnect intervals cannot be negative.");
         }
 
         _options = options;
+        _hostCallbackDispatcher = options.HostCallbacks is null
+            ? null
+            : new RuntimeHostCallbackDispatcher(options.HostCallbacks);
         State = RuntimeClientState.Starting;
+    }
+
+    /// <summary>
+    /// Creates and connects a client according to the configured Runtime start policy.
+    /// </summary>
+    public static async ValueTask<RuntimeClient> CreateAsync(
+        RuntimeClientOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateCreateOptions(options);
+
+        if (options.StartPolicy == RuntimeStartPolicy.AttachExisting)
+        {
+            return await CreateAttachedClientAsync(options, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (options.StartPolicy == RuntimeStartPolicy.StartIfMissing
+            && CanAttach(options))
+        {
+            try
+            {
+                return await CreateAttachedClientAsync(options, cancellationToken).ConfigureAwait(false);
+            }
+            catch (RuntimeClientConnectionException) when (!cancellationToken.IsCancellationRequested)
+            {
+            }
+        }
+
+        return await CreateOwnedClientAsync(options, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async ValueTask<RuntimeClient> CreateAttachedClientAsync(
+        RuntimeClientOptions options,
+        CancellationToken cancellationToken)
+    {
+        var pipeName = string.IsNullOrWhiteSpace(options.PipeName)
+            ? BuildPipeName(options.PipePrefix, options.RuntimeInstanceId!)
+            : options.PipeName;
+        var effectiveOptions = options with
+        {
+            PipeName = pipeName,
+            EventPipeName = options.EventPipeName ?? $"{pipeName}.events",
+            ExpectedRuntimeInstanceId = options.ExpectedRuntimeInstanceId
+                ?? options.RuntimeInstanceId,
+            WorkspaceDirectory = NormalizeOptionalPath(options.WorkspaceDirectory),
+            ConnectTimeout = options.ConnectTimeout == default
+                ? options.ResolvedStartupTimeout
+                : options.ConnectTimeout
+        };
+        var client = new RuntimeClient(effectiveOptions);
+        try
+        {
+            await client.ConnectAsync(cancellationToken).ConfigureAwait(false);
+            return client;
+        }
+        catch
+        {
+            await client.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private static async ValueTask<RuntimeClient> CreateOwnedClientAsync(
+        RuntimeClientOptions options,
+        CancellationToken cancellationToken)
+    {
+        var instanceId = options.RuntimeInstanceId ?? Guid.NewGuid().ToString("N");
+        var pipeName = BuildPipeName(options.PipePrefix, instanceId);
+        var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var effectiveOptions = options with
+        {
+            PipeName = pipeName,
+            EventPipeName = $"{pipeName}.events",
+            ExpectedRuntimeInstanceId = instanceId,
+            HandshakeSecret = secret,
+            RuntimeInstanceId = instanceId,
+            WorkspaceDirectory = Path.GetFullPath(options.WorkspaceDirectory!),
+            DataDirectory = NormalizeOptionalPath(options.DataDirectory),
+            LogDirectory = NormalizeOptionalPath(options.LogDirectory),
+            ConnectTimeout = options.ConnectTimeout == default
+                ? options.ResolvedStartupTimeout
+                : options.ConnectTimeout
+        };
+
+        var process = await StartRuntimeProcessAsync(
+            effectiveOptions,
+            cancellationToken).ConfigureAwait(false);
+        var client = new RuntimeClient(effectiveOptions with
+        {
+            ExpectedServerProcessId = process.Id
+        })
+        {
+            _ownedProcess = process
+        };
+
+        try
+        {
+            await client.ConnectAsync(cancellationToken).ConfigureAwait(false);
+            return client;
+        }
+        catch (Exception ex)
+        {
+            var exitedDuringStartup = HasExited(process);
+            var exitCode = exitedDuringStartup ? process.ExitCode : (int?)null;
+            client._forceOwnedProcessShutdown = true;
+            try
+            {
+                await client.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (Exception cleanupException)
+            {
+                throw new RuntimeClientStartupException(
+                    "The Runtime client failed to start and cleanup the owned process.",
+                    new AggregateException(ex, cleanupException));
+            }
+
+            if (exitedDuringStartup)
+            {
+                throw new RuntimeClientStartupException(
+                    $"The Runtime process exited during startup with code {exitCode}.",
+                    ex);
+            }
+
+            throw;
+        }
+    }
+
+    private static void ValidateCreateOptions(RuntimeClientOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.HostInstanceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.ClientVersion);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.PipePrefix);
+        if (!Enum.IsDefined(options.StartPolicy))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                options.StartPolicy,
+                "The Runtime start policy is not supported.");
+        }
+
+        if (!Enum.IsDefined(options.OwnedProcessClosePolicy))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                options.OwnedProcessClosePolicy,
+                "The owned process close policy is not supported.");
+        }
+
+        if (options.ConnectTimeout < TimeSpan.Zero
+            || options.HeartbeatInterval < TimeSpan.Zero
+            || options.ReconnectWindow < TimeSpan.Zero
+            || options.ReconnectDelay < TimeSpan.Zero
+            || options.StartupTimeout < TimeSpan.Zero
+            || options.OwnedProcessShutdownTimeout < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "Client timeout and reconnect intervals cannot be negative.");
+        }
+
+        if (options.RuntimeInstanceId is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(options.RuntimeInstanceId);
+        }
+
+        if (options.ExpectedRuntimeVersion is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(options.ExpectedRuntimeVersion);
+        }
+
+        if (options.StartPolicy == RuntimeStartPolicy.AttachExisting)
+        {
+            if (!CanAttach(options))
+            {
+                throw new ArgumentException(
+                    "AttachExisting requires a PipeName or RuntimeInstanceId and a handshake secret.",
+                    nameof(options));
+            }
+
+            return;
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.RuntimeExecutablePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.WorkspaceDirectory);
+    }
+
+    private static bool CanAttach(RuntimeClientOptions options) =>
+        (!string.IsNullOrWhiteSpace(options.PipeName)
+            || !string.IsNullOrWhiteSpace(options.RuntimeInstanceId))
+        && !string.IsNullOrWhiteSpace(options.HandshakeSecret);
+
+    private static string BuildPipeName(string pipePrefix, string instanceId) =>
+        $"{pipePrefix}.{instanceId[..Math.Min(8, instanceId.Length)]}";
+
+    private static string? NormalizeOptionalPath(string? path) =>
+        path is null ? null : Path.GetFullPath(path);
+
+    private static async ValueTask<Process> StartRuntimeProcessAsync(
+        RuntimeClientOptions options,
+        CancellationToken cancellationToken)
+    {
+        var startInfo = CreateRuntimeProcessStartInfo(options);
+        Process? process = null;
+        try
+        {
+            process = Process.Start(startInfo)
+                ?? throw new RuntimeClientStartupException(
+                    "The Runtime process could not be created.");
+            await process.StandardInput.WriteLineAsync(
+                options.HandshakeSecret!.AsMemory(),
+                cancellationToken).ConfigureAwait(false);
+            await process.StandardInput.FlushAsync(cancellationToken).ConfigureAwait(false);
+            process.StandardInput.Close();
+            return process;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (process is not null)
+            {
+                _ = await TerminateStartedProcessAsync(process).ConfigureAwait(false);
+            }
+
+            throw;
+        }
+        catch (RuntimeClientStartupException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Exception? cleanupException = null;
+            if (process is not null)
+            {
+                cleanupException = await TerminateStartedProcessAsync(process).ConfigureAwait(false);
+            }
+
+            if (cleanupException is not null)
+            {
+                throw new RuntimeClientStartupException(
+                    "The Runtime process failed to start and could not be cleaned up.",
+                    new AggregateException(ex, cleanupException));
+            }
+
+            throw new RuntimeClientStartupException(
+                "The Runtime process failed to start.",
+                ex);
+        }
+    }
+
+    internal static ProcessStartInfo CreateRuntimeProcessStartInfo(
+        RuntimeClientOptions options)
+    {
+        var runtimeExecutable = options.RuntimeExecutablePath!;
+        var startInfo = new ProcessStartInfo
+        {
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            CreateNoWindow = true
+        };
+        if (runtimeExecutable.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+        {
+            var assemblyPath = Path.GetFullPath(runtimeExecutable);
+            if (!File.Exists(assemblyPath))
+            {
+                throw new RuntimeClientStartupException(
+                    $"The Runtime assembly '{assemblyPath}' does not exist.");
+            }
+
+            startInfo.FileName = "dotnet";
+            startInfo.ArgumentList.Add(assemblyPath);
+        }
+        else
+        {
+            startInfo.FileName = ResolveRuntimeExecutable(runtimeExecutable);
+        }
+
+        startInfo.ArgumentList.Add("serve");
+        startInfo.ArgumentList.Add("--workspace");
+        startInfo.ArgumentList.Add(options.WorkspaceDirectory!);
+        if (options.DataDirectory is not null)
+        {
+            startInfo.ArgumentList.Add("--data-dir");
+            startInfo.ArgumentList.Add(options.DataDirectory);
+        }
+
+        if (options.LogDirectory is not null)
+        {
+            startInfo.ArgumentList.Add("--log-dir");
+            startInfo.ArgumentList.Add(options.LogDirectory);
+        }
+
+        startInfo.ArgumentList.Add("--instance");
+        startInfo.ArgumentList.Add(options.RuntimeInstanceId!);
+        startInfo.ArgumentList.Add("--pipe-prefix");
+        startInfo.ArgumentList.Add(options.PipePrefix);
+        return startInfo;
+    }
+
+    private static string ResolveRuntimeExecutable(string runtimeExecutable)
+    {
+        if (!Path.IsPathFullyQualified(runtimeExecutable)
+            && runtimeExecutable.IndexOf(Path.DirectorySeparatorChar) < 0
+            && runtimeExecutable.IndexOf(Path.AltDirectorySeparatorChar) < 0)
+        {
+            return runtimeExecutable;
+        }
+
+        var executablePath = Path.GetFullPath(runtimeExecutable);
+        if (!File.Exists(executablePath))
+        {
+            throw new RuntimeClientStartupException(
+                $"The Runtime executable '{executablePath}' does not exist.");
+        }
+
+        return executablePath;
+    }
+
+    private static bool HasExited(Process process)
+    {
+        try
+        {
+            return process.HasExited;
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+    }
+
+    private static async ValueTask<Exception?> TerminateStartedProcessAsync(Process process)
+    {
+        try
+        {
+            if (!HasExited(process))
+            {
+                process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync().ConfigureAwait(false);
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex;
+        }
+        finally
+        {
+            process.Dispose();
+        }
     }
 
     public RuntimeClientState State { get; private set; }
@@ -71,16 +432,24 @@ public sealed class RuntimeClient : IRuntimeClient
 
     public int ConsecutiveFailures { get; private set; }
 
+    /// <summary>
+    /// Gets the authenticated and initialized Runtime instance binding.
+    /// </summary>
+    public RuntimeInstanceBinding InstanceBinding =>
+        State == RuntimeClientState.Connected && _instanceBinding is not null
+            ? _instanceBinding
+            : throw new InvalidOperationException("The Runtime instance is not connected.");
+
     public DateTimeOffset? LastSentAt => _controlChannel?.LastSentAt;
 
     public DateTimeOffset? LastReceivedAt => _controlChannel?.LastReceivedAt;
 
-    public IBlobChannel BlobChannel =>
+    internal IBlobChannel BlobChannel =>
         State == RuntimeClientState.Connected && _blobChannel is not null
             ? _blobChannel
             : throw new InvalidOperationException("The Runtime Blob channel is not connected.");
 
-    public IDuplexRpcPeer ControlPeer =>
+    internal IDuplexRpcPeer ControlPeer =>
         State == RuntimeClientState.Connected && _controlChannel is not null
             ? _controlChannel
             : throw new InvalidOperationException("The Runtime control channel is not connected.");
@@ -123,7 +492,8 @@ public sealed class RuntimeClient : IRuntimeClient
                         .ConfigureAwait(false);
                     return;
                 }
-                catch (Exception ex) when (ex is IOException
+                catch (Exception ex) when (ex is RuntimeClientConnectionException
+                    or IOException
                     or InvalidDataException
                     or InvalidOperationException
                     or TimeoutException)
@@ -136,8 +506,12 @@ public sealed class RuntimeClient : IRuntimeClient
             }
 
             State = RuntimeClientState.Faulted;
-            throw new TimeoutException(
-                $"The Runtime reconnect window expired. Last error: {lastError?.Message}");
+            throw new RuntimeClientConnectionException(
+                $"The Runtime reconnect window expired. Last error: {lastError?.Message}",
+                new TimeoutException("The Runtime reconnect window expired."))
+            {
+                IsRetryable = true
+            };
         }
         finally
         {
@@ -156,23 +530,114 @@ public sealed class RuntimeClient : IRuntimeClient
         var connectToken = connectTimeout?.Token ?? cancellationToken;
         try
         {
-            _transport = await NamedPipeTransport.ConnectAsync(
-                _options.PipeName,
-                connectToken).ConfigureAwait(false);
-            ValidatePeerProcess(_transport);
+            try
+            {
+                _transport = await NamedPipeTransport.ConnectAsync(
+                    _options.PipeName,
+                    connectToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeClientConnectionException(
+                    $"Failed to connect to Runtime pipe '{_options.PipeName}'.",
+                    ex)
+                {
+                    IsRetryable = true
+                };
+            }
+
+            try
+            {
+                ValidatePeerProcess(_transport);
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeClientAuthenticationException(
+                    "The Runtime process identity could not be authenticated.",
+                    ex);
+            }
+
             State = RuntimeClientState.Authenticating;
-            await AuthenticateAsync(_transport, connectToken).ConfigureAwait(false);
+            try
+            {
+                await AuthenticateAsync(_transport, connectToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeClientAuthenticationException(
+                    "Runtime authentication failed.",
+                    ex);
+            }
+
             _authenticatedControl = new AuthenticatedFrameChannel(
                 _transport,
                 _sessionKey!,
                 "host-control",
                 "runtime-control");
             _controlChannel = new FramedControlChannel(_authenticatedControl);
+            if (_hostCallbackDispatcher is not null)
+            {
+                _controlChannel.SetRequestHandler(_hostCallbackDispatcher.HandleAsync);
+            }
+
             State = RuntimeClientState.Initializing;
-            var initializeResponse = await InitializeAsync(connectToken).ConfigureAwait(false);
+            InitializeResponse initializeResponse;
+            try
+            {
+                initializeResponse = await InitializeWhenReadyAsync(connectToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex) when (ex is IOException or TimeoutException)
+            {
+                throw new RuntimeClientConnectionException(
+                    "The Runtime connection closed during initialization.",
+                    ex)
+                {
+                    IsRetryable = true
+                };
+            }
+            catch (RuntimeClientConnectionException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeClientProtocolException(
+                    "Runtime initialization failed.",
+                    ex);
+            }
+
+            if (_options.ExpectedRuntimeVersion is not null
+                && !string.Equals(
+                    initializeResponse.ProgramVersion,
+                    _options.ExpectedRuntimeVersion,
+                    StringComparison.Ordinal))
+            {
+                throw new RuntimeClientVersionIncompatibleException(
+                    $"Expected Runtime version '{_options.ExpectedRuntimeVersion}', "
+                    + $"but '{initializeResponse.ProgramVersion}' was reported.")
+                {
+                    ExpectedVersion = _options.ExpectedRuntimeVersion,
+                    ActualVersion = initializeResponse.ProgramVersion
+                };
+            }
+
             if (!initializeResponse.Capabilities.BlobTransfer)
             {
-                throw new InvalidDataException("The Runtime did not negotiate Blob transfer support.");
+                throw new RuntimeClientHealthException(
+                    "The Runtime did not negotiate Blob transfer support.");
             }
 
             _heartbeatIntervalSeconds = initializeResponse.HeartbeatIntervalSeconds;
@@ -188,9 +653,34 @@ public sealed class RuntimeClient : IRuntimeClient
 
             _confirmedRuntimeInstanceId = _runtimeInstanceId;
             _eventPipeName = _options.EventPipeName ?? initializeResponse.EventChannelAddress;
-            await ConnectEventChannelAsync(_eventPipeName, connectToken).ConfigureAwait(false);
+            try
+            {
+                await ConnectEventChannelAsync(_eventPipeName, connectToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new RuntimeClientConnectionException(
+                    "Failed to connect to the Runtime event channel.",
+                    ex)
+                {
+                    IsRetryable = true
+                };
+            }
+
             LastConnectedAt = DateTimeOffset.UtcNow;
             ConsecutiveFailures = 0;
+            _instanceBinding = new RuntimeInstanceBinding(
+                _options.HostInstanceId,
+                _runtimeInstanceId,
+                _options.WorkspaceDirectory,
+                _transport.PeerProcessId ?? _options.ExpectedServerProcessId,
+                _options.PipeName,
+                _eventPipeName,
+                _ownedProcess is not null);
             State = RuntimeClientState.Connected;
             if (startHeartbeat && _options.EnableBackgroundHeartbeat)
             {
@@ -204,6 +694,7 @@ public sealed class RuntimeClient : IRuntimeClient
         {
             ConsecutiveFailures++;
             State = RuntimeClientState.Faulted;
+            _instanceBinding = null;
             await DisposeTransportAsync().ConfigureAwait(false);
             throw;
         }
@@ -263,9 +754,6 @@ public sealed class RuntimeClient : IRuntimeClient
             }
 
             yield return envelope;
-            await eventChannel.AcknowledgeAsync(envelope.Gsn, cancellationToken)
-                .ConfigureAwait(false);
-            replayCursor = envelope.Gsn;
         }
     }
 
@@ -450,19 +938,30 @@ public sealed class RuntimeClient : IRuntimeClient
 
     public async ValueTask<bool> CancelRunAsync(
         string runId,
+        CancellationToken cancellationToken = default) =>
+        await CancelRunAsync(runId, reason: null, cancellationToken).ConfigureAwait(false);
+
+    public async ValueTask<bool> CancelRunAsync(
+        string runId,
+        string? reason,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(runId);
+        if (reason is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        }
+
         if (State != RuntimeClientState.Connected || _controlChannel is null)
         {
             throw new InvalidOperationException("The Runtime client is not connected.");
         }
 
         var runIdElement = System.Text.Json.JsonSerializer.SerializeToElement(
-            new RunCancelParameters(runId),
+            new RunCancelParameters(runId, reason),
             RuntimeJsonContext.Default.RunCancelParameters);
         var response = await _controlChannel.SendRequestAsync(
-            "run.cancel",
+            MessageTypes.RunCancel,
             runIdElement,
             cancellationToken).ConfigureAwait(false);
         ThrowIfError(response);
@@ -495,15 +994,52 @@ public sealed class RuntimeClient : IRuntimeClient
             ?? throw new InvalidDataException("The run.query response was empty.");
     }
 
+    public async ValueTask<RuntimeStatusResult> GetRuntimeStatusAsync(
+        CancellationToken cancellationToken = default) =>
+        await SendControlRequestAsync(
+            MessageTypes.RuntimeStatus,
+            new RuntimeStatusParameters(),
+            RuntimeJsonContext.Default.RuntimeStatusResult,
+            cancellationToken).ConfigureAwait(false);
+
+    public async ValueTask<RunListResult> ListRunsAsync(
+        RunListParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        if (parameters.SessionId is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(parameters.SessionId);
+        }
+
+        return await SendControlRequestAsync(
+            MessageTypes.RunList,
+            parameters,
+            RuntimeJsonContext.Default.RunListResult,
+            cancellationToken).ConfigureAwait(false);
+    }
+
     public async ValueTask<SessionGetResult> GetSessionAsync(
         string sessionId,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
-        return await SendSessionRequestAsync(
+        return await SendControlRequestAsync(
             MessageTypes.SessionGet,
             new SessionIdParameters(sessionId),
             RuntimeJsonContext.Default.SessionGetResult,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<SessionListResult> ListSessionsAsync(
+        SessionListParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        return await SendControlRequestAsync(
+            MessageTypes.SessionList,
+            parameters,
+            RuntimeJsonContext.Default.SessionListResult,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -512,7 +1048,7 @@ public sealed class RuntimeClient : IRuntimeClient
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
-        return await SendSessionRequestAsync(
+        return await SendControlRequestAsync(
             MessageTypes.SessionResume,
             new SessionIdParameters(sessionId),
             RuntimeJsonContext.Default.SessionResumeResult,
@@ -524,7 +1060,7 @@ public sealed class RuntimeClient : IRuntimeClient
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parameters);
-        return await SendSessionRequestAsync(
+        return await SendControlRequestAsync(
             MessageTypes.SessionMessagesList,
             parameters,
             RuntimeJsonContext.Default.SessionMessagesListResult,
@@ -536,7 +1072,7 @@ public sealed class RuntimeClient : IRuntimeClient
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parameters);
-        return await SendSessionRequestAsync(
+        return await SendControlRequestAsync(
             MessageTypes.SessionSelectionUpdate,
             parameters,
             RuntimeJsonContext.Default.NextTurnSelection,
@@ -548,21 +1084,65 @@ public sealed class RuntimeClient : IRuntimeClient
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parameters);
-        return await SendSessionRequestAsync(
+        return await SendControlRequestAsync(
             MessageTypes.SessionRehydrate,
             parameters,
             RuntimeJsonContext.Default.SessionRehydrateResult,
             cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask<TResult> SendSessionRequestAsync<TParameters, TResult>(
+    public async ValueTask<ToolCatalogUpdateResponse> ReplaceToolCatalogAsync(
+        ToolCatalogReplaceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.CatalogVersion);
+        ArgumentNullException.ThrowIfNull(request.Tools);
+        return await SendControlRequestAsync(
+            MessageTypes.ToolCatalogReplace,
+            request,
+            RuntimeJsonContext.Default.ToolCatalogUpdateResponse,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<ToolCatalogUpdateResponse> PatchToolCatalogAsync(
+        ToolCatalogPatchRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.BaseVersion);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.NewVersion);
+        ArgumentNullException.ThrowIfNull(request.Upserts);
+        ArgumentNullException.ThrowIfNull(request.Removals);
+        return await SendControlRequestAsync(
+            MessageTypes.ToolCatalogPatch,
+            request,
+            RuntimeJsonContext.Default.ToolCatalogUpdateResponse,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask<GrantRevokeResponse> RevokeGrantAsync(
+        GrantRevokeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.GrantId);
+        return await SendControlRequestAsync(
+            MessageTypes.GrantRevoke,
+            request,
+            RuntimeJsonContext.Default.GrantRevokeResponse,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<TResult> SendControlRequestAsync<TParameters, TResult>(
         string method,
         TParameters parameters,
         System.Text.Json.Serialization.Metadata.JsonTypeInfo<TResult> resultType,
         CancellationToken cancellationToken)
         where TParameters : notnull
     {
-        if (State != RuntimeClientState.Connected || _controlChannel is null)
+        var controlChannel = _controlChannel;
+        if (State != RuntimeClientState.Connected || controlChannel is null)
         {
             throw new InvalidOperationException("The Runtime client is not connected.");
         }
@@ -571,10 +1151,28 @@ public sealed class RuntimeClient : IRuntimeClient
             parameters,
             typeof(TParameters),
             RuntimeJsonContext.Default);
-        var response = await _controlChannel.SendRequestAsync(
-            method,
-            parameterElement,
-            cancellationToken).ConfigureAwait(false);
+        JsonRpcResponse response;
+        try
+        {
+            response = await controlChannel.SendRequestAsync(
+                method,
+                parameterElement,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+        {
+            throw new RuntimeClientConnectionException(
+                $"The Runtime connection closed while sending '{method}'.",
+                ex)
+            {
+                IsRetryable = true
+            };
+        }
+
         ThrowIfError(response);
         var result = response.Result
             ?? throw new InvalidDataException($"The {method} response did not contain a result.");
@@ -626,35 +1224,107 @@ public sealed class RuntimeClient : IRuntimeClient
             return;
         }
 
-        if (_lifecycleCancellation is not null)
-        {
-            await _lifecycleCancellation.CancelAsync().ConfigureAwait(false);
-        }
-
-        if (_heartbeatTask is not null)
-        {
-            try
-            {
-                await _heartbeatTask.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-        }
-
-        await _stateGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            await DisposeTransportAsync().ConfigureAwait(false);
-            State = RuntimeClientState.Closed;
+            if (_lifecycleCancellation is not null)
+            {
+                await _lifecycleCancellation.CancelAsync().ConfigureAwait(false);
+            }
+
+            if (_heartbeatTask is not null)
+            {
+                try
+                {
+                    await _heartbeatTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+            }
+
+            await _stateGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await DisposeTransportAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                _stateGate.Release();
+            }
         }
         finally
         {
-            _stateGate.Release();
-            _stateGate.Dispose();
-            _lifecycleCancellation?.Dispose();
-            _lifecycleCancellation = null;
-            _heartbeatTask = null;
+            try
+            {
+                await DisposeOwnedProcessAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                State = RuntimeClientState.Closed;
+                _instanceBinding = null;
+                _stateGate.Dispose();
+                _hostCallbackDispatcher?.Dispose();
+                _lifecycleCancellation?.Dispose();
+                _lifecycleCancellation = null;
+                _heartbeatTask = null;
+            }
+        }
+    }
+
+    private async ValueTask DisposeOwnedProcessAsync()
+    {
+        var process = Interlocked.Exchange(ref _ownedProcess, null);
+        if (process is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var shouldShutdown = _forceOwnedProcessShutdown
+                || _options.OwnedProcessClosePolicy == OwnedProcessClosePolicy.Shutdown;
+            if (!shouldShutdown || HasExited(process))
+            {
+                return;
+            }
+
+            try
+            {
+                _ = process.CloseMainWindow();
+            }
+            catch (InvalidOperationException)
+            {
+            }
+            catch (NotSupportedException)
+            {
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+            }
+
+            if (HasExited(process))
+            {
+                return;
+            }
+
+            using var timeout = new CancellationTokenSource(
+                _options.ResolvedOwnedProcessShutdownTimeout);
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+            {
+                if (!HasExited(process))
+                {
+                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync().ConfigureAwait(false);
+                }
+            }
+        }
+        finally
+        {
+            process.Dispose();
         }
     }
 
@@ -689,7 +1359,8 @@ public sealed class RuntimeClient : IRuntimeClient
                 {
                     break;
                 }
-                catch (Exception reconnectError) when (reconnectError is IOException
+                catch (Exception reconnectError) when (reconnectError is RuntimeClientConnectionException
+                    or IOException
                     or InvalidDataException
                     or InvalidOperationException
                     or TimeoutException)
@@ -806,6 +1477,7 @@ public sealed class RuntimeClient : IRuntimeClient
         }
 
         _runtimeInstanceId = null;
+        _instanceBinding = null;
         _sessionKey = null;
     }
 
@@ -891,6 +1563,15 @@ public sealed class RuntimeClient : IRuntimeClient
             "initialize",
             parameters,
             cancellationToken).ConfigureAwait(false);
+        if (response.Error is { Code: -32601 } error)
+        {
+            throw new RuntimeClientConnectionException(
+                $"The Runtime is not ready to initialize: {error.Message}")
+            {
+                IsRetryable = true
+            };
+        }
+
         ThrowIfError(response);
         var result = response.Result
             ?? throw new InvalidDataException("The initialize response did not contain a result.");
@@ -907,6 +1588,33 @@ public sealed class RuntimeClient : IRuntimeClient
         }
 
         return initializeResponse;
+    }
+
+    private async ValueTask<InitializeResponse> InitializeWhenReadyAsync(
+        CancellationToken cancellationToken)
+    {
+        var deadline = DateTimeOffset.UtcNow + _options.ResolvedStartupTimeout;
+        while (true)
+        {
+            try
+            {
+                return await InitializeAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (RuntimeClientConnectionException ex) when (
+                ex.IsRetryable && DateTimeOffset.UtcNow < deadline)
+            {
+                var remaining = deadline - DateTimeOffset.UtcNow;
+                var delay = remaining < _options.ResolvedReconnectDelay
+                    ? remaining
+                    : _options.ResolvedReconnectDelay;
+                if (delay <= TimeSpan.Zero)
+                {
+                    throw;
+                }
+
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+        }
     }
 
     private void UpdateConfirmedGsn(long lastConfirmedGsn)

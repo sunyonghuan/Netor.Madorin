@@ -130,7 +130,7 @@ public sealed class StandaloneCliTests
     }
 
     [TestMethod]
-    public async Task RunForTests_MeetingMode_IsRejectedBeforeRuntimeStarts()
+    public async Task RunForTests_UnknownMode_IsRejectedBeforeRuntimeStarts()
     {
         var root = CreateTemporaryDirectory();
         try
@@ -147,8 +147,8 @@ public sealed class StandaloneCliTests
                     "run",
                     "--workspace", workspace,
                     "--data-dir", dataDirectory,
-                    "--mode", "meeting",
-                    "--input", "not implemented"
+                    "--mode", "unsupported",
+                    "--input", "must not run"
                 ],
                 output,
                 new StringReader(string.Empty),
@@ -156,7 +156,7 @@ public sealed class StandaloneCliTests
                 _ => _ => provider);
 
             Assert.AreEqual(ExitCodes.InvalidArguments, exitCode);
-            Assert.Contains("not implemented", output.ToString(), StringComparison.Ordinal);
+            Assert.Contains("Mode must be", output.ToString(), StringComparison.Ordinal);
             Assert.IsEmpty(provider.Requests);
             Assert.IsFalse(Directory.Exists(dataDirectory));
         }

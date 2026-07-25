@@ -110,7 +110,10 @@ internal static class MultiInstanceHost
                     await client.ConnectAsync().ConfigureAwait(false);
                     return client;
                 }
-                catch (Exception ex) when (ex is IOException or InvalidDataException or TimeoutException)
+                catch (Exception ex) when (ex is IOException
+                    or InvalidDataException
+                    or TimeoutException
+                    or RuntimeClientConnectionException { IsRetryable: true })
                 {
                     lastError = ex;
                     await client.DisposeAsync().ConfigureAwait(false);

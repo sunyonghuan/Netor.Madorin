@@ -7,7 +7,8 @@ public sealed record WorkPlanDraft(
     string PlanVersion,
     string Goal,
     WorkPlanStepDraft[] Steps,
-    string? Summary = null);
+    string? Summary = null,
+    string? PreviousPlanVersion = null);
 
 /// <summary>One planned work step before persistence and scheduling.</summary>
 public sealed record WorkPlanStepDraft(
@@ -19,7 +20,18 @@ public sealed record WorkPlanStepDraft(
     int Depth = 0,
     string? Title = null,
     JsonElement? Inputs = null,
-    bool IsBackground = false);
+    bool IsBackground = false,
+    string? ReusesStepId = null,
+    string? ReplacesStepId = null);
+
+/// <summary>One immutable persisted revision of a work plan.</summary>
+public sealed record WorkPlanRevisionSnapshot(
+    string SessionId,
+    string RunId,
+    string PlanVersion,
+    string PlanMessageId,
+    string? PreviousPlanVersion,
+    DateTimeOffset CreatedAt);
 
 /// <summary>Persisted/resumable snapshot of one work-plan step.</summary>
 public sealed record WorkStepSnapshot(
@@ -39,7 +51,11 @@ public sealed record WorkStepSnapshot(
     int AttemptCount = 0,
     string[]? DependsOn = null,
     DateTimeOffset? StartedAt = null,
-    DateTimeOffset? CompletedAt = null);
+    DateTimeOffset? CompletedAt = null,
+    string? StepMessageId = null,
+    string? ReusesStepId = null,
+    string? ReplacesStepId = null,
+    string? CheckpointJson = null);
 
 /// <summary>One execution attempt of a work step.</summary>
 public sealed record WorkStepAttemptSnapshot(
@@ -76,4 +92,5 @@ public sealed record WorkResumeState(
     WorkBackgroundJobSnapshot[]? BackgroundJobs = null,
     string[]? SentToolCallIds = null,
     bool RequiresManualIntervention = false,
-    string? PendingApprovalRequestId = null);
+    string? PendingApprovalRequestId = null,
+    WorkPlanRevisionSnapshot[]? PlanRevisions = null);

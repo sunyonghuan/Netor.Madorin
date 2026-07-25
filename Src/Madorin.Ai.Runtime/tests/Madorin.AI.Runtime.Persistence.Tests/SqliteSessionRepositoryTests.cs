@@ -96,6 +96,116 @@ public sealed class SqliteSessionRepositoryTests
     }
 
     [TestMethod]
+    public async Task TryDeleteSessionAsync_WorkSession_RemovesOwnedRowsAndKeepsOtherSession()
+    {
+        await using var connection = await CreateDatabaseAsync(TestContext.CancellationToken);
+        var sessionRepository = new SqliteSessionRepository(connection);
+        var workRepository = new SqliteWorkRepository(connection);
+        var sessionId = await sessionRepository.CreateSessionAsync(
+            RuntimeMode.Work,
+            "delete-work-session",
+            KeyRetention,
+            TestContext.CancellationToken);
+        var runId = await sessionRepository.CreateRunAsync(
+            sessionId,
+            "delete-work-run",
+            KeyRetention,
+            TestContext.CancellationToken);
+        var retainedSessionId = await sessionRepository.CreateSessionAsync(
+            RuntimeMode.Expert,
+            "retained-session",
+            KeyRetention,
+            TestContext.CancellationToken);
+        var plan = new WorkPlanDraft(
+            "1",
+            "Delete complete Work state",
+            [
+                new WorkPlanStepDraft("delete-step-a", "Prepare", "worker"),
+                new WorkPlanStepDraft(
+                    "delete-step-b",
+                    "Review",
+                    "reviewer",
+                    DependsOn: ["delete-step-a"],
+                    IsBackground: true)
+            ]);
+        await workRepository.UpsertSessionAsync(
+            sessionId,
+            runId,
+            WorkSessionStatus.Executing,
+            "manager",
+            WorkflowPolicy.Default,
+            WorkContextPolicy.Default,
+            plan.PlanVersion,
+            planMessageId: null,
+            plan,
+            TestContext.CancellationToken);
+        await workRepository.SavePlanStepsAsync(
+            sessionId,
+            runId,
+            plan,
+            TestContext.CancellationToken);
+        var stepInputHash = await ReadStepInputHashAsync(
+            connection,
+            "delete-step-a",
+            plan.PlanVersion,
+            TestContext.CancellationToken);
+        Assert.IsTrue(await sessionRepository.TryStartWorkStepAsync(
+            "delete-step-a",
+            plan.PlanVersion,
+            runId,
+            sessionId,
+            "worker",
+            stepInputHash,
+            "delete-invocation",
+            TestContext.CancellationToken));
+        await workRepository.CreateBackgroundJobAsync(
+            "delete-job",
+            sessionId,
+            runId,
+            "delete-step-b",
+            plan.PlanVersion,
+            TestContext.CancellationToken);
+
+        var deleted = await sessionRepository.TryDeleteSessionAsync(
+            sessionId,
+            TestContext.CancellationToken);
+
+        Assert.IsTrue(deleted);
+        Assert.IsNull(await sessionRepository.GetSessionSnapshotAsync(
+            sessionId,
+            TestContext.CancellationToken));
+        Assert.IsNotNull(await sessionRepository.GetSessionSnapshotAsync(
+            retainedSessionId,
+            TestContext.CancellationToken));
+        Assert.IsFalse(await sessionRepository.TryDeleteSessionAsync(
+            sessionId,
+            TestContext.CancellationToken));
+        await using var countCommand = connection.CreateCommand();
+        countCommand.CommandText = """
+            SELECT
+                (SELECT COUNT(*) FROM sessions WHERE session_id = $sessionId)
+              + (SELECT COUNT(*) FROM runs WHERE session_id = $sessionId)
+              + (SELECT COUNT(*) FROM session_idempotency WHERE session_id = $sessionId)
+              + (SELECT COUNT(*) FROM run_idempotency WHERE session_id = $sessionId)
+              + (SELECT COUNT(*) FROM work_sessions WHERE session_id = $sessionId)
+              + (SELECT COUNT(*) FROM work_plan_revisions WHERE session_id = $sessionId)
+              + (SELECT COUNT(*) FROM work_steps WHERE session_id = $sessionId)
+              + (SELECT COUNT(*) FROM work_background_jobs WHERE session_id = $sessionId)
+              + (SELECT COUNT(*) FROM work_step_dependencies
+                 WHERE step_id IN ('delete-step-a', 'delete-step-b')
+                    OR depends_on_step_id IN ('delete-step-a', 'delete-step-b'))
+              + (SELECT COUNT(*) FROM work_step_attempts
+                 WHERE step_id IN ('delete-step-a', 'delete-step-b'));
+            """;
+        countCommand.Parameters.AddWithValue("$sessionId", sessionId);
+        Assert.AreEqual(
+            0L,
+            Convert.ToInt64(
+                await countCommand.ExecuteScalarAsync(TestContext.CancellationToken),
+                CultureInfo.InvariantCulture));
+    }
+
+    [TestMethod]
     public async Task CreateSessionAsync_SameKeyWithDifferentRequestHash_ThrowsConflict()
     {
         await using var connection = await CreateDatabaseAsync(TestContext.CancellationToken);
@@ -403,7 +513,115 @@ public sealed class SqliteSessionRepositoryTests
     }
 
     [TestMethod]
-    public async Task GetResumeStateAsync_ReturnsWorkPlanStepsAndSentToolCalls()
+    public async Task SavePlanRevisionAsync_IncrementsVersionAndPreservesCompletedHistory()
+    {
+        var ct = TestContext.CancellationToken;
+        await using var connection = await CreateDatabaseAsync(ct);
+        var sessionRepo = new SqliteSessionRepository(connection);
+        var workRepo = new SqliteWorkRepository(connection);
+        var sessionId = await sessionRepo.CreateSessionAsync(
+            RuntimeMode.Work,
+            "work-plan-revision-session",
+            KeyRetention,
+            ct);
+        var runId = await sessionRepo.CreateRunAsync(
+            sessionId,
+            "work-plan-revision-run",
+            KeyRetention,
+            ct);
+        var first = new WorkPlanDraft(
+            "1",
+            "Ship release",
+            [new WorkPlanStepDraft("step-a", "Prepare notes", "worker")]);
+        await workRepo.SavePlanRevisionAsync(
+            sessionId,
+            runId,
+            "manager",
+            WorkflowPolicy.Default,
+            WorkContextPolicy.Default,
+            first,
+            "plan-message-1",
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["step-a"] = "step-message-1"
+            },
+            ct);
+        Assert.IsTrue(await sessionRepo.TryStartWorkStepAsync(
+            "step-a",
+            "1",
+            runId,
+            sessionId,
+            "worker",
+            await ReadStepInputHashAsync(connection, "step-a", "1", ct),
+            "invocation-a",
+            ct));
+        await sessionRepo.CompleteWorkStepAsync(
+            "step-a",
+            "1",
+            await ReadStepInputHashAsync(connection, "step-a", "1", ct),
+            "{}",
+            ct);
+
+        var second = new WorkPlanDraft(
+            "2",
+            "Ship release",
+            [
+                new WorkPlanStepDraft(
+                    "step-a-reused",
+                    "Reuse prepared notes",
+                    "worker",
+                    ReusesStepId: "step-a")
+            ],
+            PreviousPlanVersion: "1");
+        await workRepo.SavePlanRevisionAsync(
+            sessionId,
+            runId,
+            "manager",
+            WorkflowPolicy.Default,
+            WorkContextPolicy.Default,
+            second,
+            "plan-message-2",
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["step-a-reused"] = "step-message-2"
+            },
+            ct);
+
+        var revisions = await workRepo.ListPlanRevisionsAsync(sessionId, ct);
+        Assert.HasCount(2, revisions);
+        Assert.AreEqual("1", revisions[1].PreviousPlanVersion);
+        var allSteps = await workRepo.ListStepsAsync(sessionId, ct: ct);
+        Assert.HasCount(2, allSteps);
+        Assert.AreEqual(WorkStepLifecycleStatus.Completed, allSteps[0].Status);
+        Assert.AreEqual("step-a", allSteps[1].ReusesStepId);
+        Assert.AreEqual("step-message-2", allSteps[1].StepMessageId);
+
+        var invalid = second with
+        {
+            PlanVersion = "4",
+            PreviousPlanVersion = "2",
+            Steps = [new WorkPlanStepDraft("step-invalid", "Invalid", "worker")]
+        };
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => workRepo.SavePlanRevisionAsync(
+                sessionId,
+                runId,
+                "manager",
+                WorkflowPolicy.Default,
+                WorkContextPolicy.Default,
+                invalid,
+                "plan-message-invalid",
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["step-invalid"] = "step-message-invalid"
+                },
+                ct));
+        Assert.HasCount(2, await workRepo.ListPlanRevisionsAsync(sessionId, ct));
+        Assert.HasCount(2, await workRepo.ListStepsAsync(sessionId, ct: ct));
+    }
+
+    [TestMethod]
+    public async Task GetResumeStateAsync_ReturnsWorkPlanStepsBackgroundJobsAndSentToolCalls()
     {
         await using var connection = await CreateDatabaseAsync(TestContext.CancellationToken);
         var sessionRepo = new SqliteSessionRepository(connection);
@@ -454,6 +672,15 @@ public sealed class SqliteSessionRepositoryTests
             "step-a",
             plan.PlanVersion,
             TestContext.CancellationToken);
+        await workRepo.CreateBackgroundJobAsync(
+            "job-step-a",
+            sessionId,
+            runId,
+            "step-a",
+            plan.PlanVersion,
+            TestContext.CancellationToken);
+        Assert.IsTrue(
+            await workRepo.TryStartBackgroundJobAsync("job-step-a", TestContext.CancellationToken));
 
         var resume = await workRepo.GetResumeStateAsync(sessionId, TestContext.CancellationToken);
 
@@ -466,7 +693,221 @@ public sealed class SqliteSessionRepositoryTests
         Assert.IsNotNull(resume.CurrentStep);
         Assert.AreEqual("step-a", resume.CurrentStep.StepId);
         Assert.AreEqual(WorkStepLifecycleStatus.Running, resume.CurrentStep.Status);
+        Assert.IsNotNull(resume.BackgroundJobs);
+        var backgroundJob = Assert.ContainsSingle(resume.BackgroundJobs);
+        Assert.AreEqual("job-step-a", backgroundJob.JobId);
+        Assert.AreEqual("step-a", backgroundJob.StepId);
+        Assert.AreEqual(WorkBackgroundJobStatus.Running, backgroundJob.Status);
+        Assert.IsNotNull(backgroundJob.StartedAt);
+        Assert.IsNull(backgroundJob.CompletedAt);
         CollectionAssert.AreEqual(ResumeSentToolCallIds, resume.SentToolCallIds);
+    }
+
+    [TestMethod]
+    public async Task BackgroundJobLifecycle_WithStartCompleteCancelAndTimeout_PersistsState()
+    {
+        await using var connection = await CreateDatabaseAsync(TestContext.CancellationToken);
+        var sessionRepo = new SqliteSessionRepository(connection);
+        var workRepo = new SqliteWorkRepository(connection);
+        var sessionId = await sessionRepo.CreateSessionAsync(
+            RuntimeMode.Work,
+            "work-background-session",
+            KeyRetention,
+            TestContext.CancellationToken);
+        var runId = await sessionRepo.CreateRunAsync(
+            sessionId,
+            "work-background-run",
+            KeyRetention,
+            TestContext.CancellationToken);
+        var plan = new WorkPlanDraft(
+            "1",
+            "Background job lifecycle",
+            [new WorkPlanStepDraft("step-a", "Run background work", "worker", IsBackground: true)]);
+        await workRepo.UpsertSessionAsync(
+            sessionId,
+            runId,
+            WorkSessionStatus.Executing,
+            "manager",
+            WorkflowPolicy.Default,
+            WorkContextPolicy.Default,
+            plan.PlanVersion,
+            planMessageId: null,
+            plan,
+            TestContext.CancellationToken);
+        await workRepo.SavePlanStepsAsync(sessionId, runId, plan, TestContext.CancellationToken);
+
+        var pending = await workRepo.CreateBackgroundJobAsync(
+            "job-complete",
+            sessionId,
+            runId,
+            "step-a",
+            plan.PlanVersion,
+            TestContext.CancellationToken);
+        Assert.AreEqual(WorkBackgroundJobStatus.Pending, pending.Status);
+
+        Assert.IsTrue(
+            await workRepo.TryStartBackgroundJobAsync("job-complete", TestContext.CancellationToken));
+        await workRepo.CompleteBackgroundJobAsync("job-complete", TestContext.CancellationToken);
+        var completed = await workRepo.GetBackgroundJobAsync("job-complete", TestContext.CancellationToken);
+        Assert.IsNotNull(completed);
+        Assert.AreEqual(WorkBackgroundJobStatus.Completed, completed.Status);
+        Assert.IsNotNull(completed.StartedAt);
+        Assert.IsNotNull(completed.CompletedAt);
+
+        var reused = await workRepo.CreateBackgroundJobAsync(
+            "job-complete",
+            sessionId,
+            runId,
+            "step-a",
+            plan.PlanVersion,
+            TestContext.CancellationToken);
+        Assert.AreEqual(WorkBackgroundJobStatus.Completed, reused.Status);
+
+        await workRepo.CreateBackgroundJobAsync(
+            "job-cancel",
+            sessionId,
+            runId,
+            "step-a",
+            plan.PlanVersion,
+            TestContext.CancellationToken);
+        Assert.IsTrue(
+            await workRepo.CancelBackgroundJobAsync(
+                "job-cancel",
+                "user cancelled",
+                TestContext.CancellationToken));
+        var cancelled = await workRepo.GetBackgroundJobAsync("job-cancel", TestContext.CancellationToken);
+        Assert.IsNotNull(cancelled);
+        Assert.AreEqual(WorkBackgroundJobStatus.Cancelled, cancelled.Status);
+        Assert.AreEqual("user cancelled", cancelled.ErrorMessage);
+
+        await workRepo.CreateBackgroundJobAsync(
+            "job-timeout",
+            sessionId,
+            runId,
+            "step-a",
+            plan.PlanVersion,
+            TestContext.CancellationToken);
+        Assert.IsTrue(
+            await workRepo.TryStartBackgroundJobAsync("job-timeout", TestContext.CancellationToken));
+        await BackdateBackgroundJobAsync(
+            connection,
+            "job-timeout",
+            "2026-07-23T00:00:00.000Z",
+            TestContext.CancellationToken);
+
+        var cancelledCount = await workRepo.CancelTimedOutBackgroundJobsAsync(
+            TimeSpan.FromMinutes(1),
+            "lease timeout",
+            TestContext.CancellationToken);
+
+        Assert.AreEqual(1, cancelledCount);
+        var timedOut = await workRepo.GetBackgroundJobAsync("job-timeout", TestContext.CancellationToken);
+        Assert.IsNotNull(timedOut);
+        Assert.AreEqual(WorkBackgroundJobStatus.Cancelled, timedOut.Status);
+        Assert.AreEqual("lease timeout", timedOut.ErrorMessage);
+        var jobs = await workRepo.ListBackgroundJobsAsync(
+            sessionId,
+            "step-a",
+            plan.PlanVersion,
+            TestContext.CancellationToken);
+        Assert.HasCount(3, jobs);
+    }
+
+    [TestMethod]
+    public async Task MarkSessionInterruptedAsync_WithWaitingStepAndRunningJob_ConvergesAtomically()
+    {
+        await using var connection = await CreateDatabaseAsync(TestContext.CancellationToken);
+        var sessionRepo = new SqliteSessionRepository(connection);
+        var workRepo = new SqliteWorkRepository(connection);
+        var sessionId = await sessionRepo.CreateSessionAsync(
+            RuntimeMode.Work,
+            "work-cancel-session",
+            KeyRetention,
+            TestContext.CancellationToken);
+        var runId = await sessionRepo.CreateRunAsync(
+            sessionId,
+            "work-cancel-run",
+            KeyRetention,
+            TestContext.CancellationToken);
+        var plan = new WorkPlanDraft(
+            "1",
+            "Cancel active work",
+            [new WorkPlanStepDraft("step-a", "Run cancellable work", "worker", IsBackground: true)]);
+        await workRepo.UpsertSessionAsync(
+            sessionId,
+            runId,
+            WorkSessionStatus.Executing,
+            "manager",
+            WorkflowPolicy.Default,
+            WorkContextPolicy.Default,
+            plan.PlanVersion,
+            planMessageId: null,
+            plan,
+            TestContext.CancellationToken);
+        await workRepo.SavePlanStepsAsync(sessionId, runId, plan, TestContext.CancellationToken);
+        var stepInputHash = await ReadStepInputHashAsync(
+            connection,
+            "step-a",
+            plan.PlanVersion,
+            TestContext.CancellationToken);
+        Assert.IsTrue(
+            await sessionRepo.TryStartWorkStepAsync(
+                "step-a",
+                plan.PlanVersion,
+                runId,
+                sessionId,
+                "worker",
+                stepInputHash,
+                "invocation-a",
+                TestContext.CancellationToken));
+        await workRepo.MarkStepWaitingForApprovalAsync(
+            sessionId,
+            "step-a",
+            plan.PlanVersion,
+            "approval-a",
+            "{\"kind\":\"tool\"}",
+            TestContext.CancellationToken);
+        await workRepo.CreateBackgroundJobAsync(
+            "job-a",
+            sessionId,
+            runId,
+            "step-a",
+            plan.PlanVersion,
+            TestContext.CancellationToken);
+        Assert.IsTrue(await workRepo.TryStartBackgroundJobAsync("job-a", TestContext.CancellationToken));
+
+        await workRepo.MarkSessionInterruptedAsync(
+            sessionId,
+            "parent run cancelled",
+            TestContext.CancellationToken);
+
+        var resume = await workRepo.GetResumeStateAsync(sessionId, TestContext.CancellationToken);
+        Assert.IsNotNull(resume);
+        Assert.AreEqual(WorkSessionStatus.Interrupted, resume.Status);
+        Assert.IsNull(resume.PendingApprovalRequestId);
+        Assert.IsNull(resume.CurrentStep);
+        var step = Assert.ContainsSingle(resume.Steps);
+        Assert.AreEqual(WorkStepLifecycleStatus.Interrupted, step.Status);
+        Assert.AreEqual("parent run cancelled", step.ErrorMessage);
+        Assert.IsNotNull(resume.BackgroundJobs);
+        var job = Assert.ContainsSingle(resume.BackgroundJobs);
+        Assert.AreEqual(WorkBackgroundJobStatus.Cancelled, job.Status);
+        Assert.AreEqual("parent run cancelled", job.ErrorMessage);
+        Assert.IsNotNull(job.CompletedAt);
+
+        await using var attempt = connection.CreateCommand();
+        attempt.CommandText = """
+            SELECT status, error_message, completed_at
+            FROM work_step_attempts
+            WHERE step_id = 'step-a'
+              AND plan_version = '1'
+              AND invocation_id = 'invocation-a';
+            """;
+        await using var reader = await attempt.ExecuteReaderAsync(TestContext.CancellationToken);
+        Assert.IsTrue(await reader.ReadAsync(TestContext.CancellationToken));
+        Assert.AreEqual("interrupted", reader.GetString(0));
+        Assert.AreEqual("parent run cancelled", reader.GetString(1));
+        Assert.IsFalse(reader.IsDBNull(2));
     }
 
     [TestMethod]
@@ -673,6 +1114,146 @@ public sealed class SqliteSessionRepositoryTests
         Assert.AreEqual(
             RunStatus.WaitingForApproval,
             await repository.GetRunStatusAsync(runId, TestContext.CancellationToken));
+    }
+
+    [TestMethod]
+    public async Task MarkInterruptedAsync_WithWaitingForCredentialsWork_MarksAllActiveStateInterrupted()
+    {
+        await using var connection = await CreateDatabaseAsync(TestContext.CancellationToken);
+        var repository = new SqliteSessionRepository(connection);
+        var workRepo = new SqliteWorkRepository(connection);
+        var sessionId = await repository.CreateSessionAsync(
+            RuntimeMode.Work,
+            "work-credential-recovery-session",
+            KeyRetention,
+            TestContext.CancellationToken);
+        var runId = await repository.CreateRunAsync(
+            sessionId,
+            "work-credential-recovery-run",
+            KeyRetention,
+            TestContext.CancellationToken);
+        await repository.TransitionRunStatusAsync(
+            runId,
+            RunStatus.Accepted,
+            RunStatus.Preparing,
+            TestContext.CancellationToken);
+        await repository.TransitionRunStatusAsync(
+            runId,
+            RunStatus.Preparing,
+            RunStatus.Running,
+            TestContext.CancellationToken);
+
+        var plan = new WorkPlanDraft(
+            "1",
+            "Refresh provider credentials",
+            [new WorkPlanStepDraft("step-credential", "Call provider", "worker")]);
+        await workRepo.UpsertSessionAsync(
+            sessionId,
+            runId,
+            WorkSessionStatus.Executing,
+            "manager",
+            WorkflowPolicy.Default,
+            WorkContextPolicy.Default,
+            plan.PlanVersion,
+            planMessageId: null,
+            plan,
+            TestContext.CancellationToken);
+        await workRepo.SavePlanStepsAsync(
+            sessionId,
+            runId,
+            plan,
+            TestContext.CancellationToken);
+        Assert.IsTrue(await repository.TryStartWorkStepAsync(
+            "step-credential",
+            plan.PlanVersion,
+            runId,
+            sessionId,
+            "worker",
+            "input-hash",
+            "invocation-credential",
+            TestContext.CancellationToken));
+        await repository.TransitionRunStatusAsync(
+            runId,
+            RunStatus.Running,
+            RunStatus.WaitingForCredentials,
+            TestContext.CancellationToken);
+        await workRepo.MarkCredentialsWaitAsync(
+            sessionId,
+            "step-credential",
+            plan.PlanVersion,
+            TestContext.CancellationToken);
+
+        var waiting = await workRepo.GetResumeStateAsync(
+            sessionId,
+            TestContext.CancellationToken);
+        Assert.IsNotNull(waiting);
+        Assert.AreEqual(WorkSessionStatus.WaitingForCredentials, waiting.Status);
+        Assert.IsNotNull(waiting.CurrentStep);
+        Assert.AreEqual(WorkStepLifecycleStatus.WaitingForCredentials, waiting.CurrentStep.Status);
+
+        await repository.MarkInterruptedAsync(TestContext.CancellationToken);
+
+        Assert.AreEqual(
+            RunStatus.Interrupted,
+            await repository.GetRunStatusAsync(runId, TestContext.CancellationToken));
+        var recovered = await workRepo.GetResumeStateAsync(
+            sessionId,
+            TestContext.CancellationToken);
+        Assert.IsNotNull(recovered);
+        Assert.AreEqual(WorkSessionStatus.Interrupted, recovered.Status);
+        Assert.AreEqual(
+            WorkStepLifecycleStatus.Interrupted,
+            Assert.ContainsSingle(recovered.Steps).Status);
+    }
+
+    [TestMethod]
+    public async Task MarkInterruptedAsync_WithRunningBackgroundJob_MarksJobInterrupted()
+    {
+        await using var connection = await CreateDatabaseAsync(TestContext.CancellationToken);
+        var sessionRepo = new SqliteSessionRepository(connection);
+        var workRepo = new SqliteWorkRepository(connection);
+        var sessionId = await sessionRepo.CreateSessionAsync(
+            RuntimeMode.Work,
+            "work-background-recovery-session",
+            KeyRetention,
+            TestContext.CancellationToken);
+        var runId = await sessionRepo.CreateRunAsync(
+            sessionId,
+            "work-background-recovery-run",
+            KeyRetention,
+            TestContext.CancellationToken);
+        var plan = new WorkPlanDraft(
+            "1",
+            "Recover background job",
+            [new WorkPlanStepDraft("step-a", "Run background work", "worker", IsBackground: true)]);
+        await workRepo.UpsertSessionAsync(
+            sessionId,
+            runId,
+            WorkSessionStatus.Executing,
+            "manager",
+            WorkflowPolicy.Default,
+            WorkContextPolicy.Default,
+            plan.PlanVersion,
+            planMessageId: null,
+            plan,
+            TestContext.CancellationToken);
+        await workRepo.SavePlanStepsAsync(sessionId, runId, plan, TestContext.CancellationToken);
+        await workRepo.CreateBackgroundJobAsync(
+            "job-recovery",
+            sessionId,
+            runId,
+            "step-a",
+            plan.PlanVersion,
+            TestContext.CancellationToken);
+        Assert.IsTrue(
+            await workRepo.TryStartBackgroundJobAsync("job-recovery", TestContext.CancellationToken));
+
+        await sessionRepo.MarkInterruptedAsync(TestContext.CancellationToken);
+
+        var job = await workRepo.GetBackgroundJobAsync("job-recovery", TestContext.CancellationToken);
+        Assert.IsNotNull(job);
+        Assert.AreEqual(WorkBackgroundJobStatus.Interrupted, job.Status);
+        Assert.IsNotNull(job.CompletedAt);
     }
 
     [TestMethod]
@@ -1218,6 +1799,26 @@ public sealed class SqliteSessionRepositoryTests
         CancellationToken ct)
     {
         var commands = new List<string>();
+        if (targetVersion < 13)
+        {
+            commands.Add("DROP INDEX IF EXISTS idx_work_plan_revisions_session;");
+            commands.Add("DROP TABLE IF EXISTS work_plan_revisions;");
+            commands.Add("ALTER TABLE work_steps DROP COLUMN step_message_id;");
+            commands.Add("ALTER TABLE work_steps DROP COLUMN reuses_step_id;");
+            commands.Add("ALTER TABLE work_steps DROP COLUMN replaces_step_id;");
+            commands.Add("ALTER TABLE work_steps DROP COLUMN checkpoint_json;");
+        }
+
+        if (targetVersion < 12)
+        {
+            commands.Add("ALTER TABLE tool_audit DROP COLUMN session_id;");
+            commands.Add("ALTER TABLE tool_audit DROP COLUMN invocation_id;");
+            commands.Add("ALTER TABLE tool_audit DROP COLUMN parent_invocation_id;");
+            commands.Add("ALTER TABLE tool_audit DROP COLUMN work_step_id;");
+            commands.Add("ALTER TABLE tool_audit DROP COLUMN plan_version;");
+            commands.Add("ALTER TABLE tool_audit DROP COLUMN root_grant_id;");
+        }
+
         if (targetVersion < 11)
         {
             commands.Add("DROP INDEX IF EXISTS idx_work_sessions_status;");
@@ -1383,6 +1984,24 @@ public sealed class SqliteSessionRepositoryTests
         command.Parameters.AddWithValue("$runId", runId);
         command.Parameters.AddWithValue("$stepId", stepId);
         command.Parameters.AddWithValue("$planVersion", planVersion);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task BackdateBackgroundJobAsync(
+        SqliteConnection connection,
+        string jobId,
+        string timestamp,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE work_background_jobs
+            SET created_at = $timestamp,
+                started_at = $timestamp
+            WHERE job_id = $jobId;
+            """;
+        command.Parameters.AddWithValue("$jobId", jobId);
+        command.Parameters.AddWithValue("$timestamp", timestamp);
         await command.ExecuteNonQueryAsync(ct);
     }
 

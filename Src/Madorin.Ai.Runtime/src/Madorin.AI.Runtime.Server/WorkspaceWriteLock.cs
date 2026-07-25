@@ -57,7 +57,7 @@ public sealed class WorkspaceWriteLock : IAsyncDisposable
                 {
                     Mode = FileMode.OpenOrCreate,
                     Access = FileAccess.ReadWrite,
-                    Share = FileShare.None,
+                    Share = FileShare.Read,
                     Options = FileOptions.Asynchronous | FileOptions.WriteThrough
                 });
                 SetUnixMode(lockPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);

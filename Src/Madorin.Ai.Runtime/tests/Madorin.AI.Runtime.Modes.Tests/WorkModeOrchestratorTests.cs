@@ -18,7 +18,13 @@ public sealed class WorkModeOrchestratorTests
 {
     private static readonly string[] ExpectedAgentIds = ["manager", "worker"];
     private static readonly string[] ExpectedRetryAgentIds = ["manager", "worker", "worker"];
+    private static readonly string[] ExpectedCredentialRetryAgentIds = ["manager", "worker", "worker"];
     private static readonly string[] ExpectedReplayDeltas = ["result:worker"];
+    private static readonly string?[] ExpectedCanonicalKinds = ["work.plan", "work.step"];
+    private const string DuplicateGoalPlanJson =
+        "{\"planVersion\":\"1\",\"goal\":\"Ship\",\"steps\":["
+        + "{\"stepId\":\"step-a\",\"goal\":\"Repeat target\",\"targetAgentId\":\"worker\"},"
+        + "{\"stepId\":\"step-b\",\"goal\":\"Repeat target\",\"targetAgentId\":\"worker\",\"dependsOn\":[\"step-a\"]}]}";
 
     private readonly TestContext _testContext;
 
@@ -39,6 +45,11 @@ public sealed class WorkModeOrchestratorTests
         CollectionAssert.AreEqual(ExpectedAgentIds, result.InvokedAgentIds);
         Assert.HasCount(2, result.CapturedRequests);
         Assert.HasCount(2, result.InvocationSnapshots);
+        var managerInput = ((TextContentBlock)result.CapturedRequests[0].Messages[1].Content[0]).Text;
+        StringAssert.Contains(managerInput, "Prepare the release notes.");
+        StringAssert.Contains(managerInput, "Available agents and declared capabilities:");
+        StringAssert.Contains(managerInput, "worker");
+        StringAssert.Contains(managerInput, "WorkflowPolicy:");
         foreach (var providerRequest in result.CapturedRequests)
         {
             var instructions = ((TextContentBlock)providerRequest.Messages[0].Content[0]).Text;
@@ -67,8 +78,33 @@ public sealed class WorkModeOrchestratorTests
         foreach (var started in startedAgentIds)
         {
             Assert.IsTrue(result.InvocationSnapshots.TryGetValue(started.InvocationId, out var snapshot));
-            Assert.AreEqual(started.Snapshot, snapshot);
+            Assert.AreEqual(
+                started.Snapshot with { ContextProjection = null },
+                snapshot with { ContextProjection = null });
+            if (started.Snapshot.ContextProjection is { } expectedProjection)
+            {
+                var actualProjection = snapshot.ContextProjection;
+                Assert.IsNotNull(actualProjection);
+                Assert.AreEqual(
+                    expectedProjection with { RetainedItems = [] },
+                    actualProjection with { RetainedItems = [] });
+                CollectionAssert.AreEqual(
+                    expectedProjection.RetainedItems,
+                    actualProjection.RetainedItems);
+            }
         }
+
+        Assert.HasCount(2, result.CanonicalHistory);
+        CollectionAssert.AreEqual(
+            ExpectedCanonicalKinds,
+            result.CanonicalHistory
+                .Select(static message => message.SummaryMetadata?.GetProperty("kind").GetString())
+                .ToArray());
+        var step = Assert.ContainsSingle(result.WorkSteps);
+        Assert.AreEqual(result.CanonicalHistory[0].MessageId, result.PlanRevisions[0].PlanMessageId);
+        Assert.AreEqual(result.CanonicalHistory[1].MessageId, step.StepMessageId);
+        Assert.IsNotNull(step.CheckpointJson);
+        StringAssert.Contains(step.CheckpointJson, startedAgentIds[1].InvocationId);
     }
 
     [TestMethod]
@@ -136,6 +172,114 @@ public sealed class WorkModeOrchestratorTests
     }
 
     [TestMethod]
+    public async Task RunAsync_WorkerAuthenticationFailure_WaitsAndRetriesExactlyOnce()
+    {
+        var result = await RunAsync(
+            repetitionCount: 1,
+            requireWorkerCredentialRefresh: true);
+        var events = Assert.ContainsSingle(result.EventBatches);
+        var statusChanges = events
+            .Where(static item => item.MessageType == MessageTypes.RunStatusChanged)
+            .Select(static item => item.Payload.Deserialize(
+                RuntimeJsonContext.Default.RunStatusChangedEvent)
+                ?? throw new InvalidDataException("The run.statusChanged payload was empty."))
+            .ToArray();
+        var workerRequests = result.CapturedRequests
+            .Where(static request => string.Equals(request.AgentId, "worker", StringComparison.Ordinal))
+            .ToArray();
+        var refreshRequest = Assert.ContainsSingle(result.CredentialRefreshRequests);
+        var waiting = Assert.ContainsSingle(result.CredentialWaitStates);
+
+        Assert.AreEqual(RunStatus.Completed, result.RunStatus);
+        CollectionAssert.AreEqual(ExpectedCredentialRetryAgentIds, result.InvokedAgentIds);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                RunStatus.WaitingForCredentials.ToString(),
+                RunStatus.Running.ToString()
+            },
+            statusChanges.Select(static status => status.Status).ToArray());
+        Assert.HasCount(2, workerRequests);
+        Assert.AreEqual(0, workerRequests[0].AttemptNumber);
+        Assert.AreEqual(1, workerRequests[1].AttemptNumber);
+        Assert.AreEqual(workerRequests[0].InvocationId, workerRequests[1].InvocationId);
+        Assert.AreNotEqual(workerRequests[0].InternalRequestId, workerRequests[1].InternalRequestId);
+        Assert.AreEqual("run-1", refreshRequest.RunId);
+        Assert.AreEqual("fake", refreshRequest.ProviderId);
+        Assert.AreEqual(WorkSessionStatus.WaitingForCredentials, waiting.Status);
+        Assert.IsNotNull(waiting.CurrentStep);
+        Assert.AreEqual(WorkStepLifecycleStatus.WaitingForCredentials, waiting.CurrentStep.Status);
+        Assert.AreEqual(WorkStepLifecycleStatus.Completed, Assert.ContainsSingle(result.WorkSteps).Status);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_CredentialRefreshTimeoutWithContinuePolicy_ResumesRunAndFailsStep()
+    {
+        var result = await RunAsync(
+            repetitionCount: 1,
+            failurePolicy: WorkStepFailurePolicy.Continue,
+            requireWorkerCredentialRefresh: true,
+            credentialRefreshSucceeds: false);
+        var events = Assert.ContainsSingle(result.EventBatches);
+        var statusChanges = events
+            .Where(static item => item.MessageType == MessageTypes.RunStatusChanged)
+            .Select(static item => item.Payload.Deserialize(
+                RuntimeJsonContext.Default.RunStatusChangedEvent)
+                ?? throw new InvalidDataException("The run.statusChanged payload was empty."))
+            .ToArray();
+
+        Assert.AreEqual(RunStatus.Completed, result.RunStatus);
+        Assert.AreEqual(WorkStepLifecycleStatus.Failed, Assert.ContainsSingle(result.WorkSteps).Status);
+        Assert.HasCount(1, result.CredentialRefreshRequests);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                RunStatus.WaitingForCredentials.ToString(),
+                RunStatus.Running.ToString()
+            },
+            statusChanges.Select(static status => status.Status).ToArray());
+        Assert.AreEqual(1, events.Count(static item => item.MessageType == MessageTypes.InvocationFailed));
+    }
+
+    [TestMethod]
+    public async Task RunAsync_WorkerFailureWithAskHost_PersistsWaitAndRetriesAfterApproval()
+    {
+        var result = await RunAsync(
+            repetitionCount: 1,
+            failurePolicy: WorkStepFailurePolicy.AskHost,
+            workerFailuresBeforeSuccess: 1,
+            workflowApprovalDecision: ToolAuthorizationDecision.Granted);
+        var step = Assert.ContainsSingle(result.WorkSteps);
+        var approval = Assert.ContainsSingle(result.WorkflowApprovalRequests);
+
+        Assert.AreEqual(RunStatus.Completed, result.RunStatus);
+        Assert.AreEqual(WorkStepLifecycleStatus.Completed, step.Status);
+        Assert.AreEqual(2, step.AttemptCount);
+        Assert.AreEqual("run-1:step-1", approval.WorkStepId);
+        Assert.AreEqual("1", approval.PlanVersion);
+        Assert.AreEqual("manager", approval.ParentAgentId);
+        StringAssert.StartsWith(approval.ApprovalRequestId, "work-approval-");
+        Assert.IsNull(step.ErrorMessage);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_StrictLoopDetection_PausesRepeatedGoalUntilHostApproves()
+    {
+        var result = await RunAsync(
+            repetitionCount: 1,
+            workflowApprovalDecision: ToolAuthorizationDecision.Granted,
+            managerOutput: DuplicateGoalPlanJson);
+
+        Assert.AreEqual(RunStatus.Completed, result.RunStatus);
+        Assert.HasCount(2, result.WorkSteps);
+        Assert.IsTrue(result.WorkSteps.All(static step =>
+            step.Status is WorkStepLifecycleStatus.Completed));
+        var approval = Assert.ContainsSingle(result.WorkflowApprovalRequests);
+        Assert.AreEqual("step-b", approval.WorkStepId);
+        StringAssert.Contains(approval.Reason, "repeats the same target");
+    }
+
+    [TestMethod]
     public async Task RunAsync_PendingStepToolIntent_BlocksStepCompletion()
     {
         var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
@@ -149,6 +293,44 @@ public sealed class WorkModeOrchestratorTests
         StringAssert.Contains(ex.Message, "call-pending-step-1:Pending");
     }
 
+    [TestMethod]
+    public async Task RunAsync_LongPlanProjection_PersistsDecisionAndEmitsAdjustment()
+    {
+        var managerOutput = JsonSerializer.Serialize(
+            new WorkPlanDraft(
+                "1",
+                new string('g', 5_000),
+                [new WorkPlanStepDraft(
+                    "step-long",
+                    new string('s', 8_000),
+                    "worker")]),
+            RuntimeJsonContext.Default.WorkPlanDraft);
+        var result = await RunAsync(
+            repetitionCount: 1,
+            managerOutput: managerOutput,
+            contextPolicy: WorkContextPolicy.Default with { MaxTokens = 700 });
+        var events = Assert.ContainsSingle(result.EventBatches);
+        var adjustmentEnvelope = Assert.ContainsSingle(events.Where(static envelope =>
+            envelope.MessageType == MessageTypes.ContextProjectionAdjusted));
+        var adjustment = adjustmentEnvelope.Payload.Deserialize(
+            RuntimeJsonContext.Default.ContextProjectionAdjustedEvent)
+            ?? throw new InvalidDataException("The projection adjustment payload was empty.");
+        var workerRequest = Assert.ContainsSingle(result.CapturedRequests.Where(static item =>
+            item.AgentId == "worker"));
+        var projection = workerRequest.Messages.Length > 0
+            ? result.InvocationSnapshots[workerRequest.InvocationId].ContextProjection
+            : null;
+
+        Assert.IsNotNull(projection);
+        Assert.IsLessThanOrEqualTo(projection.TokenLimit, projection.EstimatedTokens);
+        Assert.AreEqual(projection.Strategy, adjustment.Strategy);
+        Assert.AreEqual(projection.EstimatedTokens, adjustment.EstimatedTokens);
+        Assert.AreEqual(projection.SummarizedUnitCount, adjustment.SummarizedUnitCount);
+        CollectionAssert.AreEqual(projection.RetainedItems, adjustment.RetainedItems);
+        CollectionAssert.Contains(projection.RetainedItems, "plan:1");
+        CollectionAssert.Contains(projection.RetainedItems, "step:step-long");
+    }
+
     private async Task<WorkRunResult> RunAsync(
         int repetitionCount,
         WorkStepFailurePolicy failurePolicy = WorkStepFailurePolicy.Stop,
@@ -156,7 +338,12 @@ public sealed class WorkModeOrchestratorTests
         int workerFailuresBeforeSuccess = 0,
         int? maxRetriesPerStep = null,
         int? retryBackoffMilliseconds = null,
-        bool createPendingWorkStepToolIntent = false)
+        bool createPendingWorkStepToolIntent = false,
+        ToolAuthorizationDecision? workflowApprovalDecision = null,
+        string? managerOutput = null,
+        WorkContextPolicy? contextPolicy = null,
+        bool requireWorkerCredentialRefresh = false,
+        bool credentialRefreshSucceeds = true)
     {
         var ct = _testContext.CancellationToken;
         var dataDirectory = Path.Combine(
@@ -175,7 +362,11 @@ public sealed class WorkModeOrchestratorTests
             await SqliteSchema.EnsureCreatedAsync(connection, ct);
             using var outbox = new SqliteEventOutbox(connection);
             using var toolStateStore = new SqliteToolIntentRepository(connection);
-            var provider = new FakeProviderAdapter(failWorker, workerFailuresBeforeSuccess);
+            var provider = new FakeProviderAdapter(
+                failWorker,
+                workerFailuresBeforeSuccess,
+                managerOutput,
+                requireWorkerCredentialRefresh);
             var memoryFiles = new MemoryFileService(
                 Path.Join(dataDirectory, "home"),
                 Path.Join(dataDirectory, "workspace"));
@@ -188,16 +379,56 @@ public sealed class WorkModeOrchestratorTests
                 "# Memory\n\n- Shared project rule.\n",
                 ct);
             var sessionRepo = new SqliteSessionRepository(connection);
+            var workRepo = new SqliteWorkRepository(connection);
+            var workflowApprovalRequests = new List<ApprovalRequest>();
+            var credentialRefreshRequests = new List<CredentialsRefreshRequestedEvent>();
+            var credentialWaitStates = new List<WorkResumeState>();
+            var store = new ConversationStore(dataDirectory);
             var orchestrator = new WorkModeOrchestrator(
                 _ => provider,
-                new ConversationStore(dataDirectory),
+                store,
                 sessionRepo,
                 outbox,
                 new AgentContextComposer(memoryFiles),
                 toolStateStore: toolStateStore,
-                workRepo: new SqliteWorkRepository(connection),
-                connection: connection);
-            var request = CreateRequest(failurePolicy, maxRetriesPerStep, retryBackoffMilliseconds);
+                workRepo: workRepo,
+                connection: connection,
+                workflowApprovalHandler: workflowApprovalDecision is null
+                    ? null
+                    : (approval, _) =>
+                    {
+                        workflowApprovalRequests.Add(approval);
+                        return Task.FromResult(new ApprovalResponse(
+                            approval.CorrelationId,
+                            approval.ApprovalRequestId,
+                            workflowApprovalDecision.Value));
+                    },
+                credentialRefreshHandler: requireWorkerCredentialRefresh
+                    ? async (refresh, refreshCt) =>
+                    {
+                        credentialRefreshRequests.Add(refresh);
+                        credentialWaitStates.Add(
+                            await workRepo.GetResumeStateAsync("session-1", refreshCt)
+                                ?? throw new InvalidDataException(
+                                    "The Work credential-wait state was not persisted."));
+                        if (credentialRefreshSucceeds)
+                        {
+                            await provider.UpdateCredentialsAsync(
+                                new CredentialsUpdateParameters(
+                                    refresh.RunId,
+                                    refresh.ProviderId,
+                                    "refreshed-secret"),
+                                refreshCt);
+                        }
+
+                        return credentialRefreshSucceeds;
+                    }
+                    : null);
+            var request = CreateRequest(
+                failurePolicy,
+                maxRetriesPerStep,
+                retryBackoffMilliseconds,
+                contextPolicy);
             await EnsureSessionRunAsync(connection, "session-1", "run-1", ct);
             if (createPendingWorkStepToolIntent)
             {
@@ -248,6 +479,9 @@ public sealed class WorkModeOrchestratorTests
                 .GetRunStatusAsync("run-1", ct);
             var workSteps = await new SqliteWorkRepository(connection)
                 .ListStepsAsync("session-1", "1", ct);
+            var planRevisions = await new SqliteWorkRepository(connection)
+                .ListPlanRevisionsAsync("session-1", ct);
+            var canonicalHistory = await store.ReadAllAsync("session-1", ct);
             return new WorkRunResult(
                 provider.InvokedAgentIds.ToArray(),
                 provider.CapturedRequests.ToArray(),
@@ -255,7 +489,12 @@ public sealed class WorkModeOrchestratorTests
                 completed,
                 runStatus,
                 workSteps,
-                invocationSnapshots);
+                invocationSnapshots,
+                canonicalHistory,
+                planRevisions,
+                workflowApprovalRequests,
+                credentialRefreshRequests,
+                credentialWaitStates);
         }
         finally
         {
@@ -323,7 +562,8 @@ public sealed class WorkModeOrchestratorTests
     private static NewSessionRunRequest CreateRequest(
         WorkStepFailurePolicy failurePolicy = WorkStepFailurePolicy.Stop,
         int? maxRetriesPerStep = null,
-        int? retryBackoffMilliseconds = null)
+        int? retryBackoffMilliseconds = null,
+        WorkContextPolicy? contextPolicy = null)
     {
         var manager = new AgentRef(
             "manager",
@@ -358,23 +598,34 @@ public sealed class WorkModeOrchestratorTests
                 new WorkModeOptions(
                     manager,
                     [worker],
-                    policy),
+                    policy,
+                    contextPolicy),
                 ToolCatalogVersion: "tools-v1"),
             [new TextContentBlock("Prepare the release notes.")]);
     }
 
-    private sealed class FakeProviderAdapter : IRuntimeProviderAdapter
+    private sealed class FakeProviderAdapter :
+        IRuntimeProviderAdapter,
+        IRuntimeProviderCredentialUpdater
     {
         private readonly List<string> _invokedAgentIds = [];
         private readonly List<RuntimeProviderRequest> _capturedRequests = [];
         private readonly int _workerFailuresBeforeSuccess;
+        private readonly string? _managerOutput;
+        private readonly bool _requireWorkerCredentialRefresh;
         private int _workerFailureCount;
 
-        public FakeProviderAdapter(bool failWorker = false, int workerFailuresBeforeSuccess = 0)
+        public FakeProviderAdapter(
+            bool failWorker = false,
+            int workerFailuresBeforeSuccess = 0,
+            string? managerOutput = null,
+            bool requireWorkerCredentialRefresh = false)
         {
             _workerFailuresBeforeSuccess = failWorker
                 ? int.MaxValue
                 : workerFailuresBeforeSuccess;
+            _managerOutput = managerOutput;
+            _requireWorkerCredentialRefresh = requireWorkerCredentialRefresh;
         }
 
         public string ProviderId => "fake";
@@ -386,6 +637,8 @@ public sealed class WorkModeOrchestratorTests
         public IReadOnlyList<string> InvokedAgentIds => _invokedAgentIds;
 
         public IReadOnlyList<RuntimeProviderRequest> CapturedRequests => _capturedRequests;
+
+        public string? Credential { get; private set; }
 
         public Task ValidateCapabilitiesAsync(
             ContentBlock[] input,
@@ -400,6 +653,22 @@ public sealed class WorkModeOrchestratorTests
             _invokedAgentIds.Add(request.AgentId);
             _capturedRequests.Add(request);
             await Task.Yield();
+            if (_requireWorkerCredentialRefresh
+                && string.Equals(request.AgentId, "worker", StringComparison.Ordinal)
+                && !string.Equals(Credential, "refreshed-secret", StringComparison.Ordinal))
+            {
+                yield return new InvocationFailedProviderEvent(
+                    request.InvocationId,
+                    new RuntimeError(
+                        RuntimeErrorCodes.AuthenticationFailed,
+                        "authentication",
+                        "The fake credential was rejected.",
+                        IsRetryable: false,
+                        ProviderDetails: null,
+                        DiagnosticId: "diagnostic-worker-401"));
+                yield break;
+            }
+
             if (string.Equals(request.AgentId, "worker", StringComparison.Ordinal)
                 && _workerFailureCount < _workerFailuresBeforeSuccess)
             {
@@ -418,8 +687,20 @@ public sealed class WorkModeOrchestratorTests
 
             yield return new TextDeltaProviderEvent(
                 request.InvocationId,
-                $"result:{request.AgentId}");
+                string.Equals(request.AgentId, "manager", StringComparison.Ordinal)
+                    && _managerOutput is not null
+                    ? _managerOutput
+                    : $"result:{request.AgentId}");
             yield return new InvocationCompletedProviderEvent(request.InvocationId, "stop");
+        }
+
+        public Task UpdateCredentialsAsync(
+            CredentialsUpdateParameters parameters,
+            CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            Credential = parameters.Credential;
+            return Task.CompletedTask;
         }
     }
 
@@ -438,5 +719,10 @@ public sealed class WorkModeOrchestratorTests
         string? CompletedStepResultJson,
         RunStatus RunStatus,
         IReadOnlyList<WorkStepSnapshot> WorkSteps,
-        IReadOnlyDictionary<string, InvocationSnapshot> InvocationSnapshots);
+        IReadOnlyDictionary<string, InvocationSnapshot> InvocationSnapshots,
+        IReadOnlyList<ConversationRecordV1> CanonicalHistory,
+        IReadOnlyList<WorkPlanRevisionSnapshot> PlanRevisions,
+        IReadOnlyList<ApprovalRequest> WorkflowApprovalRequests,
+        IReadOnlyList<CredentialsRefreshRequestedEvent> CredentialRefreshRequests,
+        IReadOnlyList<WorkResumeState> CredentialWaitStates);
 }

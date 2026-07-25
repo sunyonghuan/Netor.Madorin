@@ -13,4 +13,9 @@ public sealed record ToolPermissionRequest(
     string? CorrelationId = null,
     string? RunId = null,
     string? ToolCatalogVersion = null,
-    string[]? RequestedCapabilities = null);
+    string[]? RequestedCapabilities = null,
+    string? SessionId = null,
+    string? InvocationId = null,
+    string? ParentInvocationId = null,
+    string? WorkStepId = null,
+    string? PlanVersion = null);

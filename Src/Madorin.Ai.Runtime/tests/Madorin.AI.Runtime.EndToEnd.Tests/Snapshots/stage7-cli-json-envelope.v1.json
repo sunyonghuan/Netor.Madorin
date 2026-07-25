@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://madorin.dev/schemas/cli-envelope/1.0",
+  "title": "Madorin CLI JSON envelope",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["success", "data", "warnings", "diagnosticId"],
+      "properties": {
+        "success": { "const": true },
+        "data": true,
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "diagnosticId": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["success", "error", "warnings", "diagnosticId"],
+      "properties": {
+        "success": { "const": false },
+        "error": {
+          "type": "object",
+          "required": ["code", "message", "isRetryable", "diagnosticId"],
+          "properties": {
+            "code": { "type": "string", "minLength": 1 },
+            "message": { "type": "string", "minLength": 1 },
+            "isRetryable": { "type": "boolean" },
+            "diagnosticId": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "data": true,
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "diagnosticId": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

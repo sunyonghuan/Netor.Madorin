@@ -5,7 +5,7 @@ namespace Madorin.AI.Runtime.Persistence.Sqlite;
 /// <summary>Creates and migrates the Runtime SQLite metadata schema.</summary>
 public static class SqliteSchema
 {
-    public const int CurrentVersion = 11;
+    public const int CurrentVersion = 14;
 
     private static readonly string[] RequiredTables =
     [
@@ -19,6 +19,7 @@ public static class SqliteSchema
         "tool_intents",
         "work_steps",
         "work_sessions",
+        "work_plan_revisions",
         "work_step_dependencies",
         "work_step_attempts",
         "work_background_jobs",
@@ -60,6 +61,7 @@ public static class SqliteSchema
         "idx_meeting_invocations_run_round",
         "idx_meeting_invocations_session_round_ordinal",
         "idx_work_sessions_status",
+        "idx_work_plan_revisions_session",
         "idx_work_steps_session",
         "idx_work_steps_run",
         "idx_work_steps_status",
@@ -93,6 +95,12 @@ public static class SqliteSchema
         ("tool_intents", "error_code"),
         ("tool_intents", "result_visible"),
         ("tool_grants", "approval_request_id"),
+        ("tool_audit", "session_id"),
+        ("tool_audit", "invocation_id"),
+        ("tool_audit", "parent_invocation_id"),
+        ("tool_audit", "work_step_id"),
+        ("tool_audit", "plan_version"),
+        ("tool_audit", "root_grant_id"),
         ("tool_audit", "duration_ms"),
         ("meeting_sessions", "selector_state"),
         ("meeting_sessions", "policy_json"),
@@ -130,6 +138,9 @@ public static class SqliteSchema
         ("work_sessions", "workflow_policy_json"),
         ("work_sessions", "plan_version"),
         ("work_sessions", "plan_message_id"),
+        ("work_sessions", "pending_approval_request_id"),
+        ("work_sessions", "pending_approval_json"),
+        ("work_sessions", "requires_manual_intervention"),
         ("work_steps", "parent_step_id"),
         ("work_steps", "invocation_id"),
         ("work_steps", "depth"),
@@ -140,8 +151,13 @@ public static class SqliteSchema
         ("work_steps", "title"),
         ("work_steps", "goal"),
         ("work_steps", "is_background"),
+        ("work_steps", "step_message_id"),
+        ("work_steps", "reuses_step_id"),
+        ("work_steps", "replaces_step_id"),
+        ("work_steps", "checkpoint_json"),
         ("tool_intents", "work_step_id"),
-        ("tool_intents", "plan_version")
+        ("tool_intents", "plan_version"),
+        ("sessions", "title")
     ];
 
     /// <summary>Applies connection settings and migrates the database to the current version.</summary>
@@ -157,7 +173,7 @@ public static class SqliteSchema
 
         await ConfigureConnectionAsync(conn, ct).ConfigureAwait(false);
         await EnsureVersionTableAsync(conn, ct).ConfigureAwait(false);
-        var version = await GetCurrentVersionAsync(conn, ct).ConfigureAwait(false);
+        var version = await ReadCurrentVersionAsync(conn, ct).ConfigureAwait(false);
         if (version > CurrentVersion)
         {
             throw new InvalidDataException(
@@ -172,20 +188,63 @@ public static class SqliteSchema
         await EnsureVersionEightBlobColumnsAsync(conn, ct).ConfigureAwait(false);
         await EnsureVersionEightGrantColumnsAsync(conn, ct).ConfigureAwait(false);
         await EnsureVersionEightAuditColumnsAsync(conn, ct).ConfigureAwait(false);
+        await EnsureVersionTwelveAuditLineageColumnsAsync(conn, ct).ConfigureAwait(false);
 
         await ValidateAsync(conn, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Validates the current schema using read-only queries and returns its version.</summary>
+    public static async Task<int> ValidateReadOnlyAsync(
+        SqliteConnection conn,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(conn);
+        if (conn.State != System.Data.ConnectionState.Open)
+        {
+            await conn.OpenAsync(ct).ConfigureAwait(false);
+        }
+
+        var version = await ReadCurrentVersionAsync(conn, ct).ConfigureAwait(false);
+        if (version != CurrentVersion)
+        {
+            throw new InvalidDataException(
+                $"The database schema version {version} is not the supported version {CurrentVersion}.");
+        }
+
+        await ValidateAsync(conn, ct).ConfigureAwait(false);
+        return version;
     }
 
     /// <summary>Applies forward-only migrations beginning at the supplied version.</summary>
     public static async Task MigrateAsync(
         SqliteConnection conn,
         int fromVersion,
+        CancellationToken ct = default) =>
+        await MigrateAsync(conn, fromVersion, CurrentVersion, ct).ConfigureAwait(false);
+
+    /// <summary>Applies forward-only migrations up to the supplied target version.</summary>
+    public static async Task MigrateAsync(
+        SqliteConnection conn,
+        int fromVersion,
+        int targetVersion,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(conn);
         if (fromVersion < 0 || fromVersion > CurrentVersion)
         {
             throw new ArgumentOutOfRangeException(nameof(fromVersion));
+        }
+
+        if (targetVersion < 0 || targetVersion > CurrentVersion)
+        {
+            throw new ArgumentOutOfRangeException(nameof(targetVersion));
+        }
+
+        if (targetVersion < fromVersion)
+        {
+            throw new ArgumentException(
+                $"Schema downgrade from version {fromVersion} to {targetVersion} is not supported.",
+                nameof(targetVersion));
         }
 
         if (conn.State != System.Data.ConnectionState.Open)
@@ -195,14 +254,14 @@ public static class SqliteSchema
 
         await ConfigureConnectionAsync(conn, ct).ConfigureAwait(false);
         await EnsureVersionTableAsync(conn, ct).ConfigureAwait(false);
-        var actualVersion = await GetCurrentVersionAsync(conn, ct).ConfigureAwait(false);
+        var actualVersion = await ReadCurrentVersionAsync(conn, ct).ConfigureAwait(false);
         if (actualVersion != fromVersion)
         {
             throw new InvalidOperationException(
                 $"Migration expected schema version {fromVersion}, but the database is version {actualVersion}.");
         }
 
-        for (var version = fromVersion + 1; version <= CurrentVersion; version++)
+        for (var version = fromVersion + 1; version <= targetVersion; version++)
         {
             switch (version)
             {
@@ -239,14 +298,33 @@ public static class SqliteSchema
                 case 11:
                     await ApplyVersionElevenAsync(conn, ct).ConfigureAwait(false);
                     break;
+                case 12:
+                    await ApplyVersionTwelveAsync(conn, ct).ConfigureAwait(false);
+                    break;
+                case 13:
+                    await ApplyVersionThirteenAsync(conn, ct).ConfigureAwait(false);
+                    break;
+                case 14:
+                    await ApplyVersionFourteenAsync(conn, ct).ConfigureAwait(false);
+                    break;
                 default:
                     throw new InvalidOperationException($"No migration is registered for schema version {version}.");
             }
         }
 
-        if (fromVersion < CurrentVersion)
+        if (fromVersion < targetVersion && targetVersion == CurrentVersion)
         {
             await ValidateAsync(conn, ct).ConfigureAwait(false);
+        }
+
+        else if (fromVersion < targetVersion)
+        {
+            var migratedVersion = await ReadCurrentVersionAsync(conn, ct).ConfigureAwait(false);
+            if (migratedVersion != targetVersion)
+            {
+                throw new InvalidDataException(
+                    $"Migration ended at schema version {migratedVersion}, expected {targetVersion}.");
+            }
         }
     }
 
@@ -277,8 +355,27 @@ public static class SqliteSchema
         await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
-    private static async Task<int> GetCurrentVersionAsync(SqliteConnection conn, CancellationToken ct)
+    /// <summary>Reads the current schema version without creating or changing schema objects.</summary>
+    public static async Task<int> ReadCurrentVersionAsync(
+        SqliteConnection conn,
+        CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(conn);
+        if (conn.State != System.Data.ConnectionState.Open)
+        {
+            await conn.OpenAsync(ct).ConfigureAwait(false);
+        }
+
+        await using (var tableCommand = conn.CreateCommand())
+        {
+            tableCommand.CommandText =
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_versions' LIMIT 1;";
+            if (await tableCommand.ExecuteScalarAsync(ct).ConfigureAwait(false) is null)
+            {
+                return 0;
+            }
+        }
+
         await using var command = conn.CreateCommand();
         command.CommandText = "SELECT COALESCE(MAX(version), 0) FROM schema_versions;";
         var value = await command.ExecuteScalarAsync(ct).ConfigureAwait(false);
@@ -819,6 +916,86 @@ public static class SqliteSchema
         transaction.Commit();
     }
 
+    private static async Task ApplyVersionTwelveAsync(SqliteConnection conn, CancellationToken ct)
+    {
+        using var transaction = conn.BeginTransaction(deferred: false);
+        await AddToolAuditLineageColumnsAsync(conn, transaction, ct).ConfigureAwait(false);
+        await using (var command = conn.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = """
+                INSERT OR IGNORE INTO schema_versions(version, applied_at)
+                VALUES(12, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+                """;
+            await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        transaction.Commit();
+    }
+
+    private static async Task ApplyVersionThirteenAsync(SqliteConnection conn, CancellationToken ct)
+    {
+        using var transaction = conn.BeginTransaction(deferred: false);
+        await using (var command = conn.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = """
+                CREATE TABLE IF NOT EXISTS work_plan_revisions (
+                    session_id TEXT NOT NULL REFERENCES work_sessions(session_id) ON DELETE CASCADE,
+                    plan_version TEXT NOT NULL,
+                    run_id TEXT NOT NULL,
+                    plan_message_id TEXT NOT NULL,
+                    plan_json TEXT NOT NULL,
+                    previous_plan_version TEXT,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (session_id, plan_version)
+                );
+                CREATE INDEX IF NOT EXISTS idx_work_plan_revisions_session
+                ON work_plan_revisions(session_id, created_at, plan_version);
+                """;
+            await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        await AddColumnIfMissingAsync(conn, transaction, "work_steps", "step_message_id", "TEXT", ct)
+            .ConfigureAwait(false);
+        await AddColumnIfMissingAsync(conn, transaction, "work_steps", "reuses_step_id", "TEXT", ct)
+            .ConfigureAwait(false);
+        await AddColumnIfMissingAsync(conn, transaction, "work_steps", "replaces_step_id", "TEXT", ct)
+            .ConfigureAwait(false);
+        await AddColumnIfMissingAsync(conn, transaction, "work_steps", "checkpoint_json", "TEXT", ct)
+            .ConfigureAwait(false);
+
+        await using (var versionCommand = conn.CreateCommand())
+        {
+            versionCommand.Transaction = transaction;
+            versionCommand.CommandText = """
+                INSERT OR IGNORE INTO schema_versions(version, applied_at)
+                VALUES(13, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+                """;
+            await versionCommand.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        transaction.Commit();
+    }
+
+    private static async Task ApplyVersionFourteenAsync(SqliteConnection conn, CancellationToken ct)
+    {
+        using var transaction = conn.BeginTransaction(deferred: false);
+
+        await AddColumnIfMissingAsync(conn, transaction, "sessions", "title", "TEXT", ct)
+            .ConfigureAwait(false);
+
+        await using var versionCommand = conn.CreateCommand();
+        versionCommand.Transaction = transaction;
+        versionCommand.CommandText = """
+            INSERT OR IGNORE INTO schema_versions(version, applied_at)
+            VALUES(14, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+            """;
+        await versionCommand.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+
+        transaction.Commit();
+    }
+
     private static async Task AddColumnIfMissingAsync(
         SqliteConnection conn,
         SqliteTransaction transaction,
@@ -922,6 +1099,64 @@ public static class SqliteSchema
             "ALTER TABLE tool_grants ADD COLUMN approval_request_id TEXT;";
         await command.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
         transaction.Commit();
+    }
+
+    private static async Task EnsureVersionTwelveAuditLineageColumnsAsync(
+        SqliteConnection conn,
+        CancellationToken ct)
+    {
+        if (!await SchemaObjectExistsAsync(conn, "table", "tool_audit", ct)
+                .ConfigureAwait(false))
+        {
+            return;
+        }
+
+        var requiredColumns = new[]
+        {
+            "session_id",
+            "invocation_id",
+            "parent_invocation_id",
+            "work_step_id",
+            "plan_version",
+            "root_grant_id"
+        };
+        foreach (var column in requiredColumns)
+        {
+            if (!await ColumnExistsAsync(conn, "tool_audit", column, ct)
+                    .ConfigureAwait(false))
+            {
+                using var transaction = conn.BeginTransaction(deferred: false);
+                await AddToolAuditLineageColumnsAsync(conn, transaction, ct)
+                    .ConfigureAwait(false);
+                transaction.Commit();
+                return;
+            }
+        }
+    }
+
+    private static async Task AddToolAuditLineageColumnsAsync(
+        SqliteConnection conn,
+        SqliteTransaction transaction,
+        CancellationToken ct)
+    {
+        await AddColumnIfMissingAsync(conn, transaction, "tool_audit", "session_id", "TEXT", ct)
+            .ConfigureAwait(false);
+        await AddColumnIfMissingAsync(conn, transaction, "tool_audit", "invocation_id", "TEXT", ct)
+            .ConfigureAwait(false);
+        await AddColumnIfMissingAsync(
+                conn,
+                transaction,
+                "tool_audit",
+                "parent_invocation_id",
+                "TEXT",
+                ct)
+            .ConfigureAwait(false);
+        await AddColumnIfMissingAsync(conn, transaction, "tool_audit", "work_step_id", "TEXT", ct)
+            .ConfigureAwait(false);
+        await AddColumnIfMissingAsync(conn, transaction, "tool_audit", "plan_version", "TEXT", ct)
+            .ConfigureAwait(false);
+        await AddColumnIfMissingAsync(conn, transaction, "tool_audit", "root_grant_id", "TEXT", ct)
+            .ConfigureAwait(false);
     }
 
     private static async Task ValidateAsync(SqliteConnection conn, CancellationToken ct)

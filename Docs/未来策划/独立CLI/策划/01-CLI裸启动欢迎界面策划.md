@@ -129,5 +129,5 @@ madorin [openai/gpt-5] >
 
 ## 9. 关联文档
 
-- [独立 AI CLI / Runtime 命令规范](../04-CLI命令规范.md)
-- [阶段 7：CLI、Client SDK 与参考宿主](../执行步骤/07-CLI-ClientSDK与参考宿主.md)
+- [独立 AI CLI / Runtime 命令规范](../命令规范/04-CLI命令规范.md)
+- [阶段 7：CLI、Client SDK 与参考宿主](../备档/执行步骤/07-CLI-ClientSDK与参考宿主.md)

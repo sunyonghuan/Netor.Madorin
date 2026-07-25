@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -16,6 +17,7 @@ public sealed class ConversationStore
     private const string HeaderSchema = "madorin.conversation.v1";
     private static readonly byte[] NewLineBytes = "\n"u8.ToArray();
 
+    private readonly string _dataDirectory;
     private readonly string _databasePath;
     private readonly string _messagesDirectory;
     private readonly ConversationStoreOptions _options;
@@ -29,6 +31,7 @@ public sealed class ConversationStore
         _options = options ?? new ConversationStoreOptions();
         _options.Validate();
         var fullDataDirectory = Path.GetFullPath(dataDirectory);
+        _dataDirectory = fullDataDirectory;
         _messagesDirectory = Path.Combine(fullDataDirectory, "messages");
         _databasePath = Path.Combine(fullDataDirectory, "state.db");
         Directory.CreateDirectory(_messagesDirectory);
@@ -608,6 +611,12 @@ public sealed class ConversationStore
         return Path.Combine(_messagesDirectory, $"{sessionId}.jsonl");
     }
 
+    private string GetCompactCachePath(string sessionId)
+    {
+        ValidateSessionId(sessionId);
+        return Path.Combine(_messagesDirectory, $"{sessionId}.compact.json");
+    }
+
     private SessionState GetSessionState(string sessionId) =>
         _sessionStates.GetOrAdd(sessionId, static _ => new SessionState());
 
@@ -936,8 +945,10 @@ public sealed class ConversationStore
         string sessionId,
         IReadOnlyList<IndexedRecord> records,
         ConversationHeader? header,
-        CancellationToken ct)
+        CancellationToken ct,
+        string sessionStatus = "Active")
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionStatus);
         await using var connection = await OpenIndexConnectionAsync(ct).ConfigureAwait(false);
         using var transaction = connection.BeginTransaction(deferred: false);
 
@@ -959,13 +970,15 @@ public sealed class ConversationStore
                 sessionCmd.Transaction = transaction;
                 sessionCmd.CommandText = """
                     INSERT INTO sessions(session_id, mode, status, created_at, updated_at)
-                    VALUES($sessionId, $mode, 'Active', $createdAt, $updatedAt)
+                    VALUES($sessionId, $mode, $status, $createdAt, $updatedAt)
                     ON CONFLICT(session_id) DO UPDATE SET
                         mode = excluded.mode,
+                        status = excluded.status,
                         updated_at = MAX(sessions.updated_at, excluded.updated_at);
                     """;
                 sessionCmd.Parameters.AddWithValue("$sessionId", sessionId);
                 sessionCmd.Parameters.AddWithValue("$mode", header.Mode);
+                sessionCmd.Parameters.AddWithValue("$status", sessionStatus);
                 sessionCmd.Parameters.AddWithValue("$createdAt", createdAtUtc);
                 sessionCmd.Parameters.AddWithValue("$updatedAt", updatedAtUtc);
                 await sessionCmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
@@ -1255,7 +1268,354 @@ public sealed class ConversationStore
     }
 
 
+    /// <summary>Reads one consistent canonical-history snapshot for compaction.</summary>
+    public async Task<ConversationCompactionSource> ReadCompactionSourceAsync(
+        string sessionId,
+        CancellationToken ct = default)
+    {
+        var canonicalPath = GetSessionPath(sessionId);
+        var state = GetSessionState(sessionId);
+        await state.Gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await RepairCoreAsync(sessionId, canonicalPath, ct).ConfigureAwait(false);
+            var scan = await ScanAsync(sessionId, canonicalPath, ct).ConfigureAwait(false);
+            state.LastSequence = scan.LastSequence;
+            state.IsInitialized = true;
+            await SynchronizeIndexesAsync(sessionId, scan.Records, ct).ConfigureAwait(false);
+            var historySha256 = await ComputeHistorySha256Async(canonicalPath, ct)
+                .ConfigureAwait(false);
+            return new ConversationCompactionSource(
+                scan.Records.Select(static item => item.Record).ToArray(),
+                historySha256);
+        }
+        finally
+        {
+            state.Gate.Release();
+        }
+    }
+
+    /// <summary>Reads a rebuildable projection cache, treating malformed content as a miss.</summary>
+    public async Task<ConversationCompactCacheV1?> ReadCompactCacheAsync(
+        string sessionId,
+        CancellationToken ct = default)
+    {
+        var cachePath = GetCompactCachePath(sessionId);
+        var state = GetSessionState(sessionId);
+        await state.Gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (!File.Exists(cachePath))
+            {
+                return null;
+            }
+
+            try
+            {
+                await using var stream = new FileStream(cachePath, new FileStreamOptions
+                {
+                    Mode = FileMode.Open,
+                    Access = FileAccess.Read,
+                    Share = FileShare.Read,
+                    BufferSize = 16 * 1024,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+                });
+                var cache = await JsonSerializer.DeserializeAsync(
+                        stream,
+                        ConversationJsonContext.Default.ConversationCompactCacheV1,
+                        ct)
+                    .ConfigureAwait(false);
+                return IsValidCompactCache(cache, sessionId) ? cache : null;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+        finally
+        {
+            state.Gate.Release();
+        }
+    }
+
+    /// <summary>Atomically writes a projection cache when its source history is still current.</summary>
+    public async Task WriteCompactCacheAsync(
+        string sessionId,
+        ConversationCompactCacheV1 cache,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(cache);
+        if (!IsValidCompactCache(cache, sessionId))
+        {
+            throw new ArgumentException("The compact cache is invalid for this Session.", nameof(cache));
+        }
+
+        var canonicalPath = GetSessionPath(sessionId);
+        var cachePath = GetCompactCachePath(sessionId);
+        var state = GetSessionState(sessionId);
+        await state.Gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await RepairCoreAsync(sessionId, canonicalPath, ct).ConfigureAwait(false);
+            var currentHistorySha256 = await ComputeHistorySha256Async(canonicalPath, ct)
+                .ConfigureAwait(false);
+            if (!string.Equals(
+                    currentHistorySha256,
+                    cache.SourceHistorySha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Session '{sessionId}' changed while its projection was being generated.");
+            }
+
+            var temporaryPath = cachePath + ".tmp-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                await using (var stream = new FileStream(temporaryPath, new FileStreamOptions
+                {
+                    Mode = FileMode.CreateNew,
+                    Access = FileAccess.Write,
+                    Share = FileShare.None,
+                    BufferSize = 16 * 1024,
+                    Options = FileOptions.Asynchronous | FileOptions.WriteThrough
+                }))
+                {
+                    await JsonSerializer.SerializeAsync(
+                            stream,
+                            cache,
+                            ConversationJsonContext.Default.ConversationCompactCacheV1,
+                            ct)
+                        .ConfigureAwait(false);
+                    await stream.FlushAsync(ct).ConfigureAwait(false);
+                    stream.Flush(flushToDisk: true);
+                }
+
+                File.Move(temporaryPath, cachePath, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
+        }
+        finally
+        {
+            state.Gate.Release();
+        }
+    }
+
+    private static bool IsValidCompactCache(
+        ConversationCompactCacheV1? cache,
+        string sessionId) =>
+        cache is
+        {
+            Schema: ConversationCompactCacheV1.CurrentSchema,
+            SessionId.Length: > 0,
+            SourceHistorySha256.Length: 64,
+            Strategy.Length: > 0,
+            ProviderId.Length: > 0,
+            ModelId.Length: > 0,
+            SourceMessageCount: >= 0,
+            DroppedMessageCount: >= 0,
+            BeforeEstimatedTokens: >= 0,
+            AfterEstimatedTokens: >= 0,
+            EstimateSource.Length: > 0,
+            ProjectionMessages: not null
+        }
+        && string.Equals(cache.SessionId, sessionId, StringComparison.Ordinal)
+        && cache.DroppedMessageCount <= cache.SourceMessageCount
+        && cache.ProjectionMessages.All(static message =>
+            !string.IsNullOrWhiteSpace(message.Role)
+            && message.Content.ValueKind is JsonValueKind.Array);
+
+    private static async Task<string> ComputeHistorySha256Async(
+        string canonicalPath,
+        CancellationToken ct)
+    {
+        if (!File.Exists(canonicalPath))
+        {
+            return Convert.ToHexString(SHA256.HashData([])).ToLowerInvariant();
+        }
+
+        await using var stream = new FileStream(canonicalPath, new FileStreamOptions
+        {
+            Mode = FileMode.Open,
+            Access = FileAccess.Read,
+            Share = FileShare.Read,
+            BufferSize = 64 * 1024,
+            Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+        });
+        var hash = await SHA256.HashDataAsync(stream, ct).ConfigureAwait(false);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
     public ConversationBlobStore BlobStore => _blobStore;
+
+    /// <summary>Moves live Session files into a same-volume recovery point.</summary>
+    public async Task<ConversationDeleteRecoveryPoint> PrepareSessionDeletionAsync(
+        string sessionId,
+        bool includeBlobs,
+        CancellationToken ct = default) =>
+        await PrepareSessionDeletionAsync(
+                sessionId,
+                includeBlobs,
+                targetAdditionalBlobIds: [],
+                protectedAdditionalBlobIds: [],
+                ct)
+            .ConfigureAwait(false);
+
+    /// <summary>Moves Session files and unshared Blob references into a recovery point.</summary>
+    public async Task<ConversationDeleteRecoveryPoint> PrepareSessionDeletionAsync(
+        string sessionId,
+        bool includeBlobs,
+        IReadOnlyCollection<string> targetAdditionalBlobIds,
+        IReadOnlyCollection<string> protectedAdditionalBlobIds,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(targetAdditionalBlobIds);
+        ArgumentNullException.ThrowIfNull(protectedAdditionalBlobIds);
+        var canonicalPath = GetSessionPath(sessionId);
+        var state = GetSessionState(sessionId);
+        await state.Gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var exclusiveBlobIds = includeBlobs && File.Exists(canonicalPath)
+                ? await FindExclusiveBlobIdsAsync(
+                        sessionId,
+                        canonicalPath,
+                        targetAdditionalBlobIds,
+                        protectedAdditionalBlobIds,
+                        ct)
+                    .ConfigureAwait(false)
+                : includeBlobs
+                    ? FindExistingUnprotectedBlobIds(
+                        targetAdditionalBlobIds,
+                        protectedAdditionalBlobIds)
+                    : [];
+            var operationId = string.Concat(
+                DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture),
+                "-",
+                Guid.NewGuid().ToString("N"));
+            var recoveryDirectory = Path.Combine(
+                _dataDirectory,
+                "recovery",
+                "session-deletions",
+                operationId);
+            var artifacts = new List<ConversationDeleteRecoveryPoint.Artifact>();
+            AddArtifactIfPresent(
+                artifacts,
+                recoveryDirectory,
+                "canonical",
+                Path.Combine("messages", sessionId + ".jsonl"));
+            AddArtifactIfPresent(
+                artifacts,
+                recoveryDirectory,
+                "projection",
+                Path.Combine("messages", sessionId + ".compact.json"));
+            foreach (var blobId in exclusiveBlobIds)
+            {
+                AddArtifactIfPresent(
+                    artifacts,
+                    recoveryDirectory,
+                    "blob",
+                    Path.Combine("blobs", blobId + ".blob"));
+            }
+
+            var recoveryPoint = new ConversationDeleteRecoveryPoint(
+                sessionId,
+                recoveryDirectory,
+                artifacts);
+            Directory.CreateDirectory(recoveryDirectory);
+            await WriteDeletionManifestAsync(
+                    recoveryPoint,
+                    "preparing",
+                    error: null,
+                    ct)
+                .ConfigureAwait(false);
+
+            try
+            {
+                await InjectFailureAsync(ConversationStoreFailurePoint.BeforeDeletionArtifactsMove)
+                    .ConfigureAwait(false);
+                foreach (var artifact in artifacts)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    Directory.CreateDirectory(Path.GetDirectoryName(artifact.RecoveryPath)!);
+                    File.Move(artifact.LivePath, artifact.RecoveryPath, overwrite: false);
+                }
+
+                await InjectFailureAsync(ConversationStoreFailurePoint.AfterDeletionArtifactsMove)
+                    .ConfigureAwait(false);
+                await WriteDeletionManifestAsync(
+                        recoveryPoint,
+                        "prepared",
+                        error: null,
+                        ct)
+                    .ConfigureAwait(false);
+                _sessionStates.TryRemove(sessionId, out _);
+                return recoveryPoint;
+            }
+            catch (Exception ex)
+            {
+                Exception? restoreException = null;
+                try
+                {
+                    RestoreArtifacts(recoveryPoint);
+                }
+                catch (Exception candidate) when (candidate is IOException or UnauthorizedAccessException)
+                {
+                    restoreException = candidate;
+                }
+
+                var error = restoreException is null
+                    ? ex.Message
+                    : $"{ex.Message} Recovery failed: {restoreException.Message}";
+                await TryWriteDeletionManifestAsync(recoveryPoint, "restored", error)
+                    .ConfigureAwait(false);
+                if (restoreException is not null)
+                {
+                    throw new InvalidDataException(
+                        $"Session deletion preparation failed and recovery point '{recoveryDirectory}' could not be restored.",
+                        new AggregateException(ex, restoreException));
+                }
+
+                throw;
+            }
+        }
+        finally
+        {
+            state.Gate.Release();
+        }
+    }
+
+    /// <summary>Marks a prepared Session deletion recovery point as committed.</summary>
+    public Task CommitSessionDeletionAsync(
+        ConversationDeleteRecoveryPoint recoveryPoint,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(recoveryPoint);
+        ValidateRecoveryPointOwnership(recoveryPoint);
+        return WriteDeletionManifestAsync(recoveryPoint, "committed", error: null, ct);
+    }
+
+    /// <summary>Restores live Session files after the metadata transaction fails.</summary>
+    public async Task RestoreSessionDeletionAsync(
+        ConversationDeleteRecoveryPoint recoveryPoint,
+        string error)
+    {
+        ArgumentNullException.ThrowIfNull(recoveryPoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(error);
+        ValidateRecoveryPointOwnership(recoveryPoint);
+        RestoreArtifacts(recoveryPoint);
+        await WriteDeletionManifestAsync(
+                recoveryPoint,
+                "restored",
+                error,
+                CancellationToken.None)
+            .ConfigureAwait(false);
+    }
 
     public async Task<ConversationHistoryMetadata> GetHistoryMetadataAsync(
         string sessionId,
@@ -1280,24 +1640,273 @@ public sealed class ConversationStore
             last.Sequence,
             last.MessageId,
             blobIds.Count,
-            blobIds.OrderBy(static id => id, StringComparer.Ordinal).Take(32).ToArray());
+            blobIds.OrderBy(static id => id, StringComparer.Ordinal).ToArray());
     }
 
-    public async Task<ConversationIndexRebuildResult> RebuildIndexesAsync(
+    private async Task<string[]> FindExclusiveBlobIdsAsync(
+        string sessionId,
+        string canonicalPath,
+        IReadOnlyCollection<string> targetAdditionalBlobIds,
+        IReadOnlyCollection<string> protectedAdditionalBlobIds,
+        CancellationToken ct)
+    {
+        var targetBlobIds = await CollectBlobIdsFromFileAsync(canonicalPath, ct)
+            .ConfigureAwait(false);
+        targetBlobIds.UnionWith(targetAdditionalBlobIds);
+        if (targetBlobIds.Count == 0)
+        {
+            return [];
+        }
+
+        var sharedBlobIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        sharedBlobIds.UnionWith(protectedAdditionalBlobIds);
+        foreach (var otherPath in Directory.EnumerateFiles(_messagesDirectory, "*.jsonl"))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (string.Equals(
+                    Path.GetFileNameWithoutExtension(otherPath),
+                    sessionId,
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            sharedBlobIds.UnionWith(
+                await CollectBlobIdsFromFileAsync(otherPath, ct).ConfigureAwait(false));
+        }
+
+        targetBlobIds.ExceptWith(sharedBlobIds);
+        return targetBlobIds
+            .Where(_blobStore.Exists)
+            .OrderBy(static id => id, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private string[] FindExistingUnprotectedBlobIds(
+        IReadOnlyCollection<string> targetBlobIds,
+        IReadOnlyCollection<string> protectedBlobIds)
+    {
+        var exclusiveBlobIds = new HashSet<string>(
+            targetBlobIds,
+            StringComparer.OrdinalIgnoreCase);
+        exclusiveBlobIds.ExceptWith(protectedBlobIds);
+        return exclusiveBlobIds
+            .Where(_blobStore.Exists)
+            .OrderBy(static id => id, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static async Task<HashSet<string>> CollectBlobIdsFromFileAsync(
+        string path,
+        CancellationToken ct)
+    {
+        var blobIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await foreach (var line in File.ReadLinesAsync(path, ct).ConfigureAwait(false))
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            using var document = JsonDocument.Parse(line);
+            if (document.RootElement.TryGetProperty("content", out var content))
+            {
+                CollectBlobIds(content, blobIds);
+            }
+        }
+
+        return blobIds;
+    }
+
+    private void AddArtifactIfPresent(
+        List<ConversationDeleteRecoveryPoint.Artifact> artifacts,
+        string recoveryDirectory,
+        string kind,
+        string relativePath)
+    {
+        var livePath = Path.Combine(_dataDirectory, relativePath);
+        if (!File.Exists(livePath))
+        {
+            return;
+        }
+
+        artifacts.Add(new ConversationDeleteRecoveryPoint.Artifact(
+            kind,
+            relativePath.Replace(Path.DirectorySeparatorChar, '/'),
+            livePath,
+            Path.Combine(recoveryDirectory, relativePath)));
+    }
+
+    private static void RestoreArtifacts(ConversationDeleteRecoveryPoint recoveryPoint)
+    {
+        foreach (var artifact in recoveryPoint.Artifacts.Reverse())
+        {
+            if (!File.Exists(artifact.RecoveryPath))
+            {
+                continue;
+            }
+
+            if (File.Exists(artifact.LivePath))
+            {
+                throw new IOException(
+                    $"Cannot restore '{artifact.RelativePath}' because the live path already exists.");
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(artifact.LivePath)!);
+            File.Move(artifact.RecoveryPath, artifact.LivePath, overwrite: false);
+        }
+    }
+
+    private static async Task WriteDeletionManifestAsync(
+        ConversationDeleteRecoveryPoint recoveryPoint,
+        string status,
+        string? error,
+        CancellationToken ct)
+    {
+        Directory.CreateDirectory(recoveryPoint.RecoveryDirectory);
+        var temporaryPath = recoveryPoint.ManifestPath + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            await using (var stream = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                16 * 1024,
+                FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await using var writer = new Utf8JsonWriter(
+                    stream,
+                    new JsonWriterOptions { Indented = true });
+                writer.WriteStartObject();
+                writer.WriteString("schema", "madorin.session-deletion.v1");
+                writer.WriteString("sessionId", recoveryPoint.SessionId);
+                writer.WriteString("status", status);
+                writer.WriteString("updatedAt", DateTimeOffset.UtcNow);
+                if (error is null)
+                {
+                    writer.WriteNull("error");
+                }
+                else
+                {
+                    writer.WriteString("error", error);
+                }
+
+                writer.WriteStartArray("artifacts");
+                foreach (var artifact in recoveryPoint.Artifacts)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("kind", artifact.Kind);
+                    writer.WriteString("path", artifact.RelativePath);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+                await writer.FlushAsync(ct).ConfigureAwait(false);
+                await stream.FlushAsync(ct).ConfigureAwait(false);
+                stream.Flush(flushToDisk: true);
+            }
+
+            File.Move(temporaryPath, recoveryPoint.ManifestPath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+    }
+
+    private static async Task TryWriteDeletionManifestAsync(
+        ConversationDeleteRecoveryPoint recoveryPoint,
+        string status,
+        string error)
+    {
+        try
+        {
+            await WriteDeletionManifestAsync(
+                    recoveryPoint,
+                    status,
+                    error,
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (
+            ex is IOException or UnauthorizedAccessException
+            && File.Exists(recoveryPoint.ManifestPath))
+        {
+        }
+    }
+
+    private void ValidateRecoveryPointOwnership(
+        ConversationDeleteRecoveryPoint recoveryPoint)
+    {
+        var recoveryRoot = Path.GetFullPath(Path.Combine(
+            _dataDirectory,
+            "recovery",
+            "session-deletions"));
+        var candidate = Path.GetFullPath(recoveryPoint.RecoveryDirectory);
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        if (!candidate.StartsWith(
+                recoveryRoot + Path.DirectorySeparatorChar,
+                comparison))
+        {
+            throw new InvalidOperationException(
+                "The Session deletion recovery point does not belong to this data directory.");
+        }
+    }
+
+    public Task<ConversationIndexRebuildResult> RebuildIndexesAsync(
+        CancellationToken ct = default) =>
+        RebuildIndexesCoreAsync(recoveryPointPath: null, ct);
+
+    /// <summary>Rebuilds indexes after the caller has retained the original database.</summary>
+    public Task<ConversationIndexRebuildResult> RebuildIndexesFromRecoveryPointAsync(
+        string recoveryPointPath,
         CancellationToken ct = default)
     {
-        Directory.CreateDirectory(_messagesDirectory);
-        var backupDir = Path.Combine(
-            Path.GetDirectoryName(_databasePath)!,
-            "backups",
-            "rebuild-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture));
-        Directory.CreateDirectory(backupDir);
-        if (File.Exists(_databasePath))
+        ArgumentException.ThrowIfNullOrWhiteSpace(recoveryPointPath);
+        var fullRecoveryPointPath = Path.GetFullPath(recoveryPointPath);
+        if (!Directory.Exists(fullRecoveryPointPath))
         {
-            File.Copy(
-                _databasePath,
-                Path.Combine(backupDir, "state.db"),
-                overwrite: false);
+            throw new DirectoryNotFoundException(
+                $"Recovery point '{fullRecoveryPointPath}' was not found.");
+        }
+
+        return RebuildIndexesCoreAsync(fullRecoveryPointPath, ct);
+    }
+
+    private async Task<ConversationIndexRebuildResult> RebuildIndexesCoreAsync(
+        string? recoveryPointPath,
+        CancellationToken ct)
+    {
+        Directory.CreateDirectory(_messagesDirectory);
+        var backupDir = recoveryPointPath;
+        if (backupDir is null)
+        {
+            backupDir = Path.Combine(
+                Path.GetDirectoryName(_databasePath)!,
+                "backups",
+                "rebuild-"
+                + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture)
+                + "-"
+                + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(backupDir);
+            foreach (var fileName in new[] { "state.db", "state.db-wal", "state.db-shm" })
+            {
+                var sourcePath = Path.Combine(_dataDirectory, fileName);
+                if (File.Exists(sourcePath))
+                {
+                    File.Copy(
+                        sourcePath,
+                        Path.Combine(backupDir, fileName),
+                        overwrite: false);
+                }
+            }
         }
 
         var recoverable = new List<string>();
@@ -1325,17 +1934,23 @@ public sealed class ConversationStore
                 await state.Gate.WaitAsync(ct).ConfigureAwait(false);
                 try
                 {
-                    await RepairCoreAsync(sessionId, file, ct).ConfigureAwait(false);
                     var header = await ReadHeaderAsync(sessionId, file, ct).ConfigureAwait(false);
                     var scan = await ScanAsync(sessionId, file, ct).ConfigureAwait(false);
                     state.LastSequence = scan.LastSequence;
                     state.IsInitialized = true;
-                    await SynchronizeIndexesAsync(sessionId, scan.Records, header, ct).ConfigureAwait(false);
+                    await SynchronizeIndexesAsync(
+                            sessionId,
+                            scan.Records,
+                            header,
+                            ct,
+                            sessionStatus: "Recovered")
+                        .ConfigureAwait(false);
                     state.NeedsIndexRepair = false;
                     sessionsRebuilt++;
                     messagesUpserted += scan.Records.Count;
-                    recoverable.Add(
-                        $"Session '{sessionId}': restored Session metadata and {scan.Records.Count} message index row(s).");
+                    recoverable.Add(scan.InvalidLastLineOffset is null
+                        ? $"Session '{sessionId}': restored Session metadata and {scan.Records.Count} message index row(s)."
+                        : $"Session '{sessionId}': restored Session metadata and {scan.Records.Count} message index row(s); the damaged final record was left unchanged and not indexed.");
                 }
                 finally
                 {

@@ -827,8 +827,15 @@ public sealed class ToolGateway(
                 ct).ConfigureAwait(false);
             if (!completed)
             {
-                throw new InvalidOperationException(
-                    $"Tool call '{result.CallId}' is no longer in the Sent state.");
+                var existing = await _stateStore.GetIntentAsync(result.CallId, ct)
+                    .ConfigureAwait(false);
+                if (existing?.Status != status)
+                {
+                    throw new InvalidOperationException(
+                        $"Tool call '{result.CallId}' is no longer in the Sent state and has conflicting status '{existing?.Status}'.");
+                }
+
+                return existing.IsResultVisible;
             }
 
             if (auditId is not null)
@@ -873,6 +880,9 @@ public sealed class ToolGateway(
         }
 
         var auditId = Guid.NewGuid().ToString("N");
+        var rootGrantId = permission.RootGrantId
+            ?? permission.DelegationChain?.FirstOrDefault()
+            ?? permission.GrantId;
         try
         {
             await _stateStore.AppendAuditAsync(
@@ -880,6 +890,9 @@ public sealed class ToolGateway(
                     auditId,
                     invocation.CallId,
                     invocation.RunId,
+                    invocation.SessionId,
+                    invocation.InvocationId ?? invocation.CallId,
+                    invocation.ParentInvocationId ?? permission.ParentInvocationId,
                     invocation.AgentId,
                     invocation.ParentAgentId,
                     invocation.ToolId,
@@ -888,12 +901,15 @@ public sealed class ToolGateway(
                     argumentsHash,
                     targetSummary,
                     permission.GrantId,
+                    rootGrantId,
                     permission.ApprovalRequestId,
                     permission.DelegationChain ?? [],
                     "prepared",
                     ResultHash: null,
                     DiagnosticId: Guid.NewGuid().ToString("N"),
-                    CreatedAt: _timeProvider.GetUtcNow()),
+                    CreatedAt: _timeProvider.GetUtcNow(),
+                    WorkStepId: invocation.WorkStepId ?? permission.StepId,
+                    PlanVersion: invocation.PlanVersion ?? permission.PlanVersion),
                 ct).ConfigureAwait(false);
             return (auditId, null);
         }

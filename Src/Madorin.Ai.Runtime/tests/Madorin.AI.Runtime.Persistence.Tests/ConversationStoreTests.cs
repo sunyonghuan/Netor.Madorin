@@ -465,7 +465,7 @@ public sealed class ConversationStoreTests
                     "SELECT mode FROM sessions WHERE session_id = 'session-full-rebuild';",
                     TestContext.CancellationToken));
             Assert.AreEqual(
-                "Active",
+                "Recovered",
                 await ExecuteIndexTextScalarAsync(
                     dataDirectory,
                     "SELECT status FROM sessions WHERE session_id = 'session-full-rebuild';",
@@ -541,6 +541,217 @@ public sealed class ConversationStoreTests
             {
                 Assert.IsLessThanOrEqualTo(1024, Encoding.UTF8.GetByteCount(line));
             }
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(dataDirectory);
+        }
+    }
+
+    [TestMethod]
+    public async Task PrepareSessionDeletionAsync_AfterArtifactsMoveFailure_RestoresAllLiveFiles()
+    {
+        var dataDirectory = CreateTemporaryDirectory();
+        try
+        {
+            const string sessionId = "session-delete-recovery";
+            var store = new ConversationStore(
+                dataDirectory,
+                new ConversationStoreOptions { MaxJsonLineBytes = 1024 });
+            await store.AppendMessageAsync(
+                sessionId,
+                CreateDraft(new string('r', 4096)),
+                TestContext.CancellationToken);
+            var metadata = await store.GetHistoryMetadataAsync(
+                sessionId,
+                TestContext.CancellationToken);
+            var blobId = Assert.ContainsSingle(metadata.BlobIds);
+            var canonicalPath = Path.Combine(dataDirectory, "messages", sessionId + ".jsonl");
+            var compactPath = Path.Combine(
+                dataDirectory,
+                "messages",
+                sessionId + ".compact.json");
+            var blobPath = Path.Combine(dataDirectory, "blobs", blobId + ".blob");
+            await File.WriteAllTextAsync(
+                compactPath,
+                "{\"projection\":true}",
+                TestContext.CancellationToken);
+            var injectionCount = 0;
+            var failingStore = new ConversationStore(dataDirectory, new ConversationStoreOptions
+            {
+                FailureInjector = (point, _) =>
+                {
+                    if (point == ConversationStoreFailurePoint.AfterDeletionArtifactsMove
+                        && Interlocked.Exchange(ref injectionCount, 1) == 0)
+                    {
+                        return ValueTask.FromException(
+                            new InvalidOperationException("Injected Session deletion failure."));
+                    }
+
+                    return ValueTask.CompletedTask;
+                }
+            });
+
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                async () => await failingStore.PrepareSessionDeletionAsync(
+                    sessionId,
+                    includeBlobs: true,
+                    TestContext.CancellationToken));
+
+            Assert.IsTrue(File.Exists(canonicalPath));
+            Assert.IsTrue(File.Exists(compactPath));
+            Assert.IsTrue(File.Exists(blobPath));
+            var recoveryRoot = Path.Combine(
+                dataDirectory,
+                "recovery",
+                "session-deletions");
+            var manifest = Assert.ContainsSingle(
+                Directory.EnumerateFiles(recoveryRoot, "manifest.json", SearchOption.AllDirectories));
+            using var json = JsonDocument.Parse(await File.ReadAllTextAsync(
+                manifest,
+                TestContext.CancellationToken));
+            Assert.AreEqual("restored", json.RootElement.GetProperty("status").GetString());
+            Assert.Contains("Injected Session deletion failure", json.RootElement
+                .GetProperty("error")
+                .GetString()!);
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(dataDirectory);
+        }
+    }
+
+    [TestMethod]
+    public async Task CompactCache_WriteReadRoundTripAndCorruptionIsIgnored()
+    {
+        var dataDirectory = CreateTemporaryDirectory();
+        try
+        {
+            const string sessionId = "session-compact-cache";
+            var store = new ConversationStore(dataDirectory);
+            await store.AppendMessageAsync(
+                sessionId,
+                CreateDraft("canonical compact source"),
+                TestContext.CancellationToken);
+            var canonicalPath = Path.Combine(
+                dataDirectory,
+                "messages",
+                sessionId + ".jsonl");
+            var canonicalBefore = await File.ReadAllBytesAsync(
+                canonicalPath,
+                TestContext.CancellationToken);
+            var source = await store.ReadCompactionSourceAsync(
+                sessionId,
+                TestContext.CancellationToken);
+            var projectedContent = source.Records[0].Content.Clone();
+            var cache = new ConversationCompactCacheV1(
+                ConversationCompactCacheV1.CurrentSchema,
+                sessionId,
+                source.HistorySha256,
+                "summary",
+                "provider-a",
+                "model-a",
+                KeepLastTokens: null,
+                source.Records.Count,
+                DroppedMessageCount: source.Records.Count - 1,
+                BeforeEstimatedTokens: 12,
+                AfterEstimatedTokens: 3,
+                "provider.estimated",
+                [new ConversationCompactMessageV1("system", projectedContent)],
+                DateTimeOffset.UtcNow);
+
+            await store.WriteCompactCacheAsync(
+                sessionId,
+                cache,
+                TestContext.CancellationToken);
+            var restored = await store.ReadCompactCacheAsync(
+                sessionId,
+                TestContext.CancellationToken);
+
+            Assert.IsNotNull(restored);
+            Assert.AreEqual(cache.SourceHistorySha256, restored.SourceHistorySha256);
+            Assert.AreEqual(cache.Strategy, restored.Strategy);
+            Assert.AreEqual(cache.ProviderId, restored.ProviderId);
+            Assert.AreEqual(cache.ModelId, restored.ModelId);
+            Assert.AreEqual(cache.AfterEstimatedTokens, restored.AfterEstimatedTokens);
+            Assert.HasCount(1, restored.ProjectionMessages);
+            Assert.AreEqual("system", restored.ProjectionMessages[0].Role);
+            CollectionAssert.AreEqual(
+                canonicalBefore,
+                await File.ReadAllBytesAsync(canonicalPath, TestContext.CancellationToken));
+
+            await File.WriteAllTextAsync(
+                Path.Combine(dataDirectory, "messages", sessionId + ".compact.json"),
+                "{not-json",
+                TestContext.CancellationToken);
+
+            Assert.IsNull(await store.ReadCompactCacheAsync(
+                sessionId,
+                TestContext.CancellationToken));
+        }
+        finally
+        {
+            DeleteTemporaryDirectory(dataDirectory);
+        }
+    }
+
+    [TestMethod]
+    public async Task CompactCache_WhenHistoryChanges_RejectsStaleWriteAndPreservesExistingCache()
+    {
+        var dataDirectory = CreateTemporaryDirectory();
+        try
+        {
+            const string sessionId = "session-compact-stale";
+            var store = new ConversationStore(dataDirectory);
+            await store.AppendMessageAsync(
+                sessionId,
+                CreateDraft("first compact source"),
+                TestContext.CancellationToken);
+            var source = await store.ReadCompactionSourceAsync(
+                sessionId,
+                TestContext.CancellationToken);
+            var cache = new ConversationCompactCacheV1(
+                ConversationCompactCacheV1.CurrentSchema,
+                sessionId,
+                source.HistorySha256,
+                "full",
+                "provider-a",
+                "model-a",
+                KeepLastTokens: null,
+                source.Records.Count,
+                DroppedMessageCount: 0,
+                BeforeEstimatedTokens: 1,
+                AfterEstimatedTokens: 1,
+                "provider.estimated",
+                [new ConversationCompactMessageV1(
+                    source.Records[0].Role,
+                    source.Records[0].Content.Clone())],
+                DateTimeOffset.UtcNow);
+            await store.WriteCompactCacheAsync(
+                sessionId,
+                cache,
+                TestContext.CancellationToken);
+            var cachePath = Path.Combine(
+                dataDirectory,
+                "messages",
+                sessionId + ".compact.json");
+            var existingBytes = await File.ReadAllBytesAsync(
+                cachePath,
+                TestContext.CancellationToken);
+
+            await store.AppendMessageAsync(
+                sessionId,
+                CreateDraft("second compact source"),
+                TestContext.CancellationToken);
+
+            await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                async () => await store.WriteCompactCacheAsync(
+                    sessionId,
+                    cache,
+                    TestContext.CancellationToken));
+            CollectionAssert.AreEqual(
+                existingBytes,
+                await File.ReadAllBytesAsync(cachePath, TestContext.CancellationToken));
         }
         finally
         {

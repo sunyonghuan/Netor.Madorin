@@ -212,6 +212,9 @@ public sealed class SqliteToolStateStoreTests
             "audit-1",
             approval.CallId,
             root.RunId,
+            "session-1",
+            "invocation-child",
+            "invocation-root",
             "agent-child",
             "agent-root",
             approval.ToolId,
@@ -220,12 +223,15 @@ public sealed class SqliteToolStateStoreTests
             approval.ArgumentsHash,
             "host.orders.create:order",
             child.GrantId,
+            root.GrantId,
             approval.ApprovalRequestId,
             [root.GrantId, child.GrantId],
             "prepared",
             ResultHash: null,
             "diagnostic-1",
-            now);
+            now,
+            WorkStepId: "step-1",
+            PlanVersion: "plan-v1");
         await store.AppendAuditAsync(audit, TestContext.CancellationToken);
         await store.CompleteAuditAsync(
             audit.AuditId,
@@ -252,7 +258,17 @@ public sealed class SqliteToolStateStoreTests
 
         await using var auditQuery = connection.CreateCommand();
         auditQuery.CommandText = """
-            SELECT status, result_hash, arguments_hash, target_summary, duration_ms
+            SELECT status,
+                   result_hash,
+                   arguments_hash,
+                   target_summary,
+                   duration_ms,
+                   session_id,
+                   invocation_id,
+                   parent_invocation_id,
+                   work_step_id,
+                   plan_version,
+                   root_grant_id
             FROM tool_audit
             WHERE audit_id = 'audit-1';
             """;
@@ -263,16 +279,23 @@ public sealed class SqliteToolStateStoreTests
         Assert.AreEqual("HASH-1", reader.GetString(2));
         Assert.AreEqual("host.orders.create:order", reader.GetString(3));
         Assert.AreEqual(2000L, reader.GetInt64(4));
+        Assert.AreEqual(audit.SessionId, reader.GetString(5));
+        Assert.AreEqual(audit.InvocationId, reader.GetString(6));
+        Assert.AreEqual(audit.ParentInvocationId, reader.GetString(7));
+        Assert.AreEqual(audit.WorkStepId, reader.GetString(8));
+        Assert.AreEqual(audit.PlanVersion, reader.GetString(9));
+        Assert.AreEqual(audit.RootGrantId, reader.GetString(10));
     }
 
     [TestMethod]
-    public async Task EnsureCreatedAsync_VersionEightMissingStageFiveColumns_AddsCompatibleColumns()
+    public async Task EnsureCreatedAsync_MissingCompatibleColumns_AddsColumns()
     {
         await using var connection = await CreateDatabaseAsync();
         await using (var drop = connection.CreateCommand())
         {
             drop.CommandText = """
                 ALTER TABLE tool_audit DROP COLUMN duration_ms;
+                ALTER TABLE tool_audit DROP COLUMN root_grant_id;
                 ALTER TABLE tool_grants DROP COLUMN approval_request_id;
                 """;
             await drop.ExecuteNonQueryAsync(TestContext.CancellationToken);
@@ -285,6 +308,16 @@ public sealed class SqliteToolStateStoreTests
             SELECT COUNT(*)
             FROM pragma_table_info('tool_audit')
             WHERE name = 'duration_ms';
+            """;
+        Assert.AreEqual(
+            1L,
+            Convert.ToInt64(
+                await column.ExecuteScalarAsync(TestContext.CancellationToken),
+                CultureInfo.InvariantCulture));
+        column.CommandText = """
+            SELECT COUNT(*)
+            FROM pragma_table_info('tool_audit')
+            WHERE name = 'root_grant_id';
             """;
         Assert.AreEqual(
             1L,

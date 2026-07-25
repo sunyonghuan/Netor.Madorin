@@ -11,6 +11,9 @@ public interface ICliTerminal
     /// <summary>Writes text with a trailing line terminator.</summary>
     public void WriteLine(string value = "");
 
+    /// <summary>Clears an attached interactive console without emitting terminal control sequences.</summary>
+    public void Clear();
+
     /// <summary>Reads one input line.</summary>
     public ValueTask<string?> ReadLineAsync(CancellationToken ct = default);
 
@@ -43,6 +46,15 @@ public sealed class CliTerminal : ICliTerminal
 
     /// <inheritdoc />
     public void WriteLine(string value = "") => _output.WriteLine(value);
+
+    /// <inheritdoc />
+    public void Clear()
+    {
+        if (ReferenceEquals(_output, Console.Out) && !Console.IsOutputRedirected)
+        {
+            Console.Clear();
+        }
+    }
 
     /// <inheritdoc />
     public async ValueTask<string?> ReadLineAsync(CancellationToken ct = default) =>

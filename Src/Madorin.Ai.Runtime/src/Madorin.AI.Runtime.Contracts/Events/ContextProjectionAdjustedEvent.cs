@@ -6,4 +6,7 @@ public sealed record ContextProjectionAdjustedEvent(
     int IncludedMessageCount,
     int EstimatedTokens,
     string EstimateSource,
-    string Strategy);
+    string Strategy,
+    string[]? RetainedItems = null,
+    int? TokenLimit = null,
+    int? SummarizedUnitCount = null);

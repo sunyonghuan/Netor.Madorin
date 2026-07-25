@@ -4,8 +4,12 @@ public static class MessageTypes
 {
     public const string NewSessionRun = "run.new_session";
     public const string ExistingSessionRun = "run.existing_session";
+    public const string RunCancel = "run.cancel";
+    public const string RunList = "run.list";
     public const string RunQuery = "run.query";
+    public const string RuntimeStatus = "runtime.status";
     public const string SessionGet = "session.get";
+    public const string SessionList = "session.list";
     public const string SessionResume = "session.resume";
     public const string SessionMessagesList = "session.messages.list";
     public const string SessionSelectionUpdate = "session.selection.update";

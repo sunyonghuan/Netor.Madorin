@@ -539,6 +539,215 @@ public sealed class ToolGatewayTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_ChildHighRiskTool_PersistsAuditLineageAndRootGrant()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync(TestContext.CancellationToken);
+        await SqliteSchema.EnsureCreatedAsync(connection, TestContext.CancellationToken);
+        using var repository = new SqliteToolIntentRepository(connection);
+        using var outbox = new SqliteEventOutbox(connection);
+        var validator = new JsonSchemaToolValidator();
+        var descriptor = CreateDestructiveDescriptor("host.destructive.audit");
+        var catalog = new ToolCatalogSnapshot("host-v1", "custom-v1", [descriptor]);
+        var authorization = new ToolAuthorizationService(
+            repository,
+            RuntimeToolPolicy.CreateRestricted(_workspaceRoot));
+        var executor = new PreparedCountingToolExecutor(descriptor.ToolId);
+        using var gateway = new ToolGateway(
+            new ToolCatalogStore(new BuiltinToolRegistry(), validator),
+            validator,
+            authorization,
+            [executor],
+            repository,
+            outbox);
+        var invocation = CreateChildInvocation(
+            descriptor.ToolId,
+            "call-child-audit",
+            "{}");
+        await SaveDelegatedGrantChainAsync(
+            authorization,
+            invocation,
+            descriptor.ToolId,
+            ToolRiskLevel.Destructive,
+            allowDelete: true);
+
+        var result = await gateway.ExecuteAsync(
+            invocation,
+            permission: null,
+            catalog,
+            TestContext.CancellationToken);
+
+        Assert.AreEqual(ToolGatewayResultKind.Success, result.Kind);
+        Assert.AreEqual(1, executor.ExecutionCount);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT call_id,
+                   session_id,
+                   invocation_id,
+                   parent_invocation_id,
+                   work_step_id,
+                   plan_version,
+                   grant_id,
+                   root_grant_id,
+                   delegation_chain,
+                   status,
+                   result_hash
+            FROM tool_audit
+            WHERE call_id = $callId;
+            """;
+        command.Parameters.AddWithValue("$callId", invocation.CallId);
+        await using var reader = await command.ExecuteReaderAsync(TestContext.CancellationToken);
+        Assert.IsTrue(await reader.ReadAsync(TestContext.CancellationToken));
+        Assert.AreEqual(invocation.CallId, reader.GetString(0));
+        Assert.AreEqual(invocation.SessionId, reader.GetString(1));
+        Assert.AreEqual(invocation.InvocationId, reader.GetString(2));
+        Assert.AreEqual(invocation.ParentInvocationId, reader.GetString(3));
+        Assert.AreEqual(invocation.WorkStepId, reader.GetString(4));
+        Assert.AreEqual(invocation.PlanVersion, reader.GetString(5));
+        Assert.AreEqual("grant-child", reader.GetString(6));
+        Assert.AreEqual("grant-root", reader.GetString(7));
+        using var delegationChain = JsonDocument.Parse(reader.GetString(8));
+        var rootGrant = Assert.ContainsSingle(delegationChain.RootElement.EnumerateArray());
+        Assert.AreEqual("grant-root", rootGrant.GetString());
+        Assert.AreEqual("succeeded", reader.GetString(9));
+        Assert.IsFalse(string.IsNullOrWhiteSpace(reader.GetString(10)));
+        Assert.IsFalse(await reader.ReadAsync(TestContext.CancellationToken));
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_RevokedRootGrant_BlocksUnsentDescendantCall()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync(TestContext.CancellationToken);
+        await SqliteSchema.EnsureCreatedAsync(connection, TestContext.CancellationToken);
+        using var repository = new SqliteToolIntentRepository(connection);
+        using var outbox = new SqliteEventOutbox(connection);
+        var validator = new JsonSchemaToolValidator();
+        var registry = new BuiltinToolRegistry();
+        var authorization = new ToolAuthorizationService(
+            repository,
+            RuntimeToolPolicy.CreateRestricted(_workspaceRoot));
+        var executor = new CountingToolExecutor(BuiltinToolRegistry.FileReadToolId);
+        using var gateway = new ToolGateway(
+            new ToolCatalogStore(registry, validator),
+            validator,
+            authorization,
+            [executor],
+            repository,
+            outbox);
+        var invocation = CreateChildInvocation(
+            BuiltinToolRegistry.FileReadToolId,
+            "call-revoked-before-send",
+            CreateArguments(("path", "notes.txt")));
+        await SaveDelegatedGrantChainAsync(
+            authorization,
+            invocation,
+            BuiltinToolRegistry.FileReadToolId,
+            ToolRiskLevel.SensitiveRead,
+            allowDelete: false);
+        Assert.AreEqual(
+            2,
+            await authorization.RevokeGrantAsync(
+                "grant-root",
+                reason: "user revoked",
+                ct: TestContext.CancellationToken));
+
+        var result = await gateway.ExecuteAsync(
+            invocation,
+            permission: null,
+            TestContext.CancellationToken);
+
+        Assert.AreEqual(ToolGatewayResultKind.NeedsPermission, result.Kind);
+        Assert.AreEqual(RuntimeErrorCodes.ToolPermissionRequired, result.Error?.Code);
+        Assert.AreEqual(0, executor.ExecutionCount);
+        var intent = await repository.GetIntentAsync(
+            invocation.CallId,
+            TestContext.CancellationToken);
+        Assert.IsNotNull(intent);
+        Assert.AreEqual(ToolIntentStatus.Pending, intent.Status);
+        Assert.IsNull(intent.SentAt);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_RootGrantRevokedAfterSend_PersistsInvisibleResultAndRejectsReuse()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync(TestContext.CancellationToken);
+        await SqliteSchema.EnsureCreatedAsync(connection, TestContext.CancellationToken);
+        using var repository = new SqliteToolIntentRepository(connection);
+        using var outbox = new SqliteEventOutbox(connection);
+        var validator = new JsonSchemaToolValidator();
+        var descriptor = new ToolDescriptor(
+            "host.blocking.read",
+            "host",
+            "Blocking read",
+            "Returns after the test releases the prepared execution.",
+            "{}",
+            "{}",
+            Risk: ToolRiskLevel.SensitiveRead,
+            ExecutionTarget: ToolExecutionTarget.Host);
+        var catalog = new ToolCatalogSnapshot("host-v1", "custom-v1", [descriptor]);
+        var authorization = new ToolAuthorizationService(
+            repository,
+            RuntimeToolPolicy.CreateRestricted(_workspaceRoot));
+        var executor = new BlockingPreparedToolExecutor(descriptor.ToolId);
+        using var gateway = new ToolGateway(
+            new ToolCatalogStore(new BuiltinToolRegistry(), validator),
+            validator,
+            authorization,
+            [executor],
+            repository,
+            outbox);
+        var invocation = CreateChildInvocation(
+            descriptor.ToolId,
+            "call-revoked-after-send",
+            "{}");
+        await SaveDelegatedGrantChainAsync(
+            authorization,
+            invocation,
+            descriptor.ToolId,
+            ToolRiskLevel.SensitiveRead,
+            allowDelete: false);
+
+        var running = gateway.ExecuteAsync(
+            invocation,
+            permission: null,
+            catalog,
+            TestContext.CancellationToken);
+        await executor.Started.WaitAsync(
+            TimeSpan.FromSeconds(5),
+            TestContext.CancellationToken);
+        Assert.AreEqual(
+            2,
+            await authorization.RevokeGrantAsync(
+                "grant-root",
+                reason: "user revoked",
+                ct: TestContext.CancellationToken));
+        executor.Release();
+
+        var first = await running.WaitAsync(
+            TimeSpan.FromSeconds(5),
+            TestContext.CancellationToken);
+        var second = await gateway.ExecuteAsync(
+            invocation,
+            permission: null,
+            catalog,
+            TestContext.CancellationToken);
+
+        Assert.AreEqual(ToolGatewayResultKind.Failed, first.Kind);
+        Assert.AreEqual(RuntimeErrorCodes.ToolGrantRevoked, first.Error?.Code);
+        Assert.AreEqual(ToolGatewayResultKind.Failed, second.Kind);
+        Assert.AreEqual(RuntimeErrorCodes.ToolGrantRevoked, second.Error?.Code);
+        Assert.AreEqual(1, executor.ExecutionCount);
+        var intent = await repository.GetIntentAsync(
+            invocation.CallId,
+            TestContext.CancellationToken);
+        Assert.IsNotNull(intent);
+        Assert.AreEqual(ToolIntentStatus.Succeeded, intent.Status);
+        Assert.IsFalse(intent.IsResultVisible);
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_HighRiskAuditWriteFails_DoesNotExecutePreparedCall()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
@@ -848,6 +1057,23 @@ public sealed class ToolGatewayTests
             PermissionContext: CreatePermission());
     }
 
+    private static ToolInvocation CreateChildInvocation(
+        string toolId,
+        string callId,
+        string argumentsJson) =>
+        new(
+            callId,
+            toolId,
+            "agent-child",
+            "agent-root",
+            argumentsJson,
+            "run-1",
+            "session-1",
+            InvocationId: $"invocation-{callId}",
+            WorkStepId: "step-child-1",
+            PlanVersion: "plan-v1",
+            ParentInvocationId: "invocation-root");
+
     private static ToolInvocation CreateWorkInvocation(
         string toolId,
         string callId) =>
@@ -882,6 +1108,94 @@ public sealed class ToolGatewayTests
             Risk: ToolRiskLevel.Write,
             ExecutionTarget: ToolExecutionTarget.Host,
             IsIdempotent: false);
+
+    private static ToolDescriptor CreateDestructiveDescriptor(string toolId) =>
+        new(
+            toolId,
+            "host",
+            "Destructive host operation",
+            "Exercises audit lineage for a high-risk host tool.",
+            "{}",
+            "{}",
+            Risk: ToolRiskLevel.Destructive,
+            ExecutionTarget: ToolExecutionTarget.Host,
+            IsIdempotent: false);
+
+    private async Task SaveDelegatedGrantChainAsync(
+        ToolAuthorizationService authorization,
+        ToolInvocation invocation,
+        string toolId,
+        ToolRiskLevel maximumRisk,
+        bool allowDelete)
+    {
+        var expiresAt = DateTimeOffset.UtcNow.AddHours(1);
+        await authorization.SaveGrantAsync(
+            CreateGrant(
+                "grant-root",
+                "agent-root",
+                parentGrantId: null,
+                rootGrantId: null,
+                toolId,
+                allowedCallIds: null,
+                maximumRisk,
+                expiresAt,
+                allowDelegation: true,
+                delegatedAgentIds: [invocation.AgentId],
+                delegationChain: null,
+                allowDelete),
+            ct: TestContext.CancellationToken);
+        await authorization.SaveGrantAsync(
+            CreateGrant(
+                "grant-child",
+                invocation.AgentId,
+                "grant-root",
+                "grant-root",
+                toolId,
+                [invocation.CallId],
+                maximumRisk,
+                expiresAt,
+                allowDelegation: false,
+                delegatedAgentIds: [],
+                delegationChain: ["grant-root"],
+                allowDelete),
+            ct: TestContext.CancellationToken);
+    }
+
+    private ToolGrant CreateGrant(
+        string grantId,
+        string agentId,
+        string? parentGrantId,
+        string? rootGrantId,
+        string toolId,
+        string[]? allowedCallIds,
+        ToolRiskLevel maximumRisk,
+        DateTimeOffset expiresAt,
+        bool allowDelegation,
+        string[] delegatedAgentIds,
+        string[]? delegationChain,
+        bool allowDelete) =>
+        new(
+            grantId,
+            "run-1",
+            _workspaceRoot,
+            [_workspaceRoot],
+            [_workspaceRoot],
+            AllowOverwrite: false,
+            AllowMove: false,
+            AllowDelete: allowDelete,
+            AllowedExecutables: [],
+            AllowPowerShell: false,
+            new NetworkPolicy(),
+            expiresAt,
+            allowDelegation,
+            delegatedAgentIds,
+            AllowedToolIds: [toolId],
+            AllowedCallIds: allowedCallIds,
+            MaximumRisk: maximumRisk,
+            AgentId: agentId,
+            ParentGrantId: parentGrantId,
+            RootGrantId: rootGrantId,
+            DelegationChain: delegationChain);
 
     private ToolPermissionContext CreateProcessPermission(string grantId) =>
         new(
@@ -1022,6 +1336,65 @@ public sealed class ToolGatewayTests
             ToolInvocation invocation) : IPreparedToolExecution
         {
             public string TargetSummary => "process:prepared";
+
+            public Task<ToolResult> ExecuteAsync(CancellationToken ct = default) =>
+                owner.ExecutePreparedAsync(invocation, ct);
+
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class BlockingPreparedToolExecutor(string toolId) : IToolExecutor
+    {
+        private readonly TaskCompletionSource _release = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _started = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _executionCount;
+
+        public int ExecutionCount => Volatile.Read(ref _executionCount);
+
+        public Task Started => _started.Task;
+
+        public bool CanExecute(string candidateToolId) =>
+            string.Equals(toolId, candidateToolId, StringComparison.Ordinal);
+
+        public ValueTask<IPreparedToolExecution> PrepareAsync(
+            ToolInvocation invocation,
+            CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<IPreparedToolExecution>(
+                new BlockingPreparedExecution(this, invocation));
+        }
+
+        public Task<ToolResult> ExecuteAsync(
+            ToolInvocation invocation,
+            CancellationToken ct = default) =>
+            ExecutePreparedAsync(invocation, ct);
+
+        public void Release() => _release.TrySetResult();
+
+        private async Task<ToolResult> ExecutePreparedAsync(
+            ToolInvocation invocation,
+            CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref _executionCount);
+            _started.TrySetResult();
+            await _release.Task.WaitAsync(ct).ConfigureAwait(false);
+            return new ToolResult(
+                invocation.CallId,
+                invocation.ToolId,
+                true,
+                "{}");
+        }
+
+        private sealed class BlockingPreparedExecution(
+            BlockingPreparedToolExecutor owner,
+            ToolInvocation invocation) : IPreparedToolExecution
+        {
+            public string TargetSummary => "host:blocking";
 
             public Task<ToolResult> ExecuteAsync(CancellationToken ct = default) =>
                 owner.ExecutePreparedAsync(invocation, ct);

@@ -6,13 +6,14 @@ namespace Madorin.AI.Runtime.EndToEnd.Tests;
 public sealed class CliCommandSmokeTests
 {
     [TestMethod]
-    public void Run_Doctor_ReturnsSuccess()
+    public void Run_DoctorHelp_ReturnsSuccess()
     {
         using var output = new StringWriter();
 
-        var exitCode = CliApplication.Run(["doctor"], output);
+        var exitCode = CliApplication.Run(["doctor", "--help"], output);
 
         Assert.AreEqual(ExitCodes.Success, exitCode);
+        StringAssert.Contains(output.ToString(), "--fix");
     }
 
     [TestMethod]

@@ -7,6 +7,8 @@ namespace Madorin.AI.Runtime.Persistence.Files;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(ConversationHeader))]
 [JsonSerializable(typeof(ConversationRecordV1))]
+[JsonSerializable(typeof(ConversationCompactCacheV1))]
+[JsonSerializable(typeof(SessionMaintenanceAuditRecord))]
 internal sealed partial class ConversationJsonContext : JsonSerializerContext;
 
 internal sealed record ConversationHeader(

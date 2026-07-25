@@ -397,6 +397,85 @@ public sealed class RuntimeControlTests
     [TestMethod]
     [DoNotParallelize]
     [Timeout(30_000, CooperativeCancellation = true)]
+    public async Task HostLeaseTimeout_AfterControlDisconnect_CancelsOwnedRun()
+    {
+        var workspace = CreateTemporaryDirectory();
+        var instanceId = Guid.NewGuid().ToString("N");
+        var hostInstanceId = Guid.NewGuid().ToString("N");
+        var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var provider = new BlockingProviderAdapter();
+        using var shutdown = CancellationTokenSource.CreateLinkedTokenSource(
+            TestContext.CancellationToken);
+        try
+        {
+            await using var server = await RuntimeServer.StartAsync(
+                new RuntimeServerOptions(workspace)
+                {
+                    InstanceId = instanceId,
+                    PipePrefix = $"madorin.disconnect-lease.{Guid.NewGuid():N}",
+                    HandshakeSecret = secret,
+                    HeartbeatIntervalSeconds = 1,
+                    HostLeaseTimeout = TimeSpan.FromMilliseconds(300),
+                    MemoryUserHome = Path.Combine(workspace, "home"),
+                    ProviderResolver = _ => provider
+                },
+                TestContext.CancellationToken);
+            var serverTask = server.RunAsync(shutdown.Token);
+            await using var client = new RuntimeClient(
+                new RuntimeClientOptions(
+                    server.PipeName,
+                    hostInstanceId,
+                    ExpectedRuntimeInstanceId: instanceId,
+                    HandshakeSecret: secret));
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
+                TestContext.CancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(10));
+            await client.ConnectAsync(timeout.Token);
+            var runId = await client.StartNewSessionRunAsync(
+                CreateRequest("disconnect-lease-session", "disconnect-lease-run"),
+                timeout.Token);
+            await provider.Started.WaitAsync(timeout.Token);
+
+            await server.DisconnectControlChannelsAsync();
+            await WaitUntilAsync(
+                () => server.ConnectedSessionCount == 0,
+                TimeSpan.FromSeconds(5),
+                timeout.Token);
+
+            await provider.CancellationObserved.WaitAsync(timeout.Token);
+            await client.ReconnectAsync(timeout.Token);
+            RunQueryResult? run = null;
+            var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(5);
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                run = await client.QueryRunAsync(runId, timeout.Token);
+                if (run.Status == RunStatus.Cancelled)
+                {
+                    break;
+                }
+
+                await Task.Delay(20, timeout.Token);
+            }
+
+            Assert.IsNotNull(run);
+            Assert.AreEqual(RunStatus.Cancelled, run.Status);
+
+            shutdown.Cancel();
+            await serverTask;
+        }
+        finally
+        {
+            shutdown.Cancel();
+            if (Directory.Exists(workspace))
+            {
+                Directory.Delete(workspace, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    [Timeout(30_000, CooperativeCancellation = true)]
     public async Task CompletedRun_CanQueryPersistedTerminalText_AndUnknownRunFails()
     {
         var workspace = CreateTemporaryDirectory();
@@ -518,8 +597,8 @@ public sealed class RuntimeControlTests
             Assert.AreEqual(
                 string.Empty,
                 ((ExpertModeOptions)session.Selection.ModeOptions).Agent.SystemPrompt);
-            Assert.IsFalse(session.IsFullyRecoverable);
-            Assert.IsGreaterThan(0, session.RecoveryDiagnostics.Length);
+            Assert.IsTrue(session.IsFullyRecoverable);
+            Assert.IsEmpty(session.RecoveryDiagnostics);
 
             var resume = await client.ResumeSessionAsync(firstRun.SessionId, timeout.Token);
             Assert.AreEqual(1, resume.LatestSelectionVersion);

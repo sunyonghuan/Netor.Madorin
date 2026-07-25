@@ -55,7 +55,12 @@ public sealed class Stage5ProtocolTests
                 "arguments-hash",
                 ToolRiskLevel.SensitiveRead,
                 "host index",
-                "Search the configured index"),
+                "Search the configured index",
+                SessionId: "session-1",
+                InvocationId: "invocation-1",
+                ParentInvocationId: "parent-invocation-1",
+                WorkStepId: "step-1",
+                PlanVersion: "plan-v1"),
             RuntimeJsonContext.Default.ApprovalRequest);
         AssertRoundTrip(
             new ApprovalResponse(

@@ -13,4 +13,5 @@ public sealed record ToolInvocation(
     string? ToolCatalogVersion = null,
     int? TimeoutMilliseconds = null,
     string? WorkStepId = null,
-    string? PlanVersion = null);
+    string? PlanVersion = null,
+    string? ParentInvocationId = null);

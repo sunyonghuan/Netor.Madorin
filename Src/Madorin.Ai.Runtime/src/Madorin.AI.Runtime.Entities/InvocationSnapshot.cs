@@ -13,4 +13,16 @@ public sealed record InvocationSnapshot(
     DateTimeOffset StartedAt,
     string? ParentInvocationId = null,
     string? WorkStepId = null,
-    string? WorkPlanVersion = null);
+    string? WorkPlanVersion = null,
+    ContextProjectionSnapshot? ContextProjection = null);
+
+/// <summary>Immutable context-projection decision captured for one Invocation.</summary>
+public sealed record ContextProjectionSnapshot(
+    string Strategy,
+    string[] RetainedItems,
+    int DroppedMessageCount,
+    int IncludedMessageCount,
+    int EstimatedTokens,
+    string EstimateSource,
+    int TokenLimit,
+    int SummarizedUnitCount = 0);

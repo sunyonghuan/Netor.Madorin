@@ -69,6 +69,10 @@ public sealed class JsonSchemaToolValidator : IToolSchemaValidator
     private JsonSchema GetSchema(string schemaJson)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(schemaJson);
-        return _schemas.GetOrAdd(schemaJson, static json => JsonSchema.FromText(json));
+        return _schemas.GetOrAdd(
+            schemaJson,
+            static json => JsonSchema.FromText(
+                json,
+                new BuildOptions { SchemaRegistry = new SchemaRegistry() }));
     }
 }

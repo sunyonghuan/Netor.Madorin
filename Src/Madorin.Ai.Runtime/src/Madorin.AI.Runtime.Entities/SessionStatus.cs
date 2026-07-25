@@ -6,5 +6,6 @@ namespace Madorin.AI.Runtime.Entities;
 public enum SessionStatus
 {
     Active,
+    Recovered,
     Archived
 }

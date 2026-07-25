@@ -17,4 +17,5 @@ public sealed record AgentInvocationRequest(
     ToolDescriptor[]? AvailableTools = null,
     RuntimeStructuredOutput? StructuredOutput = null,
     bool IsIdempotent = true,
-    bool HasIrreversibleToolSideEffects = false);
+    bool HasIrreversibleToolSideEffects = false,
+    string? ParentAgentId = null);

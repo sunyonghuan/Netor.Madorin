@@ -110,6 +110,28 @@ public sealed class ToolCatalogStoreTests
             descriptor with { InputSchemaJson = "{not-json" }).IsValid);
     }
 
+    [TestMethod]
+    public void SchemaValidator_ConcurrentInstances_UseIsolatedSchemaRegistries()
+    {
+        var results = new ToolSchemaValidationResult[128];
+
+        _ = Parallel.For(0, results.Length, index =>
+        {
+            var validator = new JsonSchemaToolValidator();
+            var descriptor = new ToolDescriptor(
+                $"host.concurrent.{index}",
+                "host",
+                "Concurrent schema",
+                "Validates concurrent schema construction.",
+                $$"""{"$id":"https://madorin.invalid/schema/{{index}}/input","type":"object"}""",
+                $$"""{"$id":"https://madorin.invalid/schema/{{index}}/output","type":"object"}""");
+
+            results[index] = validator.ValidateDescriptor(descriptor);
+        });
+
+        Assert.IsTrue(results.All(result => result.IsValid));
+    }
+
     private static ToolCatalogStore CreateStore() =>
         new(new BuiltinToolRegistry(), new JsonSchemaToolValidator());
 

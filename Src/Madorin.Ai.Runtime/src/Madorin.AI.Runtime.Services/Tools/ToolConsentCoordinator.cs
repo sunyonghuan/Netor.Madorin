@@ -29,6 +29,20 @@ public sealed class ToolConsentCoordinator(
         _toolPermissionHandler = toolPermissionHandler;
     private readonly IToolStateStore? _toolStateStore = toolStateStore;
 
+    public bool CanRequestApproval => _approvalHandler is not null;
+
+    /// <summary>Uses the authenticated host approval channel for a non-tool workflow decision.</summary>
+    public Task<ApprovalResponse> RequestWorkflowApprovalAsync(
+        ApprovalRequest request,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return _approvalHandler is null
+            ? Task.FromException<ApprovalResponse>(
+                new InvalidOperationException("The host does not support workflow approval requests."))
+            : _approvalHandler(request, ct);
+    }
+
     public async Task<ToolGatewayResult> ResolveAndExecuteAsync(
         ToolInvocation invocation,
         ToolGatewayResult pendingResult,
@@ -106,7 +120,12 @@ public sealed class ToolConsentCoordinator(
                     argumentsHash,
                     descriptor.Risk,
                     $"{descriptor.ExecutionTarget.ToString().ToLowerInvariant()}:{descriptor.ToolId}",
-                    approvalReason),
+                    approvalReason,
+                    invocation.SessionId,
+                    invocation.InvocationId,
+                    invocation.ParentInvocationId,
+                    invocation.WorkStepId,
+                    invocation.PlanVersion),
                 ct).ConfigureAwait(false);
             if (!string.Equals(response.CorrelationId, correlationId, StringComparison.Ordinal)
                 || !string.Equals(
@@ -161,9 +180,10 @@ public sealed class ToolConsentCoordinator(
                     "The host does not support tool permission requests.");
             }
 
+            var permissionRequestId = CreateConsentRequestId("permission", invocation);
             var response = await _toolPermissionHandler(
                 new ToolPermissionRequest(
-                    correlationId,
+                    permissionRequestId,
                     invocation.AgentId,
                     invocation.ParentAgentId,
                     invocation.ToolId,
@@ -175,7 +195,12 @@ public sealed class ToolConsentCoordinator(
                     correlationId,
                     invocation.RunId,
                     _catalogSnapshot.EffectiveVersion,
-                    descriptor.Capabilities?.ToArray()),
+                    descriptor.Capabilities?.ToArray(),
+                    invocation.SessionId,
+                    invocation.InvocationId,
+                    invocation.ParentInvocationId,
+                    invocation.WorkStepId,
+                    invocation.PlanVersion),
                 ct).ConfigureAwait(false);
             if (!string.Equals(response.CorrelationId, correlationId, StringComparison.Ordinal)
                 || !string.Equals(response.CallId, invocation.CallId, StringComparison.Ordinal))
@@ -225,10 +250,31 @@ public sealed class ToolConsentCoordinator(
             ct).ConfigureAwait(false);
     }
 
+    public static string CreateConsentRequestId(
+        ToolGatewayResultKind pendingKind,
+        ToolInvocation invocation)
+    {
+        ArgumentNullException.ThrowIfNull(invocation);
+        return pendingKind switch
+        {
+            ToolGatewayResultKind.NeedsApproval => CreateConsentRequestId("approval", invocation),
+            ToolGatewayResultKind.NeedsPermission => CreateConsentRequestId("permission", invocation),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(pendingKind),
+                pendingKind,
+                "Only pending approval or permission results have consent request ids.")
+        };
+    }
+
     private static string CreateApprovalRequestId(ToolInvocation invocation)
     {
+        return CreateConsentRequestId("approval", invocation);
+    }
+
+    private static string CreateConsentRequestId(string prefix, ToolInvocation invocation)
+    {
         var identity = $"{invocation.RunId}\n{invocation.CallId}";
-        return $"approval-{Convert.ToHexString(
+        return $"{prefix}-{Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(identity)))}";
     }
 

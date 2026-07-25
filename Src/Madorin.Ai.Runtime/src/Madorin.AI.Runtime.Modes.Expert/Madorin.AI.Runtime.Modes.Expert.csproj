@@ -14,4 +14,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Madorin.AI.Runtime.Server" />
+  </ItemGroup>
+
 </Project>

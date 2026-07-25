@@ -49,7 +49,7 @@ public sealed class RecoveryServiceTests
     }
 
     [TestMethod]
-    public async Task RecoverOnStartupAsync_WithRunningWorkStep_MarksStepInterrupted()
+    public async Task RecoverOnStartupAsync_WithRunningWorkStep_MarksStepAndAttemptInterrupted()
     {
         var ct = _testContext.CancellationToken;
         await using var connection = await CreateDatabaseAsync(ct);
@@ -91,6 +91,9 @@ public sealed class RecoveryServiceTests
         var step = Assert.ContainsSingle(
             await workRepository.ListStepsAsync(sessionId, "1", ct));
         Assert.AreEqual(WorkStepLifecycleStatus.Interrupted, step.Status);
+        Assert.AreEqual(
+            "interrupted",
+            await GetWorkStepAttemptStatusAsync(connection, "step-a", "1", 1, ct));
     }
 
     [TestMethod]
@@ -255,6 +258,27 @@ public sealed class RecoveryServiceTests
             "invocation-a",
             ct));
         return workRepository;
+    }
+
+    private static async Task<string?> GetWorkStepAttemptStatusAsync(
+        SqliteConnection connection,
+        string stepId,
+        string planVersion,
+        int attemptNumber,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT status
+            FROM work_step_attempts
+            WHERE step_id = $stepId
+              AND plan_version = $planVersion
+              AND attempt_number = $attemptNumber;
+            """;
+        command.Parameters.AddWithValue("$stepId", stepId);
+        command.Parameters.AddWithValue("$planVersion", planVersion);
+        command.Parameters.AddWithValue("$attemptNumber", attemptNumber);
+        return await command.ExecuteScalarAsync(ct).ConfigureAwait(false) as string;
     }
 
     private static ToolDescriptor CreateHostToolDescriptor(bool isIdempotent) =>

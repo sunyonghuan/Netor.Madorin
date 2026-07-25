@@ -819,6 +819,9 @@ public sealed class SqliteToolIntentRepository(SqliteConnection connection) : IT
                     audit_id,
                     call_id,
                     run_id,
+                    session_id,
+                    invocation_id,
+                    parent_invocation_id,
                     agent_id,
                     parent_agent_id,
                     tool_id,
@@ -827,8 +830,11 @@ public sealed class SqliteToolIntentRepository(SqliteConnection connection) : IT
                     arguments_hash,
                     target_summary,
                     grant_id,
+                    root_grant_id,
                     approval_request_id,
                     delegation_chain,
+                    work_step_id,
+                    plan_version,
                     status,
                     result_hash,
                     diagnostic_id,
@@ -839,6 +845,9 @@ public sealed class SqliteToolIntentRepository(SqliteConnection connection) : IT
                     $auditId,
                     $callId,
                     $runId,
+                    $sessionId,
+                    $invocationId,
+                    $parentInvocationId,
                     $agentId,
                     $parentAgentId,
                     $toolId,
@@ -847,8 +856,11 @@ public sealed class SqliteToolIntentRepository(SqliteConnection connection) : IT
                     $argumentsHash,
                     $targetSummary,
                     $grantId,
+                    $rootGrantId,
                     $approvalRequestId,
                     $delegationChain,
+                    $workStepId,
+                    $planVersion,
                     $status,
                     $resultHash,
                     $diagnosticId,
@@ -859,6 +871,11 @@ public sealed class SqliteToolIntentRepository(SqliteConnection connection) : IT
             command.Parameters.AddWithValue("$auditId", audit.AuditId);
             command.Parameters.AddWithValue("$callId", audit.CallId);
             command.Parameters.AddWithValue("$runId", audit.RunId);
+            command.Parameters.AddWithValue("$sessionId", audit.SessionId);
+            command.Parameters.AddWithValue("$invocationId", audit.InvocationId);
+            command.Parameters.AddWithValue(
+                "$parentInvocationId",
+                DbValue(audit.ParentInvocationId));
             command.Parameters.AddWithValue("$agentId", audit.AgentId);
             command.Parameters.AddWithValue("$parentAgentId", DbValue(audit.ParentAgentId));
             command.Parameters.AddWithValue("$toolId", audit.ToolId);
@@ -867,8 +884,11 @@ public sealed class SqliteToolIntentRepository(SqliteConnection connection) : IT
             command.Parameters.AddWithValue("$argumentsHash", audit.ArgumentsHash);
             command.Parameters.AddWithValue("$targetSummary", audit.TargetSummary);
             command.Parameters.AddWithValue("$grantId", DbValue(audit.GrantId));
+            command.Parameters.AddWithValue("$rootGrantId", audit.RootGrantId);
             command.Parameters.AddWithValue("$approvalRequestId", DbValue(audit.ApprovalRequestId));
             command.Parameters.AddWithValue("$delegationChain", SerializeStrings(audit.DelegationChain));
+            command.Parameters.AddWithValue("$workStepId", DbValue(audit.WorkStepId));
+            command.Parameters.AddWithValue("$planVersion", DbValue(audit.PlanVersion));
             command.Parameters.AddWithValue("$status", audit.Status);
             command.Parameters.AddWithValue("$resultHash", DbValue(audit.ResultHash));
             command.Parameters.AddWithValue("$diagnosticId", audit.DiagnosticId);
@@ -1169,11 +1189,14 @@ public sealed class SqliteToolIntentRepository(SqliteConnection connection) : IT
         ArgumentException.ThrowIfNullOrWhiteSpace(audit.AuditId);
         ArgumentException.ThrowIfNullOrWhiteSpace(audit.CallId);
         ArgumentException.ThrowIfNullOrWhiteSpace(audit.RunId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(audit.SessionId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(audit.InvocationId);
         ArgumentException.ThrowIfNullOrWhiteSpace(audit.AgentId);
         ArgumentException.ThrowIfNullOrWhiteSpace(audit.ToolId);
         ArgumentException.ThrowIfNullOrWhiteSpace(audit.ToolCatalogVersion);
         ArgumentException.ThrowIfNullOrWhiteSpace(audit.ArgumentsHash);
         ArgumentException.ThrowIfNullOrWhiteSpace(audit.TargetSummary);
+        ArgumentException.ThrowIfNullOrWhiteSpace(audit.RootGrantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(audit.Status);
         ArgumentException.ThrowIfNullOrWhiteSpace(audit.DiagnosticId);
         ArgumentNullException.ThrowIfNull(audit.DelegationChain);

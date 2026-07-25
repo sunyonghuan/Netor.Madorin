@@ -4,6 +4,7 @@ using System.Text.Json;
 using Madorin.AI.Runtime.Contracts;
 using Madorin.AI.Runtime.Contracts.Serialization;
 using Madorin.AI.Runtime.Entities;
+using Madorin.AI.Runtime.Persistence.Abstractions;
 using Madorin.AI.Runtime.Persistence.Files;
 using Madorin.AI.Runtime.Persistence.Sqlite;
 using Madorin.AI.Runtime.Providers.Abstractions;
@@ -29,6 +30,7 @@ public sealed class RuntimeServer : IAsyncDisposable
     private readonly string _databaseConnectionString;
     private readonly string _handshakeSecret;
     private readonly TimeProvider _timeProvider;
+    private readonly DateTimeOffset _startedAt;
     private readonly TimeSpan _handshakeClockSkew;
     private readonly int _heartbeatIntervalSeconds;
     private readonly TimeSpan _hostLeaseTimeout;
@@ -41,6 +43,8 @@ public sealed class RuntimeServer : IAsyncDisposable
         new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, ActiveRunRequest> _activeRunRequests =
         new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _disconnectedHostLeases =
+        new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, NextTurnSelection> _sessionSelections =
         new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, AuthenticatedSession> _sessions = new(StringComparer.Ordinal);
@@ -49,6 +53,7 @@ public sealed class RuntimeServer : IAsyncDisposable
     private readonly SemaphoreSlim _meetingResumeGate = new(1, 1);
     private readonly RunRegistry _runRegistry;
     private readonly CancellationTokenSource _shutdown = new();
+    private int _startupToolRecoveryPending;
     private int _connectionId;
     private int _disposed;
 
@@ -56,7 +61,8 @@ public sealed class RuntimeServer : IAsyncDisposable
         RuntimeServerOptions options,
         WorkspaceWriteLock instanceLock,
         FileStream instanceNameLock,
-        string databaseConnectionString)
+        string databaseConnectionString,
+        bool startupToolRecoveryPending)
     {
         _instanceLock = instanceLock;
         _instanceNameLock = instanceNameLock;
@@ -65,6 +71,7 @@ public sealed class RuntimeServer : IAsyncDisposable
         _handshakeSecret = options.HandshakeSecret
             ?? throw new ArgumentException("A handshake secret is required.", nameof(options));
         _timeProvider = options.TimeProvider;
+        _startedAt = options.TimeProvider.GetUtcNow();
         _handshakeClockSkew = options.HandshakeClockSkew;
         _heartbeatIntervalSeconds = options.HeartbeatIntervalSeconds;
         _hostLeaseTimeout = options.HostLeaseTimeout;
@@ -96,6 +103,7 @@ public sealed class RuntimeServer : IAsyncDisposable
             options.MaxConcurrentRunsPerSession,
             options.RunTimeout,
             _shutdown.Token);
+        _startupToolRecoveryPending = startupToolRecoveryPending ? 1 : 0;
         InstanceId = options.InstanceId;
         WorkspaceRoot = options.WorkspaceRoot;
         PipeName = $"{options.PipePrefix}.{InstanceId[..Math.Min(8, InstanceId.Length)]}";
@@ -246,11 +254,17 @@ public sealed class RuntimeServer : IAsyncDisposable
             await using var connection = await DataDirectoryInitializer.InitializeAsync(
                 dataDirectory,
                 ct).ConfigureAwait(false);
+            using var toolStateStore = new SqliteToolIntentRepository(connection);
+            var startupToolRecoveryPending = (await toolStateStore
+                    .ListRecoverableIntentsAsync(ct)
+                    .ConfigureAwait(false))
+                .Any(static intent => intent.Status is ToolIntentStatus.Sent);
             return new RuntimeServer(
                 normalized,
                 instanceLock,
                 instanceNameLock,
-                connection.ConnectionString);
+                connection.ConnectionString,
+                startupToolRecoveryPending);
         }
         catch
         {
@@ -305,6 +319,7 @@ public sealed class RuntimeServer : IAsyncDisposable
 
         await DrainConnectionsAsync().ConfigureAwait(false);
         await DrainRunsAsync().ConfigureAwait(false);
+        _disconnectedHostLeases.Clear();
         _sessions.Clear();
         await _blobStore.DisposeAsync().ConfigureAwait(false);
         await _instanceLock.DisposeAsync().ConfigureAwait(false);
@@ -366,6 +381,7 @@ public sealed class RuntimeServer : IAsyncDisposable
             try
             {
                 session = await AuthenticateControlChannelAsync(transport, ct).ConfigureAwait(false);
+                _disconnectedHostLeases.TryRemove(session.HostInstanceId, out _);
                 if (!_sessions.TryAdd(session.HostInstanceId, session))
                 {
                     throw new InvalidDataException("The host instance already has an authenticated connection.");
@@ -440,7 +456,13 @@ public sealed class RuntimeServer : IAsyncDisposable
             {
                 if (sessionRegistered && session is not null)
                 {
-                    _sessions.TryRemove(session.HostInstanceId, out _);
+                    if (_sessions.TryRemove(session.HostInstanceId, out _)
+                        && !ct.IsCancellationRequested)
+                    {
+                        _disconnectedHostLeases[session.HostInstanceId] =
+                            _timeProvider.GetUtcNow();
+                    }
+
                     await _blobStore.AbortSessionAsync(
                         session.HostInstanceId,
                         CancellationToken.None).ConfigureAwait(false);
@@ -482,14 +504,24 @@ public sealed class RuntimeServer : IAsyncDisposable
                     .ConfigureAwait(false);
                 using var outbox = CreateEventOutbox(outboxConnection);
                 eventChannel = new FramedEventChannel(transport);
-                await ReplayPendingEventsAsync(session, outbox, eventChannel, ct)
-                    .ConfigureAwait(false);
-                if (!session.TryAttachEventChannel(eventChannel))
+                await _eventDispatchGate.WaitAsync(ct).ConfigureAwait(false);
+                try
                 {
-                    throw new InvalidDataException("The host instance already has an event channel.");
+                    if (!session.TryAttachEventChannel(eventChannel))
+                    {
+                        throw new InvalidDataException(
+                            "The host instance already has an event channel.");
+                    }
+
+                    attached = true;
+                    await ReplayPendingEventsAsync(session, outbox, eventChannel, ct)
+                        .ConfigureAwait(false);
+                }
+                finally
+                {
+                    _eventDispatchGate.Release();
                 }
 
-                attached = true;
                 while (!ct.IsCancellationRequested)
                 {
                     var frame = await transport.ReceiveFrameAsync(ct).ConfigureAwait(false);
@@ -628,6 +660,16 @@ public sealed class RuntimeServer : IAsyncDisposable
             toolCatalogSnapshot,
             new SqliteWorkRepository(repository.Connection));
         await recoveryService.RecoverSentToolIntentsAsync(ct).ConfigureAwait(false);
+        if (Volatile.Read(ref _startupToolRecoveryPending) != 0)
+        {
+            var sentIntentsRemain = (await toolStateStore.ListRecoverableIntentsAsync(ct)
+                    .ConfigureAwait(false))
+                .Any(static intent => intent.Status is ToolIntentStatus.Sent);
+            if (!sentIntentsRemain)
+            {
+                Volatile.Write(ref _startupToolRecoveryPending, 0);
+            }
+        }
     }
 
     private async Task<JsonRpcResponse> CreateControlResponseAsync(
@@ -802,6 +844,14 @@ public sealed class RuntimeServer : IAsyncDisposable
 
         if (string.Equals(request.Method, MessageTypes.NewSessionRun, StringComparison.Ordinal))
         {
+            if (Volatile.Read(ref _startupToolRecoveryPending) != 0)
+            {
+                return Error(
+                    request.Id,
+                    -32014,
+                    "Startup tool recovery is incomplete; publish the Host Tool Catalog before starting a Run.");
+            }
+
             return await CreateNewSessionRunResponseAsync(
                 request,
                 session,
@@ -812,6 +862,14 @@ public sealed class RuntimeServer : IAsyncDisposable
 
         if (string.Equals(request.Method, MessageTypes.ExistingSessionRun, StringComparison.Ordinal))
         {
+            if (Volatile.Read(ref _startupToolRecoveryPending) != 0)
+            {
+                return Error(
+                    request.Id,
+                    -32014,
+                    "Startup tool recovery is incomplete; publish the Host Tool Catalog before starting a Run.");
+            }
+
             return await CreateExistingSessionRunResponseAsync(
                 request,
                 session,
@@ -847,6 +905,88 @@ public sealed class RuntimeServer : IAsyncDisposable
                     snapshot.TerminalText),
                 RuntimeJsonContext.Default.RunQueryResult);
             return new JsonRpcResponse("2.0", request.Id, result);
+        }
+
+        if (string.Equals(request.Method, MessageTypes.RuntimeStatus, StringComparison.Ordinal))
+        {
+            var parameters = request.Params is { } statusParameters
+                ? JsonSerializer.Deserialize(
+                    statusParameters,
+                    RuntimeJsonContext.Default.RuntimeStatusParameters)
+                : null;
+            if (parameters is null)
+            {
+                return Error(request.Id, -32602, "The runtime.status parameters are invalid.");
+            }
+
+            var result = JsonSerializer.SerializeToElement(
+                new RuntimeStatusResult(
+                    InstanceId,
+                    typeof(RuntimeServer).Assembly.GetName().Version?.ToString() ?? "0.1.0",
+                    ProtocolVersions.Current,
+                    WorkspaceRoot,
+                    Environment.ProcessId,
+                    _startedAt,
+                    _activeRuns.Count,
+                    _sessions.Count,
+                    ConnectedEventChannelCount),
+                RuntimeJsonContext.Default.RuntimeStatusResult);
+            return new JsonRpcResponse("2.0", request.Id, result);
+        }
+
+        if (string.Equals(request.Method, MessageTypes.RunList, StringComparison.Ordinal))
+        {
+            var parameters = request.Params is { } listParameters
+                ? JsonSerializer.Deserialize(
+                    listParameters,
+                    RuntimeJsonContext.Default.RunListParameters)
+                : null;
+            if (parameters is null
+                || (parameters.SessionId is not null
+                    && string.IsNullOrWhiteSpace(parameters.SessionId)))
+            {
+                return Error(request.Id, -32602, "The run.list parameters are invalid.");
+            }
+
+            var activeRuns = new List<RunListItem>();
+            foreach (var pair in _activeRuns.ToArray()
+                         .OrderBy(static pair => pair.Value.StartedAt)
+                         .ThenBy(static pair => pair.Key, StringComparer.Ordinal))
+            {
+                if (parameters.SessionId is not null
+                    && !string.Equals(
+                        parameters.SessionId,
+                        pair.Value.SessionId,
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var snapshot = await repository.GetRunSnapshotAsync(pair.Key, ct)
+                    .ConfigureAwait(false);
+                if (snapshot is null
+                    || Madorin.AI.Runtime.Core.RunStateMachine.IsTerminal(snapshot.Status))
+                {
+                    continue;
+                }
+
+                activeRuns.Add(new RunListItem(
+                    snapshot.RunId,
+                    snapshot.SessionId,
+                    snapshot.Status,
+                    pair.Value.StartedAt));
+            }
+
+            var result = JsonSerializer.SerializeToElement(
+                new RunListResult([.. activeRuns]),
+                RuntimeJsonContext.Default.RunListResult);
+            return new JsonRpcResponse("2.0", request.Id, result);
+        }
+
+        if (string.Equals(request.Method, MessageTypes.SessionList, StringComparison.Ordinal))
+        {
+            return await CreateSessionListResponseAsync(request, repository, ct)
+                .ConfigureAwait(false);
         }
 
         if (string.Equals(request.Method, MessageTypes.SessionGet, StringComparison.Ordinal))
@@ -1022,7 +1162,7 @@ public sealed class RuntimeServer : IAsyncDisposable
             return new JsonRpcResponse("2.0", request.Id, hitlResult);
         }
 
-        if (string.Equals(request.Method, "run.cancel", StringComparison.Ordinal))
+        if (string.Equals(request.Method, MessageTypes.RunCancel, StringComparison.Ordinal))
         {
             var parameters = request.Params is { } cancelParameters
                 ? JsonSerializer.Deserialize(
@@ -1057,13 +1197,9 @@ public sealed class RuntimeServer : IAsyncDisposable
                 return Error(request.Id, -32602, "The credentials.update parameters are invalid.");
             }
 
-            if (!_activeRuns.TryGetValue(parameters.RunId, out var credentialRun)
-                || !string.Equals(
-                    credentialRun.OwnerHostInstanceId,
-                    session.HostInstanceId,
-                    StringComparison.Ordinal))
+            if (!_activeRuns.TryGetValue(parameters.RunId, out var credentialRun))
             {
-                return Error(request.Id, -32004, "The Run is not owned by this Host session.");
+                return Error(request.Id, -32004, "The Run is not active in this Runtime instance.");
             }
 
             if (!await credentialRun.UpdateCredentialsAsync(parameters, ct).ConfigureAwait(false))
@@ -1178,6 +1314,36 @@ public sealed class RuntimeServer : IAsyncDisposable
         }
     }
 
+    private static string FlattenSessionTitle(string text)
+    {
+        var sb = new System.Text.StringBuilder(text.Length);
+        foreach (var ch in text)
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                if (sb.Length > 0 && sb[^1] != ' ')
+                {
+                    sb.Append(' ');
+                }
+            }
+            else
+            {
+                sb.Append(ch);
+            }
+        }
+
+        if (sb.Length > 120)
+        {
+            sb.Length = 120;
+            if (sb.Length > 0 && char.IsHighSurrogate(sb[^1]))
+            {
+                sb.Length = 119;
+            }
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
     private static byte[] EncodeBlobResponse(
         BlobFrameOperation operation,
         BlobOperationResponse? response,
@@ -1227,6 +1393,84 @@ public sealed class RuntimeServer : IAsyncDisposable
         return new JsonRpcResponse("2.0", request.Id, payload);
     }
 
+    private static async Task<JsonRpcResponse> CreateSessionListResponseAsync(
+        JsonRpcRequest request,
+        SqliteSessionRepository repository,
+        CancellationToken ct)
+    {
+        try
+        {
+            var parameters = request.Params is { } json
+                ? json.Deserialize(RuntimeJsonContext.Default.SessionListParameters)
+                : null;
+            if (parameters is null)
+            {
+                return Error(request.Id, -32602, "The session.list parameters are invalid.");
+            }
+
+            if ((parameters.Mode is { } mode && !Enum.IsDefined(mode))
+                || (parameters.Status is { } status && !Enum.IsDefined(status)))
+            {
+                return Error(request.Id, -32602, "The session.list parameters are invalid.");
+            }
+
+            if (parameters.Limit < 1 || parameters.Limit > 200)
+            {
+                return Error(request.Id, -32602, "The session.list parameters are invalid.");
+            }
+
+            if (parameters.Cursor is not null && string.IsNullOrWhiteSpace(parameters.Cursor))
+            {
+                return Error(request.Id, -32602, "The session.list parameters are invalid.");
+            }
+
+            var query = new SessionListQuery(
+                parameters.Mode,
+                parameters.Status,
+                parameters.Since,
+                parameters.Search,
+                parameters.Limit + 1,
+                parameters.Cursor);
+            var descriptors = await repository.ListSessionsAsync(query, ct)
+                .ConfigureAwait(false);
+
+            string? nextCursor = null;
+            IReadOnlyList<SessionDescriptor> items = descriptors;
+            if (descriptors.Count > parameters.Limit)
+            {
+                items = descriptors.Take(parameters.Limit).ToList();
+                var last = items[items.Count - 1];
+                nextCursor = string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "{0:O}|{1}",
+                    last.UpdatedAt,
+                    last.SessionId);
+            }
+
+            var resultItems = items
+                .Select(d => new SessionListItem(
+                    d.SessionId, d.Mode, d.Status, d.UpdatedAt, d.Title))
+                .ToArray();
+            var result = new SessionListResult(resultItems, nextCursor);
+            var payload = JsonSerializer.SerializeToElement(
+                result,
+                RuntimeJsonContext.Default.SessionListResult);
+            return new JsonRpcResponse("2.0", request.Id, payload);
+        }
+        catch (JsonException)
+        {
+            return Error(request.Id, -32602, "The session.list parameters are invalid.");
+        }
+        catch (FormatException)
+        {
+            return Error(request.Id, -32602, "The session.list parameters are invalid.");
+        }
+        catch (ArgumentException)
+        {
+            return Error(request.Id, -32602, "The session.list parameters are invalid.");
+        }
+    }
+
     private async Task<JsonRpcResponse> CreateSessionResumeResponseAsync(
         JsonRpcRequest request,
         SqliteSessionRepository repository,
@@ -1253,7 +1497,12 @@ public sealed class RuntimeServer : IAsyncDisposable
         var neededDefinitions = _sessionSelections.ContainsKey(snapshot.SessionId)
             ? []
             : CreateNeededDefinitions(snapshot, selection);
-        var historyMeta = await TryGetConversationHistoryMetadataAsync(snapshot.SessionId, ct)
+        var historyMeta = await TryGetConversationHistoryMetadataAsync(
+                snapshot.SessionId,
+                diagnostics,
+                ct)
+            .ConfigureAwait(false);
+        await ValidateResumeBlobReferencesAsync(historyMeta.BlobIds, diagnostics, ct)
             .ConfigureAwait(false);
 
         MeetingResumeState? meetingState = null;
@@ -1288,6 +1537,13 @@ public sealed class RuntimeServer : IAsyncDisposable
             }
         }
 
+        var lastCheckpoint = workState?.Steps
+            .Where(static step => !string.IsNullOrWhiteSpace(step.CheckpointJson))
+            .OrderByDescending(static step => step.StartedAt ?? DateTimeOffset.MinValue)
+            .ThenByDescending(static step => step.StepId, StringComparer.Ordinal)
+            .Select(static step => step.CheckpointJson)
+            .FirstOrDefault();
+
         var result = new SessionResumeResult(
             snapshot.SessionId,
             snapshot.Mode,
@@ -1296,7 +1552,7 @@ public sealed class RuntimeServer : IAsyncDisposable
             neededDefinitions,
             CreateRunQueryResult(snapshot.LatestRun),
             snapshot.LastGsn,
-            LastCheckpoint: null,
+            LastCheckpoint: lastCheckpoint,
             IsFullyRecoverable: diagnostics.Count == 0,
             [.. diagnostics],
             historyMeta.MessageCount,
@@ -1923,8 +2179,15 @@ public sealed class RuntimeServer : IAsyncDisposable
                 }
                 break;
 
+            case RuntimeMode.Work:
+                if (effectiveSelection.ModeOptions is not WorkModeOptions)
+                {
+                    return Error(request.Id, -32602, "run.existing_session Work mode requires WorkModeOptions.");
+                }
+                break;
+
             default:
-                return Error(request.Id, -32602, "run.existing_session only supports Expert and Meeting modes.");
+                return Error(request.Id, -32602, $"run.existing_session does not support mode '{snapshot.Mode}'.");
         }
 
         var executionRequest = new NewSessionRunRequest(
@@ -2067,6 +2330,17 @@ public sealed class RuntimeServer : IAsyncDisposable
                     TimeSpan.FromDays(7),
                     plan.RequestHash,
                     ct).ConfigureAwait(false);
+                var titleText = runRequest.InitialInput?
+                    .OfType<TextContentBlock>()
+                    .Select(t => t.Text)
+                    .FirstOrDefault(t => !string.IsNullOrWhiteSpace(t));
+                if (!string.IsNullOrWhiteSpace(titleText))
+                {
+                    var title = FlattenSessionTitle(titleText!);
+                    await repository.TrySetInitialSessionTitleAsync(sessionId, title, ct)
+                        .ConfigureAwait(false);
+                }
+
                 var initialSelection = plan.InitialSelection!;
                 var persistedSelection = RuntimeRunMetadata.RemovePromptContent(initialSelection);
                 var selectionJson = JsonSerializer.Serialize(
@@ -2121,7 +2395,12 @@ public sealed class RuntimeServer : IAsyncDisposable
                 ct).ConfigureAwait(false);
             await DispatchPendingEventsAsync(session, outbox, ct).ConfigureAwait(false);
 
-            var activeRun = new ActiveRun(runLease, session.HostInstanceId, provider);
+            var activeRun = new ActiveRun(
+                runLease,
+                session.HostInstanceId,
+                sessionId,
+                _timeProvider.GetUtcNow(),
+                provider);
             if (!_activeRuns.TryAdd(runId, activeRun))
             {
                 activeRun.Dispose();
@@ -2982,7 +3261,12 @@ public sealed class RuntimeServer : IAsyncDisposable
         AuthenticatedSession session,
         long startRunSequence)
     {
-        var activeRun = new ActiveRun(start.Lease, session.HostInstanceId, start.Provider);
+        var activeRun = new ActiveRun(
+            start.Lease,
+            session.HostInstanceId,
+            start.SessionId,
+            _timeProvider.GetUtcNow(),
+            start.Provider);
         if (!_activeRuns.TryAdd(start.RunId, activeRun))
         {
             activeRun.Dispose();
@@ -3119,6 +3403,10 @@ public sealed class RuntimeServer : IAsyncDisposable
         await using var repositoryConnection = await OpenDatabaseConnectionAsync(CancellationToken.None)
             .ConfigureAwait(false);
         var repository = new SqliteSessionRepository(repositoryConnection);
+        await new SqliteWorkRepository(repositoryConnection).MarkSessionInterruptedAsync(
+            sessionId,
+            "The parent Run was cancelled.",
+            CancellationToken.None).ConfigureAwait(false);
         await TryTransitionMeetingToTerminalAsync(
             repositoryConnection,
             sessionId,
@@ -3372,34 +3660,26 @@ public sealed class RuntimeServer : IAsyncDisposable
         FramedEventChannel eventChannel,
         CancellationToken ct)
     {
-        await _eventDispatchGate.WaitAsync(ct).ConfigureAwait(false);
-        try
+        var entries = await outbox.LoadPendingAsync(ct).ConfigureAwait(false);
+        foreach (var entry in entries)
         {
-            var entries = await outbox.LoadPendingAsync(ct).ConfigureAwait(false);
-            foreach (var entry in entries)
+            if (entry.Gsn <= session.LastConfirmedGsn)
             {
-                if (entry.Gsn <= session.LastConfirmedGsn)
-                {
-                    continue;
-                }
-
-                using var payloadDocument = JsonDocument.Parse(entry.PayloadJson);
-                var envelope = new RuntimeEventEnvelope(
-                    InstanceId,
-                    entry.Gsn,
-                    entry.RunId,
-                    entry.RunSequence,
-                    entry.MessageType,
-                    DateTimeOffset.UtcNow,
-                    payloadDocument.RootElement.Clone());
-                await eventChannel.SendAsync(envelope, ct).ConfigureAwait(false);
-                await outbox.MarkSentAsync(entry.Gsn, ct).ConfigureAwait(false);
-                session.MarkDispatched(entry.Gsn);
+                continue;
             }
-        }
-        finally
-        {
-            _eventDispatchGate.Release();
+
+            using var payloadDocument = JsonDocument.Parse(entry.PayloadJson);
+            var envelope = new RuntimeEventEnvelope(
+                InstanceId,
+                entry.Gsn,
+                entry.RunId,
+                entry.RunSequence,
+                entry.MessageType,
+                DateTimeOffset.UtcNow,
+                payloadDocument.RootElement.Clone());
+            await eventChannel.SendAsync(envelope, ct).ConfigureAwait(false);
+            await outbox.MarkSentAsync(entry.Gsn, ct).ConfigureAwait(false);
+            session.MarkDispatched(entry.Gsn);
         }
     }
 
@@ -3456,6 +3736,7 @@ public sealed class RuntimeServer : IAsyncDisposable
 
     private async Task<ConversationHistoryMetadata> TryGetConversationHistoryMetadataAsync(
         string sessionId,
+        List<string> diagnostics,
         CancellationToken ct)
     {
         try
@@ -3465,7 +3746,53 @@ public sealed class RuntimeServer : IAsyncDisposable
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
+            diagnostics.Add(
+                $"CanonicalHistoryCorrupt: Session '{sessionId}' history could not be read: {ex.Message}");
             return new ConversationHistoryMetadata(0, null, null, 0, []);
+        }
+    }
+
+    private async Task ValidateResumeBlobReferencesAsync(
+        IReadOnlyList<string> blobIds,
+        List<string> diagnostics,
+        CancellationToken ct)
+    {
+        foreach (var blobId in blobIds.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            ct.ThrowIfCancellationRequested();
+            if (blobId.Length != 64 || blobId.Any(static character => !Uri.IsHexDigit(character)))
+            {
+                diagnostics.Add($"BlobReferenceInvalid: '{blobId}' is not a SHA-256 identifier.");
+                continue;
+            }
+
+            var path = Path.Combine(_dataDirectory, "blobs", blobId.ToLowerInvariant() + ".blob");
+            try
+            {
+                await using var stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
+                    128 * 1024,
+                    FileOptions.Asynchronous | FileOptions.SequentialScan);
+                var actualHash = Convert.ToHexString(
+                    await System.Security.Cryptography.SHA256.HashDataAsync(stream, ct)
+                        .ConfigureAwait(false));
+                if (!string.Equals(actualHash, blobId, StringComparison.OrdinalIgnoreCase))
+                {
+                    diagnostics.Add(
+                        $"BlobHashMismatch: Blob '{blobId}' content does not match its identifier.");
+                }
+            }
+            catch (FileNotFoundException)
+            {
+                diagnostics.Add($"BlobMissing: Blob '{blobId}' does not exist in retained storage.");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                diagnostics.Add($"BlobUnreadable: Blob '{blobId}' could not be read: {ex.Message}");
+            }
         }
     }
 
@@ -3504,19 +3831,21 @@ public sealed class RuntimeServer : IAsyncDisposable
 
     private static List<string> CreateRecoveryDiagnostics(PersistedSessionSnapshot snapshot)
     {
-        var diagnostics = new List<string>
-        {
-            "Canonical message bodies and mode-specific checkpoints are not fully recoverable until phase 6."
-        };
+        var diagnostics = new List<string>();
         if (snapshot.SelectionJson is null)
         {
             diagnostics.Add("The Session has no persisted Selection snapshot.");
         }
 
         if (snapshot.LatestRun is { Status: var status }
-            && !Madorin.AI.Runtime.Core.RunStateMachine.IsTerminal(status))
+            && status is RunStatus.Accepted
+                or RunStatus.Preparing
+                or RunStatus.Running
+                or RunStatus.WaitingForTool
+                or RunStatus.Persisting)
         {
-            diagnostics.Add("The latest Run has not reached a recoverable terminal state.");
+            diagnostics.Add(
+                $"RunStateUnrecovered: The latest Run is still '{status}' instead of an explicit terminal, waiting, or Interrupted state.");
         }
 
         return diagnostics;
@@ -3848,7 +4177,12 @@ public sealed class RuntimeServer : IAsyncDisposable
 
     private async Task WritePidFileAsync(string path, CancellationToken ct)
     {
-        var info = new RuntimePidInfo(InstanceId, PipeName, EventPipeName, Environment.ProcessId, DateTimeOffset.UtcNow);
+        var info = new RuntimePidInfo(
+            InstanceId,
+            PipeName,
+            EventPipeName,
+            Environment.ProcessId,
+            _startedAt);
         var json = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(
             info,
             RuntimePidInfoContext.Default.RuntimePidInfo);
@@ -3930,14 +4264,10 @@ public sealed class RuntimeServer : IAsyncDisposable
                         continue;
                     }
 
-                    foreach (var run in _activeRuns.Values.Where(candidate =>
-                                 string.Equals(
-                                     candidate.OwnerHostInstanceId,
-                                     expiredSession.HostInstanceId,
-                                     StringComparison.Ordinal)))
-                    {
-                        run.Cancel();
-                    }
+                    _disconnectedHostLeases.TryRemove(
+                        expiredSession.HostInstanceId,
+                        out _);
+                    CancelRunsOwnedBy(expiredSession.HostInstanceId);
 
                     await _blobStore.AbortSessionAsync(
                         expiredSession.HostInstanceId,
@@ -3951,10 +4281,36 @@ public sealed class RuntimeServer : IAsyncDisposable
 
                     await expiredSession.DisconnectControlChannelAsync().ConfigureAwait(false);
                 }
+
+                foreach (var pair in _disconnectedHostLeases.ToArray())
+                {
+                    if (now - pair.Value < _hostLeaseTimeout
+                        || !_disconnectedHostLeases.TryRemove(pair.Key, out var disconnectedAt)
+                        || now - disconnectedAt < _hostLeaseTimeout)
+                    {
+                        continue;
+                    }
+
+                    CancelRunsOwnedBy(pair.Key);
+                    await _blobStore.AbortSessionAsync(pair.Key, CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+        }
+    }
+
+    private void CancelRunsOwnedBy(string hostInstanceId)
+    {
+        foreach (var run in _activeRuns.Values.Where(candidate =>
+                     string.Equals(
+                         candidate.OwnerHostInstanceId,
+                         hostInstanceId,
+                         StringComparison.Ordinal)))
+        {
+            run.Cancel();
         }
     }
 
@@ -3981,6 +4337,8 @@ public sealed class RuntimeServer : IAsyncDisposable
     private sealed class ActiveRun(
         RunRegistry.RunLease lease,
         string ownerHostInstanceId,
+        string sessionId,
+        DateTimeOffset startedAt,
         IRuntimeProviderAdapter provider) : IDisposable
     {
         private readonly RunRegistry.RunLease _lease = lease
@@ -4000,6 +4358,10 @@ public sealed class RuntimeServer : IAsyncDisposable
         public bool IsTimedOut => _lease.IsTimedOut;
 
         public string OwnerHostInstanceId { get; } = ownerHostInstanceId;
+
+        public string SessionId { get; } = sessionId;
+
+        public DateTimeOffset StartedAt { get; } = startedAt;
 
         public Task Completion { get; private set; } = Task.CompletedTask;
 

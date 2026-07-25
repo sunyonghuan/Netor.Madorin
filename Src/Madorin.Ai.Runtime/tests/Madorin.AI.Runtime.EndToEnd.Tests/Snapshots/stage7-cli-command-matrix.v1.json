@@ -1,0 +1,515 @@
+{
+  "$schema": "https://madorin.dev/schemas/stage7-cli-command-matrix/1.0",
+  "schemaVersion": 1,
+  "commandCount": 46,
+  "globalOptions": [
+    "--workspace",
+    "--data-dir",
+    "--log-level",
+    "--no-color",
+    "--json"
+  ],
+  "exitCodes": {
+    "success": 0,
+    "generalError": 1,
+    "invalidArguments": 2,
+    "authenticationFailed": 3,
+    "workspaceError": 4,
+    "connectionFailed": 5,
+    "userInterrupted": 130
+  },
+  "defaults": [
+    {
+      "path": "serve",
+      "option": "--config-dir",
+      "value": "<data-dir>/config",
+      "helpFragment": "defaults to <data-dir>/config."
+    },
+    {
+      "path": "serve",
+      "option": "--log-dir",
+      "value": "<data-dir>/logs",
+      "helpFragment": "defaults to <data-dir>/logs."
+    },
+    {
+      "path": "serve",
+      "option": "--instance",
+      "value": "generated",
+      "helpFragment": "generated when omitted."
+    },
+    {
+      "path": "serve",
+      "option": "--pipe-prefix",
+      "value": "madorin.ai.runtime",
+      "helpFragment": "defaults to madorin.ai.runtime."
+    },
+    {
+      "path": "serve",
+      "option": "--max-runs",
+      "value": 4,
+      "helpFragment": "defaults to 4."
+    },
+    {
+      "path": "run",
+      "option": "--mode",
+      "value": "expert",
+      "helpFragment": "defaults to expert."
+    },
+    {
+      "path": "run",
+      "option": "--output-format",
+      "value": "text",
+      "helpFragment": "defaults to text (or json with --json)."
+    },
+    {
+      "path": "run",
+      "option": "--no-stream",
+      "value": false,
+      "helpFragment": "output streams by default."
+    },
+    {
+      "path": "session list",
+      "option": "--status",
+      "value": "active",
+      "helpFragment": "Default: active."
+    },
+    {
+      "path": "session list",
+      "option": "--limit",
+      "value": 20,
+      "helpFragment": "Default: 20."
+    },
+    {
+      "path": "session export",
+      "option": "--format",
+      "value": "markdown",
+      "helpFragment": "Default: markdown."
+    },
+    {
+      "path": "session compact",
+      "option": "--strategy",
+      "value": "summary",
+      "helpFragment": "Default: summary."
+    },
+    {
+      "path": "storage gc",
+      "option": "--older-than",
+      "value": 7,
+      "helpFragment": "defaults to 7."
+    },
+    {
+      "path": "storage gc",
+      "option": "--dry-run",
+      "value": true,
+      "helpFragment": "Show the collection plan without locking or modifying storage."
+    }
+  ],
+  "invalidInvocations": [
+    {
+      "args": ["run", "--input", "hello", "--input-file", "input.txt"],
+      "message": "--input and --input-file cannot be used together."
+    },
+    {
+      "args": ["run", "--output-file", "out.txt"],
+      "message": "--output-file requires --input or --input-file."
+    },
+    {
+      "args": ["run", "--json"],
+      "message": "JSON, JSONL, and --no-stream require --input or --input-file."
+    },
+    {
+      "args": ["run", "--input", "hello", "--json", "--output-format", "text"],
+      "message": "--json cannot be combined with a non-JSON --output-format value."
+    },
+    {
+      "args": ["serve"],
+      "message": "--workspace is required."
+    },
+    {
+      "args": ["doctor", "--yes"],
+      "message": "--yes requires --fix."
+    },
+    {
+      "args": ["storage", "gc", "--dry-run", "--confirm"],
+      "message": "--dry-run and --confirm cannot be used together."
+    },
+    {
+      "args": ["session", "delete", "session-1"],
+      "message": "Session deletion requires --confirm."
+    },
+    {
+      "args": ["ctl", "credential", "update"],
+      "message": "--run, --provider, and --api-key-env are required"
+    }
+  ],
+  "commands": [
+    {
+      "path": "",
+      "usage": "madorin [command] [options]",
+      "helpSha256": "998afa8523be4d735132fec953bbbaada416f9c9fa904eb47bd6f362b11df7ab",
+      "options": [],
+      "arguments": [],
+      "example": ["version"]
+    },
+    {
+      "path": "agent",
+      "usage": "madorin agent [command] [options]",
+      "helpSha256": "dfb3f1ae9a90401a51e5b62632c98b24a819d864c18d6fc1254caea7c5959853",
+      "options": [],
+      "arguments": [],
+      "example": ["agent", "list"]
+    },
+    {
+      "path": "agent create",
+      "usage": "madorin agent create [<agentId>] [options]",
+      "helpSha256": "c9f0c586d5ba0895349b3a41a768232aa12a242c880f1aa152d38d95ea65ca87",
+      "options": ["--name", "--description", "--system-prompt", "--provider", "--model", "--temperature"],
+      "arguments": [{ "name": "agentId", "min": 0, "max": 1 }],
+      "example": ["agent", "create", "demo"]
+    },
+    {
+      "path": "agent delete",
+      "usage": "madorin agent delete <agentId> [options]",
+      "helpSha256": "266d3d8594e402fbec6118418f62429261da3b2bbbbf86058bf42fb46a593e58",
+      "options": ["--replacement", "--yes"],
+      "arguments": [{ "name": "agentId", "min": 1, "max": 1 }],
+      "example": ["agent", "delete", "demo", "--yes"]
+    },
+    {
+      "path": "agent edit",
+      "usage": "madorin agent edit <agentId> [options]",
+      "helpSha256": "69ddbef5388756459c80ad68bd35fa29efe156807fcfb315a912dc663cbab2db",
+      "options": ["--name", "--description", "--system-prompt", "--provider", "--model", "--temperature"],
+      "arguments": [{ "name": "agentId", "min": 1, "max": 1 }],
+      "example": ["agent", "edit", "demo", "--name", "Demo"]
+    },
+    {
+      "path": "agent list",
+      "usage": "madorin agent list [options]",
+      "helpSha256": "9aaa55ecd3dde43538eef330528b9db3c8228e4a4662f27e4bb1ac7bd1af4080",
+      "options": [],
+      "arguments": [],
+      "example": ["agent", "list"]
+    },
+    {
+      "path": "config",
+      "usage": "madorin config [command] [options]",
+      "helpSha256": "d69147e2f86d8a03c4f6450754d0106bab20915f2050856fdb6c347b4da77f90",
+      "options": [],
+      "arguments": [],
+      "example": ["config", "show"]
+    },
+    {
+      "path": "config edit",
+      "usage": "madorin config edit [options]",
+      "helpSha256": "1fbf4a469813c49f9683ab615ec39ea84ef07dcd36f24e166759ae21db13c492",
+      "options": [],
+      "arguments": [],
+      "example": ["config", "edit"]
+    },
+    {
+      "path": "config init",
+      "usage": "madorin config init [options]",
+      "helpSha256": "229a72c478ac72ba2a335ff1a3bd3357a78fdaf00322c16d7342d4a86ccdeaf9",
+      "options": [],
+      "arguments": [],
+      "example": ["config", "init"]
+    },
+    {
+      "path": "config show",
+      "usage": "madorin config show [options]",
+      "helpSha256": "6aa2e8f71ee91e192ce89c94f4cd143fdf748a529b940f7d8390714925940416",
+      "options": [],
+      "arguments": [],
+      "example": ["config", "show"]
+    },
+    {
+      "path": "config validate",
+      "usage": "madorin config validate [options]",
+      "helpSha256": "957623dfa11c7f6961af1368eb62b9573d9f190eb1d5ca486c27b8b66decda73",
+      "options": [],
+      "arguments": [],
+      "example": ["config", "validate"]
+    },
+    {
+      "path": "ctl",
+      "usage": "madorin ctl [command] [options]",
+      "helpSha256": "9f46c9edcead9711feaead7d75c44a332f25af6b3cb0eb20dff3665051c7aed2",
+      "options": [],
+      "arguments": [],
+      "example": ["ctl", "status"]
+    },
+    {
+      "path": "ctl cancel",
+      "usage": "madorin ctl cancel <runId> [options]",
+      "helpSha256": "a98ae2aea5cb3b3c66c8119a6fd4ed92b302345a4147611c6cae3b1efb0eb6f3",
+      "options": ["--instance", "--reason"],
+      "arguments": [{ "name": "runId", "min": 1, "max": 1 }],
+      "example": ["ctl", "cancel", "run-1", "--reason", "operator request"]
+    },
+    {
+      "path": "ctl credential",
+      "usage": "madorin ctl credential [command] [options]",
+      "helpSha256": "c8b1ef1b21a49b1abfd0201afd5d9e184220553ce12bc4049344787c25babfb6",
+      "options": [],
+      "arguments": [],
+      "example": ["ctl", "credential", "update", "--run", "run-1", "--provider", "openai", "--api-key-env", "MADORIN_TEST_KEY"]
+    },
+    {
+      "path": "ctl credential update",
+      "usage": "madorin ctl credential update [options]",
+      "helpSha256": "dbe7b5a84d4ccf66c1092fe48a0a6a97e73e6345612dd865356e3287cddbaf14",
+      "options": ["--instance", "--run", "--provider", "--profile", "--api-key-env", "--expires-at"],
+      "arguments": [],
+      "example": ["ctl", "credential", "update", "--run", "run-1", "--provider", "openai", "--api-key-env", "MADORIN_TEST_KEY"]
+    },
+    {
+      "path": "ctl runs",
+      "usage": "madorin ctl runs [options]",
+      "helpSha256": "e49a035bb59ecc02e240d13b001e789bc1c93b6e9cf3132a14e89562b1d4e768",
+      "options": ["--instance", "--session"],
+      "arguments": [],
+      "example": ["ctl", "runs", "--session", "session-1"]
+    },
+    {
+      "path": "ctl sessions",
+      "usage": "madorin ctl sessions [options]",
+      "helpSha256": "d836a727349aab231f283c18f98d12f9b4dba0b0fbd844337d19478e87e3eed3",
+      "options": ["--instance"],
+      "arguments": [],
+      "example": ["ctl", "sessions"]
+    },
+    {
+      "path": "ctl status",
+      "usage": "madorin ctl status [options]",
+      "helpSha256": "5961ac0aec8d09469a61911436010dfa451a41687063ee9eb51e5130aadf310b",
+      "options": ["--instance"],
+      "arguments": [],
+      "example": ["ctl", "status"]
+    },
+    {
+      "path": "db",
+      "usage": "madorin db [command] [options]",
+      "helpSha256": "c8a1e6d6c31283fcadb1094aa5d870b378d7d2ad01fee229a258f01732324cb0",
+      "options": [],
+      "arguments": [],
+      "example": ["db", "check"]
+    },
+    {
+      "path": "db backup",
+      "usage": "madorin db backup [options]",
+      "helpSha256": "70051a986a31907327f7b50b91ff18ff53550e8c39cf7df9d21207f8f9611a3a",
+      "options": ["--output", "--include-messages"],
+      "arguments": [],
+      "example": ["db", "backup", "--output", "backup.zip"]
+    },
+    {
+      "path": "db check",
+      "usage": "madorin db check [options]",
+      "helpSha256": "71ff059c5013c5a3193b989200b5b73e7416bce18331476d8a9d7e66fae1a5b1",
+      "options": ["--verbose"],
+      "arguments": [],
+      "example": ["db", "check", "--verbose"]
+    },
+    {
+      "path": "db migrate",
+      "usage": "madorin db migrate [options]",
+      "helpSha256": "aa563a20ef56fa24501a49f81aa7018632aa98bf7a53ee09308500f8f7399e40",
+      "options": ["--to", "--dry-run"],
+      "arguments": [],
+      "example": ["db", "migrate", "--dry-run"]
+    },
+    {
+      "path": "db rebuild",
+      "usage": "madorin db rebuild [options]",
+      "helpSha256": "546a477d64dd0beb33ba0a30a797dffc18202c70531082e4d70014e2dd6c8aea",
+      "options": ["--dry-run", "--confirm"],
+      "arguments": [],
+      "example": ["db", "rebuild", "--dry-run"]
+    },
+    {
+      "path": "db repair",
+      "usage": "madorin db repair [options]",
+      "helpSha256": "449947569053eb87d43b33efcdd24a5192c98d3a7b29fefff7b0dcbaffa2021d",
+      "options": ["--dry-run", "--yes"],
+      "arguments": [],
+      "example": ["db", "repair", "--dry-run"]
+    },
+    {
+      "path": "db vacuum",
+      "usage": "madorin db vacuum [options]",
+      "helpSha256": "824f6722f6fbd41f30e3e2f4228c4536241ae6d832dd49784dac3696eb440310",
+      "options": [],
+      "arguments": [],
+      "example": ["db", "vacuum"]
+    },
+    {
+      "path": "doctor",
+      "usage": "madorin doctor [options]",
+      "helpSha256": "3e82a9bdde8e33436e8e6d582b40d0c0408c5c181881596e56599d164252da45",
+      "options": ["--provider", "--fix", "--yes"],
+      "arguments": [],
+      "example": ["doctor"]
+    },
+    {
+      "path": "memory",
+      "usage": "madorin memory [command] [options]",
+      "helpSha256": "e08857e53de83a74945e6d238bf7c8b4368e6b54d7317ed91f66bd7b3c79d841",
+      "options": [],
+      "arguments": [],
+      "example": ["memory", "show", "project"]
+    },
+    {
+      "path": "memory add",
+      "usage": "madorin memory add <scope> [options]",
+      "helpSha256": "171b0a9570494e93039581e0dc4b8e265f9122e83da924bb008f64ead969ae32",
+      "options": [],
+      "arguments": [{ "name": "scope", "min": 1, "max": 1 }],
+      "example": ["memory", "add", "project"]
+    },
+    {
+      "path": "memory clear",
+      "usage": "madorin memory clear <scope> [options]",
+      "helpSha256": "34b36cfc57a65ef32e636e1e0f0683a305ec4d2e1c228335f43030c7b7223139",
+      "options": ["--yes"],
+      "arguments": [{ "name": "scope", "min": 1, "max": 1 }],
+      "example": ["memory", "clear", "project", "--yes"]
+    },
+    {
+      "path": "memory edit",
+      "usage": "madorin memory edit <scope> [options]",
+      "helpSha256": "bfc9c58afb469fe2be06d79ea3eaf98081340c9f156a188c07af26535a5b15dc",
+      "options": [],
+      "arguments": [{ "name": "scope", "min": 1, "max": 1 }],
+      "example": ["memory", "edit", "project"]
+    },
+    {
+      "path": "memory init",
+      "usage": "madorin memory init <scope> [options]",
+      "helpSha256": "281d7915d981cda225b398dbb1de8c79570ff068101c76cf8cd5ee29ff84d524",
+      "options": [],
+      "arguments": [{ "name": "scope", "min": 1, "max": 1 }],
+      "example": ["memory", "init", "project"]
+    },
+    {
+      "path": "memory show",
+      "usage": "madorin memory show <scope> [options]",
+      "helpSha256": "8f13e564accfeb5a3af9e5f55596ff8e048a13303d4d758563c68f6bd9f7eb3f",
+      "options": [],
+      "arguments": [{ "name": "scope", "min": 1, "max": 1 }],
+      "example": ["memory", "show", "project"]
+    },
+    {
+      "path": "run",
+      "usage": "madorin run [options]",
+      "helpSha256": "2b7d7ab98e7e1b2d3551c9f2b078ff3bc2811e2809da9bd318c34d3af0ad9006",
+      "options": ["--provider", "--model", "--agent", "--mode", "--session", "--input", "--input-file", "--output-file", "--output-format", "--no-stream", "--timeout"],
+      "arguments": [],
+      "example": ["run", "--input", "hello", "--no-stream"]
+    },
+    {
+      "path": "serve",
+      "usage": "madorin serve [options]",
+      "helpSha256": "2ccd17852342afcd7dd39d5088a51f8bc68d6714643195afd80156b294195c57",
+      "options": ["--config-dir", "--log-dir", "--instance", "--pipe-prefix", "--max-runs"],
+      "arguments": [],
+      "example": ["serve", "--workspace", "."]
+    },
+    {
+      "path": "session",
+      "usage": "madorin session [command] [options]",
+      "helpSha256": "cfea2b17690d37d2a8787a724b7ad0f2b6cfff4537f242a534a9e925e1d4a074",
+      "options": [],
+      "arguments": [],
+      "example": ["session", "list"]
+    },
+    {
+      "path": "session archive",
+      "usage": "madorin session archive <sessionId> [options]",
+      "helpSha256": "7aee7a6e7ca1574a80a70d4e40711ac6e20b621662700e709104215ca0d9caa8",
+      "options": [],
+      "arguments": [{ "name": "sessionId", "min": 1, "max": 1 }],
+      "example": ["session", "archive", "session-1"]
+    },
+    {
+      "path": "session compact",
+      "usage": "madorin session compact <sessionId> [options]",
+      "helpSha256": "ec7518fe120e62a5c8884be7266cac00fee1203c952cdd4df62059dd1a367f5f",
+      "options": ["--strategy", "--provider", "--model", "--keep-last-tokens", "--dry-run", "--force"],
+      "arguments": [{ "name": "sessionId", "min": 1, "max": 1 }],
+      "example": ["session", "compact", "session-1", "--dry-run"]
+    },
+    {
+      "path": "session delete",
+      "usage": "madorin session delete <sessionId> [options]",
+      "helpSha256": "ae667f1a64a6bb76e01f4805540c9d95e740c785e67d1fd200ca8293cfdf0955",
+      "options": ["--confirm", "--include-blobs"],
+      "arguments": [{ "name": "sessionId", "min": 1, "max": 1 }],
+      "example": ["session", "delete", "session-1", "--confirm"]
+    },
+    {
+      "path": "session export",
+      "usage": "madorin session export <sessionId> [options]",
+      "helpSha256": "e5eccb9d0d6379798b5dbed13d45b0fac9a81c78323b37f91b499329b921a478",
+      "options": ["--format", "--output", "--include-reasoning", "--include-tool-calls"],
+      "arguments": [{ "name": "sessionId", "min": 1, "max": 1 }],
+      "example": ["session", "export", "session-1", "--format", "markdown"]
+    },
+    {
+      "path": "session list",
+      "usage": "madorin session list [options]",
+      "helpSha256": "d3142fa6d33cbd925f4705c8aca22ced94d228514fd0b16fccfd78c9f2730a0d",
+      "options": ["--status", "--mode", "--since", "--search", "--limit", "--cursor"],
+      "arguments": [],
+      "example": ["session", "list", "--status", "active", "--limit", "20"]
+    },
+    {
+      "path": "session show",
+      "usage": "madorin session show <sessionId> [options]",
+      "helpSha256": "989f9ff8e67c053c6e61a57cc6f9c422314cfd2b4d68b673bf7e6c41da35a8db",
+      "options": ["--messages"],
+      "arguments": [{ "name": "sessionId", "min": 1, "max": 1 }],
+      "example": ["session", "show", "session-1", "--messages"]
+    },
+    {
+      "path": "session unarchive",
+      "usage": "madorin session unarchive <sessionId> [options]",
+      "helpSha256": "f134c16f3a42539e8e6e8b459fd7d57c3aef6c6d7ecbff5a821dfc11318c6179",
+      "options": [],
+      "arguments": [{ "name": "sessionId", "min": 1, "max": 1 }],
+      "example": ["session", "unarchive", "session-1"]
+    },
+    {
+      "path": "storage",
+      "usage": "madorin storage [command] [options]",
+      "helpSha256": "06e3a27def33cbb93d1cd787fc4fdd746b84f8bcd124fd2397ade73eb5525c82",
+      "options": [],
+      "arguments": [],
+      "example": ["storage", "check"]
+    },
+    {
+      "path": "storage check",
+      "usage": "madorin storage check [options]",
+      "helpSha256": "3850a1c1f198df661ef1b2999b95f1a4c51c45b73c5e1effbb884e059b36cc25",
+      "options": ["--verify-hashes"],
+      "arguments": [],
+      "example": ["storage", "check", "--verify-hashes"]
+    },
+    {
+      "path": "storage gc",
+      "usage": "madorin storage gc [options]",
+      "helpSha256": "35ca99252175240d477e82e0cf1684814dcbe6f7e9386a348d63905e13f895e0",
+      "options": ["--dry-run", "--older-than", "--confirm"],
+      "arguments": [],
+      "example": ["storage", "gc"]
+    },
+    {
+      "path": "version",
+      "usage": "madorin version [options]",
+      "helpSha256": "8a8b01d91863fdfdbc53b61c537f4407fc218258b148ba72e85d01f8484f77c5",
+      "options": [],
+      "arguments": [],
+      "example": ["version"]
+    }
+  ]
+}

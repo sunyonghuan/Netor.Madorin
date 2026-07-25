@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using Madorin.AI.Runtime.Cli.Config;
 using Madorin.AI.Runtime.Contracts;
@@ -13,6 +14,10 @@ namespace Madorin.AI.Runtime.Cli.Commands;
 
 internal static class ServiceCommands
 {
+    private static readonly UTF8Encoding StrictUtf8 = new(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true);
+
     public static Command CreateServe(
         Option<bool> jsonOption,
         Option<string?> workspaceOption,
@@ -24,11 +29,21 @@ internal static class ServiceCommands
         ArgumentNullException.ThrowIfNull(output);
         var command = new Command("serve", "Start the persistent Runtime server.")
             .AddOptions(
-                CommandOptions.Create<string?>("--config-dir", "Override the configuration directory."),
-                CommandOptions.Create<string?>("--log-dir", "Override the log directory."),
-                CommandOptions.Create<string?>("--instance", "Set the Runtime instance identifier."),
-                CommandOptions.Create<string?>("--pipe-prefix", "Override the IPC pipe prefix."),
-                CommandOptions.Create<int?>("--max-runs", "Set the maximum concurrent Run count."));
+                CommandOptions.Create<string?>(
+                    "--config-dir",
+                    "Override the configuration directory; defaults to <data-dir>/config."),
+                CommandOptions.Create<string?>(
+                    "--log-dir",
+                    "Override the log directory; defaults to <data-dir>/logs."),
+                CommandOptions.Create<string?>(
+                    "--instance",
+                    "Set the Runtime instance identifier; generated when omitted."),
+                CommandOptions.Create<string?>(
+                    "--pipe-prefix",
+                    "Override the IPC pipe prefix; defaults to madorin.ai.runtime."),
+                CommandOptions.Create<int?>(
+                    "--max-runs",
+                    "Set the maximum concurrent Run count; defaults to 4."));
         command.SetAction(async parseResult =>
         {
             var workspace = parseResult.GetValue(workspaceOption);
@@ -128,20 +143,33 @@ internal static class ServiceCommands
         Option<string?> dataDirectoryOption,
         ICliTerminal terminal,
         TextWriter output,
+        TextWriter error,
         string? configDirectory = null,
         Func<StandaloneConfig, Func<NextTurnSelection, IRuntimeProviderAdapter>>?
             providerResolverFactory = null,
-        string? memoryUserHome = null)
+        string? memoryUserHome = null,
+        IReplInterruptSource? replInterruptSource = null)
     {
         ArgumentNullException.ThrowIfNull(terminal);
         ArgumentNullException.ThrowIfNull(output);
+        ArgumentNullException.ThrowIfNull(error);
 
         var providerOption = CommandOptions.Create<string?>("--provider", "Select a Provider.");
         var modelOption = CommandOptions.Create<string?>("--model", "Select a model.");
         var agentOption = CommandOptions.Create<string?>("--agent", "Select an Agent.");
-        var modeOption = CommandOptions.Create<string?>("--mode", "Select expert, meeting, or work mode.");
+        var modeOption = CommandOptions.Create<string?>(
+            "--mode",
+            "Select expert, meeting, or work mode; defaults to expert.");
         var sessionOption = CommandOptions.Create<string?>("--session", "Continue an existing Session.");
         var inputOption = CommandOptions.Create<string?>("--input", "Run once with the supplied input.");
+        var inputFileOption = CommandOptions.Create<string?>("--input-file", "Read input from a file.");
+        var outputFileOption = CommandOptions.Create<string?>("--output-file", "Write output to a file.");
+        var outputFormatOption = CommandOptions.Create<string?>(
+            "--output-format",
+            "Select text, json, or jsonl output; defaults to text (or json with --json).");
+        var noStreamOption = CommandOptions.Create<bool>(
+            "--no-stream",
+            "Wait for the complete result; output streams by default.");
 
         var command = new Command("run", "Run one task or enter interactive mode.")
             .AddOptions(
@@ -151,14 +179,114 @@ internal static class ServiceCommands
                 modeOption,
                 sessionOption,
                 inputOption,
-                CommandOptions.Create<string?>("--input-file", "Read input from a file."),
-                CommandOptions.Create<string?>("--output-file", "Write output to a file."),
-                CommandOptions.Create<string?>("--output-format", "Select text, json, or jsonl output."),
-                CommandOptions.Create<bool>("--no-stream", "Wait for the complete result."),
+                inputFileOption,
+                outputFileOption,
+                outputFormatOption,
+                noStreamOption,
                 CommandOptions.Create<int?>("--timeout", "Set the timeout in seconds."));
 
         command.SetAction(async parseResult =>
         {
+            var directInput = parseResult.GetValue(inputOption);
+            var inputFile = parseResult.GetValue(inputFileOption);
+            var outputFile = parseResult.GetValue(outputFileOption);
+            var outputFormatValue = parseResult.GetValue(outputFormatOption);
+            var machineOutputRedirected = outputFile is not null;
+
+            if (!TryResolveRunOutputFormat(
+                    outputFormatValue,
+                    CliOutput.IsJson(parseResult, jsonOption),
+                    out var outputFormat,
+                    out var outputFormatError))
+            {
+                RunOutputWriter.WriteCommandFailure(
+                    output,
+                    error,
+                    outputFormat,
+                    machineOutputRedirected,
+                    "InvalidOutputFormat",
+                    outputFormatError);
+                return ExitCodes.InvalidArguments;
+            }
+
+            if (directInput is not null && inputFile is not null)
+            {
+                RunOutputWriter.WriteCommandFailure(
+                    output,
+                    error,
+                    outputFormat,
+                    machineOutputRedirected,
+                    "ConflictingInputOptions",
+                    "--input and --input-file cannot be used together.");
+                return ExitCodes.InvalidArguments;
+            }
+
+            string? suppliedInput = directInput;
+            if (inputFile is not null)
+            {
+                try
+                {
+                    suppliedInput = await ReadRunInputFileAsync(inputFile).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (IsRunInputException(ex))
+                {
+                    RunOutputWriter.WriteCommandFailure(
+                        output,
+                        error,
+                        outputFormat,
+                        machineOutputRedirected,
+                        "InputFileError",
+                        ex.Message);
+                    return ExitCodes.InvalidArguments;
+                }
+            }
+
+            if (suppliedInput is null && outputFile is not null)
+            {
+                RunOutputWriter.WriteCommandFailure(
+                    output,
+                    error,
+                    outputFormat,
+                    machineOutputRedirected,
+                    "OutputFileRequiresInput",
+                    "--output-file requires --input or --input-file.");
+                return ExitCodes.InvalidArguments;
+            }
+
+            if (suppliedInput is null
+                && (outputFormat is not RunOutputFormat.Text || parseResult.GetValue(noStreamOption)))
+            {
+                RunOutputWriter.WriteCommandFailure(
+                    output,
+                    error,
+                    outputFormat,
+                    machineOutputRedirected: false,
+                    "InteractiveOutputOptionsUnsupported",
+                    "JSON, JSONL, and --no-stream require --input or --input-file.");
+                return ExitCodes.InvalidArguments;
+            }
+
+            AtomicOutputFile? atomicOutputFile = null;
+            try
+            {
+                if (outputFile is not null)
+                {
+                    atomicOutputFile = AtomicOutputFile.Create(outputFile);
+                }
+            }
+            catch (Exception ex) when (IsRunOutputException(ex))
+            {
+                RunOutputWriter.WriteCommandFailure(
+                    output,
+                    error,
+                    outputFormat,
+                    machineOutputRedirected,
+                    "OutputFileError",
+                    ex.Message);
+                return ExitCodes.WorkspaceError;
+            }
+
+            await using var outputDestination = atomicOutputFile;
             StandaloneRuntimeContext context;
             try
             {
@@ -169,7 +297,13 @@ internal static class ServiceCommands
             }
             catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
             {
-                WriteError(parseResult, jsonOption, output, "run", ex.Message);
+                RunOutputWriter.WriteCommandFailure(
+                    output,
+                    error,
+                    outputFormat,
+                    machineOutputRedirected,
+                    "InvalidRuntimeContext",
+                    ex.Message);
                 return ExitCodes.InvalidArguments;
             }
 
@@ -179,13 +313,14 @@ internal static class ServiceCommands
             try
             {
                 var loadedConfig = await loader.LoadAsync().ConfigureAwait(false);
-                if (loadedConfig is null && CliOutput.IsJson(parseResult, jsonOption))
+                if (loadedConfig is null && outputFormat is not RunOutputFormat.Text)
                 {
-                    WriteError(
-                        parseResult,
-                        jsonOption,
+                    RunOutputWriter.WriteCommandFailure(
                         output,
-                        "run",
+                        error,
+                        outputFormat,
+                        machineOutputRedirected,
+                        "ConfigurationNotFound",
                         $"Configuration not found: {loader.ConfigPath}");
                     return ExitCodes.InvalidArguments;
                 }
@@ -198,7 +333,13 @@ internal static class ServiceCommands
             }
             catch (Exception ex) when (IsConfigurationException(ex))
             {
-                WriteError(parseResult, jsonOption, output, "run", ex.Message);
+                RunOutputWriter.WriteCommandFailure(
+                    output,
+                    error,
+                    outputFormat,
+                    machineOutputRedirected,
+                    "ConfigurationError",
+                    ex.Message);
                 return ExitCodes.InvalidArguments;
             }
 
@@ -208,11 +349,12 @@ internal static class ServiceCommands
                 agentDocuments);
             if (validationErrors.Count > 0)
             {
-                WriteError(
-                    parseResult,
-                    jsonOption,
+                RunOutputWriter.WriteCommandFailure(
                     output,
-                    "run",
+                    error,
+                    outputFormat,
+                    machineOutputRedirected,
+                    "ConfigurationInvalid",
                     RedactSecrets(string.Join(Environment.NewLine, validationErrors), config));
                 return ExitCodes.InvalidArguments;
             }
@@ -227,34 +369,37 @@ internal static class ServiceCommands
                     parseResult.GetValue(agentOption),
                     out var selection))
             {
-                WriteError(
-                    parseResult,
-                    jsonOption,
+                RunOutputWriter.WriteCommandFailure(
                     output,
-                    "run",
+                    error,
+                    outputFormat,
+                    machineOutputRedirected,
+                    "SelectionNotFound",
                     "The requested Provider, model, or Agent does not exist in the standalone configuration.");
                 return ExitCodes.InvalidArguments;
             }
 
             if (!TryResolveMode(parseResult.GetValue(modeOption), out var mode))
             {
-                WriteError(
-                    parseResult,
-                    jsonOption,
+                RunOutputWriter.WriteCommandFailure(
                     output,
-                    "run",
+                    error,
+                    outputFormat,
+                    machineOutputRedirected,
+                    "InvalidMode",
                     "Mode must be expert, meeting, work, or standalone.");
                 return ExitCodes.InvalidArguments;
             }
 
-            if (mode is not RuntimeMode.Expert)
+            if (mode is RuntimeMode.Work && agents.Count < 2)
             {
-                WriteError(
-                    parseResult,
-                    jsonOption,
+                RunOutputWriter.WriteCommandFailure(
                     output,
-                    "run",
-                    "Local Runtime currently supports Expert mode only; meeting and work modes are not implemented.");
+                    error,
+                    outputFormat,
+                    machineOutputRedirected,
+                    "InsufficientWorkAgents",
+                    "Work mode requires at least two configured Agents: one manager and one worker.");
                 return ExitCodes.InvalidArguments;
             }
 
@@ -290,55 +435,86 @@ internal static class ServiceCommands
 
                 await using (runtime.ConfigureAwait(false))
                 {
-                    var suppliedInput = parseResult.GetValue(inputOption);
                     var sessionId = parseResult.GetValue(sessionOption);
                     if (suppliedInput is not null)
                     {
                         var events = sessionId is null
-                            ? runtime.RunAsync(BuildNewRunRequest(suppliedInput, mode, selection), cts.Token)
+                            ? runtime.RunAsync(
+                                BuildNewRunRequest(
+                                    suppliedInput,
+                                    mode,
+                                    selection,
+                                    config,
+                                    agents),
+                                cts.Token)
                             : runtime.RunAsync(
-                                BuildExistingRunRequest(sessionId, suppliedInput, mode, selection),
+                                BuildExistingRunRequest(
+                                    sessionId,
+                                    suppliedInput,
+                                    mode,
+                                    selection,
+                                    config,
+                                    agents),
                                 cts.Token);
+                        var runOutput = outputDestination?.Writer ?? output;
+                        var runOutputWriter = new RunOutputWriter(
+                            runOutput,
+                            error,
+                            outputFormat,
+                            parseResult.GetValue(noStreamOption),
+                            machineOutputRedirected,
+                            message => RedactSecrets(message, config));
                         var result = await ExecuteOneRunAsync(
                                 events,
-                                output,
-                                config,
+                                runOutputWriter,
                                 cts.Token)
                             .ConfigureAwait(false);
-                        return result.ExitCode;
-                    }
+                        if (result.ExitCode == ExitCodes.Success && outputDestination is not null)
+                        {
+                            try
+                            {
+                                await outputDestination.CommitAsync(cts.Token).ConfigureAwait(false);
+                            }
+                            catch (Exception ex) when (IsRunOutputException(ex))
+                            {
+                                RunOutputWriter.WriteCommandFailure(
+                                    output,
+                                    error,
+                                    outputFormat,
+                                    machineOutputRedirected,
+                                    "OutputFileCommitError",
+                                    ex.Message);
+                                return ExitCodes.WorkspaceError;
+                            }
+                        }
 
-                    if (CliOutput.IsJson(parseResult, jsonOption))
-                    {
-                        CliOutput.WriteNotImplemented(
-                            parseResult,
-                            jsonOption,
-                            output,
-                            "run interactive",
-                            "run interactive: NotImplemented in --json mode");
-                        return ExitCodes.InvalidArguments;
+                        return result.ExitCode;
                     }
 
                     return await RunReplAsync(
                             terminal,
                             output,
+                            error,
                             runtime,
                             memoryFiles,
                             sessionId,
                             mode,
                             selection,
+                            agents,
                             config,
+                            replInterruptSource ?? ConsoleReplInterruptSource.Instance,
                             cts.Token)
                         .ConfigureAwait(false);
                 }
             }
-            catch (InvalidOperationException ex)
+            catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
             {
-                WriteError(
-                    parseResult,
-                    jsonOption,
+                RunOutputWriter.WriteCommandFailure(
                     output,
-                    "run",
+                    error,
+                    outputFormat,
+                    machineOutputRedirected,
+                    "RuntimeError",
                     RedactSecrets(ex.Message, config));
                 return ExitCodes.WorkspaceError;
             }
@@ -350,23 +526,93 @@ internal static class ServiceCommands
     private static async Task<int> RunReplAsync(
         ICliTerminal terminal,
         TextWriter output,
+        TextWriter error,
         LocalRuntime runtime,
         MemoryFileService memoryFiles,
         string? sessionId,
         RuntimeMode mode,
         StandaloneSelection selection,
+        IReadOnlyList<AgentConfig> agents,
         StandaloneConfig config,
+        IReplInterruptSource interruptSource,
         CancellationToken ct)
     {
+        var selectionVersion = 1;
+        if (sessionId is not null)
+        {
+            var snapshot = await runtime.GetSessionSnapshotAsync(sessionId, ct).ConfigureAwait(false);
+            if (snapshot is null)
+            {
+                await error.WriteLineAsync($"Session '{sessionId}' was not found.")
+                    .ConfigureAwait(false);
+                return ExitCodes.InvalidArguments;
+            }
+
+            if (snapshot.Mode != mode)
+            {
+                await error.WriteLineAsync(
+                        $"Session '{sessionId}' uses {snapshot.Mode} mode; the current REPL uses {mode} mode.")
+                    .ConfigureAwait(false);
+                return ExitCodes.InvalidArguments;
+            }
+
+            selectionVersion = snapshot.SelectionVersion ?? selectionVersion;
+        }
+
+        using var exitCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var interruptSync = new object();
+        var interruptState = ReplInterruptState.Idle;
+        CancellationTokenSource? activeRunCts = null;
+        using var interruptSubscription = interruptSource.Subscribe(() =>
+        {
+            CancellationTokenSource? cancellationTarget = null;
+            var shouldExit = false;
+            lock (interruptSync)
+            {
+                switch (interruptState)
+                {
+                    case ReplInterruptState.Idle:
+                        interruptState = ReplInterruptState.Exiting;
+                        shouldExit = true;
+                        break;
+                    case ReplInterruptState.Running:
+                        interruptState = ReplInterruptState.Cancelling;
+                        cancellationTarget = activeRunCts;
+                        break;
+                    case ReplInterruptState.Cancelling:
+                    case ReplInterruptState.Exiting:
+                        interruptState = ReplInterruptState.Exiting;
+                        shouldExit = true;
+                        break;
+                }
+            }
+
+            TryCancel(cancellationTarget);
+            if (shouldExit)
+            {
+                TryCancel(exitCts);
+            }
+        });
+
         try
         {
             while (true)
             {
-                ct.ThrowIfCancellationRequested();
+                exitCts.Token.ThrowIfCancellationRequested();
+                lock (interruptSync)
+                {
+                    if (interruptState == ReplInterruptState.Exiting)
+                    {
+                        return ExitCodes.UserInterrupted;
+                    }
+
+                    interruptState = ReplInterruptState.Idle;
+                }
+
                 terminal.Write($"madorin [{selection.Provider.Name}/{selection.Model}] > ");
 
-                var userInput = await terminal.ReadLineAsync(ct).ConfigureAwait(false);
-                if (userInput is null || userInput.Equals("/exit", StringComparison.OrdinalIgnoreCase))
+                var userInput = await terminal.ReadLineAsync(exitCts.Token).ConfigureAwait(false);
+                if (userInput is null)
                 {
                     return ExitCodes.Success;
                 }
@@ -376,38 +622,784 @@ internal static class ServiceCommands
                     continue;
                 }
 
+                var commandResult = await TryHandleCoreReplCommandAsync(
+                        userInput,
+                        terminal,
+                        output,
+                        error,
+                        runtime,
+                        sessionId,
+                        mode,
+                        selection,
+                        selectionVersion,
+                        agents,
+                        config,
+                        exitCts.Token)
+                    .ConfigureAwait(false);
+                if (commandResult is not null)
+                {
+                    sessionId = commandResult.SessionId;
+                    selection = commandResult.Selection;
+                    selectionVersion = commandResult.SelectionVersion;
+                    if (commandResult.ExitCode is { } commandExitCode)
+                    {
+                        return commandExitCode;
+                    }
+
+                    continue;
+                }
+
                 if (await TryHandleMemoryReplCommandAsync(
                         userInput,
                         terminal,
                         output,
                         memoryFiles,
-                        ct)
+                        exitCts.Token)
                     .ConfigureAwait(false))
                 {
                     continue;
                 }
 
+                using var runCts = CancellationTokenSource.CreateLinkedTokenSource(
+                    exitCts.Token);
+                lock (interruptSync)
+                {
+                    if (interruptState == ReplInterruptState.Exiting)
+                    {
+                        return ExitCodes.UserInterrupted;
+                    }
+
+                    activeRunCts = runCts;
+                    interruptState = ReplInterruptState.Running;
+                }
+
                 var events = sessionId is null
-                    ? runtime.RunAsync(BuildNewRunRequest(userInput, mode, selection), ct)
+                    ? runtime.RunAsync(
+                        BuildNewRunRequest(
+                            userInput,
+                            mode,
+                            selection,
+                            config,
+                            agents,
+                            selectionVersion),
+                        runCts.Token)
                     : runtime.RunAsync(
-                        BuildExistingRunRequest(sessionId, userInput, mode, selection),
-                        ct);
-                var result = await ExecuteOneRunAsync(events, output, config, ct)
+                        BuildExistingRunRequest(
+                            sessionId,
+                            userInput,
+                            mode,
+                            selection,
+                            config,
+                            agents,
+                            selectionVersion),
+                        runCts.Token);
+                var runOutputWriter = new RunOutputWriter(
+                    output,
+                    error,
+                    RunOutputFormat.Text,
+                    noStream: false,
+                    machineOutputRedirected: false,
+                    message => RedactSecrets(message, config));
+                var result = await ExecuteOneRunAsync(
+                        events,
+                        runOutputWriter,
+                        exitCts.Token)
                     .ConfigureAwait(false);
+
+                bool continueAfterCancellation;
+                lock (interruptSync)
+                {
+                    activeRunCts = null;
+                    continueAfterCancellation = interruptState == ReplInterruptState.Cancelling
+                        && !exitCts.IsCancellationRequested;
+                    interruptState = exitCts.IsCancellationRequested
+                        ? ReplInterruptState.Exiting
+                        : ReplInterruptState.Idle;
+                }
+
+                sessionId = result.SessionId ?? sessionId;
+                if (exitCts.IsCancellationRequested)
+                {
+                    return ExitCodes.UserInterrupted;
+                }
+
+                if (result.ExitCode == ExitCodes.UserInterrupted && continueAfterCancellation)
+                {
+                    continue;
+                }
+
+                if (result.ExitCode == ExitCodes.GeneralError)
+                {
+                    continue;
+                }
+
                 if (result.ExitCode != ExitCodes.Success)
                 {
                     return result.ExitCode;
                 }
-
-                sessionId = result.SessionId ?? sessionId;
             }
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (exitCts.IsCancellationRequested)
         {
-            await output.WriteLineAsync("Run cancelled.").ConfigureAwait(false);
             return ExitCodes.UserInterrupted;
         }
     }
+
+    private static void TryCancel(CancellationTokenSource? cancellationTokenSource)
+    {
+        try
+        {
+            cancellationTokenSource?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    private static async Task<ReplCommandResult?> TryHandleCoreReplCommandAsync(
+        string command,
+        ICliTerminal terminal,
+        TextWriter output,
+        TextWriter error,
+        LocalRuntime runtime,
+        string? sessionId,
+        RuntimeMode mode,
+        StandaloneSelection selection,
+        int selectionVersion,
+        IReadOnlyList<AgentConfig> agents,
+        StandaloneConfig config,
+        CancellationToken ct)
+    {
+        if (!command.StartsWith('/'))
+        {
+            return null;
+        }
+
+        var separator = command.IndexOf(' ');
+        var commandName = separator < 0 ? command : command[..separator];
+        var argument = separator < 0 ? null : command[(separator + 1)..].Trim();
+        if (argument is { Length: 0 })
+        {
+            argument = null;
+        }
+
+        ReplCommandResult Current(int? exitCode = null) =>
+            new(sessionId, selection, selectionVersion, exitCode);
+
+        try
+        {
+            switch (commandName.ToUpperInvariant())
+            {
+                case "/EXIT":
+                case "/QUIT":
+                    if (argument is not null)
+                    {
+                        await error.WriteLineAsync($"Usage: {commandName}").ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    return Current(ExitCodes.Success);
+
+                case "/MODEL":
+                    if (argument is null)
+                    {
+                        await output.WriteLineAsync(
+                                $"Models for Provider '{selection.Provider.Name}':")
+                            .ConfigureAwait(false);
+                        for (var index = 0; index < selection.Provider.Models.Count; index++)
+                        {
+                            var model = selection.Provider.Models[index];
+                            var currentMarker = model.Equals(
+                                selection.Model,
+                                StringComparison.Ordinal)
+                                ? " (current)"
+                                : string.Empty;
+                            await output.WriteLineAsync(
+                                    $"  {index + 1}. {model}{currentMarker}")
+                                .ConfigureAwait(false);
+                        }
+
+                        terminal.Write("Select model by number or ID (Enter to cancel): ");
+                        argument = (await terminal.ReadLineAsync(ct).ConfigureAwait(false))?.Trim();
+                        if (string.IsNullOrEmpty(argument))
+                        {
+                            return Current();
+                        }
+
+                        if (int.TryParse(argument, out var modelNumber)
+                            && modelNumber >= 1
+                            && modelNumber <= selection.Provider.Models.Count)
+                        {
+                            argument = selection.Provider.Models[modelNumber - 1];
+                        }
+                    }
+
+                    if (!TryResolveSelection(
+                            config,
+                            agents,
+                            selection.Provider.Name,
+                            argument,
+                            selection.Agent.Id,
+                            out var modelSelection))
+                    {
+                        await error.WriteLineAsync(
+                                $"Model '{argument}' is not available from Provider '{selection.Provider.Name}'.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    return await UpdateReplSelectionAsync(
+                            runtime,
+                            output,
+                            sessionId,
+                            mode,
+                            modelSelection,
+                            selectionVersion,
+                            agents,
+                            config,
+                            ct)
+                        .ConfigureAwait(false);
+
+                case "/PROVIDER":
+                    if (argument is null)
+                    {
+                        await output.WriteLineAsync($"Provider: {selection.Provider.Name}")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    var provider = config.Providers.FirstOrDefault(candidate =>
+                        candidate.Name.Equals(argument, StringComparison.Ordinal));
+                    if (provider is null)
+                    {
+                        await error.WriteLineAsync($"Provider '{argument}' was not found.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    var providerModel = provider.Models.Contains(
+                        selection.Model,
+                        StringComparer.Ordinal)
+                        ? selection.Model
+                        : provider.Models.Contains(config.DefaultModel, StringComparer.Ordinal)
+                            ? config.DefaultModel
+                            : provider.Models.FirstOrDefault();
+                    if (providerModel is null
+                        || !TryResolveSelection(
+                            config,
+                            agents,
+                            provider.Name,
+                            providerModel,
+                            selection.Agent.Id,
+                            out var providerSelection))
+                    {
+                        await error.WriteLineAsync(
+                                $"Provider '{argument}' has no usable model for Agent '{selection.Agent.Id}'.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    return await UpdateReplSelectionAsync(
+                            runtime,
+                            output,
+                            sessionId,
+                            mode,
+                            providerSelection,
+                            selectionVersion,
+                            agents,
+                            config,
+                            ct)
+                        .ConfigureAwait(false);
+
+                case "/AGENT":
+                    if (argument is null)
+                    {
+                        await output.WriteLineAsync($"Agent: {selection.Agent.Id}")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    if (!TryResolveSelection(
+                            config,
+                            agents,
+                            providerOverride: null,
+                            modelOverride: null,
+                            argument,
+                            out var agentSelection))
+                    {
+                        await error.WriteLineAsync(
+                                $"Agent '{argument}' does not have a valid Provider and model.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    return await UpdateReplSelectionAsync(
+                            runtime,
+                            output,
+                            sessionId,
+                            mode,
+                            agentSelection,
+                            selectionVersion,
+                            agents,
+                            config,
+                            ct)
+                        .ConfigureAwait(false);
+
+                case "/MODE":
+                    if (argument is not null)
+                    {
+                        await error.WriteLineAsync(
+                                "The Session mode cannot be changed inside the REPL.")
+                            .ConfigureAwait(false);
+                    }
+
+                    await output.WriteLineAsync($"Mode: {mode}").ConfigureAwait(false);
+                    return Current();
+
+                case "/SESSION":
+                    if (argument is not null)
+                    {
+                        await error.WriteLineAsync("Usage: /session").ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    if (sessionId is null)
+                    {
+                        await output.WriteLineAsync("Session: (new)").ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    var snapshot = await runtime.GetSessionSnapshotAsync(sessionId, ct)
+                        .ConfigureAwait(false);
+                    if (snapshot is null)
+                    {
+                        await error.WriteLineAsync($"Session '{sessionId}' was not found.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    await output.WriteLineAsync($"Session: {snapshot.SessionId}")
+                        .ConfigureAwait(false);
+                    await output.WriteLineAsync($"Mode: {snapshot.Mode}").ConfigureAwait(false);
+                    await output.WriteLineAsync($"Status: {snapshot.Status}").ConfigureAwait(false);
+                    await output.WriteLineAsync($"Provider: {selection.Provider.Name}")
+                        .ConfigureAwait(false);
+                    await output.WriteLineAsync($"Model: {selection.Model}").ConfigureAwait(false);
+                    await output.WriteLineAsync($"Agent: {selection.Agent.Id}").ConfigureAwait(false);
+                    return Current();
+
+                case "/NEW":
+                    if (argument is not null)
+                    {
+                        await error.WriteLineAsync("Usage: /new").ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    await output.WriteLineAsync("A new Session will be created on the next turn.")
+                        .ConfigureAwait(false);
+                    return new ReplCommandResult(null, selection, 1, ExitCode: null);
+
+                case "/RESUME":
+                    if (argument is null)
+                    {
+                        var sessions = await runtime.ListSessionsAsync(
+                                new SessionListParameters(Mode: mode, Limit: 10),
+                                ct)
+                            .ConfigureAwait(false);
+                        if (sessions.Sessions.Length == 0)
+                        {
+                            await output.WriteLineAsync("No resumable Sessions were found.")
+                                .ConfigureAwait(false);
+                            return Current();
+                        }
+
+                        foreach (var item in sessions.Sessions)
+                        {
+                            await output.WriteLineAsync(
+                                    $"{item.SessionId}  {item.Mode}  {item.Status}  {item.UpdatedAt:O}")
+                                .ConfigureAwait(false);
+                        }
+
+                        return Current();
+                    }
+
+                    var resumeSnapshot = await runtime.GetSessionSnapshotAsync(argument, ct)
+                        .ConfigureAwait(false);
+                    if (resumeSnapshot is null)
+                    {
+                        await error.WriteLineAsync($"Session '{argument}' was not found.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    if (resumeSnapshot.Mode != mode)
+                    {
+                        await error.WriteLineAsync(
+                                $"Session '{argument}' uses {resumeSnapshot.Mode} mode; the current REPL uses {mode} mode.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    var savedSelection = await runtime.GetSessionSelectionAsync(argument, ct)
+                        .ConfigureAwait(false);
+                    if (savedSelection is null
+                        || !TryResolveSelection(
+                            config,
+                            agents,
+                            savedSelection.DefaultSelection.ProviderId,
+                            savedSelection.DefaultSelection.ModelId,
+                            GetPrimaryAgentId(savedSelection.ModeOptions),
+                            out var resumedSelection))
+                    {
+                        await error.WriteLineAsync(
+                                $"Session '{argument}' references an Agent, Provider, or model that is not available locally.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    await output.WriteLineAsync($"Resumed Session: {argument}")
+                        .ConfigureAwait(false);
+                    return new ReplCommandResult(
+                        argument,
+                        resumedSelection,
+                        resumeSnapshot.SelectionVersion ?? savedSelection.SelectionVersion,
+                        ExitCode: null);
+
+                case "/COMPACT":
+                    if (argument is not null)
+                    {
+                        await error.WriteLineAsync("Usage: /compact").ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    if (sessionId is null)
+                    {
+                        await error.WriteLineAsync("No active Session. Submit a turn before using /compact.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    var compaction = await runtime.CompactSessionAsync(
+                            sessionId,
+                            new SessionCompactionOptions(),
+                            ct)
+                        .ConfigureAwait(false);
+                    if (compaction is null)
+                    {
+                        await error.WriteLineAsync($"Session '{sessionId}' was not found.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    await output.WriteLineAsync(
+                            $"Compacted Session: {compaction.SessionId} ({compaction.Strategy})")
+                        .ConfigureAwait(false);
+                    await output.WriteLineAsync(
+                            $"Messages: {compaction.SourceMessageCount} -> {compaction.ProjectedMessageCount}")
+                        .ConfigureAwait(false);
+                    await output.WriteLineAsync(
+                            $"Estimated tokens: {compaction.BeforeEstimatedTokens} -> {compaction.AfterEstimatedTokens}")
+                        .ConfigureAwait(false);
+                    return Current();
+
+                case "/CONTEXT":
+                    if (argument is not null)
+                    {
+                        await error.WriteLineAsync("Usage: /context").ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    if (sessionId is null)
+                    {
+                        await output.WriteLineAsync("CanonicalHistory: 0 messages | about 0 tokens")
+                            .ConfigureAwait(false);
+                        await output.WriteLineAsync("ContextProjection: 0 messages | about 0 tokens (full)")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    var contextStatus = await runtime.GetSessionContextStatusAsync(sessionId, ct)
+                        .ConfigureAwait(false);
+                    if (contextStatus is null)
+                    {
+                        await error.WriteLineAsync($"Session '{sessionId}' was not found.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    await output.WriteLineAsync(
+                            $"CanonicalHistory: {contextStatus.CanonicalMessageCount} messages | " +
+                            $"about {contextStatus.CanonicalEstimatedTokens} tokens")
+                        .ConfigureAwait(false);
+                    await output.WriteLineAsync(
+                            $"ContextProjection: {contextStatus.ProjectionMessageCount} messages | " +
+                            $"about {contextStatus.ProjectionEstimatedTokens} tokens " +
+                            $"({contextStatus.ProjectionStrategy})")
+                        .ConfigureAwait(false);
+                    return Current();
+
+                case "/EXPORT":
+                    if (sessionId is null)
+                    {
+                        await error.WriteLineAsync("No active Session. Submit a turn before using /export.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    var exportSnapshot = await runtime.GetSessionSnapshotAsync(sessionId, ct)
+                        .ConfigureAwait(false);
+                    if (exportSnapshot is null)
+                    {
+                        await error.WriteLineAsync($"Session '{sessionId}' was not found.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    var exportRecords = await runtime.ReadSessionHistoryAsync(sessionId, ct)
+                        .ConfigureAwait(false);
+                    if (argument is null)
+                    {
+                        await SessionExportWriter.WriteAsync(
+                                output,
+                                exportSnapshot,
+                                exportRecords,
+                                SessionExportFormat.Markdown,
+                                includeReasoning: false,
+                                includeToolCalls: false,
+                                ct)
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    await using (var exportFile = AtomicOutputFile.Create(argument))
+                    {
+                        await SessionExportWriter.WriteAsync(
+                                exportFile.Writer,
+                                exportSnapshot,
+                                exportRecords,
+                                SessionExportFormat.Markdown,
+                                includeReasoning: false,
+                                includeToolCalls: false,
+                                ct)
+                            .ConfigureAwait(false);
+                        await exportFile.CommitAsync(ct).ConfigureAwait(false);
+                    }
+
+                    await output.WriteLineAsync($"Exported Session: {Path.GetFullPath(argument)}")
+                        .ConfigureAwait(false);
+                    return Current();
+
+                case "/HISTORY":
+                    if (sessionId is null)
+                    {
+                        await output.WriteLineAsync("No messages in the current Session.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    var includeAllHistory = argument?.Equals("all", StringComparison.OrdinalIgnoreCase) == true;
+                    var historyCount = 5;
+                    if (argument is not null
+                        && !includeAllHistory
+                        && (!int.TryParse(argument, out historyCount) || historyCount <= 0))
+                    {
+                        await error.WriteLineAsync("Usage: /history [positive-count|all]")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    var historySnapshot = await runtime.GetSessionSnapshotAsync(sessionId, ct)
+                        .ConfigureAwait(false);
+                    if (historySnapshot is null)
+                    {
+                        await error.WriteLineAsync($"Session '{sessionId}' was not found.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    var historyRecords = await runtime.ReadSessionHistoryAsync(sessionId, ct)
+                        .ConfigureAwait(false);
+                    var visibleHistory = includeAllHistory
+                        ? historyRecords
+                        : historyRecords.TakeLast(historyCount).ToArray();
+                    await SessionExportWriter.WriteAsync(
+                            output,
+                            historySnapshot,
+                            visibleHistory,
+                            SessionExportFormat.Text,
+                            includeReasoning: false,
+                            includeToolCalls: false,
+                            ct)
+                        .ConfigureAwait(false);
+                    return Current();
+
+                case "/CLEAR":
+                    if (argument is not null)
+                    {
+                        await error.WriteLineAsync("Usage: /clear").ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    terminal.Clear();
+                    return Current();
+
+                case "/STATUS":
+                    if (argument is not null)
+                    {
+                        await error.WriteLineAsync("Usage: /status").ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    var runtimeStatus = runtime.GetStatus();
+                    await output.WriteLineAsync($"Runtime: {runtimeStatus.RuntimeInstanceId}")
+                        .ConfigureAwait(false);
+                    await output.WriteLineAsync($"Workspace: {runtimeStatus.WorkspaceRoot}")
+                        .ConfigureAwait(false);
+                    await output.WriteLineAsync($"Active runs: {runtimeStatus.ActiveRunCount}")
+                        .ConfigureAwait(false);
+                    await output.WriteLineAsync($"Managed memory: {runtimeStatus.ManagedMemoryBytes} bytes")
+                        .ConfigureAwait(false);
+                    await output.WriteLineAsync($"Tools: {runtimeStatus.ToolCount}")
+                        .ConfigureAwait(false);
+                    return Current();
+
+                case "/TOOLS":
+                    if (argument is not null)
+                    {
+                        await error.WriteLineAsync("Usage: /tools").ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    foreach (var tool in runtime.GetToolCatalogSnapshot().Tools)
+                    {
+                        var access = tool.ToolId switch
+                        {
+                            "builtin.memory.read" => "read-only",
+                            "builtin.memory.append" => "approval required",
+                            _ when tool.RequiresApproval => "approval required",
+                            _ => tool.Risk.ToString()
+                        };
+                        await output.WriteLineAsync($"{tool.ToolId} [{access}]")
+                            .ConfigureAwait(false);
+                    }
+
+                    return Current();
+
+                case "/HELP":
+                    var help = GetReplHelp(argument);
+                    if (help is null)
+                    {
+                        await error.WriteLineAsync(
+                                $"Unknown REPL help topic '{argument}'. Use /help to list commands.")
+                            .ConfigureAwait(false);
+                        return Current();
+                    }
+
+                    await output.WriteLineAsync(help).ConfigureAwait(false);
+                    return Current();
+
+                case "/MEMORY":
+                case "/REMEMBER":
+                    return null;
+
+                default:
+                    await error.WriteLineAsync(
+                            $"Unknown REPL command '{commandName}'. Use /help to list commands.")
+                        .ConfigureAwait(false);
+                    return Current();
+            }
+        }
+        catch (Exception ex) when (ex is ArgumentException
+            or InvalidDataException
+            or InvalidOperationException
+            or IOException
+            or KeyNotFoundException
+            or NotSupportedException
+            or TimeoutException
+            or UnauthorizedAccessException)
+        {
+            await error.WriteLineAsync($"REPL command failed: {RedactSecrets(ex.Message, config)}")
+                .ConfigureAwait(false);
+            return Current();
+        }
+    }
+
+    private static string? GetReplHelp(string? topic)
+    {
+        if (topic is null)
+        {
+            return "/model /provider /agent /memory /remember /mode /compact /context /session " +
+                "/new /resume /export /tools /history /clear /status /help /exit /quit";
+        }
+
+        return topic.TrimStart('/').ToUpperInvariant() switch
+        {
+            "MODEL" => "/model [modelId] - select or update the next-turn model.",
+            "PROVIDER" => "/provider [providerId] - show or update the next-turn Provider.",
+            "AGENT" => "/agent [agentId] - show or update the next-turn Agent.",
+            "MEMORY" => "/memory [global|project|effective] - show memory content and sources.",
+            "REMEMBER" => "/remember <global|project> - append one item after interactive approval.",
+            "MODE" => "/mode - show the immutable mode of the current REPL Session.",
+            "COMPACT" => "/compact - create or refresh the current Session context summary.",
+            "CONTEXT" => "/context - show CanonicalHistory and effective ContextProjection statistics.",
+            "SESSION" => "/session - show the current Session and next-turn selection.",
+            "NEW" => "/new - start a new Session on the next submitted turn.",
+            "RESUME" => "/resume [sessionId] - list resumable Sessions or switch to one.",
+            "EXPORT" => "/export [path] - write the current Session as Markdown.",
+            "TOOLS" => "/tools - show tools and their permission state.",
+            "HISTORY" => "/history [positive-count|all] - show recent canonical messages.",
+            "CLEAR" => "/clear - clear an attached interactive console without deleting history.",
+            "STATUS" => "/status - show Runtime, workspace, activity, memory, and tool counts.",
+            "HELP" => "/help [command] - show the command list or detailed command help.",
+            "EXIT" or "QUIT" => "/exit or /quit - save the current Session and leave the REPL.",
+            _ => null
+        };
+    }
+
+    private static async Task<ReplCommandResult> UpdateReplSelectionAsync(
+        LocalRuntime runtime,
+        TextWriter output,
+        string? sessionId,
+        RuntimeMode mode,
+        StandaloneSelection selection,
+        int selectionVersion,
+        IReadOnlyList<AgentConfig> agents,
+        StandaloneConfig config,
+        CancellationToken ct)
+    {
+        var nextVersion = selectionVersion;
+        if (sessionId is not null)
+        {
+            nextVersion = checked(selectionVersion + 1);
+            await runtime.UpdateSessionSelectionAsync(
+                    sessionId,
+                    selectionVersion,
+                    BuildNextTurnSelection(
+                        mode,
+                        selection,
+                        config,
+                        agents,
+                        nextVersion),
+                    ct)
+                .ConfigureAwait(false);
+        }
+
+        await output.WriteLineAsync(
+                $"Next turn: {selection.Provider.Name}/{selection.Model} ({selection.Agent.Id})")
+            .ConfigureAwait(false);
+        return new ReplCommandResult(sessionId, selection, nextVersion, ExitCode: null);
+    }
+
+    private static string? GetPrimaryAgentId(ModeOptions modeOptions) => modeOptions switch
+    {
+        ExpertModeOptions expert => expert.Agent.AgentId,
+        MeetingModeOptions meeting => meeting.Participants
+            .OrderBy(static participant => participant.JoinOrder)
+            .Select(static participant => participant.Agent.AgentId)
+            .FirstOrDefault(),
+        WorkModeOptions work => work.GeneralManager.AgentId,
+        _ => null
+    };
 
     private static async Task<bool> TryHandleMemoryReplCommandAsync(
         string command,
@@ -549,76 +1541,53 @@ internal static class ServiceCommands
         }
     }
 
-    private static async Task<LocalRunResult> ExecuteOneRunAsync(
+    private static async Task<RunOutputResult> ExecuteOneRunAsync(
         IAsyncEnumerable<RuntimeEventEnvelope> events,
-        TextWriter output,
-        StandaloneConfig config,
+        RunOutputWriter output,
         CancellationToken ct)
     {
-        string? sessionId = null;
         try
         {
             await foreach (var envelope in events.WithCancellation(ct).ConfigureAwait(false))
             {
-                switch (envelope.MessageType)
+                var result = await output.WriteEventAsync(envelope, ct).ConfigureAwait(false);
+                if (result is not null)
                 {
-                    case MessageTypes.RunAccepted:
-                        var accepted = envelope.Payload.Deserialize(
-                            RuntimeJsonContext.Default.RunAcceptedEvent);
-                        sessionId = accepted?.SessionId ?? sessionId;
-                        break;
-
-                    case MessageTypes.TextDelta:
-                        var delta = envelope.Payload.Deserialize(RuntimeJsonContext.Default.TextDeltaEvent);
-                        if (delta is not null)
-                        {
-                            await output.WriteAsync(delta.Delta).ConfigureAwait(false);
-                            await output.FlushAsync(ct).ConfigureAwait(false);
-                        }
-
-                        break;
-
-                    case MessageTypes.RunCompleted:
-                        await output.WriteLineAsync().ConfigureAwait(false);
-                        return new LocalRunResult(ExitCodes.Success, sessionId);
-
-                    case MessageTypes.RunFailed:
-                        await output.WriteLineAsync().ConfigureAwait(false);
-                        var failed = envelope.Payload.Deserialize(RuntimeJsonContext.Default.RunFailedEvent);
-                        await output.WriteLineAsync(
-                                $"Run failed: {RedactSecrets(failed?.Error?.Message ?? "unknown error", config)}")
-                            .ConfigureAwait(false);
-                        return new LocalRunResult(ExitCodes.GeneralError, sessionId);
-
-                    case MessageTypes.RunCancelled:
-                        await output.WriteLineAsync().ConfigureAwait(false);
-                        await output.WriteLineAsync("Run cancelled.").ConfigureAwait(false);
-                        return new LocalRunResult(ExitCodes.UserInterrupted, sessionId);
+                    return result;
                 }
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            await output.WriteLineAsync("Run cancelled.").ConfigureAwait(false);
-            return new LocalRunResult(ExitCodes.UserInterrupted, sessionId);
+            return await output.WriteExceptionAsync(
+                    new OperationCanceledException(ct),
+                    ExitCodes.UserInterrupted,
+                    CancellationToken.None)
+                .ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            await output.WriteLineAsync(
-                    $"Run failed: {RedactSecrets(ex.Message, config)}")
+            return await output.WriteExceptionAsync(ex, ExitCodes.GeneralError, CancellationToken.None)
                 .ConfigureAwait(false);
-            return new LocalRunResult(ExitCodes.GeneralError, sessionId);
         }
 
-        return new LocalRunResult(ExitCodes.GeneralError, sessionId);
+        return await output.WriteUnexpectedEndAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
     private static NewSessionRunRequest BuildNewRunRequest(
         string userInput,
         RuntimeMode mode,
-        StandaloneSelection selection)
+        StandaloneSelection selection,
+        StandaloneConfig config,
+        IReadOnlyList<AgentConfig> agents,
+        int selectionVersion = 1)
     {
-        var nextTurn = BuildNextTurnSelection(mode, selection);
+        var nextTurn = BuildNextTurnSelection(
+            mode,
+            selection,
+            config,
+            agents,
+            selectionVersion);
         return new NewSessionRunRequest(
             SessionIdempotencyKey: Guid.NewGuid().ToString("N"),
             RunIdempotencyKey: Guid.NewGuid().ToString("N"),
@@ -631,31 +1600,81 @@ internal static class ServiceCommands
         string sessionId,
         string userInput,
         RuntimeMode mode,
-        StandaloneSelection selection) =>
+        StandaloneSelection selection,
+        StandaloneConfig config,
+        IReadOnlyList<AgentConfig> agents,
+        int selectionVersion = 1) =>
         new(
             sessionId,
             Guid.NewGuid().ToString("N"),
-            BuildNextTurnSelection(mode, selection),
+            BuildNextTurnSelection(mode, selection, config, agents, selectionVersion),
             [new TextContentBlock(userInput)]);
 
     private static NextTurnSelection BuildNextTurnSelection(
         RuntimeMode mode,
-        StandaloneSelection selection)
+        StandaloneSelection selection,
+        StandaloneConfig config,
+        IReadOnlyList<AgentConfig> agents,
+        int selectionVersion = 1)
     {
-        var agentRef = new AgentRef(
+        var selectedAgent = BuildAgentRef(selection);
+        var agentRefs = agents
+            .Select(agent => ResolveAgentSelection(config, agents, agent))
+            .Select(BuildAgentRef)
+            .ToArray();
+        ModeOptions modeOptions = mode switch
+        {
+            RuntimeMode.Expert => new ExpertModeOptions(selectedAgent),
+            RuntimeMode.Meeting => new MeetingModeOptions(
+                agentRefs.Select((agent, index) => new MeetingParticipant(
+                        $"cli-{agent.AgentId}",
+                        agent,
+                        agent.AgentId,
+                        JoinOrder: index))
+                    .ToArray()),
+            RuntimeMode.Work => new WorkModeOptions(
+                selectedAgent,
+                agentRefs.Where(agent => !agent.AgentId.Equals(
+                        selectedAgent.AgentId,
+                        StringComparison.Ordinal))
+                    .ToArray(),
+                WorkflowPolicy.Default),
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
+        };
+        return new NextTurnSelection(
+            selectionVersion,
+            mode,
+            new DefaultSelection(selection.Provider.Name, selection.Model),
+            modeOptions);
+    }
+
+    private static StandaloneSelection ResolveAgentSelection(
+        StandaloneConfig config,
+        IReadOnlyList<AgentConfig> agents,
+        AgentConfig agent)
+    {
+        if (TryResolveSelection(
+                config,
+                agents,
+                providerOverride: null,
+                modelOverride: null,
+                agent.Id,
+                out var selection))
+        {
+            return selection;
+        }
+
+        throw new InvalidOperationException(
+            $"Agent '{agent.Id}' has no valid Provider and model selection.");
+    }
+
+    private static AgentRef BuildAgentRef(StandaloneSelection selection) =>
+        new(
             selection.Agent.Id,
             PromptTemplateVersion: "1.0",
             selection.Agent.SystemPrompt,
             ProviderId: selection.Provider.Name,
             ModelId: selection.Model);
-        var defaultSel = new DefaultSelection(selection.Provider.Name, selection.Model);
-        var nextTurn = new NextTurnSelection(
-            SelectionVersion: 1,
-            mode,
-            defaultSel,
-            new ExpertModeOptions(agentRef));
-        return nextTurn;
-    }
 
     private static bool TryResolveSelection(
         StandaloneConfig config,
@@ -716,12 +1735,86 @@ internal static class ServiceCommands
         }
     }
 
+    private static bool TryResolveRunOutputFormat(
+        string? value,
+        bool jsonRequested,
+        out RunOutputFormat format,
+        out string error)
+    {
+        format = jsonRequested ? RunOutputFormat.Json : RunOutputFormat.Text;
+        error = string.Empty;
+        if (value is null)
+        {
+            return true;
+        }
+
+        switch (value.ToUpperInvariant())
+        {
+            case "TEXT":
+                format = RunOutputFormat.Text;
+                break;
+            case "JSON":
+                format = RunOutputFormat.Json;
+                break;
+            case "JSONL":
+                format = RunOutputFormat.JsonLines;
+                break;
+            default:
+                error = "--output-format must be text, json, or jsonl.";
+                return false;
+        }
+
+        if (jsonRequested && format is not RunOutputFormat.Json)
+        {
+            format = RunOutputFormat.Json;
+            error = "--json cannot be combined with a non-JSON --output-format value.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static async Task<string> ReadRunInputFileAsync(
+        string path,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var bytes = await File.ReadAllBytesAsync(Path.GetFullPath(path), ct).ConfigureAwait(false);
+        var offset = bytes is [0xEF, 0xBB, 0xBF, ..] ? 3 : 0;
+        return StrictUtf8.GetString(bytes.AsSpan(offset));
+    }
+
+    private static bool IsRunInputException(Exception exception) =>
+        exception is ArgumentException
+            or DecoderFallbackException
+            or IOException
+            or NotSupportedException
+            or UnauthorizedAccessException;
+
+    private static bool IsRunOutputException(Exception exception) =>
+        exception is ArgumentException
+            or IOException
+            or NotSupportedException
+            or UnauthorizedAccessException;
+
+    private sealed record ReplCommandResult(
+        string? SessionId,
+        StandaloneSelection Selection,
+        int SelectionVersion,
+        int? ExitCode);
+
+    private enum ReplInterruptState
+    {
+        Idle,
+        Running,
+        Cancelling,
+        Exiting
+    }
+
     private sealed record StandaloneSelection(
         ProviderEntry Provider,
         string Model,
         AgentConfig Agent);
-
-    private sealed record LocalRunResult(int ExitCode, string? SessionId);
 
     private static bool IsConfigurationException(Exception exception) =>
         exception is ArgumentException

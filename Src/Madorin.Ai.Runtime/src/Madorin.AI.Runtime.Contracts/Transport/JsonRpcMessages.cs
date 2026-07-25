@@ -22,4 +22,6 @@ public sealed record JsonRpcError(
     string Message,
     JsonElement? Data = null);
 
-public sealed record RunCancelParameters(string RunId);
+public sealed record RunCancelParameters(
+    string RunId,
+    string? Reason = null);

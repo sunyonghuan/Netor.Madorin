@@ -20,7 +20,12 @@ public sealed record ApprovalRequest(
     string ArgumentsHash,
     ToolRiskLevel Risk,
     string TargetSummary,
-    string Reason);
+    string Reason,
+    string? SessionId = null,
+    string? InvocationId = null,
+    string? ParentInvocationId = null,
+    string? WorkStepId = null,
+    string? PlanVersion = null);
 
 /// <summary>Returns the user decision and an optional narrowed grant.</summary>
 public sealed record ApprovalResponse(

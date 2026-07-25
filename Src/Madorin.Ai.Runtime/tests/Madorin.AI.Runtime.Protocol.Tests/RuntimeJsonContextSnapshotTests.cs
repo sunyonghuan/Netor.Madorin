@@ -317,7 +317,12 @@ public sealed class RuntimeJsonContextSnapshotTests
                 "arguments-hash",
                 "high",
                 "workspace",
-                "Read project file"),
+                "Read project file",
+                SessionId: "session-1",
+                InvocationId: "invocation-1",
+                ParentInvocationId: "parent-invocation-1",
+                WorkStepId: "step-1",
+                PlanVersion: "plan-v1"),
             RuntimeJsonContext.Default.ToolPermissionRequest);
     }
 

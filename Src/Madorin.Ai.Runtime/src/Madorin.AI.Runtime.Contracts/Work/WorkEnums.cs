@@ -24,6 +24,7 @@ public enum WorkSessionStatus
     Executing,
     Paused,
     WaitingForApproval,
+    WaitingForCredentials,
     Completed,
     Failed,
     Cancelled,
@@ -39,7 +40,8 @@ public enum WorkStepLifecycleStatus
     Failed,
     Interrupted,
     Skipped,
-    WaitingForApproval
+    WaitingForApproval,
+    WaitingForCredentials
 }
 
 /// <summary>Status of a work-mode background job.</summary>
