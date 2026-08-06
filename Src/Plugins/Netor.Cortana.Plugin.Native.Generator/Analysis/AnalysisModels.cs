@@ -332,6 +332,9 @@ internal sealed class ToolParamInfo
     /// <summary>原始方法参数名（代码中使用）。</summary>
     public string CodeParamName { get; }
 
+    /// <summary>参数缺失时传给方法的 C# 默认值表达式。</summary>
+    public string DefaultValueExpression { get; }
+
     public ToolParamInfo(
         string paramName,
         string jsonName,
@@ -339,7 +342,8 @@ internal sealed class ToolParamInfo
         bool required,
         string jsonType,
         ITypeSymbol typeSymbol,
-        string codeParamName)
+        string codeParamName,
+        string defaultValueExpression)
     {
         ParamName = paramName;
         JsonName = jsonName;
@@ -348,5 +352,6 @@ internal sealed class ToolParamInfo
         JsonType = jsonType;
         TypeSymbol = typeSymbol;
         CodeParamName = codeParamName;
+        DefaultValueExpression = defaultValueExpression;
     }
 }

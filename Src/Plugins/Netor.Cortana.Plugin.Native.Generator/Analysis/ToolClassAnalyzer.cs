@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 using Microsoft.CodeAnalysis;
@@ -250,6 +251,9 @@ internal static class ToolClassAnalyzer
             required = false;
         }
 
+        if (paramSymbol.HasExplicitDefaultValue)
+            required = false;
+
         var jsonName = TypeMapper.ToSnakeCase(paramName);
 
         return new ToolParamInfo(
@@ -259,7 +263,32 @@ internal static class ToolClassAnalyzer
             required: required,
             jsonType: jsonType,
             typeSymbol: paramSymbol.Type,
-            codeParamName: paramSymbol.Name);
+            codeParamName: paramSymbol.Name,
+            defaultValueExpression: GetDefaultValueExpression(paramSymbol));
+    }
+
+    private static string GetDefaultValueExpression(IParameterSymbol parameter)
+    {
+        if (!parameter.HasExplicitDefaultValue || parameter.ExplicitDefaultValue == null)
+            return "default";
+
+        var value = parameter.ExplicitDefaultValue;
+        if (value is string stringValue)
+            return Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(stringValue, quote: true);
+        if (value is bool boolValue)
+            return boolValue ? "true" : "false";
+        if (value is int intValue)
+            return intValue.ToString(CultureInfo.InvariantCulture);
+        if (value is long longValue)
+            return longValue.ToString(CultureInfo.InvariantCulture) + "L";
+        if (value is float floatValue)
+            return floatValue.ToString("R", CultureInfo.InvariantCulture) + "F";
+        if (value is double doubleValue)
+            return doubleValue.ToString("R", CultureInfo.InvariantCulture) + "D";
+        if (value is decimal decimalValue)
+            return decimalValue.ToString(CultureInfo.InvariantCulture) + "M";
+
+        return Convert.ToString(value, CultureInfo.InvariantCulture) ?? "default";
     }
 
     private static bool IsToolAttribute(AttributeData attribute)

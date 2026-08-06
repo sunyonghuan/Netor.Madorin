@@ -66,7 +66,11 @@ internal static class StartupEmitter
     {
         sb.AppendLine("    // 官方 DI 容器");
         sb.AppendLine("    private static global::Microsoft.Extensions.DependencyInjection.ServiceProvider? s_serviceProvider;");
+        sb.AppendLine("    private static string? s_dataDirectory;");
+        sb.AppendLine("    private static readonly object s_diagnosticLock = new();");
         sb.AppendLine();
+
+        EmitDiagnosticHelper(sb);
 
         // FormatError：手动拼接 JSON，避免跨 source-gen 依赖 JsonSerializerContext
         sb.AppendLine("    private static string FormatError(string error, string tool)");
@@ -82,6 +86,38 @@ internal static class StartupEmitter
         var bs = "\\\\";   // 生成的代码中的 \\
         var bsbs = bs + bs; // 生成的代码中的 \\\\
         sb.AppendLine($"        return s.Replace(\"{bs}\", \"{bsbs}\").Replace(\"{q}\", \"{bs}{q}\");");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+    }
+
+    private static void EmitDiagnosticHelper(StringBuilder sb)
+    {
+        sb.AppendLine("    private static void WriteRuntimeDiagnostic(string phase, global::System.Exception exception)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        var line = global::System.DateTime.UtcNow.ToString(\"O\") + \"|Error|NativeRuntime|\" + phase + \"|\" + exception;");
+        sb.AppendLine("        try");
+        sb.AppendLine("        {");
+        sb.AppendLine("            global::System.Console.Error.WriteLine(line);");
+        sb.AppendLine("        }");
+        sb.AppendLine("        catch");
+        sb.AppendLine("        {");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        if (global::System.String.IsNullOrWhiteSpace(s_dataDirectory)) return;");
+        sb.AppendLine("        try");
+        sb.AppendLine("        {");
+        sb.AppendLine("            lock (s_diagnosticLock)");
+        sb.AppendLine("            {");
+        sb.AppendLine("                var logDirectory = global::System.IO.Path.Combine(s_dataDirectory!, \"logs\");");
+        sb.AppendLine("                global::System.IO.Directory.CreateDirectory(logDirectory);");
+        sb.AppendLine("                var logFile = global::System.IO.Path.Combine(logDirectory, \"native-runtime.log\");");
+        sb.AppendLine("                global::System.IO.File.AppendAllText(logFile, line + global::System.Environment.NewLine);");
+        sb.AppendLine("            }");
+        sb.AppendLine("        }");
+        sb.AppendLine("        catch (global::System.Exception logException)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            try { global::System.Console.Error.WriteLine(\"Native runtime log write failed: \" + logException); } catch { }");
+        sb.AppendLine("        }");
         sb.AppendLine("    }");
         sb.AppendLine();
     }
@@ -147,13 +183,14 @@ internal static class StartupEmitter
         sb.AppendLine("    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(EntryPoint = \"cortana_plugin_init\")]");
         sb.AppendLine("    public static int Init(global::System.IntPtr configJsonPtr)");
         sb.AppendLine("    {");
+        sb.AppendLine("        var configJson = global::System.Runtime.InteropServices.Marshal.PtrToStringUTF8(configJsonPtr) ?? \"{}\";");
+        sb.AppendLine("        configJson = configJson.TrimStart('\\uFEFF');");
         sb.AppendLine("        try");
         sb.AppendLine("        {");
-        sb.AppendLine("            var configJson = global::System.Runtime.InteropServices.Marshal.PtrToStringUTF8(configJsonPtr) ?? \"{}\";");
-        sb.AppendLine();
         sb.AppendLine("            // 1. 创建 ServiceCollection 并注册内置服务");
         sb.AppendLine("            var services = new global::Microsoft.Extensions.DependencyInjection.ServiceCollection();");
         sb.AppendLine("            var settings = PluginSettings.FromJson(configJson);");
+        sb.AppendLine("            s_dataDirectory = settings.DataDirectory;");
         sb.AppendLine("            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton(services, settings);");
         sb.AppendLine();
         sb.AppendLine("            // 2. Generator 自动注册所有 [Tool] 标记的类");
@@ -175,13 +212,16 @@ internal static class StartupEmitter
         sb.AppendLine("            var hostedServices = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetServices<global::Microsoft.Extensions.Hosting.IHostedService>(s_serviceProvider);");
         sb.AppendLine("            foreach (var svc in hostedServices)");
         sb.AppendLine("            {");
-        sb.AppendLine("                _ = svc.StartAsync(global::System.Threading.CancellationToken.None);");
+        sb.AppendLine("                svc.StartAsync(global::System.Threading.CancellationToken.None).GetAwaiter().GetResult();");
         sb.AppendLine("            }");
         sb.AppendLine();
         sb.AppendLine("            return 1;");
         sb.AppendLine("        }");
-        sb.AppendLine("        catch");
+        sb.AppendLine("        catch (global::System.Exception ex)");
         sb.AppendLine("        {");
+        sb.AppendLine("            WriteRuntimeDiagnostic(\"init\", ex);");
+        sb.AppendLine("            try { s_serviceProvider?.Dispose(); } catch { }");
+        sb.AppendLine("            s_serviceProvider = null;");
         sb.AppendLine("            return 0;");
         sb.AppendLine("        }");
         sb.AppendLine("    }");
@@ -217,6 +257,7 @@ internal static class StartupEmitter
         sb.AppendLine("        }");
         sb.AppendLine("        catch (global::System.Exception ex)");
         sb.AppendLine("        {");
+        sb.AppendLine("            WriteRuntimeDiagnostic(\"invoke:\" + toolName, ex);");
         sb.AppendLine("            var error = FormatError(ex.Message, toolName);");
         sb.AppendLine("            return global::System.Runtime.InteropServices.Marshal.StringToCoTaskMemUTF8(error);");
         sb.AppendLine("        }");
@@ -272,11 +313,23 @@ internal static class StartupEmitter
 
             foreach (var param in method.Parameters)
             {
-                var parseExpr = TypeMapper.GetJsonParseExpression(
-                    param.TypeSymbol,
-                    $"doc.RootElement.GetProperty(\"{param.JsonName}\")");
-
-                sb.AppendLine($"            var {param.CodeParamName} = {parseExpr};");
+                if (param.Required)
+                {
+                    var parseExpr = TypeMapper.GetJsonParseExpression(
+                        param.TypeSymbol,
+                        $"doc.RootElement.GetProperty(\"{param.JsonName}\")");
+                    sb.AppendLine($"            var {param.CodeParamName} = {parseExpr};");
+                }
+                else
+                {
+                    var elementName = $"__{param.CodeParamName}Element";
+                    var parseExpr = TypeMapper.GetJsonParseExpression(param.TypeSymbol, elementName);
+                    var typeName = param.TypeSymbol.ToDisplayString(global::Microsoft.CodeAnalysis.SymbolDisplayFormat.FullyQualifiedFormat);
+                    sb.AppendLine($"            {typeName} {param.CodeParamName} = doc.RootElement.TryGetProperty(\"{param.JsonName}\", out var {elementName})");
+                    sb.AppendLine($"                && {elementName}.ValueKind != global::System.Text.Json.JsonValueKind.Null");
+                    sb.AppendLine($"                ? {parseExpr}");
+                    sb.AppendLine($"                : {param.DefaultValueExpression};");
+                }
             }
         }
 
@@ -327,6 +380,7 @@ internal static class StartupEmitter
         sb.AppendLine("        }");
         sb.AppendLine("        catch (global::System.Exception ex)");
         sb.AppendLine("        {");
+        sb.AppendLine($"            WriteRuntimeDiagnostic(\"invoke:{method.FullToolName}\", ex);");
         sb.AppendLine($"            return FormatError(ex.Message, \"{method.FullToolName}\");");
         sb.AppendLine("        }");
         sb.AppendLine("    }");
@@ -364,7 +418,14 @@ internal static class StartupEmitter
         sb.AppendLine("            var hostedServices = global::Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetServices<global::Microsoft.Extensions.Hosting.IHostedService>(s_serviceProvider);");
         sb.AppendLine("            foreach (var svc in hostedServices)");
         sb.AppendLine("            {");
-        sb.AppendLine("                try { svc.StopAsync(global::System.Threading.CancellationToken.None).GetAwaiter().GetResult(); } catch { }");
+        sb.AppendLine("                try");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    svc.StopAsync(global::System.Threading.CancellationToken.None).GetAwaiter().GetResult();");
+        sb.AppendLine("                }");
+        sb.AppendLine("                catch (global::System.Exception ex)");
+        sb.AppendLine("                {");
+        sb.AppendLine("                    WriteRuntimeDiagnostic(\"destroy\", ex);");
+        sb.AppendLine("                }");
         sb.AppendLine("            }");
         sb.AppendLine();
         sb.AppendLine("            // 2. Dispose ServiceProvider");
