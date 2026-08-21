@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 using Netor.Cortana.Entitys;
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 using Netor.EventHub;
 
 namespace Netor.Cortana.Networks.Tests.WebSockets;

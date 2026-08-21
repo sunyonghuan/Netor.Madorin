@@ -116,7 +116,7 @@
     <ProjectReference Include="..\Netor.Cortana.Entitys\Netor.Cortana.Entitys.csproj" />
     <ProjectReference Include="..\Netor.Cortana.AI\Netor.Cortana.AI.csproj" />
     <ProjectReference Include="..\Netor.Cortana.Voice\Netor.Cortana.Voice.csproj" />
-    <ProjectReference Include="..\Netor.Cortana.Plugin\Netor.Cortana.Plugin.csproj" />
+    <ProjectReference Include="..\Netor.Madorin.Plugin\Netor.Madorin.Plugin.csproj" />
     <ProjectReference Include="..\Netor.Cortana.Networks\Netor.Cortana.Networks.csproj" />
     <ProjectReference Include="..\Netor.Cortana.Store\Netor.Cortana.Store.csproj" />
   </ItemGroup>

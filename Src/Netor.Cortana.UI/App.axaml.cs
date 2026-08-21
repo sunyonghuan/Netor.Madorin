@@ -7,7 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
 using Netor.Cortana.Networks;
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 using Netor.Cortana.Store;
 using Netor.Cortana.Store.Abstractions;
 using Netor.Cortana.AI.Providers;
@@ -329,7 +329,7 @@ public partial class App : Application
             // 业务模块
             .AddCortanaVoice()
             .AddCortanaAI()
-            .AddCortanaPlugin()
+            .AddMadorinPlugin()
             .AddCortanaStore()
             .AddCortanaNetworks();
 

@@ -4,7 +4,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 
 namespace Netor.Cortana.UI.Views.Settings;
 

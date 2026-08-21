@@ -23,8 +23,8 @@ public static class NetworkServiceExtensions
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketEventRelayService>());
         services.AddSingleton<WebSocketPluginBusServerService>();
         services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<WebSocketPluginBusServerService>());
-        // PluginManifestRegistry 由 Netor.Cortana.Plugin/PluginServiceExtensions.AddCortanaPlugin 注册（v1.5 OQ1）；
-        // 这里不重复注册，宿主应用同时调用 AddCortanaPlugin + AddCortanaNetworks。
+        // PluginManifestRegistry 由 Netor.Madorin.Plugin/PluginServiceExtensions.AddMadorinPlugin 注册（v1.5 OQ1）；
+        // 这里不重复注册，宿主应用同时调用 AddMadorinPlugin + AddCortanaNetworks。
         services.AddSingleton<IChatTransport>(sp => sp.GetRequiredService<WebSocketPluginBusServerService>());
         services.AddSingleton<IPluginBusBroadcaster>(sp => sp.GetRequiredService<WebSocketPluginBusServerService>());
         services.AddSingleton<ILongMemorySupplyClient>(sp => sp.GetRequiredService<WebSocketPluginBusServerService>());

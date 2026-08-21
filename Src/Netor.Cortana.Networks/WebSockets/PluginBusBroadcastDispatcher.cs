@@ -4,7 +4,7 @@ using System.Text.Json;
 
 using Microsoft.Extensions.Logging;
 
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 
 namespace Netor.Cortana.Networks;
 

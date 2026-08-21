@@ -1,4 +1,4 @@
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 using Netor.Cortana.Store.Abstractions;
 
 namespace Netor.Cortana.UI;

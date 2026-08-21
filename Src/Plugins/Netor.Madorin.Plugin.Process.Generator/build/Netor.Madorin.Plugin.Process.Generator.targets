@@ -1,0 +1,56 @@
+<Project>
+
+  <!--
+    处理 Source Generator 通过 context.AddSource("plugin.json", ...) 生成的 plugin.json.cs。
+    Generator 输出的 JSON 每行以 // 前缀包裹（使其成为合法 C#），本 targets 负责：
+      1. 自动启用 EmitCompilerGeneratedFiles（让生成的文件落盘到 obj 目录）
+      2. 读取落盘的 plugin.json.cs → 去掉 // 前缀 → 写出 plugin.json 到输出/发布目录
+  -->
+
+  <PropertyGroup>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath Condition="'$(CompilerGeneratedFilesOutputPath)' == ''">$(IntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+
+  <UsingTask TaskName="_StripCommentsAndCopy" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <SourceFile ParameterType="System.String" Required="true" />
+      <DestFile ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        if (System.IO.File.Exists(SourceFile))
+        {
+            var lines = System.IO.File.ReadAllLines(SourceFile);
+            var sb = new System.Text.StringBuilder();
+            foreach (var line in lines)
+            {
+                if (line.StartsWith("//"))
+                    sb.AppendLine(line.Substring(2));
+                else if (line.TrimStart().StartsWith("//"))
+                    sb.AppendLine(line.TrimStart().Substring(2));
+                else if (!string.IsNullOrWhiteSpace(line))
+                    sb.AppendLine(line);
+            }
+            var dir = System.IO.Path.GetDirectoryName(DestFile);
+            if (!string.IsNullOrEmpty(dir))
+                System.IO.Directory.CreateDirectory(dir);
+            System.IO.File.WriteAllText(DestFile, sb.ToString().TrimEnd() + System.Environment.NewLine);
+        }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="_CopyProcessPluginJsonToOutput" AfterTargets="Build">
+    <_StripCommentsAndCopy
+      SourceFile="$(CompilerGeneratedFilesOutputPath)\Netor.Madorin.Plugin.Process.Generator\Netor.Madorin.Plugin.Process.Generator.ProcessPluginGenerator\plugin.json.cs"
+      DestFile="$(OutputPath)plugin.json" />
+  </Target>
+
+  <Target Name="_CopyProcessPluginJsonToPublish" AfterTargets="Publish">
+    <_StripCommentsAndCopy
+      SourceFile="$(CompilerGeneratedFilesOutputPath)\Netor.Madorin.Plugin.Process.Generator\Netor.Madorin.Plugin.Process.Generator.ProcessPluginGenerator\plugin.json.cs"
+      DestFile="$(PublishDir)plugin.json" />
+  </Target>
+
+</Project>

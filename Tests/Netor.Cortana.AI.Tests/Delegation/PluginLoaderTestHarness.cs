@@ -10,9 +10,9 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
 using Netor.Cortana.Entitys;
-using Netor.Cortana.Plugin;
-using Netor.Cortana.Plugin.Mcp;
-using Netor.Cortana.Plugin.Native;
+using Netor.Madorin.Plugin;
+using Netor.Madorin.Plugin.Mcp;
+using Netor.Madorin.Plugin.Native;
 
 namespace Netor.Cortana.AI.Tests.Delegation;
 

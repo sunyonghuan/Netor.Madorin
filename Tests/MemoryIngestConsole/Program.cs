@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Netor.Cortana.Plugin.Native;
+using Netor.Madorin.Plugin.Native;
 using Cortana.Plugins.Memory.Services;
 using Microsoft.Data.Sqlite;
 

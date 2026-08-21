@@ -4,7 +4,7 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 
 namespace Netor.Cortana.AI.Delegation;
 

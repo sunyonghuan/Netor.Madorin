@@ -11,7 +11,7 @@ using Netor.Cortana.AI.Delegation;
 using Netor.Cortana.AI.Drivers;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 using Netor.EventHub;
 
 namespace Netor.Cortana.AI.Tests.Delegation;

@@ -8,7 +8,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 
 using Netor.Cortana.Store.Abstractions;
-using Netor.Cortana.Plugin.Voice;
+using Netor.Madorin.Plugin.Voice;
 using Netor.Cortana.Voice;
 
 using System.Net;

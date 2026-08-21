@@ -4,7 +4,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Netor.Cortana.Entitys;
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 using Netor.Cortana.Store.Abstractions;
 using Netor.Cortana.Store.Models;
 using Netor.EventHub;

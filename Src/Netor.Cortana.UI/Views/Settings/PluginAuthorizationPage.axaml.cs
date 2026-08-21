@@ -7,8 +7,8 @@ using Avalonia.Threading;
 
 using Microsoft.Data.Sqlite;
 
-using Netor.Cortana.Plugin;
-using Netor.Cortana.Plugin.Mcp;
+using Netor.Madorin.Plugin;
+using Netor.Madorin.Plugin.Mcp;
 
 namespace Netor.Cortana.UI.Views.Settings;
 

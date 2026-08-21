@@ -10,9 +10,9 @@ using Netor.Cortana.AI.Drivers;
 using Netor.Cortana.AI.Handoff;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.Services;
-using Netor.Cortana.Plugin;
-using Netor.Cortana.Plugin.BuiltIn.FileBrowser;
-using Netor.Cortana.Plugin.BuiltIn.PowerShell;
+using Netor.Madorin.Plugin;
+using Netor.Madorin.Plugin.BuiltIn.FileBrowser;
+using Netor.Madorin.Plugin.BuiltIn.PowerShell;
 using Netor.EventHub;
 
 namespace Netor.Cortana.AI.Tests.Delegation;

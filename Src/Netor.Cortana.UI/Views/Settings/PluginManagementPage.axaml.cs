@@ -5,8 +5,8 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 
-using Netor.Cortana.Plugin;
-using Netor.Cortana.Plugin.Mcp;
+using Netor.Madorin.Plugin;
+using Netor.Madorin.Plugin.Mcp;
 using Netor.Cortana.Store.Views;
 
 using System.Diagnostics;

@@ -31,7 +31,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Netor.Cortana.Entitys\Netor.Cortana.Entitys.csproj" />
-    <ProjectReference Include="..\Netor.Cortana.Plugin\Netor.Cortana.Plugin.csproj" />
+    <ProjectReference Include="..\Netor.Madorin.Plugin\Netor.Madorin.Plugin.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Netor.Cortana.Entitys.Services;
-using Netor.Cortana.Plugin;
-using Netor.Cortana.Plugin.Voice;
+using Netor.Madorin.Plugin;
+using Netor.Madorin.Plugin.Voice;
 
 namespace Netor.Cortana.Voice;
 

@@ -49,7 +49,7 @@ global using ISubscriber = Netor.EventHub.ISubscriber;
 
 #region Plugin
 
-global using Netor.Cortana.Plugin.Mcp;
+global using Netor.Madorin.Plugin.Mcp;
 
 #endregion
 

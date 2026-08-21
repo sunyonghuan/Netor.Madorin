@@ -12,7 +12,7 @@ using Netor.Cortana.AI.Providers;
 using Netor.Cortana.Entitys;
 using Netor.Cortana.Entitys.ModelCapability;
 using Netor.Cortana.Entitys.Services;
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 using Netor.EventHub;
 
 namespace Netor.Cortana.Networks.Tests.WebSockets;

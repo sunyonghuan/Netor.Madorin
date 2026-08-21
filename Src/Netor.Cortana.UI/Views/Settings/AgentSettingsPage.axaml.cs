@@ -4,7 +4,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 
 namespace Netor.Cortana.UI.Views.Settings;
 

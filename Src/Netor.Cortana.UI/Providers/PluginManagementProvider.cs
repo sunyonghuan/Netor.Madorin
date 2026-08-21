@@ -1,4 +1,4 @@
-using Netor.Cortana.Plugin;
+using Netor.Madorin.Plugin;
 
 using System.Text;
 
