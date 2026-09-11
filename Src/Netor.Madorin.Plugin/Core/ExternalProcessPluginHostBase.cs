@@ -94,15 +94,26 @@ public abstract class ExternalProcessPluginHostBase : IDisposable
             await _writer!.WriteLineAsync(json.AsMemory(), cancellationToken);
             await _writer.FlushAsync(cancellationToken);
 
-            var responseLine = await ReadLineWithTimeoutAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            var responseLine = await ReadLineWithTimeoutAsync(cancellationToken);
 
             if (responseLine is null)
+            {
+                // 超时后子进程仍可能写出响应行；不杀进程会导致下次 SendRequest 串号。
+                _logger.LogWarning("插件子进程无响应，终止进程以免管道串号：{Id}", Manifest.Id);
+                KillProcess();
                 return new NativeHostResponse { Success = false, Error = "插件子进程无响应或已退出" };
+            }
 
             var response = JsonSerializer.Deserialize(responseLine, NativePluginJsonContext.Default.NativeHostResponse);
             return response ?? new NativeHostResponse { Success = false, Error = "响应反序列化失败" };
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("插件请求已取消，终止子进程以免响应串号：{Id}", Manifest.Id);
+            KillProcess();
+            throw;
+        }
+        catch (Exception ex)
         {
             _logger.LogError(ex, "与插件子进程通信失败");
             return new NativeHostResponse { Success = false, Error = ex.Message };
@@ -238,20 +249,26 @@ public abstract class ExternalProcessPluginHostBase : IDisposable
             info.Id, info.Name, info.Version, wrapper.Tools.Count);
     }
 
-    private async Task<string?> ReadLineWithTimeoutAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    /// <summary>测试可直接拉起子进程，绕过 get_info/init。</summary>
+    protected void StartAttachedProcess() => StartProcess(CreateProcessStartInfo());
+
+    private async Task<string?> ReadLineWithTimeoutAsync(CancellationToken cancellationToken)
     {
         if (_reader is null) return null;
 
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        cts.CancelAfter(timeout);
+        if (cancellationToken.CanBeCanceled)
+        {
+            return await _reader.ReadLineAsync(cancellationToken);
+        }
 
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         try
         {
             return await _reader.ReadLineAsync(cts.Token);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
-            _logger.LogWarning("插件子进程响应超时（{Timeout}s）", timeout.TotalSeconds);
+            _logger.LogWarning("插件子进程响应超时（30s）");
             return null;
         }
     }
