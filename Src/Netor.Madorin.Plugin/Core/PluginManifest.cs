@@ -52,6 +52,18 @@ public sealed record PluginManifest
     [JsonPropertyName("description")]
     public string? Description { get; init; }
 
+    /// <summary>插件分类，例如 file-system / database / development。工具未覆盖时继承此值。</summary>
+    [JsonPropertyName("category")]
+    public string? Category { get; init; }
+
+    /// <summary>插件默认风险级别。工具未覆盖时继承此值。</summary>
+    [JsonPropertyName("riskLevel")]
+    public ToolRiskLevel? RiskLevel { get; init; }
+
+    /// <summary>插件默认是否幂等。工具未覆盖时继承此值。</summary>
+    [JsonPropertyName("idempotent")]
+    public bool? Idempotent { get; init; }
+
     /// <summary>运行时模式：dotnet / native / process。</summary>
     [JsonPropertyName("runtime")]
     public PluginRuntime Runtime { get; init; }
@@ -64,9 +76,17 @@ public sealed record PluginManifest
     [JsonPropertyName("abstractionsVersion")]
     public string? AbstractionsVersion { get; init; }
 
-    /// <summary>分类标签，用于向旧版插件兼容地声明能力。</summary>
+    /// <summary>分类标签，用于向旧版插件兼容地声明能力。工具未覆盖时继承此值。</summary>
     [JsonPropertyName("tags")]
     public IReadOnlyList<string> Tags { get; init; } = [];
+
+    /// <summary>搜索关键词。按插件功能和用途填写，工具未覆盖时继承此值。</summary>
+    [JsonPropertyName("searchHints")]
+    public IReadOnlyList<string> SearchHints { get; init; } = [];
+
+    /// <summary>插件导出的工具清单。未写分类字段的工具继承插件级默认值。</summary>
+    [JsonPropertyName("tools")]
+    public IReadOnlyList<PluginToolDescriptor> Tools { get; init; } = [];
 
     /// <summary>插件能力 ID 列表，例如 voice.kws / voice.stt / voice.tts。</summary>
     [JsonPropertyName("capabilities")]
@@ -98,6 +118,8 @@ public sealed record PluginManifest
     public PluginManifest Normalize() => this with
     {
         Tags = Tags ?? [],
+        SearchHints = SearchHints ?? [],
+        Tools = NormalizeTools(Tools),
         Capabilities = Capabilities ?? [],
         ProvidedCapabilities = ProvidedCapabilities ?? [],
         RequiredHostCapabilities = RequiredHostCapabilities ?? [],
@@ -164,6 +186,28 @@ public sealed record PluginManifest
 
         error = string.Empty;
         return true;
+    }
+
+    private static IReadOnlyList<PluginToolDescriptor> NormalizeTools(
+        IReadOnlyList<PluginToolDescriptor>? tools)
+    {
+        if (tools is null || tools.Count == 0)
+        {
+            return [];
+        }
+
+        var normalized = new List<PluginToolDescriptor>(tools.Count);
+        foreach (var tool in tools)
+        {
+            if (tool is null)
+            {
+                continue;
+            }
+
+            normalized.Add(tool.Normalize());
+        }
+
+        return normalized;
     }
 
     private static IReadOnlyList<PluginSettingDescriptor> NormalizeSettingsSchema(
@@ -297,5 +341,51 @@ public sealed record PluginSettingDescriptor
         Type = string.IsNullOrWhiteSpace(Type) ? "string" : Type,
         Scope = Scope ?? [],
         Options = Options ?? []
+    };
+}
+
+/// <summary>
+/// plugin.json 中的单个工具声明。未写出的分类字段表示继承插件级默认值。
+/// </summary>
+public sealed record PluginToolDescriptor
+{
+    /// <summary>工具名（snake_case 短名）。</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>工具描述。</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; init; }
+
+    /// <summary>一层 JSON Schema，描述工具入参。</summary>
+    [JsonPropertyName("inputSchema")]
+    public JsonElement? InputSchema { get; init; }
+
+    /// <summary>覆盖插件级分类。缺省表示继承。</summary>
+    [JsonPropertyName("category")]
+    public string? Category { get; init; }
+
+    /// <summary>覆盖插件级风险级别。缺省表示继承。</summary>
+    [JsonPropertyName("riskLevel")]
+    public ToolRiskLevel? RiskLevel { get; init; }
+
+    /// <summary>覆盖插件级幂等声明。缺省表示继承。</summary>
+    [JsonPropertyName("idempotent")]
+    public bool? Idempotent { get; init; }
+
+    /// <summary>覆盖插件级标签。缺省表示继承。</summary>
+    [JsonPropertyName("tags")]
+    public IReadOnlyList<string>? Tags { get; init; }
+
+    /// <summary>覆盖插件级搜索关键词。缺省表示继承。</summary>
+    [JsonPropertyName("searchHints")]
+    public IReadOnlyList<string>? SearchHints { get; init; }
+
+    /// <summary>
+    /// 规范化可选集合字段。null 仍表示继承，不改写成空数组。
+    /// </summary>
+    public PluginToolDescriptor Normalize() => this with
+    {
+        Name = Name ?? string.Empty
     };
 }

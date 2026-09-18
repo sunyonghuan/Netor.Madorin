@@ -88,6 +88,67 @@ internal static class StartupEmitter
         sb.AppendLine($"        return s.Replace(\"{bs}\", \"{bsbs}\").Replace(\"{q}\", \"{bs}{q}\");");
         sb.AppendLine("    }");
         sb.AppendLine();
+        EmitArgumentHelpers(sb);
+    }
+
+    /// <summary>
+    /// 生成参数读取辅助方法：禁止 GetProperty，避免缺键时抛出 KeyNotFoundException。
+    /// </summary>
+    private static void EmitArgumentHelpers(StringBuilder sb)
+    {
+        sb.AppendLine("    private static string NormalizeArgsJson(string argsJson)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        if (string.IsNullOrWhiteSpace(argsJson)) return \"{}\";");
+        sb.AppendLine("        try");
+        sb.AppendLine("        {");
+        sb.AppendLine("            using var doc = global::System.Text.Json.JsonDocument.Parse(argsJson);");
+        sb.AppendLine("            var root = doc.RootElement;");
+        sb.AppendLine("            if (root.ValueKind == global::System.Text.Json.JsonValueKind.String)");
+        sb.AppendLine("                return root.GetString() is { Length: > 0 } inner ? inner : \"{}\";");
+        sb.AppendLine("            if (root.ValueKind == global::System.Text.Json.JsonValueKind.Object");
+        sb.AppendLine("                && (root.TryGetProperty(\"argsJson\", out var nested) || root.TryGetProperty(\"args_json\", out nested)))");
+        sb.AppendLine("            {");
+        sb.AppendLine("                if (nested.ValueKind == global::System.Text.Json.JsonValueKind.String)");
+        sb.AppendLine("                    return nested.GetString() ?? \"{}\";");
+        sb.AppendLine("                if (nested.ValueKind == global::System.Text.Json.JsonValueKind.Object)");
+        sb.AppendLine("                    return nested.GetRawText();");
+        sb.AppendLine("            }");
+        sb.AppendLine("            return argsJson;");
+        sb.AppendLine("        }");
+        sb.AppendLine("        catch { return \"{}\"; }");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    private static bool TryReadProperty(global::System.Text.Json.JsonElement root, string snake, string camel, out global::System.Text.Json.JsonElement value)");
+        sb.AppendLine("    {");
+        sb.AppendLine("        value = default;");
+        sb.AppendLine("        if (root.ValueKind != global::System.Text.Json.JsonValueKind.Object) return false;");
+        sb.AppendLine("        if (root.TryGetProperty(snake, out value)) return true;");
+        sb.AppendLine("        if (!string.IsNullOrEmpty(camel) && root.TryGetProperty(camel, out value)) return true;");
+        sb.AppendLine("        foreach (var property in root.EnumerateObject())");
+        sb.AppendLine("        {");
+        sb.AppendLine("            if (string.Equals(property.Name, snake, global::System.StringComparison.OrdinalIgnoreCase)");
+        sb.AppendLine("                || string.Equals(property.Name, camel, global::System.StringComparison.OrdinalIgnoreCase))");
+        sb.AppendLine("            {");
+        sb.AppendLine("                value = property.Value;");
+        sb.AppendLine("                return true;");
+        sb.AppendLine("            }");
+        sb.AppendLine("        }");
+        sb.AppendLine("        return false;");
+        sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine("    private static string ReadString(global::System.Text.Json.JsonElement el)");
+        sb.AppendLine("        => el.ValueKind == global::System.Text.Json.JsonValueKind.String ? el.GetString() ?? \"\" : (el.ValueKind is global::System.Text.Json.JsonValueKind.Null or global::System.Text.Json.JsonValueKind.Undefined ? \"\" : el.GetRawText());");
+        sb.AppendLine("    private static int ReadInt32(global::System.Text.Json.JsonElement el)");
+        sb.AppendLine("    { if (el.ValueKind == global::System.Text.Json.JsonValueKind.Number && el.TryGetInt32(out var n)) return n; if (el.ValueKind == global::System.Text.Json.JsonValueKind.String && int.TryParse(el.GetString(), out n)) return n; return 0; }");
+        sb.AppendLine("    private static long ReadInt64(global::System.Text.Json.JsonElement el)");
+        sb.AppendLine("    { if (el.ValueKind == global::System.Text.Json.JsonValueKind.Number && el.TryGetInt64(out var n)) return n; if (el.ValueKind == global::System.Text.Json.JsonValueKind.String && long.TryParse(el.GetString(), out n)) return n; return 0; }");
+        sb.AppendLine("    private static double ReadDouble(global::System.Text.Json.JsonElement el)");
+        sb.AppendLine("    { if (el.ValueKind == global::System.Text.Json.JsonValueKind.Number && el.TryGetDouble(out var n)) return n; if (el.ValueKind == global::System.Text.Json.JsonValueKind.String && double.TryParse(el.GetString(), out n)) return n; return 0; }");
+        sb.AppendLine("    private static decimal ReadDecimal(global::System.Text.Json.JsonElement el)");
+        sb.AppendLine("    { if (el.ValueKind == global::System.Text.Json.JsonValueKind.Number && el.TryGetDecimal(out var n)) return n; if (el.ValueKind == global::System.Text.Json.JsonValueKind.String && decimal.TryParse(el.GetString(), out n)) return n; return 0; }");
+        sb.AppendLine("    private static bool ReadBoolean(global::System.Text.Json.JsonElement el)");
+        sb.AppendLine("    { if (el.ValueKind is global::System.Text.Json.JsonValueKind.True or global::System.Text.Json.JsonValueKind.False) return el.GetBoolean(); if (el.ValueKind == global::System.Text.Json.JsonValueKind.String && bool.TryParse(el.GetString(), out var b)) return b; if (el.ValueKind == global::System.Text.Json.JsonValueKind.Number && el.TryGetInt32(out var n)) return n != 0; return false; }");
+        sb.AppendLine();
     }
 
     private static void EmitDiagnosticHelper(StringBuilder sb)
@@ -309,23 +370,22 @@ internal static class StartupEmitter
         // 参数解析
         if (method.Parameters.Count > 0)
         {
-            sb.AppendLine("            using var doc = global::System.Text.Json.JsonDocument.Parse(argsJson);");
+            sb.AppendLine("            using var doc = global::System.Text.Json.JsonDocument.Parse(NormalizeArgsJson(argsJson));");
 
             foreach (var param in method.Parameters)
             {
+                var elementName = $"__{param.CodeParamName}Element";
+                var parseExpr = TypeMapper.GetJsonParseExpression(param.TypeSymbol, elementName);
                 if (param.Required)
                 {
-                    var parseExpr = TypeMapper.GetJsonParseExpression(
-                        param.TypeSymbol,
-                        $"doc.RootElement.GetProperty(\"{param.JsonName}\")");
+                    sb.AppendLine($"            if (!TryReadProperty(doc.RootElement, \"{param.JsonName}\", \"{param.ParamName}\", out var {elementName}))");
+                    sb.AppendLine($"                return FormatError(\"缺少必填参数: {param.JsonName}\", \"{method.FullToolName}\");");
                     sb.AppendLine($"            var {param.CodeParamName} = {parseExpr};");
                 }
                 else
                 {
-                    var elementName = $"__{param.CodeParamName}Element";
-                    var parseExpr = TypeMapper.GetJsonParseExpression(param.TypeSymbol, elementName);
                     var typeName = param.TypeSymbol.ToDisplayString(global::Microsoft.CodeAnalysis.SymbolDisplayFormat.FullyQualifiedFormat);
-                    sb.AppendLine($"            {typeName} {param.CodeParamName} = doc.RootElement.TryGetProperty(\"{param.JsonName}\", out var {elementName})");
+                    sb.AppendLine($"            {typeName} {param.CodeParamName} = TryReadProperty(doc.RootElement, \"{param.JsonName}\", \"{param.ParamName}\", out var {elementName})");
                     sb.AppendLine($"                && {elementName}.ValueKind != global::System.Text.Json.JsonValueKind.Null");
                     sb.AppendLine($"                ? {parseExpr}");
                     sb.AppendLine($"                : {param.DefaultValueExpression};");

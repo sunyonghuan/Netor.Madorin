@@ -10,6 +10,7 @@ Madorin Process 通道插件开发框架的运行时库，负责宿主通信、�
 - `ToolInvoker` - 统一工具调用委托签名，供 Generator 生成的路由字典使用
 - `FileLogger` - 提供插件侧文件日志能力，便于定位运行时问题
 - `[RequiredHostCapability]` / `[PluginSetting]` - 声明宿主能力申请与设置界面 schema，由 Generator 输出到 `plugin.json` / `get_info`
+- `[Plugin]` / `[Tool]` / `ToolRiskLevel` - 插件级分类默认值与工具级覆盖，由 Generator 写入 `plugin.json` 的 `tools` 数组
 
 ## 安装
 

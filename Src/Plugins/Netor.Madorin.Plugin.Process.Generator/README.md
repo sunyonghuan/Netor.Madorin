@@ -7,7 +7,7 @@ Madorin Process 通道插件框架的 Roslyn Source Generator，负责根据标�
 - 扫描 `[Plugin]` 入口类和 `[Tool]` 工具类
 - 生成 `Program.g.cs`，补齐消息循环入口、工具路由和 DI 注册代码
 - 生成 `{PluginClass}Debugger.g.cs`，提供强类型调试辅助代码
-- 生成 `plugin.json` 清单内容，供宿主发现和加载插件
+- 生成 `plugin.json` 清单内容（含 `tools` 数组），构建/发布时复制到输出目录，供宿主发现和加载插件
 - 在编译期输出诊断，尽早发现插件声明、工具签名和命名冲突问题
 
 ## 安装

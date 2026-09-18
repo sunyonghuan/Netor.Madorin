@@ -4,10 +4,11 @@ Madorin 原生插件开发框架的**运行时库**，提供 Attribute 标记和
 
 ## 功能
 
-- **`[Plugin]`** — 标记插件入口类，声明插件 Id、名称、版本、描述等元数据
+- **`[Plugin]`** — 标记插件入口类，声明插件 Id、名称、版本、描述、分类、风险级别、搜索关键词等元数据
 - **`[RequiredHostCapability]`** — 声明插件希望宿主提供的能力申请，用于授权摘要和设置界面
 - **`[PluginSetting]`** — 声明插件设置项 schema，由宿主渲染配置界面并保存配置
-- **`[Tool]`** — 标记工具类和工具方法，声明工具名称和描述
+- **`[Tool]`** — 标记工具类和工具方法；分类字段默认继承 `[Plugin]`，个别工具可覆盖
+- **`ToolRiskLevel`** — 工具风险级别枚举（Low / SensitiveRead / Write / Destructive / Process / PowerShell / Network）
 - **`[Parameter]`** — 标记工具方法参数的描述信息和是否必填
 - **`PluginSettings`** — 插件运行时配置（目录、端口、扩展字段、插件总线端点等），由宿主注入
 

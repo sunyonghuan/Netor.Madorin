@@ -26,15 +26,22 @@ public static partial class Startup
 - `name`
 - `version`
 - `description`
+- `category`
+- `riskLevel`
+- `idempotent`
 - `tags`
+- `searchHints`
 - `capabilities`
 - `providedCapabilities`
 - `instructions`
+- `tools`
 
 说明：
 
 - `Capabilities` 表示“插件提供给宿主或模型可调用层”的能力声明。
 - 生成产物中会同时出现历史兼容字段 `capabilities` 和首选字段 `providedCapabilities`。
+- `Category` / `RiskLevel` / `Idempotent` / `Tags` / `SearchHints` 是插件级默认值，所有工具默认继承；个别工具可在 `[Tool]` 上覆盖。
+- 未写的可选字段不会出现在 `plugin.json` 里，不要为了“完整”去猜默认值。
 
 ## 2. 宿主能力申请
 
@@ -182,10 +189,98 @@ public sealed class WorkspaceTools(PluginSettings settings)
 - `Extensions` 用于宿主后续扩展参数传递；访问前先判断键是否存在。
 - Process 调试时必须先 `InitAsync()`，否则依赖 `PluginSettings` 的工具会因尚未注入而失败。
 
-## 5. AI 编码约束
+## 5. 工具清单 Tools
 
-- 不要手写 `plugin.json` 里的 `requiredHostCapabilities`、`settingsSchema`、`providedCapabilities`。
+AI 上下文里只能看到工具，看不到插件。因此 `plugin.json` 必须带 `tools` 数组；分类信息默认写在插件上，生成器在发布时写出标准清单。
+
+工具自身字段（每个工具都有）：
+
+- `name`：方法名转成的 snake_case 短名
+- `description`：`[Tool(Description = ...)]`
+- `inputSchema`：由参数生成的一层 JSON Schema（`type: object` + `properties`），不展开嵌套类型
+
+插件默认、工具可覆盖：
+
+- `category`
+- `riskLevel`
+- `idempotent`
+- `tags`
+- `searchHints`
+
+生效规则：工具显式值 → 插件默认值 → 未写则没有。
+
+覆盖是字段级的。清单里工具对象只写出被覆盖的字段，不要把插件默认值复制到每个 tool 上。
+
+```csharp
+[Plugin(
+    Id = "my_plugin",
+    Name = "My Plugin",
+    Version = "1.0.0",
+    Category = "development",
+    RiskLevel = ToolRiskLevel.Low,
+    Tags = ["development", "automation"],
+    SearchHints = ["build", "deploy"])]
+public static partial class Startup { }
+
+[Tool]
+public sealed class FileTools
+{
+    [Tool(Description = "Create a file")]
+    public string CreateFile(string path) => path;
+
+    [Tool(
+        Description = "Delete everything",
+        RiskLevel = ToolRiskLevel.Destructive,
+        SearchHints = ["delete", "remove", "cleanup"])]
+    public string DeleteAll() => "ok";
+}
+```
+
+对应 `plugin.json`：
+
+```json
+{
+  "id": "my_plugin",
+  "category": "development",
+  "riskLevel": "Low",
+  "tags": ["development", "automation"],
+  "searchHints": ["build", "deploy"],
+  "tools": [
+    {
+      "name": "create_file",
+      "description": "Create a file",
+      "inputSchema": { "type": "object", "properties": { "path": { "type": "string" } }, "required": ["path"] }
+    },
+    {
+      "name": "delete_all",
+      "description": "Delete everything",
+      "inputSchema": { "type": "object", "properties": {} },
+      "riskLevel": "Destructive",
+      "searchHints": ["delete", "remove", "cleanup"]
+    }
+  ]
+}
+```
+
+## 6. ToolRiskLevel
+
+`[Plugin]` / `[Tool]` 使用 `ToolRiskLevel` 声明风险级别，生成器按枚举成员名写入 `plugin.json`（例如 `"Low"`、`"Destructive"`）。
+
+| 值 | 说明 | 适用场景 | 示例 |
+| --- | --- | --- | --- |
+| Low | 低风险（只读操作） | 读取文件、查询数据、列表操作 | read_file, list_directory, get_user_info |
+| SensitiveRead | 敏感读取 | 读取密码、密钥、私有数据 | read_credentials, get_api_key, read_env |
+| Write | 写操作（可逆） | 创建/修改文件、写入数据库 | write_file, create_directory, update_record |
+| Destructive | 破坏性操作（不可逆） | 删除文件、清空数据、格式化 | delete_file, drop_table, format_disk |
+| Process | 进程操作 | 启动/停止进程、执行命令 | run_command, kill_process, spawn_process |
+| PowerShell | PowerShell 脚本执行 | 执行 PowerShell 脚本 | run_powershell, execute_script |
+| Network | 网络操作 | HTTP 请求、网络连接 | http_request, download_file, connect_to_server |
+
+## 7. AI 编码约束
+
+- 不要手写 `plugin.json` 里的 `requiredHostCapabilities`、`settingsSchema`、`providedCapabilities`、`tools`。
 - 不要把“插件提供能力”和“插件申请宿主能力”混成同一个字段。
 - 不要把权限申请写进工具参数或自定义配置文件，除非框架当前协议明确不支持。
 - 当用户要求“在宿主设置界面渲染配置项”时，优先想到 `[PluginSetting]`。
 - 当用户要求“向宿主申请某个权限/能力”时，优先想到 `[RequiredHostCapability]`。
+- 工具分类字段优先写在 `[Plugin]` 上；只有个别工具例外时才在 `[Tool]` 上覆盖。

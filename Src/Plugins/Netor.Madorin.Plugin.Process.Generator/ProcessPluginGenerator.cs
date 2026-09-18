@@ -64,7 +64,7 @@ public sealed class ProcessPluginGenerator : IIncrementalGenerator
         ToolNameGenerator.CheckConflicts(toolClasses, context.ReportDiagnostic);
 
         // 4. 生成 plugin.json（AddSource 落盘，由 .targets 复制）
-        var pluginJson = PluginJsonEmitter.Emit(pluginInfo, compilation.AssemblyName);
+        var pluginJson = PluginJsonEmitter.Emit(pluginInfo, toolClasses, compilation.AssemblyName);
         context.AddSource("plugin.json", pluginJson);
 
         // 5. 生成 Program.g.cs

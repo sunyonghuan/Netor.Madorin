@@ -106,16 +106,13 @@ internal static class PluginClassAnalyzer
         var name = GetNamedArgString(namedArgs, "Name");
         var version = GetNamedArgString(namedArgs, "Version") ?? "1.0.0";
         var description = GetNamedArgString(namedArgs, "Description") ?? "";
+        var category = GetNamedArgString(namedArgs, "Category");
+        var riskLevel = GetNamedArgEnumName(namedArgs, "RiskLevel");
+        var idempotent = GetNamedArgNullableBool(namedArgs, "Idempotent");
         var instructions = GetNamedArgString(namedArgs, "Instructions");
 
-        string[] tags = Array.Empty<string>();
-        if (namedArgs.TryGetValue("Tags", out var tagsValue) && !tagsValue.IsNull)
-        {
-            tags = tagsValue.Values
-                .Where(v => v.Value is string)
-                .Select(v => (string)v.Value!)
-                .ToArray();
-        }
+        string[] tags = GetNamedArgStringArray(namedArgs, "Tags");
+        string[] searchHints = GetNamedArgStringArray(namedArgs, "SearchHints");
 
         string[] capabilities = Array.Empty<string>();
         if (namedArgs.TryGetValue("Capabilities", out var capabilitiesValue) && !capabilitiesValue.IsNull)
@@ -182,7 +179,23 @@ internal static class PluginClassAnalyzer
         }
 
         return new PluginClassInfo(
-            pluginSymbol, id!, name!, version, description, tags, capabilities, requiredHostCapabilities, settingsSchema, publishedOps, subscribedOps, instructions, configureMethodKind);
+            pluginSymbol,
+            id!,
+            name!,
+            version,
+            description,
+            category,
+            riskLevel,
+            idempotent,
+            tags,
+            searchHints,
+            capabilities,
+            requiredHostCapabilities,
+            settingsSchema,
+            publishedOps,
+            subscribedOps,
+            instructions,
+            configureMethodKind);
     }
 
     private static ConfigureMethodKind GetConfigureMethodKind(INamedTypeSymbol pluginSymbol)
@@ -310,6 +323,30 @@ internal static class PluginClassAnalyzer
     private static bool GetNamedArgBool(Dictionary<string, TypedConstant> args, string key)
     {
         return args.TryGetValue(key, out var value) && value.Value is bool b && b;
+    }
+
+    private static bool? GetNamedArgNullableBool(Dictionary<string, TypedConstant> args, string key)
+    {
+        if (!args.TryGetValue(key, out var value) || value.IsNull || value.Value is not bool b)
+            return null;
+        return b;
+    }
+
+    private static string? GetNamedArgEnumName(Dictionary<string, TypedConstant> args, string key)
+    {
+        if (!args.TryGetValue(key, out var value) || value.IsNull || value.Value is null)
+            return null;
+
+        if (value.Type is INamedTypeSymbol enumType)
+        {
+            foreach (var member in enumType.GetMembers().OfType<IFieldSymbol>())
+            {
+                if (member.HasConstantValue && Equals(member.ConstantValue, value.Value))
+                    return member.Name;
+            }
+        }
+
+        return value.Value.ToString();
     }
 
     private static string[] GetNamedArgStringArray(Dictionary<string, TypedConstant> args, string key)

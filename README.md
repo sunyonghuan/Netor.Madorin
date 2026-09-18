@@ -1,4 +1,4 @@
-# Netor.Madorin（聂拖·马多灵）
+# Netor.Madorin（马得令）
 
 <div align="center">
 

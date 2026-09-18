@@ -125,34 +125,34 @@ internal static class TypeMapper
         {
             case "System.String":
             case "string":
-                return $"{elementExpr}.GetString() ?? \"\"";
+                return $"ReadString({elementExpr})";
 
             case "System.Int32":
             case "int":
-                return $"{elementExpr}.GetInt32()";
+                return $"ReadInt32({elementExpr})";
 
             case "System.Int64":
             case "long":
-                return $"{elementExpr}.GetInt64()";
+                return $"ReadInt64({elementExpr})";
 
             case "System.Double":
             case "double":
-                return $"{elementExpr}.GetDouble()";
+                return $"ReadDouble({elementExpr})";
 
             case "System.Single":
             case "float":
-                return $"(float){elementExpr}.GetDouble()";
+                return $"(float)ReadDouble({elementExpr})";
 
             case "System.Decimal":
             case "decimal":
-                return $"{elementExpr}.GetDecimal()";
+                return $"ReadDecimal({elementExpr})";
 
             case "System.Boolean":
             case "bool":
-                return $"{elementExpr}.GetBoolean()";
+                return $"ReadBoolean({elementExpr})";
 
             default:
-                return $"{elementExpr}.GetString() ?? \"\"";
+                return $"ReadString({elementExpr})";
         }
     }
 

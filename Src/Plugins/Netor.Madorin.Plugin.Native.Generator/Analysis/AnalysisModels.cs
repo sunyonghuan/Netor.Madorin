@@ -24,8 +24,20 @@ internal sealed class PluginClassInfo
     /// <summary>插件描述。</summary>
     public string Description { get; }
 
+    /// <summary>插件分类。未声明时为 null。</summary>
+    public string? Category { get; }
+
+    /// <summary>插件默认风险级别名称。未声明时为 null。</summary>
+    public string? RiskLevel { get; }
+
+    /// <summary>插件默认是否幂等。未声明时为 null。</summary>
+    public bool? Idempotent { get; }
+
     /// <summary>分类标签。</summary>
     public string[] Tags { get; }
+
+    /// <summary>搜索关键词。</summary>
+    public string[] SearchHints { get; }
 
     /// <summary>插件提供给宿主的能力声明。</summary>
     public string[] Capabilities { get; }
@@ -57,7 +69,11 @@ internal sealed class PluginClassInfo
         string name,
         string version,
         string description,
+        string? category,
+        string? riskLevel,
+        bool? idempotent,
         string[] tags,
+        string[] searchHints,
         string[] capabilities,
         RequiredHostCapabilityInfo[] requiredHostCapabilities,
         PluginSettingInfo[] settingsSchema,
@@ -70,7 +86,11 @@ internal sealed class PluginClassInfo
         Name = name;
         Version = version;
         Description = description;
+        Category = category;
+        RiskLevel = riskLevel;
+        Idempotent = idempotent;
         Tags = tags;
+        SearchHints = searchHints;
         Capabilities = capabilities;
         RequiredHostCapabilities = requiredHostCapabilities;
         SettingsSchema = settingsSchema;
@@ -261,6 +281,21 @@ internal sealed class ToolMethodInfo
     /// <summary>工具描述。</summary>
     public string Description { get; }
 
+    /// <summary>覆盖插件分类。null 表示继承插件默认值。</summary>
+    public string? Category { get; }
+
+    /// <summary>覆盖插件风险级别。null 表示继承插件默认值。</summary>
+    public string? RiskLevel { get; }
+
+    /// <summary>覆盖插件幂等声明。null 表示继承插件默认值。</summary>
+    public bool? Idempotent { get; }
+
+    /// <summary>覆盖插件标签。null 表示继承插件默认值。</summary>
+    public string[]? Tags { get; }
+
+    /// <summary>覆盖插件搜索关键词。null 表示继承插件默认值。</summary>
+    public string[]? SearchHints { get; }
+
     /// <summary>参数列表。</summary>
     public List<ToolParamInfo> Parameters { get; }
 
@@ -285,6 +320,11 @@ internal sealed class ToolMethodInfo
         string fullToolName,
         string methodSnakeName,
         string description,
+        string? category,
+        string? riskLevel,
+        bool? idempotent,
+        string[]? tags,
+        string[]? searchHints,
         List<ToolParamInfo> parameters,
         ITypeSymbol returnType,
         bool isAsync,
@@ -297,6 +337,11 @@ internal sealed class ToolMethodInfo
         FullToolName = fullToolName;
         MethodSnakeName = methodSnakeName;
         Description = description;
+        Category = category;
+        RiskLevel = riskLevel;
+        Idempotent = idempotent;
+        Tags = tags;
+        SearchHints = searchHints;
         Parameters = parameters;
         ReturnType = returnType;
         IsAsync = isAsync;

@@ -134,6 +134,12 @@ internal static class ToolClassAnalyzer
         if (namedArgs.TryGetValue("Description", out var descValue) && descValue.Value is string d)
             description = d;
 
+        var category = GetNamedArgString(namedArgs, "Category");
+        var riskLevel = GetNamedArgEnumName(namedArgs, "RiskLevel");
+        var idempotent = GetNamedArgNullableBool(namedArgs, "Idempotent");
+        var tags = GetNamedArgOptionalStringArray(namedArgs, "Tags");
+        var searchHints = GetNamedArgOptionalStringArray(namedArgs, "SearchHints");
+
         string methodSnakeName;
         if (!string.IsNullOrEmpty(customName))
         {
@@ -195,6 +201,11 @@ internal static class ToolClassAnalyzer
             fullToolName: fullToolName,
             methodSnakeName: methodSnakeName,
             description: description,
+            category: category,
+            riskLevel: riskLevel,
+            idempotent: idempotent,
+            tags: tags,
+            searchHints: searchHints,
             parameters: parameters,
             returnType: methodSymbol.ReturnType,
             isAsync: isAsync,
@@ -289,6 +300,53 @@ internal static class ToolClassAnalyzer
             return decimalValue.ToString(CultureInfo.InvariantCulture) + "M";
 
         return Convert.ToString(value, CultureInfo.InvariantCulture) ?? "default";
+    }
+
+    private static string? GetNamedArgString(Dictionary<string, TypedConstant> args, string key)
+    {
+        if (args.TryGetValue(key, out var value) && value.Value is string s)
+            return s;
+        return null;
+    }
+
+    private static bool? GetNamedArgNullableBool(Dictionary<string, TypedConstant> args, string key)
+    {
+        if (!args.TryGetValue(key, out var value) || value.IsNull || value.Value is not bool b)
+            return null;
+        return b;
+    }
+
+    private static string? GetNamedArgEnumName(Dictionary<string, TypedConstant> args, string key)
+    {
+        if (!args.TryGetValue(key, out var value) || value.IsNull || value.Value is null)
+            return null;
+
+        if (value.Type is INamedTypeSymbol enumType)
+        {
+            foreach (var member in enumType.GetMembers().OfType<IFieldSymbol>())
+            {
+                if (member.HasConstantValue && Equals(member.ConstantValue, value.Value))
+                    return member.Name;
+            }
+        }
+
+        return value.Value.ToString();
+    }
+
+    /// <summary>
+    /// 读取可选字符串数组。未写该参数返回 null（继承插件默认值）；显式写空数组返回空数组（覆盖为空）。
+    /// </summary>
+    private static string[]? GetNamedArgOptionalStringArray(Dictionary<string, TypedConstant> args, string key)
+    {
+        if (!args.TryGetValue(key, out var value))
+            return null;
+        if (value.IsNull)
+            return Array.Empty<string>();
+
+        return value.Values
+            .Where(v => v.Value is string)
+            .Select(v => (string)v.Value!)
+            .ToArray();
     }
 
     private static bool IsToolAttribute(AttributeData attribute)

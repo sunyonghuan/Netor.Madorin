@@ -10,7 +10,7 @@ Madorin 原生插件开发框架的 **Roslyn Source Generator**，自动为 `[Pl
 |----------|------|
 | `Startup.g.cs` | 路由字典、桥接方法、5 个 `UnmanagedCallersOnly` 导出函数 |
 | `PluginJsonContext.g.cs` | STJ 源码生成上下文（仅在有自定义返回类型时生成） |
-| `plugin.json` | 插件清单文件，构建/发布时自动复制到输出目录 |
+| `plugin.json` | 插件清单文件（含 `tools` 数组），构建/发布时自动复制到输出/发布目录 |
 
 ### 生成的导出函数
 

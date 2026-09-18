@@ -82,7 +82,7 @@ public sealed class NativePluginGenerator : IIncrementalGenerator
         ToolNameGenerator.CheckConflicts(toolClasses, context.ReportDiagnostic);
 
         // ──────── 4. 生成 plugin.json（通过 AddSource 落盘，由 .targets 复制到输出目录） ────────
-        var pluginJson = PluginJsonEmitter.Emit(pluginInfo, compilation.AssemblyName);
+        var pluginJson = PluginJsonEmitter.Emit(pluginInfo, toolClasses, compilation.AssemblyName);
         context.AddSource("plugin.json", pluginJson);
 
         // ──────── 5. 生成 Startup.g.cs ────────

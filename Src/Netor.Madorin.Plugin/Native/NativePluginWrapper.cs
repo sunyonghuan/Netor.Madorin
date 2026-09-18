@@ -14,6 +14,8 @@ public sealed class NativePluginWrapper : IInvokablePlugin
 {
     private readonly ExternalProcessPluginHostBase _host;
     private readonly Dictionary<string, string> _toolNameMap = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IReadOnlyList<NativeToolParameter>> _toolParameters =
+        new(StringComparer.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public string Id { get; }
@@ -82,14 +84,16 @@ public sealed class NativePluginWrapper : IInvokablePlugin
             var internalName = toolInfo.Name;
             var exposedName = GetExposedToolName(toolInfo, exposedNames);
             var description = BuildToolDescription(toolInfo);
+            var parameters = (IReadOnlyList<NativeToolParameter>)(toolInfo.Parameters ?? []);
             RegisterToolName(toolInfo, exposedName, internalName);
+            _toolParameters[internalName] = parameters;
 
-            var tool = AIFunctionFactory.Create(
-                method: (string argsJson) => InvokeToolAsync(internalName, argsJson),
-                name: exposedName,
-                description: description);
-
-            tools.Add(tool);
+            tools.Add(new NativePluginAIFunction(
+                exposedName,
+                description,
+                NativeToolJsonSchema.Create(toolInfo),
+                parameters,
+                (argsJson, cancellationToken) => InvokeToolAsync(internalName, argsJson, cancellationToken)));
         }
 
         return tools.AsReadOnly();
@@ -139,7 +143,7 @@ public sealed class NativePluginWrapper : IInvokablePlugin
 
         var sb = new StringBuilder(toolInfo.Description);
         sb.AppendLine();
-        sb.AppendLine("参数（通过 JSON 对象传入 argsJson）：");
+        sb.AppendLine("参数：");
 
         foreach (var param in toolInfo.Parameters)
         {
@@ -168,12 +172,14 @@ public sealed class NativePluginWrapper : IInvokablePlugin
         var internalName = _toolNameMap.TryGetValue(toolName, out var mappedToolName)
             ? mappedToolName
             : toolName;
+        _toolParameters.TryGetValue(internalName, out var parameters);
+        var normalizedArgs = NativeToolArgumentBinder.Normalize(argsJson, parameters);
 
         var response = await _host.SendRequestAsync(new NativeHostRequest
         {
             Method = NativeHostMethods.Invoke,
             ToolName = internalName,
-            Args = argsJson
+            Args = normalizedArgs
         }, cancellationToken);
 
         if (!response.Success)
