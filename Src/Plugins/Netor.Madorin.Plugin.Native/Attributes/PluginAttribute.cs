@@ -22,10 +22,10 @@ public sealed class PluginAttribute : Attribute
     public string? Category { get; init; }
 
     /// <summary>插件默认风险级别。未写则不出现在清单中；工具可通过 <see cref="ToolAttribute.RiskLevel"/> 覆盖。</summary>
-    public ToolRiskLevel? RiskLevel { get; init; }
+    public ToolRiskLevel RiskLevel { get; init; }
 
     /// <summary>插件默认是否幂等。未写则不出现在清单中；工具可通过 <see cref="ToolAttribute.Idempotent"/> 覆盖。</summary>
-    public bool? Idempotent { get; init; }
+    public bool Idempotent { get; init; }
 
     /// <summary>分类标签。所有工具默认继承，个别工具可覆盖。</summary>
     public string[] Tags { get; init; } = [];
