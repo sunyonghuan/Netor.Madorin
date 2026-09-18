@@ -16,6 +16,7 @@ Madorin 按插件通道的运行时契约加载扩展，不检查插件的源码
 | [Process插件开发指南.md](Process插件开发指南.md) | stdin/stdout 请求、响应、生命周期及 C# SDK 用法 |
 | [Native插件开发指南.md](Native插件开发指南.md) | Native DLL 导出入口、字符串所有权及 C# AOT 用法 |
 | [插件清单与能力声明.md](插件清单与能力声明.md) | `plugin.json`、`get_info`、能力、事件契约和设置 schema |
+| [插件与工具分类属性.md](插件与工具分类属性.md) | 插件级 Category / RiskLevel / Tags / SearchHints / Idempotent，以及工具级覆盖 |
 | [工具声明与参数规范.md](工具声明与参数规范.md) | 工具元数据、参数类型、`invoke` 操作和 C# 映射 |
 | [插件事件总线开发指南.md](插件事件总线开发指南.md) | PluginBus 1.4.0 发布、订阅、转发和宿主事件 |
 | [宿主LLM模型能力调用.md](宿主LLM模型能力调用.md) | `model.capability.request` 请求与响应协议 |

@@ -32,6 +32,10 @@
 .PARAMETER SkipPush
     仅打包不推送，用于本地验证。
 
+.PARAMETER NoBump
+    不递增版本号，使用 Directory.Build.props 中的当前 Version 打包。
+    发布中途失败后重试时应加此参数，避免版本被再次 +1。
+
 .PARAMETER Configuration
     构建配置，默认 Release。
 #>
@@ -43,6 +47,7 @@ param(
     [string]$NuGetSource = "http://nuget.netor.me/v3/index.json",
     [string]$ApiKey = "",
     [switch]$SkipPush,
+    [switch]$NoBump,
     [string]$Configuration = "Release"
 )
 
@@ -68,7 +73,7 @@ function Get-PackProjects([string]$pluginsDir) {
             continue
         }
 
-        [xml]$projectXml = Get-Content $csproj.FullName -Raw -Encoding UTF8
+        [xml]$projectXml = [System.IO.File]::ReadAllText($csproj.FullName)
         $isPackableNode = $projectXml.SelectSingleNode("//PropertyGroup/IsPackable")
         $outputTypeNode = $projectXml.SelectSingleNode("//PropertyGroup/OutputType")
 
@@ -99,33 +104,34 @@ if (-not $versionNode) {
     exit 1
 }
 $CurrentVersion = $versionNode.InnerText
-
-$versionParts = $CurrentVersion.Split('.')
-if ($versionParts.Length -ne 3) {
-    Write-Error "版本号格式不正确，预期 Major.Minor.Patch，实际: $CurrentVersion"
-    exit 1
-}
-
-$major = [int]$versionParts[0]
-$minor = [int]$versionParts[1]
-$patch = [int]$versionParts[2]
 $OldVersion = $CurrentVersion
+$NewVersion = $CurrentVersion
 
-switch ($Bump) {
-    "major" { $major++; $minor = 0; $patch = 0 }
-    "minor" { $minor++; $patch = 0 }
-    "patch" { $patch++ }
+if (-not $NoBump) {
+    $versionParts = $CurrentVersion.Split('.')
+    if ($versionParts.Length -ne 3) {
+        Write-Error "版本号格式不正确，预期 Major.Minor.Patch，实际: $CurrentVersion"
+        exit 1
+    }
+
+    $major = [int]$versionParts[0]
+    $minor = [int]$versionParts[1]
+    $patch = [int]$versionParts[2]
+
+    switch ($Bump) {
+        "major" { $major++; $minor = 0; $patch = 0 }
+        "minor" { $minor++; $patch = 0 }
+        "patch" { $patch++ }
+    }
+
+    $NewVersion = "$major.$minor.$patch"
+    $versionNode.InnerText = $NewVersion
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $writer = New-Object System.IO.StreamWriter($PropsFile, $false, $utf8NoBom)
+    $propsXml.Save($writer)
+    $writer.Close()
+    $CurrentVersion = $NewVersion
 }
-
-$NewVersion = "$major.$minor.$patch"
-
-$versionNode.InnerText = $NewVersion
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-$writer = New-Object System.IO.StreamWriter($PropsFile, $false, $utf8NoBom)
-$propsXml.Save($writer)
-$writer.Close()
-
-$CurrentVersion = $NewVersion
 
 $outputNode = $propsXml.SelectSingleNode("//PackageOutputPath")
 if ($outputNode) {
@@ -146,7 +152,7 @@ Write-Host "============================================================" -Foreg
 Write-Host "        Cortana Plugin NuGet Pack & Push Script            " -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  Version:     $OldVersion -> $NewVersion ($Bump +1)" -ForegroundColor Yellow
+Write-Host "  Version:     $(if ($NoBump) { "$CurrentVersion (NoBump)" } else { "$OldVersion -> $NewVersion ($Bump +1)" })" -ForegroundColor Yellow
 Write-Host "  Config:      $Configuration"
 Write-Host "  Output:      $PackageOutputPath"
 Write-Host "  NuGet Src:   $NuGetSource"
@@ -161,16 +167,41 @@ foreach ($proj in $Projects) {
 Write-Host ""
 
 Write-Host "============================================================" -ForegroundColor DarkGray
-Write-Host "  [1/2] Packing $($Projects.Count) projects (v$CurrentVersion)" -ForegroundColor Green
+Write-Host "  [1/3] Restoring $($Projects.Count) projects" -ForegroundColor Green
+Write-Host "============================================================" -ForegroundColor DarkGray
+Write-Host ""
+
+foreach ($proj in $Projects) {
+    $projName = [System.IO.Path]::GetFileNameWithoutExtension($proj)
+    Write-Host "  [Restore] $projName ..." -ForegroundColor White
+    dotnet restore $proj --nologo
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [FAIL] Restore failed: $projName" -ForegroundColor Red
+        exit 1
+    }
+}
+
+Write-Host ""
+Write-Host "============================================================" -ForegroundColor DarkGray
+Write-Host "  [2/3] Building & packing $($Projects.Count) projects (v$CurrentVersion)" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor DarkGray
 Write-Host ""
 
 $packSuccess = $true
 foreach ($proj in $Projects) {
     $projName = [System.IO.Path]::GetFileNameWithoutExtension($proj)
-    Write-Host "  [Pack] $projName ..." -ForegroundColor White
+    Write-Host "  [Build] $projName ..." -ForegroundColor White
 
-    dotnet pack $proj -c $Configuration --no-restore
+    # 强制重建，避免程序集改名后增量编译跳过、pack 时找不到新 DLL（NU5026）
+    dotnet build $proj -c $Configuration --no-incremental --no-restore --nologo
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  [FAIL] Build failed: $projName" -ForegroundColor Red
+        $packSuccess = $false
+        break
+    }
+
+    Write-Host "  [Pack] $projName ..." -ForegroundColor White
+    dotnet pack $proj -c $Configuration --no-build --no-restore --nologo
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  [FAIL] Pack failed: $projName" -ForegroundColor Red
         $packSuccess = $false
@@ -187,6 +218,9 @@ foreach ($proj in $Projects) {
 
 if (-not $packSuccess) {
     Write-Host "Pack failed, aborted." -ForegroundColor Red
+    if (-not $NoBump) {
+        Write-Host "Version already bumped to $NewVersion. Retry with -NoBump to avoid another bump." -ForegroundColor Yellow
+    }
     exit 1
 }
 
@@ -196,7 +230,7 @@ if ($SkipPush) {
     Write-Host "============================================================" -ForegroundColor DarkGray
 } else {
     Write-Host "============================================================" -ForegroundColor DarkGray
-    Write-Host "  [2/2] Push to NuGet server" -ForegroundColor Green
+    Write-Host "  [3/3] Push to NuGet server" -ForegroundColor Green
     Write-Host "============================================================" -ForegroundColor DarkGray
     Write-Host ""
 
@@ -230,7 +264,11 @@ if ($SkipPush) {
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Green
-Write-Host "  DONE! Version $OldVersion -> $NewVersion published" -ForegroundColor Green
-Write-Host "  Directory.Build.props updated to $NewVersion" -ForegroundColor Green
+if ($NoBump) {
+    Write-Host "  DONE! Version $CurrentVersion published (NoBump)" -ForegroundColor Green
+} else {
+    Write-Host "  DONE! Version $OldVersion -> $NewVersion published" -ForegroundColor Green
+    Write-Host "  Directory.Build.props updated to $NewVersion" -ForegroundColor Green
+}
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host ""
