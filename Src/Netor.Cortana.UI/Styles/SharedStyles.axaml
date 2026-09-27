@@ -237,7 +237,7 @@
 	</Style>
 	<Style Selector="Button.approval-btn-primary:pointerover /template/ ContentPresenter">
 		<Setter Property="Background" Value="{DynamicResource PrimaryButtonHoverBrush}" />
-		<Setter Property="Foreground" Value="{DynamicResource AccentHoverBrush}" />
+		<Setter Property="Foreground" Value="{DynamicResource PrimaryButtonTextBrush}" />
 	</Style>
 	<Style Selector="Button.approval-btn-secondary">
 		<Setter Property="Background" Value="#3a3d41" />

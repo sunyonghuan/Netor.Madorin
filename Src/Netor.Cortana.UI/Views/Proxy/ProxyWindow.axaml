@@ -64,7 +64,7 @@
 		</Style>
 		<Style Selector="Button.act:pointerover /template/ ContentPresenter#PART_ContentPresenter">
 			<Setter Property="Background" Value="{StaticResource PrimaryButtonHoverBrush}" />
-			<Setter Property="Foreground" Value="{StaticResource AccentHoverBrush}" />
+			<Setter Property="Foreground" Value="{StaticResource PrimaryButtonTextBrush}" />
 		</Style>
 		<Style Selector="Button.titlebar-btn">
 			<Setter Property="Background" Value="Transparent" />
