@@ -68,6 +68,7 @@ internal static class StartupEmitter
         sb.AppendLine("    private static global::Microsoft.Extensions.DependencyInjection.ServiceProvider? s_serviceProvider;");
         sb.AppendLine("    private static string? s_dataDirectory;");
         sb.AppendLine("    private static readonly object s_diagnosticLock = new();");
+        sb.AppendLine("    private static global::System.TimeProvider s_diagnosticTimeProvider = global::System.TimeProvider.System;");
         sb.AppendLine();
 
         EmitDiagnosticHelper(sb);
@@ -171,7 +172,7 @@ internal static class StartupEmitter
         sb.AppendLine("            {");
         sb.AppendLine("                var logDirectory = global::System.IO.Path.Combine(s_dataDirectory!, \"logs\");");
         sb.AppendLine("                global::System.IO.Directory.CreateDirectory(logDirectory);");
-        sb.AppendLine("                var logFile = global::System.IO.Path.Combine(logDirectory, \"native-runtime.log\");");
+        sb.AppendLine("                var logFile = global::System.IO.Path.Combine(logDirectory, \"native-runtime-\" + s_diagnosticTimeProvider.GetLocalNow().ToString(\"yyMMddHHmm\") + \".log\");");
         sb.AppendLine("                global::System.IO.File.AppendAllText(logFile, line + global::System.Environment.NewLine);");
         sb.AppendLine("            }");
         sb.AppendLine("        }");

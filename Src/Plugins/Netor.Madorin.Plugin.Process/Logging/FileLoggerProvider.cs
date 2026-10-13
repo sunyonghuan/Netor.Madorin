@@ -5,7 +5,8 @@ using Netor.Madorin.Plugin.Process.Settings;
 namespace Netor.Madorin.Plugin.Process.Logging;
 
 /// <summary>
-/// 文件日志 Provider。日志文件路径 <c>{DataDirectory}/logs/plugin.log</c>，
+/// 文件日志 Provider。日志文件路径为
+/// <c>{DataDirectory}/logs/plugin-yyMMddHHmm.log</c>，每分钟切换文件。
 /// 首次写入时才打开文件（延迟到 <see cref="PluginSettings"/> 可用之后）。
 /// <para>
 /// AOT 安全：不使用反射、Emit 或运行时类型发现。
@@ -22,10 +23,13 @@ internal sealed class FileLoggerProvider : ILoggerProvider
     private string? _currentPath;
     private bool _disposed;
 
-    public FileLoggerProvider(PluginSettingsAccessor settings, LogLevel minimumLevel)
+    private readonly TimeProvider _timeProvider;
+
+    public FileLoggerProvider(PluginSettingsAccessor settings, LogLevel minimumLevel, TimeProvider? timeProvider = null)
     {
         _settings = settings;
         _minimumLevel = minimumLevel;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -65,9 +69,6 @@ internal sealed class FileLoggerProvider : ILoggerProvider
 
     private void EnsureWriterOpened()
     {
-        if (_writer is not null)
-            return;
-
         if (!_settings.IsInitialized)
             return;
 
@@ -80,7 +81,12 @@ internal sealed class FileLoggerProvider : ILoggerProvider
             var logDir = Path.Combine(dir, "logs");
             Directory.CreateDirectory(logDir);
 
-            var path = Path.Combine(logDir, "plugin.log");
+            var timestamp = _timeProvider.GetLocalNow().ToString("yyMMddHHmm");
+            var path = Path.Combine(logDir, $"plugin-{timestamp}.log");
+            if (_writer is not null && string.Equals(_currentPath, path, StringComparison.Ordinal))
+                return;
+
+            TryCloseWriter();
             _currentPath = path;
 
             var stream = new FileStream(
