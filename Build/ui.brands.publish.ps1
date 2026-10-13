@@ -12,7 +12,7 @@ param(
     [string]$Version,
     [ValidateSet('patch', 'minor', 'major')]
     [string]$Bump = 'patch',
-    [string[]]$BrandConfigPaths = @('brands\madorin\madorin.json', 'brands\sreamx\sreamx.json'),
+    [string[]]$BrandConfigPaths = @('brands\madorin\madorin.json', 'brands\streamx\streamx.json'),
     [switch]$Package,
     [switch]$UseVsWhereFix,
     [switch]$ValidateOnly

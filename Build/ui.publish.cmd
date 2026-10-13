@@ -1,5 +1,6 @@
 @echo off
 setlocal
+rem Usage: ui.publish.cmd list ^| brand ^| all [-ValidateOnly]
 
 where pwsh >nul 2>nul
 if %errorlevel% equ 0 (

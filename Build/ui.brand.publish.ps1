@@ -20,7 +20,7 @@
     - 如果本机 Native AOT 链接需要 vswhere.exe，请加 -UseVsWhereFix。
 
 .PARAMETER BrandConfigPath
-    品牌 JSON 路径。可以写相对 Build 目录的路径，例如 brands\sreamx\sreamx.json；
+    品牌 JSON 路径。可以写相对 Build 目录的路径，例如 brands\streamx\streamx.json；
     也可以写相对仓库根目录或绝对路径。推荐使用 brands\publish.ps1 代替直接调用本脚本。
 .PARAMETER Version
     打包时使用的版本号。只在 -Package 时传给 ui.package.ps1。
@@ -42,16 +42,16 @@
     powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand madorin -UseVsWhereFix
 
 .EXAMPLE
-    # 校验第二品牌 SreamX，不发布
-    powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand sreamx -ValidateOnly
+    # 校验第二品牌 StreamX，不发布
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand streamx -ValidateOnly
 
 .EXAMPLE
-    # 发布第二品牌 SreamX，输出到 Realases\SreamX
-    powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand sreamx -UseVsWhereFix
+    # 发布第二品牌 StreamX，输出到 Realases\StreamX
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand streamx -UseVsWhereFix
 
 .EXAMPLE
-    # 发布并打包第二品牌 SreamX，生成 Realases\SreamX-v版本号-win-x64.zip 和 sha256
-    powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand sreamx -UseVsWhereFix -Package
+    # 发布并打包第二品牌 StreamX，生成 Realases\StreamX-v版本号-win-x64.zip 和 sha256
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand streamx -UseVsWhereFix -Package
 #>
 
 param(

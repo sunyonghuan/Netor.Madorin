@@ -2,6 +2,9 @@
 # UI Native AOT publish script
 
 param(
+    [Parameter(Position = 0)]
+    [string]$Brand,
+    [switch]$ValidateOnly,
     [string]$BrandDesktopAssemblyName = 'Madorin',
     [string]$BrandAssemblyTitle = 'Madorin',
     [string]$BrandNativeHostAssemblyName = 'Madorin.NativeHost',
@@ -18,6 +21,44 @@ $SolutionDir = (Resolve-Path (Join-Path $BuildDir '..')).Path
 $ProjectFile = Join-Path $SolutionDir 'Src\Netor.Cortana.UI\Netor.Cortana.UI.csproj'
 $NativeHostProjectFile = Join-Path $SolutionDir 'Src\Plugins\Netor.Cortana.NativeHost\Netor.Cortana.NativeHost.csproj'
 $OutputDir = Join-Path $SolutionDir (Join-Path 'Realases' $BrandReleaseDirectoryName)
+
+# Branded publishing calls this script again with explicit assembly properties.
+if (-not $PSBoundParameters.ContainsKey('BrandDesktopAssemblyName')) {
+    $brandsDir = Join-Path $BuildDir 'brands'
+    $availableBrands = @(Get-ChildItem $brandsDir -Directory | Where-Object {
+        Test-Path (Join-Path $_.FullName "$($_.Name).json") -PathType Leaf
+    } | Sort-Object Name | ForEach-Object { $_.Name })
+
+    if ([string]::IsNullOrWhiteSpace($Brand) -or $Brand -eq 'list') {
+        Write-Host 'Usage: ui.publish.cmd <list|brand|all> [-ValidateOnly]'
+        Write-Host 'Available brands:'
+        $availableBrands | ForEach-Object { Write-Host "  $_" }
+        return
+    }
+
+    if ($Brand -ne 'all' -and $Brand -notin $availableBrands) {
+        Write-Host "Unknown brand: $Brand. Available brands: $($availableBrands -join ', ')" -ForegroundColor Red
+        exit 1
+    }
+
+    $selectedBrands = if ($Brand -eq 'all') { $availableBrands } else { @($availableBrands | Where-Object { $_ -eq $Brand }) }
+    if (@($selectedBrands).Count -eq 0) {
+        Write-Host 'No publishable brands were found.' -ForegroundColor Red
+        exit 1
+    }
+
+    foreach ($selectedBrand in $selectedBrands) {
+        Write-Host "=== Publishing brand: $selectedBrand ===" -ForegroundColor Cyan
+        $global:LASTEXITCODE = 0
+        & (Join-Path $brandsDir 'publish.ps1') -Brand $selectedBrand -ValidateOnly:$ValidateOnly
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+    return
+}
+
+if ($PSBoundParameters.ContainsKey('Brand') -or $ValidateOnly) {
+    throw 'Brand and ValidateOnly require the brand publishing entry point.'
+}
 
 function Stop-DotNetBuildProcesses {
     Get-Process -Name 'dotnet', 'MSBuild', 'VBCSCompiler' -ErrorAction SilentlyContinue |

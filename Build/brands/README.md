@@ -15,8 +15,8 @@ brands/
     workbench.json     ← 界面/业务配置（总览页 KPI / 常用操作 / 模式介绍）
     brand.ico          ← 应用图标（用于 UI 主程序 + NativeHost）
     brand.png          ← 应用 Logo（用于界面内显示）
-  sreamx/
-    sreamx.json
+  streamx/
+    streamx.json
     workbench.json
     brand.ico
     brand.png
@@ -39,7 +39,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand madorin -UseVsWhereFix
 
 # 发布 + 打包 zip/sha256
-powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand sreamx -UseVsWhereFix -Package
+powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand streamx -UseVsWhereFix -Package
 ```
 
 ---
