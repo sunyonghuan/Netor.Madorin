@@ -127,7 +127,7 @@ public sealed class FileLoggerProviderTests
     }
 
     private FileLoggerProvider CreateProvider() => new(_settings, LogLevel.Warning, _clock);
-    private string PathFor(string stamp) => Path.Combine(_directory, "logs", $"plugin-{stamp}.log");
+    private string PathFor(string stamp) => Path.Combine(_directory, "logs", $"{stamp}.log");
 }
 
 internal sealed class TestLogClock : TimeProvider

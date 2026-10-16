@@ -29,6 +29,9 @@ internal sealed record PluginBusSubscribeFrame
     [JsonPropertyName("version")]
     public string Version { get; init; } = "1.4.0";
 
+    [JsonPropertyName("sourcePluginId")]
+    public string? SourcePluginId { get; init; }
+
     [JsonPropertyName("topics")]
     public IReadOnlyList<string>? Topics { get; init; }
 

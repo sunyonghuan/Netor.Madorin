@@ -11,7 +11,7 @@ namespace Netor.Madorin.Plugin.Process.Logging;
 public static class FileLoggerExtensions
 {
     /// <summary>
-    /// 注册插件文件日志，日志写入 <c>{DataDirectory}/logs/plugin-yyMMddHHmm.log</c>，每分钟切换文件。
+    /// 注册插件文件日志，日志写入 <c>{DataDirectory}/logs/yyMMddHHmm.log</c>，每分钟切换文件。
     /// <para>
     /// 由 Generator 生成的 <c>Program.g.cs</c> 默认调用此方法，
     /// 用户无需显式注册。<see cref="PluginSettings"/> 可用前的日志会被丢弃。

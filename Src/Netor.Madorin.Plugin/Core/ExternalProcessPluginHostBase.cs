@@ -221,6 +221,7 @@ public abstract class ExternalProcessPluginHostBase : IDisposable
             PluginDirectory = PluginDirectory,
             Extensions = new NativePluginInitExtensions
             {
+                ["pluginId"] = info.Id,
                 ["pluginBusEndpoint"] = CortanaWsEndpoints.BuildPluginBusEndpoint(context.PluginBusPort),
                 ["pluginBusPort"] = context.PluginBusPort.ToString(),
                 ["pluginBusPath"] = CortanaWsEndpoints.PluginBusPath,

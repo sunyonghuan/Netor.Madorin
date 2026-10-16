@@ -6,7 +6,7 @@ namespace Netor.Madorin.Plugin.Process.Logging;
 
 /// <summary>
 /// 文件日志 Provider。日志文件路径为
-/// <c>{DataDirectory}/logs/plugin-yyMMddHHmm.log</c>，每分钟切换文件。
+/// <c>{DataDirectory}/logs/yyMMddHHmm.log</c>，每分钟切换文件。
 /// 首次写入时才打开文件（延迟到 <see cref="PluginSettings"/> 可用之后）。
 /// <para>
 /// AOT 安全：不使用反射、Emit 或运行时类型发现。
@@ -82,7 +82,7 @@ internal sealed class FileLoggerProvider : ILoggerProvider
             Directory.CreateDirectory(logDir);
 
             var timestamp = _timeProvider.GetLocalNow().ToString("yyMMddHHmm");
-            var path = Path.Combine(logDir, $"plugin-{timestamp}.log");
+            var path = Path.Combine(logDir, $"{timestamp}.log");
             if (_writer is not null && string.Equals(_currentPath, path, StringComparison.Ordinal))
                 return;
 

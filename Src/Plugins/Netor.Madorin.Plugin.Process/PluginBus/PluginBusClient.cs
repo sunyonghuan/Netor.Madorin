@@ -127,6 +127,7 @@ public sealed class PluginBusClient : IHostedService, IAsyncDisposable
 
             var frame = new PluginBusSubscribeFrame
             {
+                SourcePluginId = _sourcePluginId,
                 Topics = topics,
                 SubscribedOps = ops
             };

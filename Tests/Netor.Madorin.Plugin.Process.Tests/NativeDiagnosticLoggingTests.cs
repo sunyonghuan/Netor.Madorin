@@ -74,7 +74,7 @@ public sealed class NativeDiagnosticLoggingTests
         StringAssert.Contains(lines[0], "|recovered|");
     }
 
-    private string PathFor(string stamp) => Path.Combine(_directory, "logs", $"native-runtime-{stamp}.log");
+    private string PathFor(string stamp) => Path.Combine(_directory, "logs", $"{stamp}.log");
 }
 
 [Netor.Madorin.Plugin.Native.Plugin(Id = "diagnostic_test", Name = "Diagnostic test", Version = "1.0.0")]
