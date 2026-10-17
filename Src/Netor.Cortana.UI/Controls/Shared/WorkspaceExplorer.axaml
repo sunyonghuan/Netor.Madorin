@@ -21,11 +21,9 @@
 		     本控件改为纯文件目录 UI，不再耦合 MainWindow 标题栏布局。
 		     详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §3.4 + §3.5。 -->
 
-		<!-- 顶部工具栏 -->
+		<!-- 顶部工具栏。左侧留空，工作目录名称改由文件树根节点展示。 -->
 		<Border DockPanel.Dock="Top" Background="#1e1e1e" Padding="8,6" BorderBrush="#252526" BorderThickness="0,0,0,1">
 			<Grid ColumnDefinitions="*,Auto">
-				<TextBlock Grid.Column="0" Text="{Binding WorkspaceTitle}" Foreground="#cccccc" FontSize="12"
-				           FontWeight="SemiBold" VerticalAlignment="Center" />
 				<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
 					<Button Classes="titlebar-btn" ToolTip.Tip="打开文件夹" Click="OnOpenFolderClick">
 						<Image Source="/Assets/open.png" Width="14" Height="14" />

@@ -100,9 +100,9 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
     private string _workspaceDirectory = string.Empty;
 
     /// <summary>
-    /// 顶部工具栏展示的工作区标题。
+    /// 顶部工具栏标题。工作目录名称已移到文件树根节点，这里保持空白。
     /// </summary>
-    private string _workspaceTitle = "工作台";
+    private string _workspaceTitle = string.Empty;
 
     /// <summary>
     /// 全局事件订阅器，用于监听工作目录变更事件。
@@ -195,7 +195,7 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
     public ObservableCollection<FileTreeNode> TreeNodes { get; } = [];
 
     /// <summary>
-    /// 顶部工具栏显示的当前工作目录名称。
+    /// 顶部工具栏标题。保留属性以兼容绑定，实际不再显示工作目录名称。
     /// </summary>
     public string WorkspaceTitle
     {
@@ -204,7 +204,7 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 当前工作目录。设置后会刷新文件树，并同步更新顶部标题。
+    /// 当前工作目录。设置后会刷新文件树；目录名显示在树根，不再写入顶部标题。
     /// </summary>
     public string WorkspaceDirectory
     {
@@ -222,17 +222,11 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 根据当前工作目录路径更新工具栏标题。
+    /// 清空顶部标题。工作目录名称由文件树根节点展示。
     /// </summary>
     private void UpdateWorkspaceTitle()
     {
-        WorkspaceTitle = string.IsNullOrWhiteSpace(_workspaceDirectory)
-            ? "工作台"
-            : Path.GetFileName(_workspaceDirectory) switch
-            {
-                { Length: > 0 } name => name,
-                _ => _workspaceDirectory
-            };
+        WorkspaceTitle = string.Empty;
     }
 
             /// <summary>
@@ -308,15 +302,15 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         if (generation != _workspaceGeneration)
             return; // 已被更晚的工作区切换抢占
 
-        foreach (var entry in entries)
-        {
-            var node = CreateNode(entry.FullPath, entry.Name, entry.IsDirectory, parent: null, depth: 0);
-            TreeNodes.Add(node);
-            _pathIndex.Add(node);
-        }
+        var rootNode = CreateWorkspaceRootNode(root, entries);
+        TreeNodes.Add(rootNode);
+        _pathIndex.Add(rootNode);
+        // 加入树后再展开，让 TreeView 绑定读到展开状态并直接显示一级子项。
+        rootNode.IsExpanded = true;
 
         MarkLastChild(TreeNodes);
-        RestoreExpansion(TreeNodes);
+        MarkLastChild(rootNode.Children);
+        RestoreExpansion(rootNode.Children);
         TryRestoreSelection();
         ScheduleTreeConnectorUpdate();
 
@@ -389,10 +383,11 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         var token = cts.Token;
 
         var path = node.FullPath;
+        var isWorkspaceRoot = IsWorkspaceRoot(node);
         List<DirEntry> entries;
         try
         {
-            entries = await Task.Run(() => EnumerateLevel(path, isRootLevel: false), token);
+            entries = await Task.Run(() => EnumerateLevel(path, isWorkspaceRoot), token);
         }
         catch (OperationCanceledException)
         {
@@ -418,7 +413,13 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
 
         foreach (var entry in entries)
         {
-            var childNode = CreateNode(entry.FullPath, entry.Name, entry.IsDirectory, node, node.Depth + 1);
+            var childNode = CreateNode(
+                entry.FullPath,
+                entry.Name,
+                entry.IsDirectory,
+                node,
+                node.Depth + 1,
+                isWorkspaceChild: isWorkspaceRoot);
             node.Children.Add(childNode);
             _pathIndex.Add(childNode);
         }
@@ -464,10 +465,101 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
     }
 
     /// <summary>
+    /// 构建工作目录根节点，并把已枚举的一级内容挂到它下面。根节点本身不使用根级文件夹图标。
+    /// </summary>
+    private FileTreeNode CreateWorkspaceRootNode(string workspaceDirectory, IReadOnlyList<DirEntry> entries)
+    {
+        var rootNode = CreateNode(
+            workspaceDirectory,
+            GetWorkspaceDisplayName(workspaceDirectory),
+            isDirectory: true,
+            parent: null,
+            depth: 0,
+            isWorkspaceChild: false);
+
+        // 一级内容已在本次装载中枚举，清掉占位并标记已加载，避免展开时再次懒加载。
+        rootNode.Children.Clear();
+        rootNode.LoadState = FileTreeLoadState.Loaded;
+
+        foreach (var entry in entries)
+        {
+            var child = CreateNode(
+                entry.FullPath,
+                entry.Name,
+                entry.IsDirectory,
+                rootNode,
+                depth: 1,
+                isWorkspaceChild: true);
+            rootNode.Children.Add(child);
+            _pathIndex.Add(child);
+        }
+
+        return rootNode;
+    }
+
+    /// <summary>
+    /// 工作目录在树上显示的名称。盘符根等没有文件夹名时回退到路径本身。
+    /// </summary>
+    private static string GetWorkspaceDisplayName(string workspaceDirectory)
+    {
+        return Path.GetFileName(workspaceDirectory) switch
+        {
+            { Length: > 0 } name => name,
+            _ => workspaceDirectory
+        };
+    }
+
+    /// <summary>
+    /// 判断路径是否就是当前工作目录。
+    /// </summary>
+    private bool IsWorkspaceRootPath(string? path)
+    {
+        if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(_workspaceDirectory))
+            return false;
+
+        return string.Equals(
+            FileTreePathIndex.Normalize(path),
+            FileTreePathIndex.Normalize(_workspaceDirectory),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 判断节点是否为工作目录根节点。根节点不允许重命名、删除或复制。
+    /// </summary>
+    private bool IsWorkspaceRoot(FileTreeNode? node)
+    {
+        return node is not null && IsWorkspaceRootPath(node.FullPath);
+    }
+
+    /// <summary>
+    /// 取得已装载的工作目录根节点。
+    /// </summary>
+    private bool TryGetWorkspaceRoot(out FileTreeNode rootNode)
+    {
+        if (!string.IsNullOrEmpty(_workspaceDirectory)
+            && _pathIndex.TryGet(_workspaceDirectory, out var node)
+            && node.IsDirectory)
+        {
+            rootNode = node;
+            return true;
+        }
+
+        rootNode = null!;
+        return false;
+    }
+
+    /// <summary>
     /// 在 UI 线程由原始信息构建单个节点，解析图标。目录节点挂上展开监听 + 占位子节点
     /// （保证折叠状态下展开箭头可见，且首次展开触发 <see cref="LoadChildrenAsync"/>）。
+    /// <paramref name="isWorkspaceChild"/> 只对工作目录的直接子项为 true，用于保留根级文件夹图标。
     /// </summary>
-    private FileTreeNode CreateNode(string fullPath, string name, bool isDirectory, FileTreeNode? parent, int depth)
+    private FileTreeNode CreateNode(
+        string fullPath,
+        string name,
+        bool isDirectory,
+        FileTreeNode? parent,
+        int depth,
+        bool isWorkspaceChild)
     {
         var relativePath = GetRelativeThemePath(_workspaceDirectory, fullPath);
 
@@ -478,8 +570,8 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
                 Kind = FileTreeNodeKind.Directory,
                 Name = name,
                 FullPath = fullPath,
-                ClosedIcon = FileIconTheme.ResolveFolderIcon(name, relativePath, expanded: false, isRootLevel: depth == 0),
-                ExpandedIcon = FileIconTheme.ResolveFolderIcon(name, relativePath, expanded: true, isRootLevel: depth == 0),
+                ClosedIcon = FileIconTheme.ResolveFolderIcon(name, relativePath, expanded: false, isRootLevel: isWorkspaceChild),
+                ExpandedIcon = FileIconTheme.ResolveFolderIcon(name, relativePath, expanded: true, isRootLevel: isWorkspaceChild),
                 Parent = parent,
                 Depth = depth
             };
@@ -879,6 +971,8 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
             return;
 
         var normalized = fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (IsWorkspaceRootPath(normalized))
+            return;
         if (_pathIndex.Contains(normalized))
             return; // 已在树里，去重
         if (WorkspaceIgnoreRules.ShouldIgnorePath(_workspaceDirectory, normalized))
@@ -892,12 +986,17 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         ObservableCollection<FileTreeNode> siblings;
         FileTreeNode? parentNode;
         int depth;
+        bool isWorkspaceChild;
 
-        if (string.Equals(normalizedParent, _workspaceDirectory, StringComparison.OrdinalIgnoreCase))
+        if (IsWorkspaceRootPath(normalizedParent))
         {
-            siblings = TreeNodes;
-            parentNode = null;
-            depth = 0;
+            if (!TryGetWorkspaceRoot(out var workspaceRoot) || workspaceRoot.LoadState != FileTreeLoadState.Loaded)
+                return;
+
+            parentNode = workspaceRoot;
+            siblings = workspaceRoot.Children;
+            depth = workspaceRoot.Depth + 1;
+            isWorkspaceChild = true;
         }
         else
         {
@@ -910,6 +1009,7 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
 
             siblings = parentNode.Children;
             depth = parentNode.Depth + 1;
+            isWorkspaceChild = false;
         }
 
         // 只判断磁盘上的实际类型；目录节点由 CreateNode 挂占位子节点保持懒加载。
@@ -917,7 +1017,7 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         if (!isDir && !File.Exists(normalized))
             return; // 建节点前对象已消失
 
-        var node = CreateNode(normalized, Path.GetFileName(normalized), isDir, parentNode, depth);
+        var node = CreateNode(normalized, Path.GetFileName(normalized), isDir, parentNode, depth, isWorkspaceChild);
         InsertSorted(siblings, node);
         _pathIndex.Add(node);
         MarkLastChild(siblings);
@@ -1047,6 +1147,13 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
 
     private void OnCollapseAllClick(object? sender, RoutedEventArgs e)
     {
+        if (TryGetWorkspaceRoot(out var rootNode))
+        {
+            CollapseAll(rootNode.Children);
+            rootNode.IsExpanded = true;
+            return;
+        }
+
         CollapseAll(TreeNodes);
     }
 
@@ -1118,6 +1225,7 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         var hasFile = nodes.Any(n => !n.IsDirectory);
         var hasDir = nodes.Any(n => n.IsDirectory);
         var allFiles = nodes.All(n => !n.IsDirectory);
+        var includesWorkspaceRoot = nodes.Any(IsWorkspaceRoot);
 
         // 打开：仅单选文件
         MenuOpen.IsVisible = isSingle && !singleNode!.IsDirectory;
@@ -1132,14 +1240,14 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         // 新建文件/文件夹：仅单选文件夹
         MenuNewFile.IsVisible = isSingle && singleNode!.IsDirectory;
         MenuNewFolder.IsVisible = isSingle && singleNode!.IsDirectory;
-        // 复制文件：任意选择
-        MenuCopy.IsVisible = true;
+        // 复制文件：任意选择，但不能包含工作目录根节点
+        MenuCopy.IsVisible = !includesWorkspaceRoot;
         // 粘贴：仅单选文件夹 + 剪贴板有内容
         MenuPaste.IsVisible = isSingle && singleNode!.IsDirectory && _clipboardPaths.Count > 0;
-        // 重命名：仅单选
-        MenuRename.IsVisible = isSingle;
-        // 删除：任意选择
-        MenuDelete.IsVisible = true;
+        // 重命名：仅单选，且不能是工作目录根节点
+        MenuRename.IsVisible = isSingle && !includesWorkspaceRoot;
+        // 删除：任意选择，但不能包含工作目录根节点
+        MenuDelete.IsVisible = !includesWorkspaceRoot;
         // 复制路径：任意选择
         MenuCopyPath.IsVisible = true;
         MenuCopyRelPath.IsVisible = true;
@@ -1245,7 +1353,7 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
     private void OnMenuCopyClick(object? sender, RoutedEventArgs e)
     {
         _clipboardPaths.Clear();
-        _clipboardPaths.AddRange(GetSelectedNodes().Select(n => n.FullPath));
+        _clipboardPaths.AddRange(GetSelectedNodes().Where(node => !IsWorkspaceRoot(node)).Select(n => n.FullPath));
     }
 
     private void OnMenuPasteClick(object? sender, RoutedEventArgs e)
@@ -1462,7 +1570,7 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
 
     private async void OnMenuRenameClick(object? sender, RoutedEventArgs e)
     {
-        if (FileTree.SelectedItem is not FileTreeNode node) return;
+        if (FileTree.SelectedItem is not FileTreeNode node || IsWorkspaceRoot(node)) return;
 
         var selectionEnd = node.IsDirectory
             ? node.Name.Length
@@ -1491,7 +1599,7 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
 
     private async void OnMenuDeleteClick(object? sender, RoutedEventArgs e)
     {
-        var nodes = GetSelectedNodes();
+        var nodes = GetSelectedNodes().Where(node => !IsWorkspaceRoot(node)).ToList();
         if (nodes.Count == 0) return;
 
         var message = nodes.Count == 1
