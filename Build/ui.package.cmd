@@ -1,5 +1,6 @@
 @echo off
 setlocal
+rem Usage: ui.package.cmd list ^| brand ^| all [-Version version]
 
 where pwsh >nul 2>nul
 if %errorlevel% equ 0 (

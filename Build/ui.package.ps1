@@ -6,6 +6,8 @@
 #>
 
 param(
+    [Parameter(Position = 0)]
+    [string]$Brand,
     [string]$Version,
     [string]$BrandReleaseDirectoryName = 'Cortana',
     [string]$BrandPackageName = 'Netor.Cortana',
@@ -17,6 +19,52 @@ param(
 $ErrorActionPreference = 'Stop'
 $BuildDir = $PSScriptRoot
 $SolutionDir = (Resolve-Path (Join-Path $BuildDir '..')).Path
+
+# Existing publish callers supply release properties directly.
+if ($PSBoundParameters.ContainsKey('Brand') -or
+    (-not $PSBoundParameters.ContainsKey('BrandReleaseDirectoryName') -and
+     -not $PSBoundParameters.ContainsKey('SourceDir'))) {
+    $brandsDir = Join-Path $BuildDir 'brands'
+    $availableBrands = @(Get-ChildItem $brandsDir -Directory | Where-Object {
+        Test-Path (Join-Path $_.FullName "$($_.Name).json") -PathType Leaf
+    } | Sort-Object Name | ForEach-Object { $_.Name })
+
+    if ([string]::IsNullOrWhiteSpace($Brand) -or $Brand -eq 'list') {
+        Write-Host 'Usage: ui.package.cmd <list|brand|all> [-Version version]'
+        Write-Host 'Available brands:'
+        $availableBrands | ForEach-Object { Write-Host "  $_" }
+        return
+    }
+
+    if ($Brand -ne 'all' -and $Brand -notin $availableBrands) {
+        throw "Unknown brand: $Brand. Available brands: $($availableBrands -join ', ')"
+    }
+
+    $selectedBrands = @($availableBrands | Where-Object { $Brand -eq 'all' -or $_ -eq $Brand })
+    if ($selectedBrands.Count -eq 0) { throw 'No packageable brands were found.' }
+    foreach ($selectedBrand in $selectedBrands) {
+        $configPath = Join-Path $brandsDir "$selectedBrand\$selectedBrand.json"
+        $config = [IO.File]::ReadAllText($configPath) | ConvertFrom-Json
+        $releaseName = if ($config.releaseDirectoryName) { $config.releaseDirectoryName } else { $config.englishName }
+        $archiveName = if ($config.packageName) { $config.packageName } else { $config.englishName }
+        if (-not $releaseName -or -not $archiveName) {
+            throw "Brand config is missing release or package names: $configPath"
+        }
+        $packageArgs = @{
+            BrandReleaseDirectoryName = $releaseName
+            BrandPackageName = $archiveName
+            OutputDir = $OutputDir
+        }
+        foreach ($option in 'Version', 'SourceDir', 'PackageName') {
+            if ($PSBoundParameters.ContainsKey($option)) {
+                $packageArgs[$option] = $PSBoundParameters[$option]
+            }
+        }
+        Write-Host "=== Packaging brand: $selectedBrand ===" -ForegroundColor Cyan
+        & $PSCommandPath @packageArgs
+    }
+    return
+}
 
 function Resolve-WorkspacePath {
     param([string]$Path)

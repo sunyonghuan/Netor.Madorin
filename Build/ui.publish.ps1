@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 $BuildDir = $PSScriptRoot
 $SolutionDir = (Resolve-Path (Join-Path $BuildDir '..')).Path
 $ProjectFile = Join-Path $SolutionDir 'Src\Netor.Cortana.UI\Netor.Cortana.UI.csproj'
-$NativeHostProjectFile = Join-Path $SolutionDir 'Src\Plugins\Netor.Cortana.NativeHost\Netor.Cortana.NativeHost.csproj'
+$NativeHostProjectFile = Join-Path $SolutionDir 'Src\Plugins\Netor.Madorin.Plugin.NativeHost\Netor.Madorin.Plugin.NativeHost.csproj'
 $OutputDir = Join-Path $SolutionDir (Join-Path 'Realases' $BrandReleaseDirectoryName)
 
 # Branded publishing calls this script again with explicit assembly properties.

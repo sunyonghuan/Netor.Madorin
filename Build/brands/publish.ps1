@@ -34,7 +34,7 @@ if (-not (Test-Path $BrandJson -PathType Leaf)) {
 }
 
 $UiAssetsDir = Join-Path $SolutionDir 'Src\Netor.Cortana.UI\Assets'
-$NativeHostDir = Join-Path $SolutionDir 'Src\Plugins\Netor.Cortana.NativeHost'
+$NativeHostDir = Join-Path $SolutionDir 'Src\Plugins\Netor.Madorin.Plugin.NativeHost'
 $uiIconDest = Join-Path $UiAssetsDir 'brand.ico'
 $uiLogoDest = Join-Path $UiAssetsDir 'brand.png'
 $hostIconDest = Join-Path $NativeHostDir 'brand.ico'
