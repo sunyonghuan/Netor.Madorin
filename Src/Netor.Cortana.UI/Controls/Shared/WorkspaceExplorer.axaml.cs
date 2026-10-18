@@ -184,6 +184,8 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         FileTree.AddHandler(DragDrop.DragOverEvent, OnTreeDragOver);
         FileTree.AddHandler(DragDrop.DragLeaveEvent, OnTreeDragLeave);
         FileTree.AddHandler(DragDrop.DropEvent, OnTreeDrop);
+        FileTree.AddHandler(InputElement.PointerPressedEvent, OnFolderHeaderPressed, RoutingStrategies.Tunnel);
+        FileTree.AddHandler(InputElement.DoubleTappedEvent, OnFolderHeaderDoubleTapped, RoutingStrategies.Tunnel);
         FileTree.PointerEntered += OnFileTreePointerEntered;
         FileTree.PointerExited += OnFileTreePointerExited;
         FileTree.LayoutUpdated += OnFileTreeLayoutUpdated;
@@ -1172,7 +1174,66 @@ public partial class WorkspaceExplorer : UserControl, INotifyPropertyChanged
         }
     }
 
-    // ──────── 文件双击打开 ────────
+    // ──────── 单击展开目录，双击打开文件 ────────
+
+    /// <summary>
+    /// 左键单击文件夹图标或名称时展开/收起。展开箭头仍由控件自己切换。
+    /// Ctrl/Shift 保留多选，不改变展开状态。
+    /// </summary>
+    private void OnFolderHeaderPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.ClickCount != 1)
+            return;
+        if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift)) != 0)
+            return;
+        if (!e.GetCurrentPoint(FileTree).Properties.IsLeftButtonPressed)
+            return;
+        if (!TryGetFolderHeaderNode(e.Source as Visual, out var node))
+            return;
+
+        node.IsExpanded = !node.IsExpanded;
+    }
+
+    /// <summary>
+    /// 单击已经切换展开。拦住标题上的双击，避免 TreeViewItem 再切换一次。
+    /// </summary>
+    private void OnFolderHeaderDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (!TryGetFolderHeaderNode(e.Source as Visual, out _))
+            return;
+
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// 命中文件夹标题内容时返回该节点。箭头区域返回 false，交给原有展开按钮。
+    /// </summary>
+    private static bool TryGetFolderHeaderNode(Visual? source, out FileTreeNode node)
+    {
+        node = null!;
+        if (source is null)
+            return false;
+
+        var item = source.FindAncestorOfType<TreeViewItem>();
+        if (item?.DataContext is not FileTreeNode { IsDirectory: true, IsPlaceholder: false } folder)
+            return false;
+
+        var current = source;
+        while (current is not null && !ReferenceEquals(current, item))
+        {
+            if (current is StyledElement { Name: "PART_ExpandCollapseChevron" or "PART_ExpandCollapseChevronContainer" })
+                return false;
+            if (current is StyledElement { Name: "PART_HeaderPresenter" })
+            {
+                node = folder;
+                return true;
+            }
+
+            current = current.GetVisualParent();
+        }
+
+        return false;
+    }
 
     private void OnTreeDoubleTapped(object? sender, RoutedEventArgs e)
     {
