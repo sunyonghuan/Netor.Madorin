@@ -35,8 +35,14 @@ brands/
 # 校验配置，不发布
 powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand madorin -ValidateOnly
 
-# 发布
+# 发布。默认把 UI 项目版本的 Patch +1，并在编译前写回项目文件。
 powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand madorin -UseVsWhereFix
+
+# 不递增版本号
+powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand madorin -NoBump
+
+# 指定版本号，不再自动递增
+powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand madorin -Version 1.4.0
 
 # 发布 + 打包 zip/sha256
 powershell -NoProfile -ExecutionPolicy Bypass -File .\brands\publish.ps1 -Brand streamx -UseVsWhereFix -Package

@@ -4,6 +4,10 @@
 param(
     [Parameter(Position = 0)]
     [string]$Brand,
+    [string]$Version,
+    [ValidateSet('patch', 'minor', 'major')]
+    [string]$Bump = 'patch',
+    [switch]$NoBump,
     [switch]$ValidateOnly,
     [string]$BrandDesktopAssemblyName = 'Madorin',
     [string]$BrandAssemblyTitle = 'Madorin',
@@ -30,7 +34,8 @@ if (-not $PSBoundParameters.ContainsKey('BrandDesktopAssemblyName')) {
     } | Sort-Object Name | ForEach-Object { $_.Name })
 
     if ([string]::IsNullOrWhiteSpace($Brand) -or $Brand -eq 'list') {
-        Write-Host 'Usage: ui.publish.cmd <list|brand|all> [-ValidateOnly]'
+        Write-Host 'Usage: ui.publish.cmd <list|brand|all> [-ValidateOnly] [-NoBump] [-Bump patch|minor|major] [-Version x.y.z]'
+        Write-Host 'A normal publish increases the UI patch version before building.'
         Write-Host 'Available brands:'
         $availableBrands | ForEach-Object { Write-Host "  $_" }
         return
@@ -47,11 +52,30 @@ if (-not $PSBoundParameters.ContainsKey('BrandDesktopAssemblyName')) {
         exit 1
     }
 
+    $sharedVersion = $null
     foreach ($selectedBrand in $selectedBrands) {
         Write-Host "=== Publishing brand: $selectedBrand ===" -ForegroundColor Cyan
         $global:LASTEXITCODE = 0
-        & (Join-Path $brandsDir 'publish.ps1') -Brand $selectedBrand -ValidateOnly:$ValidateOnly
+        $publishArgs = @{
+            Brand = $selectedBrand
+            ValidateOnly = [bool]$ValidateOnly
+        }
+        if ($sharedVersion) {
+            $publishArgs.Version = $sharedVersion
+        } elseif (-not [string]::IsNullOrWhiteSpace($Version)) {
+            $publishArgs.Version = $Version
+        } else {
+            $publishArgs.Bump = $Bump
+            if ($NoBump) { $publishArgs.NoBump = $true }
+        }
+
+        & (Join-Path $brandsDir 'publish.ps1') @publishArgs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        if (-not $sharedVersion -and -not $ValidateOnly) {
+            $projectFile = Join-Path $SolutionDir 'Src\Netor.Cortana.UI\Netor.Cortana.UI.csproj'
+            $versionMatch = [regex]::Match((Get-Content -Path $projectFile -Raw -Encoding UTF8), '(?m)^\s*<Version>(?<version>[^<]+)</Version>\s*$')
+            if ($versionMatch.Success) { $sharedVersion = $versionMatch.Groups['version'].Value.Trim() }
+        }
     }
     return
 }
