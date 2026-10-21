@@ -21,10 +21,11 @@
 		     本控件改为纯文件目录 UI，不再耦合 MainWindow 标题栏布局。
 		     详见 Docs/未来版本策划/界面重设计/04-实施阶段.md §3.4 + §3.5。 -->
 
-		<!-- 顶部工具栏。左侧留空，工作目录名称改由文件树根节点展示。 -->
+		<!-- 顶部工具栏。左侧为文件操作按钮，右侧单独放工作台折叠按钮；
+		     工作目录名称改由文件树根节点展示。 -->
 		<Border DockPanel.Dock="Top" Background="#1e1e1e" Padding="8,6" BorderBrush="#252526" BorderThickness="0,0,0,1">
-			<Grid ColumnDefinitions="*,Auto">
-				<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+			<Grid ColumnDefinitions="Auto,*,Auto">
+				<StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="2">
 					<Button Classes="titlebar-btn" ToolTip.Tip="打开文件夹" Click="OnOpenFolderClick">
 						<Image Source="/Assets/open.png" Width="14" Height="14" />
 					</Button>
@@ -37,17 +38,21 @@
 					<Button Classes="titlebar-btn" ToolTip.Tip="全部折叠" Click="OnCollapseAllClick">
 						<Image Source="/Assets/expland.png" Width="14" Height="14" />
 					</Button>
-					<Button Classes="titlebar-btn" ToolTip.Tip="折叠工作台" Click="OnWorkspacePanelCollapseClick">
-						<Image Source="/Assets/up.png"
-						       Width="14"
-						       Height="14"
-						       RenderTransformOrigin="50%,50%">
-							<Image.RenderTransform>
-								<RotateTransform Angle="270" />
-							</Image.RenderTransform>
-						</Image>
-					</Button>
 				</StackPanel>
+				<Button Grid.Column="2"
+				        Classes="titlebar-btn"
+				        ToolTip.Tip="折叠工作台"
+				        Click="OnWorkspacePanelCollapseClick">
+					<!-- 折叠工作台：面板框 + 左分隔线 + 左箭头，纯路径绘制 -->
+					<Path Data="M4 3.2h8a1.4 1.4 0 0 1 1.4 1.4v6.8a1.4 1.4 0 0 1-1.4 1.4H4a1.4 1.4 0 0 1-1.4-1.4V4.6A1.4 1.4 0 0 1 4 3.2z M6.4 3.2v9.6 M11.3 6.2 9.1 8l2.2 1.8"
+					      Width="14"
+					      Height="14"
+					      Stretch="Uniform"
+					      Stroke="#8a8a8a"
+					      StrokeThickness="1.35"
+					      StrokeLineCap="Round"
+					      StrokeJoin="Round" />
+				</Button>
 			</Grid>
 		</Border>
 
