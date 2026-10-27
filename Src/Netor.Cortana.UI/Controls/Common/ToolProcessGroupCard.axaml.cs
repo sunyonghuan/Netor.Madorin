@@ -138,17 +138,7 @@ public sealed partial class ToolProcessGroupCard : UserControl
             return;
         }
 
-        if (snapshot.Failed > 0 || snapshot.Cancelled > 0)
-        {
-            if (!_manualToggled)
-            {
-                SetExpanded(true);
-            }
-
-            return;
-        }
-
-        if (!_manualToggled)
+        if (snapshot.Failed == 0 && snapshot.Cancelled == 0 && !_manualToggled)
         {
             SetExpanded(false);
         }
